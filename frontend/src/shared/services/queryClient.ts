@@ -16,9 +16,21 @@ export const queryClient = new QueryClient({
     },
   },
   queryCache: new QueryCache({
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => {
+      const message = getErrorMessage(error)
+  
+      if (!message) return
+  
+      toast.error(message)
+    },
   }),
   mutationCache: new MutationCache({
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => {
+      const message = getErrorMessage(error)
+  
+      if (!message) return
+  
+      toast.error(message)
+    },
   }),
 })
