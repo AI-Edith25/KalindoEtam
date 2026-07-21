@@ -72,7 +72,13 @@ export function useEntityListPage<T extends { id: string }, F>({
       toast.success(deletedMessage)
       setDeletingItem(null)
     },
-    onError: (error: unknown) => toast.error(getErrorMessage(error)),
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error)
+
+      if (message) {
+        toast.error(message)
+      }
+    },
   })
 
   const rows = useMemo(() => {
