@@ -12,6 +12,12 @@ export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as Partial<ValidationErrorBody> & { message?: string } | undefined
 
+    if (error.response?.status === 403) {
+      return ''
+    }
+
+    const data = error.response?.data as Partial<ValidationErrorBody> & { message?: string } | undefined
+
     if (data?.errors) {
       const firstFieldErrors = Object.values(data.errors)[0]
       if (firstFieldErrors?.[0]) {
