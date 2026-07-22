@@ -89,7 +89,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // administration.company.view, see docs/ADMINISTRATION_DESIGN.md. Deliberately outside $withPagePermissions.
     Route::get('company/branding', [CompanyController::class, 'branding']);
     Route::get('company/branding/logo', [CompanyController::class, 'brandingLogo']);
-    $withPagePermissions(Route::apiResource('branches', BranchController::class), 'administration.branch');
+    // 'master.warehouses.view' is OR'd in — Warehouse create/edit needs to list Branches to
+    // assign one, without requiring the full Administration > Branch permission. Same pattern
+    // as sales-orders/purchase-orders below pulling in their own Reports view permission.
+    $withPagePermissions(Route::apiResource('branches', BranchController::class), 'administration.branch', 'master.warehouses.view');
     $withPagePermissions(Route::apiResource('warehouses', WarehouseController::class), 'master.warehouses');
 
     $withPagePermissions(Route::apiResource('roles', RoleController::class), 'administration.roles');

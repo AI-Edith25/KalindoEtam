@@ -38,7 +38,7 @@ export function WarehouseListPage() {
     deletedMessage: 'Warehouse deleted.',
   })
 
-  const branches = useBranchesLookup()
+  const branches = useBranchesLookup(true, 'master.warehouses.view')
   const branchName = (branchId: string) => branches.data?.find((b) => b.id === branchId)?.name ?? '—'
 
   const columns: DataTableColumn<Warehouse>[] = [

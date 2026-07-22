@@ -61,7 +61,7 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
     )
   }, [open, warehouse, form])
 
-  const branches = useBranchesLookup()
+  const branches = useBranchesLookup(true, 'master.warehouses.view')
 
   const mutation = useMutation({
     mutationFn: (values: WarehouseFormValues) =>

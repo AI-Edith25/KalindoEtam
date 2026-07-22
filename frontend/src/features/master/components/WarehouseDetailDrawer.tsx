@@ -20,7 +20,7 @@ interface WarehouseDetailDrawerProps {
  * request under the shared ['branches'] key.
  */
 export function WarehouseDetailDrawer({ open, onOpenChange, warehouse, onEdit }: WarehouseDetailDrawerProps) {
-  const branches = useBranchesLookup(open)
+  const branches = useBranchesLookup(open, 'master.warehouses.view')
 
   if (!warehouse) return null
 
