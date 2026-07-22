@@ -20,6 +20,7 @@ import { fetchItemsLookup, fetchSuppliersLookup, fetchTaxesLookup } from '@/feat
 import { createPurchaseOrder, fetchPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder } from '../api/purchaseOrderApi'
 import { PurchaseOrderLineItemTable } from '../components/PurchaseOrderLineItemTable'
 import { computeSubtotal } from '@/shared/lib/documentTotals'
+import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
 import {
   emptyPurchaseOrderEditorValues,
   purchaseOrderFormSchema,
@@ -28,6 +29,7 @@ import {
 import type { PurchaseOrderFormValues } from '../types'
 
 const NO_TAX = '__none__'
+const APPROVABLE_TYPE = 'App\\Models\\PurchaseOrder'
 
 export function PurchaseOrderEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -112,6 +114,12 @@ export function PurchaseOrderEditorPage() {
     },
     onError: (error) => toastApiError(error),
   })
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+
+  // Same gate as PurchaseOrderDetailPage's own Submit button — approval must be APPROVED (or
+  // not required) before Submit can succeed. See docs/APPROVAL_WORKFLOW_DESIGN.md §2.
+  const blockedByApproval = orderQuery.data?.requires_approval && orderQuery.data?.latest_approval?.status !== 'approved'
 
   const watchedItems = form.watch('items')
   const subtotal = computeSubtotal(watchedItems ?? [])
@@ -276,6 +284,17 @@ export function PurchaseOrderEditorPage() {
             </CardContent>
           </Card>
 
+          {isEdit && orderQuery.data?.status === 'draft' && orderQuery.data?.requires_approval && (
+            <ApprovalPanel
+              approvableType={APPROVABLE_TYPE}
+              approvableId={id!}
+              module="purchase.orders"
+              documentStatus={orderQuery.data.status}
+              documentLabel={orderQuery.data.document_number ?? 'this Purchase Order'}
+              onChanged={invalidate}
+            />
+          )}
+
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => navigate('/purchase/orders')}>
               Cancel
@@ -285,7 +304,12 @@ export function PurchaseOrderEditorPage() {
               Save Draft
             </Button>
             {isEdit && orderQuery.data?.status === 'draft' && (
-              <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+              <Button
+                type="button"
+                onClick={() => submitMutation.mutate()}
+                disabled={submitMutation.isPending || blockedByApproval}
+                title={blockedByApproval ? 'This order needs an approved request before it can be submitted.' : undefined}
+              >
                 {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 Submit
               </Button>

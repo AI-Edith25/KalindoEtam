@@ -18,7 +18,10 @@ import { formatCurrency, cn } from '@/lib/utils'
 import { createJournalEntry, fetchJournalEntry, postJournalEntry, updateJournalEntry } from '../api/journalEntryApi'
 import { JournalEntryLineItemTable } from '../components/JournalEntryLineItemTable'
 import { emptyJournalEntryEditorValues, journalEntryFormSchema, type JournalEntryEditorValues } from '../lib/journalEntryFormSchema'
+import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
 import type { JournalEntryFormValues } from '../types'
+
+const APPROVABLE_TYPE = 'App\\Models\\JournalEntry'
 
 export function JournalEntryEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -95,6 +98,12 @@ export function JournalEntryEditorPage() {
     },
     onError: (error) => toastApiError(error),
   })
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
+
+  // Same gate as JournalEntryDetailPage's own Post button — approval must be APPROVED (or not
+  // required) before Post can succeed. See docs/APPROVAL_WORKFLOW_DESIGN.md §2.
+  const blockedByApproval = entryQuery.data?.requires_approval && entryQuery.data?.latest_approval?.status !== 'approved'
 
   const watchedLines = useWatch({ control: form.control, name: 'lines' })
   const totalDebit = (watchedLines ?? []).reduce((sum, line) => sum + Number(line?.debit || 0), 0)
@@ -181,6 +190,17 @@ export function JournalEntryEditorPage() {
             </CardContent>
           </Card>
 
+          {isEdit && entryQuery.data?.status === 'draft' && entryQuery.data?.requires_approval && (
+            <ApprovalPanel
+              approvableType={APPROVABLE_TYPE}
+              approvableId={id!}
+              module="accounting.journal_entries"
+              documentStatus={entryQuery.data.status}
+              documentLabel={entryQuery.data.document_number ?? 'this Journal Entry'}
+              onChanged={invalidate}
+            />
+          )}
+
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => navigate('/accounting/journal-entries')}>
               Cancel
@@ -190,7 +210,12 @@ export function JournalEntryEditorPage() {
               Save Draft
             </Button>
             {isEdit && entryQuery.data?.status === 'draft' && (
-              <Button type="button" onClick={() => postMutation.mutate()} disabled={postMutation.isPending || !isBalanced}>
+              <Button
+                type="button"
+                onClick={() => postMutation.mutate()}
+                disabled={postMutation.isPending || !isBalanced || blockedByApproval}
+                title={blockedByApproval ? 'This manual entry needs an approved request before it can be posted.' : undefined}
+              >
                 {postMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 Post
               </Button>

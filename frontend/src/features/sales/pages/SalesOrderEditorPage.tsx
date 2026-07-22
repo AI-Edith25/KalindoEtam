@@ -21,7 +21,10 @@ import { fetchCustomersLookup, fetchItemsLookup } from '@/features/master/api/lo
 import { createSalesOrder, fetchSalesOrder, submitSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
 import { SalesOrderLineItemTable } from '../components/SalesOrderLineItemTable'
 import { emptySalesOrderEditorValues, salesOrderFormSchema, type SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
+import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
 import type { SalesOrderFormValues } from '../types'
+
+const APPROVABLE_TYPE = 'App\\Models\\SalesOrder'
 
 export function SalesOrderEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -103,6 +106,12 @@ export function SalesOrderEditorPage() {
     },
     onError: (error) => toastApiError(error),
   })
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+
+  // Same gate as SalesOrderDetailPage's own Submit button — approval must be APPROVED (or not
+  // required) before Submit can succeed. See docs/APPROVAL_WORKFLOW_DESIGN.md §2.
+  const blockedByApproval = orderQuery.data?.requires_approval && orderQuery.data?.latest_approval?.status !== 'approved'
 
   const watchedItems = form.watch('items')
   const subtotal = computeSubtotal(watchedItems ?? [])
@@ -228,6 +237,17 @@ export function SalesOrderEditorPage() {
             </CardContent>
           </Card>
 
+          {isEdit && orderQuery.data?.status === 'draft' && orderQuery.data?.requires_approval && (
+            <ApprovalPanel
+              approvableType={APPROVABLE_TYPE}
+              approvableId={id!}
+              module="sales.orders"
+              documentStatus={orderQuery.data.status}
+              documentLabel={orderQuery.data.document_number ?? 'this Sales Order'}
+              onChanged={invalidate}
+            />
+          )}
+
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => navigate('/sales/orders')}>
               Cancel
@@ -237,7 +257,12 @@ export function SalesOrderEditorPage() {
               Save Draft
             </Button>
             {isEdit && orderQuery.data?.status === 'draft' && (
-              <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+              <Button
+                type="button"
+                onClick={() => submitMutation.mutate()}
+                disabled={submitMutation.isPending || blockedByApproval}
+                title={blockedByApproval ? 'This order needs an approved request before it can be submitted.' : undefined}
+              >
                 {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 Submit
               </Button>
