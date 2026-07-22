@@ -92,26 +92,43 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
               <FormField
                 control={form.control}
                 name="branch_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Branch</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Select branch'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {branches.data?.map((branch) => (
-                          <SelectItem key={branch.id} value={branch.id}>
-                            {branch.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  console.log('branches', branches)
+                  console.log('Array.isArray(branches.data)', Array.isArray(branches.data))
+                  console.log('branches.data.length', branches.data?.length)
+                  if (Array.isArray(branches.data)) {
+                    const ids = branches.data.map((b) => b.id)
+                    console.log('id types', branches.data.map((b) => typeof b.id))
+                    console.log('name types', branches.data.map((b) => typeof b.name))
+                    console.log('every id non-empty string', ids.every((id) => typeof id === 'string' && id.length > 0))
+                    console.log('duplicate ids', ids.filter((id, i) => ids.indexOf(id) !== i))
+                    console.log('any null values', branches.data.some((b) => b === null || b.id === null || b.name === null))
+                  }
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Branch</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Select branch'} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {branches.data?.map((branch) => {
+                            console.log(branch)
+                            return (
+                              <SelectItem key={branch.id} value={branch.id}>
+                                {branch.name}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
               />
               <FormField
                 control={form.control}
