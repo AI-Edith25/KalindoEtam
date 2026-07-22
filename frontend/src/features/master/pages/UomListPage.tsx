@@ -14,7 +14,6 @@ import { deleteUom, fetchUomsPaged } from '../api/uomApi'
 import { UomFormDrawer } from '../components/UomFormDrawer'
 import { UomDetailDrawer } from '../components/UomDetailDrawer'
 import { applyUomFilters, emptyUomFilters, type UomFilterValues } from '../lib/uomFilters'
-import { masterDataNav } from '../navigation'
 import type { Uom } from '../types'
 
 const SORTERS: Record<string, (u: Uom) => string | number> = {
@@ -22,9 +21,9 @@ const SORTERS: Record<string, (u: Uom) => string | number> = {
 }
 
 export function UomListPage() {
-  const canCreate = useHasPermission('uom.create')
-  const canUpdate = useHasPermission('uom.update')
-  const canDelete = useHasPermission('uom.delete')
+  const canCreate = useHasPermission('master.uoms.create')
+  const canUpdate = useHasPermission('master.uoms.update')
+  const canDelete = useHasPermission('master.uoms.delete')
   const list = useEntityListPage<Uom, UomFilterValues>({
     queryKey: 'uoms-paged',
     fetchList: fetchUomsPaged,
@@ -55,7 +54,7 @@ export function UomListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={masterDataNav} />
+      <SectionNav group="master" />
 
       <PageHeader
         title="Units of Measurement"

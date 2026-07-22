@@ -22,7 +22,6 @@ import {
   updateCompany,
   uploadCompanyLogo,
 } from '../api/companyApi'
-import { administrationNav } from '../navigation'
 import type { CompanyFormValues } from '../types'
 
 const companyFormSchema = z.object({
@@ -119,7 +118,7 @@ export function CompanyPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={administrationNav} />
+      <SectionNav group="administration" />
 
       <PageHeader title="Company" description="Your organization's identity, contact details, and fiscal calendar — shown across the app and on printed documents." />
 

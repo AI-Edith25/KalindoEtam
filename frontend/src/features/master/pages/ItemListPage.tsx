@@ -15,7 +15,6 @@ import { ItemFormDrawer } from '../components/ItemFormDrawer'
 import { ItemDetailDrawer } from '../components/ItemDetailDrawer'
 import { ItemFiltersBar } from '../components/ItemFiltersBar'
 import { applyItemFilters, emptyItemFilters, type ItemFilterValues } from '../lib/itemFilters'
-import { masterDataNav } from '../navigation'
 import type { Item } from '../types'
 
 const SORTERS: Record<string, (item: Item) => string | number> = {
@@ -26,9 +25,9 @@ const SORTERS: Record<string, (item: Item) => string | number> = {
 }
 
 export function ItemListPage() {
-  const canCreate = useHasPermission('item.create')
-  const canUpdate = useHasPermission('item.update')
-  const canDelete = useHasPermission('item.delete')
+  const canCreate = useHasPermission('master.items.create')
+  const canUpdate = useHasPermission('master.items.update')
+  const canDelete = useHasPermission('master.items.delete')
   const list = useEntityListPage<Item, ItemFilterValues>({
     queryKey: 'items',
     fetchList: fetchItems,
@@ -73,7 +72,7 @@ export function ItemListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={masterDataNav} />
+      <SectionNav group="master" />
 
       <PageHeader
         title="Items"

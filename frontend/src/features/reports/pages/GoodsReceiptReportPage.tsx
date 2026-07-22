@@ -15,7 +15,6 @@ import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
 import type { GoodsReceipt } from '@/features/purchase/types'
 import { GoodsReceiptReportFiltersBar } from '../components/GoodsReceiptReportFiltersBar'
 import { emptyGoodsReceiptReportFilters } from '../lib/reportFilters'
-import { reportsSectionNav } from '../navigation'
 import type { GoodsReceiptReportFilterValues } from '../types'
 
 /** Read-only report over Goods Receipt — reuses fetchGoodsReceipts() as-is, no new endpoint. */
@@ -80,7 +79,7 @@ export function GoodsReceiptReportPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={reportsSectionNav} />
+      <SectionNav group="reports" />
 
       <PageHeader
         title="Goods Receipt Report"

@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge'
 import { formatNumber } from '@/lib/utils'
 import { fetchAuditLogsPaged } from '../api/auditLogApi'
 import { AuditLogFiltersBar } from '../components/AuditLogFiltersBar'
-import { administrationNav } from '../navigation'
 import type { AuditLog, AuditLogFilterValues } from '../types'
 
 /** Audit entries need time-of-day, not just date — formatDate() (lib/utils) deliberately only formats a date, so this stays local rather than changing that shared helper for one page. */
@@ -42,7 +41,7 @@ export function AuditLogListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={administrationNav} />
+      <SectionNav group="administration" />
 
       <PageHeader
         title="Audit Log"

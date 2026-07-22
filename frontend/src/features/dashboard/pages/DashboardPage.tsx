@@ -18,10 +18,10 @@ import { formatCurrency, formatNumber } from '@/lib/utils'
  * docs/DASHBOARD_DESIGN.md §1/§4.
  */
 export function DashboardPage() {
-  const canViewInventory = useHasPermission('item.view')
-  const canViewFinancials = useHasPermission('journal_entry.view')
-  const canViewPayable = useHasPermission('accounts_payable.view')
-  const canViewReceivable = useHasPermission('accounts_receivable.view')
+  const canViewInventory = useHasPermission('master.items.view')
+  const canViewFinancials = useHasPermission('accounting.journal_entries.view')
+  const canViewPayable = useHasPermission('finance.accounts_payable.view')
+  const canViewReceivable = useHasPermission('finance.accounts_receivable.view')
   const canViewDashboard = useHasPermission('dashboard.view')
 
   const apOutstanding = useQuery({

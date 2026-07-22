@@ -12,7 +12,6 @@ import { formatNumber } from '@/lib/utils'
 import { fetchStockBalanceReport } from '../api/stockBalanceApi'
 import { StockBalanceFiltersBar } from '../components/StockBalanceFiltersBar'
 import { emptyStockBalanceFilters } from '../lib/stockBalanceFilters'
-import { inventorySectionNav } from '../navigation'
 import type { StockBalanceFilterValues, StockBalanceRow } from '../types'
 
 /** Landing page for Inventory — "what do we have, where." Row click drills into Stock Ledger, pre-filtered to that item+warehouse. */
@@ -51,7 +50,7 @@ export function StockBalanceListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={inventorySectionNav} />
+      <SectionNav group="inventory" />
 
       <PageHeader
         title="Stock Balance"

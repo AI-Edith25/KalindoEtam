@@ -12,7 +12,6 @@ import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { fetchProfitLoss } from '../api/profitLossApi'
 import { ProfitLossFiltersBar } from '../components/ProfitLossFiltersBar'
 import { emptyProfitLossFilters, resolvePeriodPreset } from '../lib/profitLossFilters'
-import { accountingSectionNav } from '../navigation'
 import type { ProfitLossFilterValues, ProfitLossSectionData } from '../types'
 
 /** A read model, like General Ledger and Trial Balance — no create/edit/delete anywhere on this page. See docs/PROFIT_LOSS_DESIGN.md §1. */
@@ -97,7 +96,7 @@ export function ProfitLossListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={accountingSectionNav} />
+      <SectionNav group="accounting" />
 
       <PageHeader
         title="Profit & Loss"

@@ -16,13 +16,14 @@ function usePermissionedLookup<T>(queryKey: string, queryFn: () => Promise<T[]>,
   return useQuery({ queryKey: [queryKey], queryFn, enabled: hasPermission && enabled })
 }
 
-export const useBranchesLookup = (enabled = true) => usePermissionedLookup('branches-lookup', fetchBranches, 'branch.view', enabled)
+export const useBranchesLookup = (enabled = true) =>
+  usePermissionedLookup('branches-lookup', fetchBranches, 'administration.branch.view', enabled)
 
 export const useCompaniesLookup = (enabled = true) =>
-  usePermissionedLookup('companies-lookup', fetchCompaniesLookup, 'company.view', enabled)
+  usePermissionedLookup('companies-lookup', fetchCompaniesLookup, 'administration.company.view', enabled)
 
 export const useChartOfAccountsLookup = (enabled = true) =>
-  usePermissionedLookup('chart-of-accounts-lookup', fetchChartOfAccountsLookup, 'chart_of_account.view', enabled)
+  usePermissionedLookup('chart-of-accounts-lookup', fetchChartOfAccountsLookup, 'master.chart_of_accounts.view', enabled)
 
 export const useWarehousesLookup = (enabled = true) =>
-  usePermissionedLookup('warehouses-lookup', fetchWarehousesLookup, 'warehouse.view', enabled)
+  usePermissionedLookup('warehouses-lookup', fetchWarehousesLookup, 'master.warehouses.view', enabled)

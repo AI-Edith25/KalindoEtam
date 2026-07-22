@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { navTree, extraPermissions, standalonePermissions, permissionName, type Action } from '@/config/navTree'
 import { assignRolePermissions, fetchPermissions } from '../api/roleApi'
 import type { Role } from '../types'
 
-const ACTIONS = ['view', 'create', 'update', 'delete'] as const
+const ALL_ACTIONS: Action[] = ['view', 'create', 'update', 'delete', 'approve']
 
 interface PermissionMatrixDrawerProps {
   open: boolean
@@ -17,52 +18,58 @@ interface PermissionMatrixDrawerProps {
   role: Role | null
 }
 
-function moduleLabel(module: string): string {
-  return module
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
+type CheckedState = boolean | 'indeterminate'
 
 /**
- * Groups the flat `{module}.{action}` permission names by module client-side
- * — Permission has no separate module/action column in the database, and
- * this design deliberately doesn't add one. See docs/ADMINISTRATION_DESIGN.md §5.
+ * Renders the app's single navTree (the same source SidebarNav/Breadcrumbs/
+ * SectionNav/router guards all derive from) as a group -> page -> action
+ * permission tree — Windows-Explorer-style tri-state checkboxes: a group
+ * checkbox selects/clears every action of every page beneath it, and shows
+ * indeterminate when only some are selected; a page checkbox does the same
+ * across just its own actions. Permission names are always derived via
+ * permissionName(), never hand-typed, so this UI can't drift out of sync
+ * with the pages it's supposed to represent.
  */
 export function PermissionMatrixDrawer({ open, onOpenChange, role }: PermissionMatrixDrawerProps) {
   const queryClient = useQueryClient()
   const permissionsQuery = useQuery({ queryKey: ['permissions'], queryFn: fetchPermissions, enabled: open })
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (open && role) setSelected(new Set(role.permissions))
   }, [open, role])
 
-  const modules = useMemo(() => {
-    const names = (permissionsQuery.data ?? []).map((p) => p.name)
-    const moduleSet = new Set(names.map((name) => name.split('.')[0]))
-    return Array.from(moduleSet).sort()
-  }, [permissionsQuery.data])
+  // Guards against navTree drifting out of sync with the seeded catalog — only ever
+  // offer a checkbox for a permission that actually exists server-side.
+  const existingNames = useMemo(() => new Set((permissionsQuery.data ?? []).map((p) => p.name)), [permissionsQuery.data])
 
-  const toggle = (permission: string, checked: boolean) => {
+  const toggleMany = (names: string[], checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (checked) next.add(permission)
-      else next.delete(permission)
+      for (const name of names) {
+        if (checked) next.add(name)
+        else next.delete(name)
+      }
       return next
     })
   }
 
-  const toggleRow = (module: string, checked: boolean) => {
-    setSelected((prev) => {
+  const toggleExpanded = (key: string) => {
+    setExpanded((prev) => {
       const next = new Set(prev)
-      for (const action of ACTIONS) {
-        const permission = `${module}.${action}`
-        if (checked) next.add(permission)
-        else next.delete(permission)
-      }
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
+  }
+
+  const triState = (names: string[]): CheckedState => {
+    const present = names.filter((name) => existingNames.has(name))
+    if (present.length === 0) return false
+    const selectedCount = present.filter((name) => selected.has(name)).length
+    if (selectedCount === 0) return false
+    return selectedCount === present.length ? true : 'indeterminate'
   }
 
   const mutation = useMutation({
@@ -82,53 +89,146 @@ export function PermissionMatrixDrawer({ open, onOpenChange, role }: PermissionM
       <SheetContent className="w-full sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>Permissions — {role.name}</SheetTitle>
-          <SheetDescription>Grouped by module. Submitting replaces this role&apos;s entire permission set.</SheetDescription>
+          <SheetDescription>Grouped by application page. Submitting replaces this role&apos;s entire permission set.</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4">
           {permissionsQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="py-2 font-medium">Module</th>
-                  {ACTIONS.map((action) => (
-                    <th key={action} className="py-2 text-center font-medium capitalize">
-                      {action}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {modules.map((module) => {
-                  const rowFullySelected = ACTIONS.every((action) => selected.has(`${module}.${action}`))
+            <div className="flex flex-col gap-2">
+              {navTree.map((group) => {
+                const groupNames = group.pages.flatMap((page) => page.actions.map((action) => permissionName(group.key, page.key, action)))
+                const isExpanded = expanded.has(group.key)
 
-                  return (
-                    <tr key={module} className="border-b last:border-0">
-                      <td className="py-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleRow(module, !rowFullySelected)}
-                          className="text-left hover:underline"
-                          title="Toggle all actions for this module"
-                        >
-                          {moduleLabel(module)}
-                        </button>
-                      </td>
-                      {ACTIONS.map((action) => {
-                        const permission = `${module}.${action}`
-                        return (
-                          <td key={action} className="py-2 text-center">
-                            <Switch checked={selected.has(permission)} onCheckedChange={(checked) => toggle(permission, checked)} />
-                          </td>
-                        )
-                      })}
+                return (
+                  <div key={group.key} className="rounded-md border">
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(group.key)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                      </button>
+                      <Checkbox
+                        checked={triState(groupNames)}
+                        onCheckedChange={(checked) => toggleMany(groupNames, checked === true)}
+                      />
+                      <button type="button" onClick={() => toggleExpanded(group.key)} className="text-sm font-medium hover:underline">
+                        {group.label}
+                      </button>
+                    </div>
+
+                    {isExpanded && (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-t text-left text-muted-foreground">
+                            <th className="py-2 pl-9 font-medium">Page</th>
+                            {ALL_ACTIONS.map((action) => (
+                              <th key={action} className="py-2 text-center font-medium capitalize">
+                                {action}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.pages.map((page) => {
+                            const pageNames = page.actions.map((action) => permissionName(group.key, page.key, action))
+
+                            return (
+                              <tr key={page.key} className="border-t">
+                                <td className="py-2 pl-9">
+                                  <label className="flex items-center gap-2">
+                                    <Checkbox
+                                      checked={triState(pageNames)}
+                                      onCheckedChange={(checked) => toggleMany(pageNames, checked === true)}
+                                    />
+                                    {page.label}
+                                  </label>
+                                </td>
+                                {ALL_ACTIONS.map((action) => {
+                                  const name = permissionName(group.key, page.key, action)
+                                  if (!page.actions.includes(action) || !existingNames.has(name)) {
+                                    return (
+                                      <td key={action} className="py-2 text-center text-muted-foreground/30">
+                                        —
+                                      </td>
+                                    )
+                                  }
+                                  return (
+                                    <td key={action} className="py-2 text-center">
+                                      <Checkbox
+                                        checked={selected.has(name)}
+                                        onCheckedChange={(checked) => toggleMany([name], checked === true)}
+                                      />
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )
+              })}
+
+              <div className="rounded-md border">
+                <div className="px-3 py-2 text-sm font-medium">Other</div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-t text-left text-muted-foreground">
+                      <th className="py-2 pl-9 font-medium">Permission</th>
+                      {ALL_ACTIONS.map((action) => (
+                        <th key={action} className="py-2 text-center font-medium capitalize">
+                          {action}
+                        </th>
+                      ))}
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {extraPermissions.map((entry) => (
+                      <tr key={entry.key} className="border-t">
+                        <td className="py-2 pl-9">{entry.label}</td>
+                        {ALL_ACTIONS.map((action) => {
+                          const name = permissionName(entry.group, entry.key, action)
+                          if (!entry.actions.includes(action) || !existingNames.has(name)) {
+                            return (
+                              <td key={action} className="py-2 text-center text-muted-foreground/30">
+                                —
+                              </td>
+                            )
+                          }
+                          return (
+                            <td key={action} className="py-2 text-center">
+                              <Checkbox checked={selected.has(name)} onCheckedChange={(checked) => toggleMany([name], checked === true)} />
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                    {standalonePermissions.map((entry) => (
+                      <tr key={entry.key} className="border-t">
+                        <td className="py-2 pl-9">{entry.label}</td>
+                        <td className="py-2 text-center">
+                          <Checkbox
+                            checked={existingNames.has(entry.name) ? selected.has(entry.name) : false}
+                            onCheckedChange={(checked) => toggleMany([entry.name], checked === true)}
+                          />
+                        </td>
+                        {ALL_ACTIONS.slice(1).map((action) => (
+                          <td key={action} className="py-2 text-center text-muted-foreground/30">
+                            —
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
 

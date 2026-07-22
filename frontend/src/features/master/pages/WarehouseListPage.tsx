@@ -17,7 +17,6 @@ import { WarehouseFormDrawer } from '../components/WarehouseFormDrawer'
 import { WarehouseDetailDrawer } from '../components/WarehouseDetailDrawer'
 import { WarehouseFiltersBar } from '../components/WarehouseFiltersBar'
 import { applyWarehouseFilters, emptyWarehouseFilters, type WarehouseFilterValues } from '../lib/warehouseFilters'
-import { masterDataNav } from '../navigation'
 import type { Warehouse } from '../types'
 
 const SORTERS: Record<string, (w: Warehouse) => string | number> = {
@@ -26,9 +25,9 @@ const SORTERS: Record<string, (w: Warehouse) => string | number> = {
 }
 
 export function WarehouseListPage() {
-  const canCreate = useHasPermission('warehouse.create')
-  const canUpdate = useHasPermission('warehouse.update')
-  const canDelete = useHasPermission('warehouse.delete')
+  const canCreate = useHasPermission('master.warehouses.create')
+  const canUpdate = useHasPermission('master.warehouses.update')
+  const canDelete = useHasPermission('master.warehouses.delete')
   const list = useEntityListPage<Warehouse, WarehouseFilterValues>({
     queryKey: 'warehouses',
     fetchList: fetchWarehouses,
@@ -64,7 +63,7 @@ export function WarehouseListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={masterDataNav} />
+      <SectionNav group="master" />
 
       <PageHeader
         title="Warehouses"

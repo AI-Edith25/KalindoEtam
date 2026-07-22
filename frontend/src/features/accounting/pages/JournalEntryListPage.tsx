@@ -17,15 +17,14 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchJournalEntries, postJournalEntry } from '../api/journalEntryApi'
 import { JournalEntryFiltersBar } from '../components/JournalEntryFiltersBar'
 import { emptyJournalEntryFilters } from '../lib/journalEntryFilters'
-import { accountingSectionNav } from '../navigation'
 import type { JournalEntry, JournalEntryFilterValues } from '../types'
 
 /** Journal Search + Journal Filters (the ticket's terms) are this page's search box + filter bar, not separate routes — matching every other module's convention. */
 export function JournalEntryListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('journal_entry.create')
-  const canUpdate = useHasPermission('journal_entry.update')
+  const canCreate = useHasPermission('accounting.journal_entries.create')
+  const canUpdate = useHasPermission('accounting.journal_entries.update')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -87,7 +86,7 @@ export function JournalEntryListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={accountingSectionNav} />
+      <SectionNav group="accounting" />
 
       <PageHeader
         title="Journal Entries"

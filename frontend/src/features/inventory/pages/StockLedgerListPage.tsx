@@ -15,7 +15,6 @@ import { fetchStockLedgerEntries } from '../api/stockLedgerApi'
 import { StockLedgerFiltersBar } from '../components/StockLedgerFiltersBar'
 import { resolveVoucherLink } from '../lib/voucherLinks'
 import { emptyStockLedgerFilters } from '../lib/stockLedgerFilters'
-import { inventorySectionNav } from '../navigation'
 import type { StockLedgerEntry, StockLedgerFilterValues } from '../types'
 
 /** Every stock movement, across every item and warehouse. Reachable pre-filtered from Stock Balance (?item_id=&warehouse_id=) or opened directly. */
@@ -100,7 +99,7 @@ export function StockLedgerListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={inventorySectionNav} />
+      <SectionNav group="inventory" />
 
       <PageHeader
         title="Stock Ledger"

@@ -14,7 +14,6 @@ import { fetchCashFlow } from '../api/cashFlowApi'
 import { CashFlowFiltersBar } from '../components/CashFlowFiltersBar'
 import { emptyCashFlowFilters } from '../lib/cashFlowFilters'
 import { resolvePeriodPreset } from '../lib/profitLossFilters'
-import { accountingSectionNav } from '../navigation'
 import type { CashFlowActivitySection, CashFlowFilterValues } from '../types'
 
 /** A read model, like General Ledger/Trial Balance/Profit & Loss/Balance Sheet — no create/edit/delete anywhere on this page. See docs/CASH_FLOW_DESIGN.md §1. */
@@ -89,7 +88,7 @@ export function CashFlowListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={accountingSectionNav} />
+      <SectionNav group="accounting" />
 
       <PageHeader
         title="Cash Flow"

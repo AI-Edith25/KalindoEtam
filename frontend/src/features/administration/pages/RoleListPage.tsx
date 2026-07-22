@@ -11,12 +11,11 @@ import { useHasPermission } from '@/shared/hooks/usePermission'
 import { fetchRoles } from '../api/roleApi'
 import { RoleFormDialog } from '../components/RoleFormDialog'
 import { PermissionMatrixDrawer } from '../components/PermissionMatrixDrawer'
-import { administrationNav } from '../navigation'
 import type { Role } from '../types'
 
 export function RoleListPage() {
-  const canCreate = useHasPermission('role.create')
-  const canUpdate = useHasPermission('role.update')
+  const canCreate = useHasPermission('administration.roles.create')
+  const canUpdate = useHasPermission('administration.roles.update')
   const [formOpen, setFormOpen] = useState(false)
   const [matrixRole, setMatrixRole] = useState<Role | null>(null)
 
@@ -38,7 +37,7 @@ export function RoleListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={administrationNav} />
+      <SectionNav group="administration" />
 
       <PageHeader
         title="Roles & Permissions"

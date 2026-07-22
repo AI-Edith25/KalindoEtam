@@ -19,16 +19,15 @@ import { deleteReceiptEntry, fetchReceiptEntries, submitReceiptEntry } from '../
 import { ReceiptEntryFiltersBar } from '../components/ReceiptEntryFiltersBar'
 import { emptyReceiptEntryFilters } from '../lib/receiptEntryFilters'
 import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
-import { financeSectionNav } from '../navigation'
 import type { ReceiptEntry, ReceiptEntryFilterValues } from '../types'
 
 /** Incoming Payment — settles Accounts Receivable created by Delivery. Never touches stock. */
 export function IncomingPaymentListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('receipt_entry.create')
-  const canUpdate = useHasPermission('receipt_entry.update')
-  const canDelete = useHasPermission('receipt_entry.delete')
+  const canCreate = useHasPermission('finance.incoming_payment.create')
+  const canUpdate = useHasPermission('finance.incoming_payment.update')
+  const canDelete = useHasPermission('finance.incoming_payment.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -120,7 +119,7 @@ export function IncomingPaymentListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={financeSectionNav} />
+      <SectionNav group="finance" />
 
       <PageHeader
         title="Incoming Payment"

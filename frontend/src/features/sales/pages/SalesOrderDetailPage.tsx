@@ -230,7 +230,7 @@ export function SalesOrderDetailPage() {
         <ApprovalPanel
           approvableType={APPROVABLE_TYPE}
           approvableId={order.id}
-          module="sales_order"
+          module="sales.orders"
           documentStatus={order.status}
           documentLabel={order.document_number ?? 'this Sales Order'}
           onChanged={invalidate}

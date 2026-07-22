@@ -1,22 +1,25 @@
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/app/AuthContext'
-
-export interface SectionNavItem {
-  label: string
-  path: string
-  permission?: string
-}
+import { findGroup, permissionName } from '@/config/navTree'
 
 /**
  * Horizontal sub-navigation between sibling pages within one sidebar
- * section (e.g. Master Data's six entities). Real routes, not
+ * section (e.g. Master Data's eight entities). Real routes, not
  * client-only tab state — each item is a NavLink, so the URL and
  * breadcrumb stay correct and the page is bookmarkable/refreshable.
+ * `group` is a navTree group key — its pages (and each page's view
+ * permission) are looked up from the single navTree source of truth.
  */
-export function SectionNav({ items }: { items: SectionNavItem[] }) {
+export function SectionNav({ group }: { group: string }) {
   const { user } = useAuth()
-  const visibleItems = items.filter((item) => !item.permission || user?.permissions.includes(item.permission))
+  const navGroup = findGroup(group)
+  const items = (navGroup?.pages ?? []).map((page) => ({
+    label: page.label,
+    path: page.path,
+    permission: permissionName(group, page.key, 'view'),
+  }))
+  const visibleItems = items.filter((item) => user?.permissions.includes(item.permission))
 
   return (
     <nav className="flex items-center gap-1 border-b">

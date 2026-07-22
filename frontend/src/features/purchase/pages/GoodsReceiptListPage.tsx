@@ -20,7 +20,6 @@ import { deleteGoodsReceipt, fetchGoodsReceipts, submitGoodsReceipt } from '../a
 import { fetchPurchaseOrders } from '../api/purchaseOrderApi'
 import { GoodsReceiptFiltersBar } from '../components/GoodsReceiptFiltersBar'
 import { emptyGoodsReceiptFilters } from '../lib/goodsReceiptFilters'
-import { purchaseSectionNav } from '../navigation'
 import type { GoodsReceipt, GoodsReceiptFilterValues } from '../types'
 
 const SORTERS: Record<string, (gr: GoodsReceipt) => string | number> = {
@@ -31,9 +30,9 @@ const SORTERS: Record<string, (gr: GoodsReceipt) => string | number> = {
 export function GoodsReceiptListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('goods_receipt.create')
-  const canUpdate = useHasPermission('goods_receipt.update')
-  const canDelete = useHasPermission('goods_receipt.delete')
+  const canCreate = useHasPermission('purchase.goods_receipts.create')
+  const canUpdate = useHasPermission('purchase.goods_receipts.update')
+  const canDelete = useHasPermission('purchase.goods_receipts.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -159,7 +158,7 @@ export function GoodsReceiptListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={purchaseSectionNav} />
+      <SectionNav group="purchase" />
 
       <PageHeader
         title="Goods Receipts"

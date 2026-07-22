@@ -10,7 +10,6 @@ import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchLedgerAccounts } from '../api/generalLedgerApi'
 import { GeneralLedgerFiltersBar } from '../components/GeneralLedgerFiltersBar'
 import { emptyGeneralLedgerFilters } from '../lib/generalLedgerFilters'
-import { accountingSectionNav } from '../navigation'
 import type { GeneralLedgerFilterValues, LedgerAccountSummary } from '../types'
 
 /** A read model — no create/edit/delete anywhere on this page. See docs/GENERAL_LEDGER_DESIGN.md §1. */
@@ -46,7 +45,7 @@ export function GeneralLedgerListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={accountingSectionNav} />
+      <SectionNav group="accounting" />
 
       <PageHeader
         title="General Ledger"

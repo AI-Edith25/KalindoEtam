@@ -20,7 +20,6 @@ import {
   emptyChartOfAccountFilters,
   type ChartOfAccountFilterValues,
 } from '../lib/chartOfAccountFilters'
-import { masterDataNav } from '../navigation'
 import type { ChartOfAccount } from '../types'
 
 const SORTERS: Record<string, (a: ChartOfAccount) => string | number> = {
@@ -29,9 +28,9 @@ const SORTERS: Record<string, (a: ChartOfAccount) => string | number> = {
 }
 
 export function ChartOfAccountsPage() {
-  const canCreate = useHasPermission('chart_of_account.create')
-  const canUpdate = useHasPermission('chart_of_account.update')
-  const canDelete = useHasPermission('chart_of_account.delete')
+  const canCreate = useHasPermission('master.chart_of_accounts.create')
+  const canUpdate = useHasPermission('master.chart_of_accounts.update')
+  const canDelete = useHasPermission('master.chart_of_accounts.delete')
   const list = useEntityListPage<ChartOfAccount, ChartOfAccountFilterValues>({
     queryKey: 'chart-of-accounts-paged',
     fetchList: fetchChartOfAccountsPaged,
@@ -64,7 +63,7 @@ export function ChartOfAccountsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={masterDataNav} />
+      <SectionNav group="master" />
 
       <PageHeader
         title="Chart of Accounts"

@@ -233,7 +233,7 @@ export function PurchaseOrderDetailPage() {
         <ApprovalPanel
           approvableType={APPROVABLE_TYPE}
           approvableId={order.id}
-          module="purchase_order"
+          module="purchase.orders"
           documentStatus={order.status}
           documentLabel={order.document_number ?? 'this Purchase Order'}
           onChanged={invalidate}

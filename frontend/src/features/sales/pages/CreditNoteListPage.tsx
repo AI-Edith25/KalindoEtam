@@ -20,15 +20,14 @@ import { deleteCreditNote, fetchCreditNotes, reverseCreditNote, submitCreditNote
 import { CreditNoteFiltersBar } from '../components/CreditNoteFiltersBar'
 import { emptyCreditNoteFilters } from '../lib/creditNoteFilters'
 import { CREDIT_NOTE_REASON_LABELS } from '../lib/creditNoteReasonLabels'
-import { salesSectionNav } from '../navigation'
 import type { CreditNote, CreditNoteFilterValues } from '../types'
 
 export function CreditNoteListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('credit_note.create')
-  const canUpdate = useHasPermission('credit_note.update')
-  const canDelete = useHasPermission('credit_note.delete')
+  const canCreate = useHasPermission('sales.credit_notes.create')
+  const canUpdate = useHasPermission('sales.credit_notes.update')
+  const canDelete = useHasPermission('sales.credit_notes.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -131,7 +130,7 @@ export function CreditNoteListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={salesSectionNav} />
+      <SectionNav group="sales" />
 
       <PageHeader
         title="Credit Notes"

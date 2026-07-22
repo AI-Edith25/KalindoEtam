@@ -14,7 +14,6 @@ import { fetchBalanceSheet } from '../api/balanceSheetApi'
 import { BalanceSheetFiltersBar } from '../components/BalanceSheetFiltersBar'
 import { emptyBalanceSheetFilters } from '../lib/balanceSheetFilters'
 import { resolveFiscalYearStart, toDateString } from '../lib/profitLossFilters'
-import { accountingSectionNav } from '../navigation'
 import type { BalanceSheetFilterValues, BalanceSheetSectionData } from '../types'
 
 /** A read model, like General Ledger/Trial Balance/Profit & Loss — no create/edit/delete anywhere on this page. See docs/BALANCE_SHEET_DESIGN.md §1. */
@@ -95,7 +94,7 @@ export function BalanceSheetListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={accountingSectionNav} />
+      <SectionNav group="accounting" />
 
       <PageHeader
         title="Balance Sheet"

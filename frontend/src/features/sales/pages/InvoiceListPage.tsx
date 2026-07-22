@@ -18,7 +18,6 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../api/invoiceApi'
 import { SalesOrderFiltersBar } from '../components/SalesOrderFiltersBar'
 import { emptyInvoiceFilters } from '../lib/invoiceFilters'
-import { salesSectionNav } from '../navigation'
 import type { Invoice, InvoiceFilterValues } from '../types'
 
 const SORTERS: Record<string, (invoice: Invoice) => string | number> = {
@@ -31,9 +30,9 @@ const SORTERS: Record<string, (invoice: Invoice) => string | number> = {
 export function InvoiceListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('invoice.create')
-  const canUpdate = useHasPermission('invoice.update')
-  const canDelete = useHasPermission('invoice.delete')
+  const canCreate = useHasPermission('sales.invoices.create')
+  const canUpdate = useHasPermission('sales.invoices.update')
+  const canDelete = useHasPermission('sales.invoices.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -151,7 +150,7 @@ export function InvoiceListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={salesSectionNav} />
+      <SectionNav group="sales" />
 
       <PageHeader
         title="Invoices"

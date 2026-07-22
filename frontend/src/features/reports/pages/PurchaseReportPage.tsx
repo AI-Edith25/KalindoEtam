@@ -15,7 +15,6 @@ import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
 import type { PurchaseOrder } from '@/features/purchase/types'
 import { PurchaseReportFiltersBar } from '../components/PurchaseReportFiltersBar'
 import { emptyPurchaseReportFilters } from '../lib/reportFilters'
-import { reportsSectionNav } from '../navigation'
 import type { PurchaseReportFilterValues } from '../types'
 
 /** Read-only report over Purchase Order — reuses fetchPurchaseOrders() as-is, no new endpoint. */
@@ -57,7 +56,7 @@ export function PurchaseReportPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={reportsSectionNav} />
+      <SectionNav group="reports" />
 
       <PageHeader
         title="Purchase Report"

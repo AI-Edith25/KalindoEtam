@@ -14,7 +14,6 @@ import { fetchStockBalanceReport } from '@/features/inventory/api/stockBalanceAp
 import { StockBalanceFiltersBar } from '@/features/inventory/components/StockBalanceFiltersBar'
 import { emptyStockBalanceFilters } from '@/features/inventory/lib/stockBalanceFilters'
 import type { StockBalanceFilterValues, StockBalanceRow } from '@/features/inventory/types'
-import { reportsSectionNav } from '../navigation'
 
 /**
  * Read-only report over the Stock Balance — reuses fetchStockBalanceReport()
@@ -57,7 +56,7 @@ export function InventoryBalanceReportPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={reportsSectionNav} />
+      <SectionNav group="reports" />
 
       <PageHeader
         title="Inventory Balance Report"

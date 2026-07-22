@@ -13,7 +13,6 @@ import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { fetchTrialBalance } from '../api/trialBalanceApi'
 import { TrialBalanceFiltersBar } from '../components/TrialBalanceFiltersBar'
 import { emptyTrialBalanceFilters, resolvePeriodPreset, withinAccountRange } from '../lib/trialBalanceFilters'
-import { accountingSectionNav } from '../navigation'
 import type { TrialBalanceFilterValues, TrialBalanceRow } from '../types'
 
 /** A read model, like General Ledger — no create/edit/delete anywhere on this page. See docs/TRIAL_BALANCE_DESIGN.md §1. */
@@ -64,7 +63,7 @@ export function TrialBalanceListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={accountingSectionNav} />
+      <SectionNav group="accounting" />
 
       <PageHeader
         title="Trial Balance"

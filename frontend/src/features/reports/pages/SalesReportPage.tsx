@@ -15,7 +15,6 @@ import { fetchSalesOrders } from '@/features/sales/api/salesOrderApi'
 import type { SalesOrder } from '@/features/sales/types'
 import { SalesReportFiltersBar } from '../components/SalesReportFiltersBar'
 import { emptySalesReportFilters } from '../lib/reportFilters'
-import { reportsSectionNav } from '../navigation'
 import type { SalesReportFilterValues } from '../types'
 
 /** Read-only report over Sales Order — reuses fetchSalesOrders() as-is, no new endpoint. */
@@ -57,7 +56,7 @@ export function SalesReportPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={reportsSectionNav} />
+      <SectionNav group="reports" />
 
       <PageHeader
         title="Sales Report"

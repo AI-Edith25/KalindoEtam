@@ -16,7 +16,6 @@ import { CustomerFormDrawer } from '../components/CustomerFormDrawer'
 import { CustomerDetailDrawer } from '../components/CustomerDetailDrawer'
 import { CustomerFiltersBar } from '../components/CustomerFiltersBar'
 import { applyCustomerFilters, emptyCustomerFilters, type CustomerFilterValues } from '../lib/customerFilters'
-import { masterDataNav } from '../navigation'
 import type { Customer } from '../types'
 
 const SORTERS: Record<string, (c: Customer) => string | number> = {
@@ -25,9 +24,9 @@ const SORTERS: Record<string, (c: Customer) => string | number> = {
 }
 
 export function CustomerListPage() {
-  const canCreate = useHasPermission('customer.create')
-  const canUpdate = useHasPermission('customer.update')
-  const canDelete = useHasPermission('customer.delete')
+  const canCreate = useHasPermission('master.customers.create')
+  const canUpdate = useHasPermission('master.customers.update')
+  const canDelete = useHasPermission('master.customers.delete')
   const list = useEntityListPage<Customer, CustomerFilterValues>({
     queryKey: 'customers',
     fetchList: fetchCustomers,
@@ -61,7 +60,7 @@ export function CustomerListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={masterDataNav} />
+      <SectionNav group="master" />
 
       <PageHeader
         title="Customers"

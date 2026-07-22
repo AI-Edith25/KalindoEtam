@@ -18,13 +18,12 @@ import { activateUser, deactivateUser, fetchUsersPaged } from '../api/userApi'
 import { UserFormDrawer } from '../components/UserFormDrawer'
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog'
 import { AssignRoleDialog } from '../components/AssignRoleDialog'
-import { administrationNav } from '../navigation'
 import type { User } from '../types'
 
 export function UserListPage() {
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('user.create')
-  const canUpdate = useHasPermission('user.update')
+  const canCreate = useHasPermission('administration.users.create')
+  const canUpdate = useHasPermission('administration.users.update')
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -95,7 +94,7 @@ export function UserListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={administrationNav} />
+      <SectionNav group="administration" />
 
       <PageHeader
         title="Users"

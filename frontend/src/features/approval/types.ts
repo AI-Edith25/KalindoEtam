@@ -1,7 +1,7 @@
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 
 /** The three document types Sprint 24B activated approval for — matches ApprovalService::MODULES on the backend exactly. */
-export type ApprovableModule = 'sales_order' | 'purchase_order' | 'journal_entry'
+export type ApprovableModule = 'sales.orders' | 'purchase.orders' | 'accounting.journal_entries'
 
 export interface ApprovalFlow {
   id: string

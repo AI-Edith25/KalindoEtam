@@ -15,7 +15,6 @@ import { fetchSalesOrders } from '@/features/sales/api/salesOrderApi'
 import type { Delivery } from '@/features/sales/types'
 import { DeliveryReportFiltersBar } from '../components/DeliveryReportFiltersBar'
 import { emptyDeliveryReportFilters } from '../lib/reportFilters'
-import { reportsSectionNav } from '../navigation'
 import type { DeliveryReportFilterValues } from '../types'
 
 /** Read-only report over Delivery — reuses fetchDeliveries() as-is, no new endpoint. */
@@ -80,7 +79,7 @@ export function DeliveryReportPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={reportsSectionNav} />
+      <SectionNav group="reports" />
 
       <PageHeader
         title="Delivery Report"

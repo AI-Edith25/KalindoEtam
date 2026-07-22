@@ -7,13 +7,15 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { navItems } from './navigation'
+import { navTree, DASHBOARD_NAV } from '@/config/navTree'
 
 function labelFor(segment: string): string {
-  // navItems store each section's full landing path (e.g. "/accounting/journal-entries"),
-  // not just the first segment — match by prefix so the breadcrumb root resolves to the
+  if (`/${segment}` === DASHBOARD_NAV.path) return DASHBOARD_NAV.label
+
+  // Every page in a group shares that group's URL prefix (e.g. all `finance` pages
+  // live under /finance/*) — match by prefix so the breadcrumb root resolves to the
   // section's real label instead of silently falling through to a title-cased URL segment.
-  const match = navItems.find((item) => item.path === `/${segment}` || item.path.startsWith(`/${segment}/`))
+  const match = navTree.find((group) => group.pages.some((page) => page.path.startsWith(`/${segment}/`)))
   if (match) return match.label
   return segment
     .split('-')

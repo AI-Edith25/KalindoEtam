@@ -205,7 +205,7 @@ export function JournalEntryDetailPage() {
         <ApprovalPanel
           approvableType={APPROVABLE_TYPE}
           approvableId={entry.id}
-          module="journal_entry"
+          module="accounting.journal_entries"
           documentStatus={entry.status}
           documentLabel={entry.document_number ?? 'this Journal Entry'}
           onChanged={invalidate}

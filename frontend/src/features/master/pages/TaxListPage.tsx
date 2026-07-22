@@ -17,7 +17,6 @@ import { deleteTax, fetchTaxesPaged, updateTax } from '../api/taxApi'
 import { TaxFormDrawer } from '../components/TaxFormDrawer'
 import { TaxDetailDrawer } from '../components/TaxDetailDrawer'
 import { applyTaxFilters, emptyTaxFilters, type TaxFilterValues } from '../lib/taxFilters'
-import { masterDataNav } from '../navigation'
 import type { Tax } from '../types'
 
 const TYPE_LABELS: Record<Tax['type'], string> = {
@@ -38,8 +37,8 @@ const SORTERS: Record<string, (t: Tax) => string | number> = {
  * reference the Tax); "prefer deactivation over deletion" per the approved design.
  */
 export function TaxListPage() {
-  const canCreate = useHasPermission('tax.create')
-  const canUpdate = useHasPermission('tax.update')
+  const canCreate = useHasPermission('master.taxes.create')
+  const canUpdate = useHasPermission('master.taxes.update')
   const queryClient = useQueryClient()
 
   const list = useEntityListPage<Tax, TaxFilterValues>({
@@ -89,7 +88,7 @@ export function TaxListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={masterDataNav} />
+      <SectionNav group="master" />
 
       <PageHeader
         title="Taxes"

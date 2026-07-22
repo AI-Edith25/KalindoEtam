@@ -19,7 +19,6 @@ import { cancelSalesOrder, deleteSalesOrder, fetchSalesOrders, submitSalesOrder 
 import { SalesOrderFiltersBar } from '../components/SalesOrderFiltersBar'
 import { DeliveryProgress } from '../components/DeliveryProgress'
 import { emptySalesOrderFilters } from '../lib/salesOrderFilters'
-import { salesSectionNav } from '../navigation'
 import type { SalesOrder, SalesOrderFilterValues } from '../types'
 
 const SORTERS: Record<string, (so: SalesOrder) => string | number> = {
@@ -31,9 +30,9 @@ const SORTERS: Record<string, (so: SalesOrder) => string | number> = {
 export function SalesOrderListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('sales_order.create')
-  const canUpdate = useHasPermission('sales_order.update')
-  const canDelete = useHasPermission('sales_order.delete')
+  const canCreate = useHasPermission('sales.orders.create')
+  const canUpdate = useHasPermission('sales.orders.update')
+  const canDelete = useHasPermission('sales.orders.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -146,7 +145,7 @@ export function SalesOrderListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={salesSectionNav} />
+      <SectionNav group="sales" />
 
       <PageHeader
         title="Sales Orders"

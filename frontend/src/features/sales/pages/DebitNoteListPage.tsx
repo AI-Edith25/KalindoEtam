@@ -20,15 +20,14 @@ import { deleteDebitNote, fetchDebitNotes, reverseDebitNote, submitDebitNote } f
 import { DebitNoteFiltersBar } from '../components/DebitNoteFiltersBar'
 import { emptyDebitNoteFilters } from '../lib/debitNoteFilters'
 import { DEBIT_NOTE_REASON_LABELS } from '../lib/debitNoteReasonLabels'
-import { salesSectionNav } from '../navigation'
 import type { DebitNote, DebitNoteFilterValues } from '../types'
 
 export function DebitNoteListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('debit_note.create')
-  const canUpdate = useHasPermission('debit_note.update')
-  const canDelete = useHasPermission('debit_note.delete')
+  const canCreate = useHasPermission('sales.debit_notes.create')
+  const canUpdate = useHasPermission('sales.debit_notes.update')
+  const canDelete = useHasPermission('sales.debit_notes.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -131,7 +130,7 @@ export function DebitNoteListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={salesSectionNav} />
+      <SectionNav group="sales" />
 
       <PageHeader
         title="Debit Notes"

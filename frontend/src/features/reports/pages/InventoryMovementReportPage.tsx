@@ -16,7 +16,6 @@ import { StockLedgerFiltersBar } from '@/features/inventory/components/StockLedg
 import { resolveVoucherLink } from '@/features/inventory/lib/voucherLinks'
 import { emptyStockLedgerFilters } from '@/features/inventory/lib/stockLedgerFilters'
 import type { StockLedgerEntry, StockLedgerFilterValues } from '@/features/inventory/types'
-import { reportsSectionNav } from '../navigation'
 
 /**
  * Read-only report over the Stock Ledger — reuses fetchStockLedgerEntries()
@@ -106,7 +105,7 @@ export function InventoryMovementReportPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={reportsSectionNav} />
+      <SectionNav group="reports" />
 
       <PageHeader
         title="Inventory Movement Report"

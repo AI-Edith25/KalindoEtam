@@ -4,9 +4,9 @@ import type { ApprovableModule, ApprovalFlow } from '../types'
 
 /** One request-approval endpoint per document type (each gated by that document's own existing `.update` permission — see docs/APPROVAL_WORKFLOW_DESIGN.md §4) — the approve()/reject() endpoints below are shared by all three. */
 const REQUEST_APPROVAL_PATHS: Record<ApprovableModule, (id: string) => string> = {
-  sales_order: (id) => `/sales-orders/${id}/request-approval`,
-  purchase_order: (id) => `/purchase-orders/${id}/request-approval`,
-  journal_entry: (id) => `/journal-entries/${id}/request-approval`,
+  'sales.orders': (id) => `/sales-orders/${id}/request-approval`,
+  'purchase.orders': (id) => `/purchase-orders/${id}/request-approval`,
+  'accounting.journal_entries': (id) => `/journal-entries/${id}/request-approval`,
 }
 
 export async function requestApproval(module: ApprovableModule, documentId: string): Promise<ApprovalFlow> {

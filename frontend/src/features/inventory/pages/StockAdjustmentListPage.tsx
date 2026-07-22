@@ -18,7 +18,6 @@ import { cn, formatDate, formatNumber } from '@/lib/utils'
 import { deleteStockAdjustment, fetchStockAdjustments, submitStockAdjustment } from '../api/stockAdjustmentApi'
 import { StockAdjustmentFiltersBar } from '../components/StockAdjustmentFiltersBar'
 import { emptyStockAdjustmentFilters } from '../lib/stockAdjustmentFilters'
-import { inventorySectionNav } from '../navigation'
 import type { StockAdjustment, StockAdjustmentFilterValues } from '../types'
 
 const SORTERS: Record<string, (adjustment: StockAdjustment) => string | number> = {
@@ -38,9 +37,9 @@ function adjustmentTotals(adjustment: StockAdjustment) {
 export function StockAdjustmentListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('stock.create')
-  const canUpdate = useHasPermission('stock.update')
-  const canDelete = useHasPermission('stock.delete')
+  const canCreate = useHasPermission('inventory.adjustments.create')
+  const canUpdate = useHasPermission('inventory.adjustments.update')
+  const canDelete = useHasPermission('inventory.adjustments.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -166,7 +165,7 @@ export function StockAdjustmentListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={inventorySectionNav} />
+      <SectionNav group="inventory" />
 
       <PageHeader
         title="Stock Adjustments"

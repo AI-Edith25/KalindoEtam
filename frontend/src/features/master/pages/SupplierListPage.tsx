@@ -16,7 +16,6 @@ import { SupplierFormDrawer } from '../components/SupplierFormDrawer'
 import { SupplierDetailDrawer } from '../components/SupplierDetailDrawer'
 import { SupplierFiltersBar } from '../components/SupplierFiltersBar'
 import { applySupplierFilters, emptySupplierFilters, type SupplierFilterValues } from '../lib/supplierFilters'
-import { masterDataNav } from '../navigation'
 import type { Supplier } from '../types'
 
 const SORTERS: Record<string, (s: Supplier) => string | number> = {
@@ -25,9 +24,9 @@ const SORTERS: Record<string, (s: Supplier) => string | number> = {
 }
 
 export function SupplierListPage() {
-  const canCreate = useHasPermission('supplier.create')
-  const canUpdate = useHasPermission('supplier.update')
-  const canDelete = useHasPermission('supplier.delete')
+  const canCreate = useHasPermission('master.suppliers.create')
+  const canUpdate = useHasPermission('master.suppliers.update')
+  const canDelete = useHasPermission('master.suppliers.delete')
   const list = useEntityListPage<Supplier, SupplierFilterValues>({
     queryKey: 'suppliers',
     fetchList: fetchSuppliers,
@@ -61,7 +60,7 @@ export function SupplierListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={masterDataNav} />
+      <SectionNav group="master" />
 
       <PageHeader
         title="Suppliers"

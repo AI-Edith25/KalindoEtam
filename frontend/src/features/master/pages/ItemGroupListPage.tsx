@@ -14,7 +14,6 @@ import { deleteItemGroup, fetchItemGroupsPaged } from '../api/itemGroupApi'
 import { ItemGroupFormDrawer } from '../components/ItemGroupFormDrawer'
 import { ItemGroupDetailDrawer } from '../components/ItemGroupDetailDrawer'
 import { applyItemGroupFilters, emptyItemGroupFilters, type ItemGroupFilterValues } from '../lib/itemGroupFilters'
-import { masterDataNav } from '../navigation'
 import type { ItemGroup } from '../types'
 
 const SORTERS: Record<string, (g: ItemGroup) => string | number> = {
@@ -22,9 +21,9 @@ const SORTERS: Record<string, (g: ItemGroup) => string | number> = {
 }
 
 export function ItemGroupListPage() {
-  const canCreate = useHasPermission('item_group.create')
-  const canUpdate = useHasPermission('item_group.update')
-  const canDelete = useHasPermission('item_group.delete')
+  const canCreate = useHasPermission('master.item_groups.create')
+  const canUpdate = useHasPermission('master.item_groups.update')
+  const canDelete = useHasPermission('master.item_groups.delete')
   const list = useEntityListPage<ItemGroup, ItemGroupFilterValues>({
     queryKey: 'item-groups-paged',
     fetchList: fetchItemGroupsPaged,
@@ -55,7 +54,7 @@ export function ItemGroupListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={masterDataNav} />
+      <SectionNav group="master" />
 
       <PageHeader
         title="Item Groups"

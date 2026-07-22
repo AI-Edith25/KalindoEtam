@@ -19,7 +19,6 @@ import { cancelPurchaseOrder, deletePurchaseOrder, fetchPurchaseOrders, submitPu
 import { PurchaseOrderFiltersBar } from '../components/PurchaseOrderFiltersBar'
 import { ReceivingProgress } from '../components/ReceivingProgress'
 import { emptyPurchaseOrderFilters } from '../lib/purchaseOrderFilters'
-import { purchaseSectionNav } from '../navigation'
 import type { PurchaseOrder, PurchaseOrderFilterValues } from '../types'
 
 const SORTERS: Record<string, (po: PurchaseOrder) => string | number> = {
@@ -31,9 +30,9 @@ const SORTERS: Record<string, (po: PurchaseOrder) => string | number> = {
 export function PurchaseOrderListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('purchase_order.create')
-  const canUpdate = useHasPermission('purchase_order.update')
-  const canDelete = useHasPermission('purchase_order.delete')
+  const canCreate = useHasPermission('purchase.orders.create')
+  const canUpdate = useHasPermission('purchase.orders.update')
+  const canDelete = useHasPermission('purchase.orders.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -146,7 +145,7 @@ export function PurchaseOrderListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={purchaseSectionNav} />
+      <SectionNav group="purchase" />
 
       <PageHeader
         title="Purchase Orders"

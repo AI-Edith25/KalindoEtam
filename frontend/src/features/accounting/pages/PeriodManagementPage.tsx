@@ -17,7 +17,6 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { formatDate } from '@/lib/utils'
 import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { closePeriod, createFiscalYear, fetchAccountingPeriods, fetchFiscalYears, fetchPeriodValidation, reopenPeriod } from '../api/periodApi'
-import { accountingSectionNav } from '../navigation'
 import type { AccountingPeriod } from '../types'
 
 const ALL = '__all__'
@@ -130,7 +129,7 @@ export function PeriodManagementPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={accountingSectionNav} />
+      <SectionNav group="accounting" />
 
       <PageHeader
         title="Period Closing"

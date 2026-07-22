@@ -22,16 +22,15 @@ import { PaymentEntryFiltersBar } from '../components/PaymentEntryFiltersBar'
 import { emptyPaymentEntryFilters } from '../lib/paymentEntryFilters'
 import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
-import { financeSectionNav } from '../navigation'
 import type { PaymentEntry, PaymentEntryFilterValues } from '../types'
 
 /** Outgoing Payment — settles Accounts Payable created by Goods Receipt. Never touches stock. */
 export function OutgoingPaymentListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('payment_entry.create')
-  const canUpdate = useHasPermission('payment_entry.update')
-  const canDelete = useHasPermission('payment_entry.delete')
+  const canCreate = useHasPermission('finance.outgoing_payment.create')
+  const canUpdate = useHasPermission('finance.outgoing_payment.update')
+  const canDelete = useHasPermission('finance.outgoing_payment.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -148,7 +147,7 @@ export function OutgoingPaymentListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={financeSectionNav} />
+      <SectionNav group="finance" />
 
       <PageHeader
         title="Outgoing Payment"

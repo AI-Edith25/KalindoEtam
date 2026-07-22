@@ -31,9 +31,9 @@ class ApprovalService
      * so the module name has to be resolved from data, not a static route.
      */
     protected const MODULES = [
-        SalesOrder::class => 'sales_order',
-        PurchaseOrder::class => 'purchase_order',
-        JournalEntry::class => 'journal_entry',
+        SalesOrder::class => 'sales.orders',
+        PurchaseOrder::class => 'purchase.orders',
+        JournalEntry::class => 'accounting.journal_entries',
     ];
 
     public function __construct(

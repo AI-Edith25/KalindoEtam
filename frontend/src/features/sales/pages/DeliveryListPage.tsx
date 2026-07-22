@@ -20,7 +20,6 @@ import { deleteDelivery, fetchDeliveries, submitDelivery } from '../api/delivery
 import { fetchSalesOrders } from '../api/salesOrderApi'
 import { DeliveryFiltersBar } from '../components/DeliveryFiltersBar'
 import { emptyDeliveryFilters } from '../lib/deliveryFilters'
-import { salesSectionNav } from '../navigation'
 import type { Delivery, DeliveryFilterValues } from '../types'
 
 const SORTERS: Record<string, (delivery: Delivery) => string | number> = {
@@ -31,9 +30,9 @@ const SORTERS: Record<string, (delivery: Delivery) => string | number> = {
 export function DeliveryListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('delivery.create')
-  const canUpdate = useHasPermission('delivery.update')
-  const canDelete = useHasPermission('delivery.delete')
+  const canCreate = useHasPermission('sales.deliveries.create')
+  const canUpdate = useHasPermission('sales.deliveries.update')
+  const canDelete = useHasPermission('sales.deliveries.delete')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -159,7 +158,7 @@ export function DeliveryListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav items={salesSectionNav} />
+      <SectionNav group="sales" />
 
       <PageHeader
         title="Deliveries"
