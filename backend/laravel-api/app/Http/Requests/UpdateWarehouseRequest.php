@@ -16,7 +16,6 @@ class UpdateWarehouseRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'branch_id' => ['sometimes', 'required', 'uuid', 'exists:branches,id'],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('warehouses', 'code')->ignore($this->route('warehouse'))],
             'warehouse_type' => ['sometimes', 'required', Rule::enum(WarehouseType::class)],

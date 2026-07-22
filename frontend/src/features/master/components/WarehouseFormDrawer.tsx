@@ -12,11 +12,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { createWarehouse, updateWarehouse } from '../api/warehouseApi'
-import { useBranchesLookup } from '../hooks/useLookups'
 import type { Warehouse } from '../types'
 
 const warehouseFormSchema = z.object({
-  branch_id: z.string().min(1, 'Branch is required'),
   name: z.string().min(1, 'Warehouse Name is required').max(255),
   code: z.string().min(1, 'Warehouse Code is required').max(255),
   warehouse_type: z.enum(['main', 'transit', 'return']),
@@ -25,7 +23,6 @@ const warehouseFormSchema = z.object({
 type WarehouseFormValues = z.infer<typeof warehouseFormSchema>
 
 const emptyValues: WarehouseFormValues = {
-  branch_id: '',
   name: '',
   code: '',
   warehouse_type: 'main',
@@ -52,7 +49,6 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
     form.reset(
       warehouse
         ? {
-            branch_id: warehouse.branch_id,
             name: warehouse.name,
             code: warehouse.code,
             warehouse_type: warehouse.warehouse_type,
@@ -60,8 +56,6 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
         : emptyValues,
     )
   }, [open, warehouse, form])
-
-  const branches = useBranchesLookup(true, 'master.warehouses.view')
 
   const mutation = useMutation({
     mutationFn: (values: WarehouseFormValues) =>
@@ -89,47 +83,6 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-y-auto">
             <div className="flex flex-col gap-4 px-4">
-              <FormField
-                control={form.control}
-                name="branch_id"
-                render={({ field }) => {
-                  console.log('branches', branches)
-                  console.log('Array.isArray(branches.data)', Array.isArray(branches.data))
-                  console.log('branches.data.length', branches.data?.length)
-                  if (Array.isArray(branches.data)) {
-                    const ids = branches.data.map((b) => b.id)
-                    console.log('id types', branches.data.map((b) => typeof b.id))
-                    console.log('name types', branches.data.map((b) => typeof b.name))
-                    console.log('every id non-empty string', ids.every((id) => typeof id === 'string' && id.length > 0))
-                    console.log('duplicate ids', ids.filter((id, i) => ids.indexOf(id) !== i))
-                    console.log('any null values', branches.data.some((b) => b === null || b.id === null || b.name === null))
-                  }
-
-                  return (
-                    <FormItem>
-                      <FormLabel>Branch</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Select branch'} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {branches.data?.map((branch) => {
-                            console.log(branch)
-                            return (
-                              <SelectItem key={branch.id} value={branch.id}>
-                                {branch.name}
-                              </SelectItem>
-                            )
-                          })}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )
-                }}
-              />
               <FormField
                 control={form.control}
                 name="code"

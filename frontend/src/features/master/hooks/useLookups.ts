@@ -10,34 +10,14 @@ import { fetchBranches, fetchChartOfAccountsLookup, fetchCompaniesLookup, fetchW
  * already has permission for. Gating `enabled` on the matching {module}.view
  * permission means the request — and the 403 it would otherwise draw — never
  * fires for a user who lacks it, instead of trying and toasting the failure.
- *
- * `altPermission` mirrors the backend's own `$viewOr` mechanism
- * (routes/api.php) for the same reason: a caller that structurally needs
- * this data for a *different* module it does own (e.g. Warehouse create/edit
- * needs the Branch it belongs to) shouldn't be blocked just because it
- * lacks the source module's own view permission.
  */
-function usePermissionedLookup<T>(
-  queryKey: string,
-  queryFn: () => Promise<T[]>,
-  permission: string,
-  enabled = true,
-  altPermission = '',
-) {
+function usePermissionedLookup<T>(queryKey: string, queryFn: () => Promise<T[]>, permission: string, enabled = true) {
   const hasPermission = useHasPermission(permission)
-  const hasAltPermission = useHasPermission(altPermission)
-  return useQuery({ queryKey: [queryKey], queryFn, enabled: (hasPermission || hasAltPermission) && enabled })
+  return useQuery({ queryKey: [queryKey], queryFn, enabled: hasPermission && enabled })
 }
 
-/**
- * `altPermission` defaults to none — Accounting's report filter bars call
- * this with no args and stay gated strictly on `administration.branch.view`,
- * unchanged. The Warehouse feature passes `master.warehouses.view` explicitly
- * (see WarehouseFormDrawer/WarehouseListPage/WarehouseDetailDrawer) — see
- * backend routes/api.php's matching `$viewOr` on the `branches` resource.
- */
-export const useBranchesLookup = (enabled = true, altPermission = '') =>
-  usePermissionedLookup('branches-lookup', fetchBranches, 'administration.branch.view', enabled, altPermission)
+export const useBranchesLookup = (enabled = true) =>
+  usePermissionedLookup('branches-lookup', fetchBranches, 'administration.branch.view', enabled)
 
 export const useCompaniesLookup = (enabled = true) =>
   usePermissionedLookup('companies-lookup', fetchCompaniesLookup, 'administration.company.view', enabled)

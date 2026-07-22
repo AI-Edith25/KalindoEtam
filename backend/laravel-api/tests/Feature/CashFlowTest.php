@@ -74,7 +74,7 @@ class CashFlowTest extends TestCase
 
         $company = Company::query()->create(['name' => 'Test Co', 'code' => 'TC', 'fiscal_year_start' => now()->startOfYear()->toDateString()]);
         $branch = Branch::query()->create(['company_id' => $company->id, 'name' => 'Main', 'code' => 'HQ']);
-        $this->warehouse = Warehouse::query()->create(['branch_id' => $branch->id, 'name' => 'Main WH', 'code' => 'WH1', 'warehouse_type' => WarehouseType::MAIN]);
+        $this->warehouse = Warehouse::query()->create(['name' => 'Main WH', 'code' => 'WH1', 'warehouse_type' => WarehouseType::MAIN]);
         $this->customer = Customer::query()->create(['customer_code' => 'C001', 'customer_name' => 'Acme']);
 
         $itemGroup = ItemGroup::query()->create(['name' => 'General']);

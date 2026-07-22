@@ -53,7 +53,7 @@ export function GoodsReceiptListPage() {
     placeholderData: (previous) => previous,
   })
 
-  // GoodsReceiptResource doesn't nest its purchase_order — resolved client-side, same pattern as Warehouse's branch name in Master Data.
+  // GoodsReceiptResource doesn't nest its purchase_order — resolved client-side instead.
   const purchaseOrdersLookup = useQuery({
     queryKey: ['purchase-orders-lookup'],
     queryFn: () => fetchPurchaseOrders({ page: 1, per_page: 100 }),

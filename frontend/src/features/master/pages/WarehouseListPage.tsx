@@ -12,7 +12,6 @@ import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatNumber } from '@/lib/utils'
 import { deleteWarehouse, fetchWarehouses } from '../api/warehouseApi'
-import { useBranchesLookup } from '../hooks/useLookups'
 import { WarehouseFormDrawer } from '../components/WarehouseFormDrawer'
 import { WarehouseDetailDrawer } from '../components/WarehouseDetailDrawer'
 import { WarehouseFiltersBar } from '../components/WarehouseFiltersBar'
@@ -38,13 +37,9 @@ export function WarehouseListPage() {
     deletedMessage: 'Warehouse deleted.',
   })
 
-  const branches = useBranchesLookup(true, 'master.warehouses.view')
-  const branchName = (branchId: string) => branches.data?.find((b) => b.id === branchId)?.name ?? '—'
-
   const columns: DataTableColumn<Warehouse>[] = [
     { header: 'Code', accessor: (row) => row.code, sortKey: 'code' },
     { header: 'Name', accessor: (row) => row.name, sortKey: 'name' },
-    { header: 'Branch', accessor: (row) => branchName(row.branch_id) },
     { header: 'Type', accessor: (row) => <StatusBadge status={row.warehouse_type} /> },
     {
       header: '',

@@ -16,7 +16,6 @@ class StoreWarehouseRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'branch_id' => ['required', 'uuid', 'exists:branches,id'],
             'name' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:255', 'unique:warehouses,code'],
             'warehouse_type' => ['required', Rule::enum(WarehouseType::class)],

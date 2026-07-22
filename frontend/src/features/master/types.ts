@@ -154,7 +154,6 @@ export type WarehouseType = 'main' | 'transit' | 'return'
 
 export interface Warehouse {
   id: string
-  branch_id: string
   name: string
   code: string
   warehouse_type: WarehouseType
@@ -163,7 +162,6 @@ export interface Warehouse {
 }
 
 export interface WarehouseFormValues {
-  branch_id: string
   name: string
   code: string
   warehouse_type: WarehouseType

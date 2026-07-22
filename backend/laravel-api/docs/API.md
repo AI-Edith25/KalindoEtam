@@ -50,7 +50,7 @@ Validation errors follow Laravel's default FormRequest 422 shape (`message`, `er
 | Method | Endpoint | Body |
 |---|---|---|
 | GET | `/warehouses` | — |
-| POST | `/warehouses` | `branch_id, name, code, warehouse_type` (`main`\|`transit`\|`return`) |
+| POST | `/warehouses` | `name, code, warehouse_type` (`main`\|`transit`\|`return`) |
 | GET | `/warehouses/{id}` | — |
 | PUT/PATCH | `/warehouses/{id}` | partial |
 | DELETE | `/warehouses/{id}` | — |

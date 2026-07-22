@@ -78,8 +78,8 @@ class DemoDataSeeder extends Seeder
         Auth::login($admin);
 
         $company = $this->seedCompany();
-        [$branchSamarinda, $branchBalikpapan] = $this->seedBranches($company);
-        [$warehouseUtama, $warehouseSparepart] = $this->seedWarehouses($branchSamarinda, $branchBalikpapan);
+        $this->seedBranches($company);
+        [$warehouseUtama, $warehouseSparepart] = $this->seedWarehouses();
         $itemGroup = $this->seedItemGroup();
         $uom = $this->reuseUom();
         $tax = $this->reuseTax();
@@ -147,11 +147,12 @@ class DemoDataSeeder extends Seeder
         return $result;
     }
 
-    protected function seedWarehouses(Branch $samarinda, Branch $balikpapan): array
+    /** Warehouse no longer belongs to a Branch (business decision) — these are just two named warehouses. */
+    protected function seedWarehouses(): array
     {
         $warehouses = [
-            ['code' => 'WH-UTM', 'name' => 'Gudang Utama', 'branch_id' => $samarinda->id],
-            ['code' => 'WH-SPR', 'name' => 'Gudang Sparepart', 'branch_id' => $balikpapan->id],
+            ['code' => 'WH-UTM', 'name' => 'Gudang Utama'],
+            ['code' => 'WH-SPR', 'name' => 'Gudang Sparepart'],
         ];
 
         $created = 0;

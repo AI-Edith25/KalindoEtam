@@ -2,8 +2,7 @@
  * Administration module types — docs/ADMINISTRATION_DESIGN.md. `Company`
  * here is the full field set (npwp, address, phone, email, logo via
  * attachment) the Administration Company page needs; the lighter
- * `Company` in features/master/types.ts (used by Warehouse's branch
- * lookup) is left untouched.
+ * `Company` in features/master/types.ts is left untouched.
  */
 export interface Company {
   id: string
