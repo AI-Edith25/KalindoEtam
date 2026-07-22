@@ -98,7 +98,7 @@ export const navItems: NavItem[] = [
       { path: '/reports/goods-receipts', permission: 'goods_receipt.view' },
       { path: '/reports/sales', permission: 'sales_order.view' },
       { path: '/reports/deliveries', permission: 'delivery.view' },
-      { path: '/reports/inventory-movement', permission: 'item.view' },
+      { path: '/reports/inventory-movement', permission: 'stock.view' },
     ],
   },
   {

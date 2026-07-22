@@ -126,8 +126,8 @@ export function AppRouter() {
         <Route path="/reports/goods-receipts" element={<ProtectedRoute permission="goods_receipt.view"><GoodsReceiptReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales" element={<ProtectedRoute permission="sales_order.view"><SalesReportPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries" element={<ProtectedRoute permission="delivery.view"><DeliveryReportPage /></ProtectedRoute>} />
-        <Route path="/reports/inventory-movement" element={<ProtectedRoute permission="item.view"><InventoryMovementReportPage /></ProtectedRoute>} />
-        <Route path="/reports/inventory-balance" element={<ProtectedRoute permission="item.view"><InventoryBalanceReportPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory-movement" element={<ProtectedRoute permission="stock.view"><InventoryMovementReportPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory-balance" element={<ProtectedRoute permission="stock.view"><InventoryBalanceReportPage /></ProtectedRoute>} />
         <Route path="/finance/incoming" element={<ProtectedRoute permission="receipt_entry.view"><IncomingPaymentListPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/new" element={<ProtectedRoute permission="receipt_entry.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/:id/edit" element={<ProtectedRoute permission="receipt_entry.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />

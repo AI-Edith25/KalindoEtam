@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { fetchItemGroups, fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchItemGroups, fetchItemsLookup } from '@/features/master/api/lookupsApi'
+import { useWarehousesLookup } from '@/features/master/hooks/useLookups'
 import { emptyStockBalanceFilters, hasActiveStockBalanceFilters } from '../lib/stockBalanceFilters'
 import type { StockBalanceFilterValues } from '../types'
 
@@ -13,7 +14,7 @@ interface StockBalanceFiltersBarProps {
 }
 
 export function StockBalanceFiltersBar({ value, onChange }: StockBalanceFiltersBarProps) {
-  const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const warehouses = useWarehousesLookup()
   const itemGroups = useQuery({ queryKey: ['item-groups-lookup'], queryFn: fetchItemGroups })
   const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
 

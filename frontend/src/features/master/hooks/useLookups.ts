@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { fetchBranches, fetchChartOfAccountsLookup, fetchCompaniesLookup } from '../api/lookupsApi'
+import { fetchBranches, fetchChartOfAccountsLookup, fetchCompaniesLookup, fetchWarehousesLookup } from '../api/lookupsApi'
 
 /**
  * These three lookups back Company/Branch/Chart-of-Account admin data,
@@ -23,3 +23,6 @@ export const useCompaniesLookup = (enabled = true) =>
 
 export const useChartOfAccountsLookup = (enabled = true) =>
   usePermissionedLookup('chart-of-accounts-lookup', fetchChartOfAccountsLookup, 'chart_of_account.view', enabled)
+
+export const useWarehousesLookup = (enabled = true) =>
+  usePermissionedLookup('warehouses-lookup', fetchWarehousesLookup, 'warehouse.view', enabled)

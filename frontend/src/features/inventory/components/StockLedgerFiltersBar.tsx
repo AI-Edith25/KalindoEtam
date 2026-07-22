@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchItemsLookup } from '@/features/master/api/lookupsApi'
+import { useWarehousesLookup } from '@/features/master/hooks/useLookups'
 import { emptyStockLedgerFilters, hasActiveStockLedgerFilters } from '../lib/stockLedgerFilters'
 import type { StockLedgerFilterValues, VoucherType } from '../types'
 
@@ -15,7 +16,7 @@ interface StockLedgerFiltersBarProps {
 
 /** Same server-side shape as every other transaction FiltersBar — values are sent straight to the server. */
 export function StockLedgerFiltersBar({ value, onChange }: StockLedgerFiltersBarProps) {
-  const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const warehouses = useWarehousesLookup()
   const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
 
   return (
