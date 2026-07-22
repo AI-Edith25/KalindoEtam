@@ -11,7 +11,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Badge } from '@/components/ui/badge'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatNumber } from '@/lib/utils'
 import { activateUser, deactivateUser, fetchUsersPaged } from '../api/userApi'
@@ -44,7 +44,7 @@ export function UserListPage() {
       queryClient.invalidateQueries({ queryKey: ['users-paged'] })
       toast.success(user.is_active ? `${user.email} activated.` : `${user.email} deactivated.`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const rows = (listQuery.data?.data ?? []).filter((user) => {

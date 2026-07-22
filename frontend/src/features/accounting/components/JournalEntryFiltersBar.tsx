@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
+import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import { emptyJournalEntryFilters, hasActiveJournalEntryFilters } from '../lib/journalEntryFilters'
 import type { DocumentStatus, JournalEntryFilterValues } from '../types'
 
@@ -14,7 +13,7 @@ interface JournalEntryFiltersBarProps {
 }
 
 export function JournalEntryFiltersBar({ value, onChange }: JournalEntryFiltersBarProps) {
-  const accounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
+  const accounts = useChartOfAccountsLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyJournalEntryFilters)} hasActiveFilters={hasActiveJournalEntryFilters(value)}>

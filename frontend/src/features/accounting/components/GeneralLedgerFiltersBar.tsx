@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchBranches, fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useBranchesLookup, useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { emptyGeneralLedgerFilters, hasActiveGeneralLedgerFilters } from '../lib/generalLedgerFilters'
 import type { DocumentStatus, GeneralLedgerFilterValues } from '../types'
 
@@ -22,8 +21,8 @@ interface GeneralLedgerFiltersBarProps {
 
 /** Branch/Company filter dormant until a business module populates journal_entry_lines.branch_id — see docs/GENERAL_LEDGER_DESIGN.md §0/§4. */
 export function GeneralLedgerFiltersBar({ value, onChange, variant }: GeneralLedgerFiltersBarProps) {
-  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup, enabled: variant === 'list' })
+  const branches = useBranchesLookup()
+  const companies = useCompaniesLookup(variant === 'list')
 
   return (
     <FilterPanel onClear={() => onChange(emptyGeneralLedgerFilters)} hasActiveFilters={hasActiveGeneralLedgerFilters(value)}>

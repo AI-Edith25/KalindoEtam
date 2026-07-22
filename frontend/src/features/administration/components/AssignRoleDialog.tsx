@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { assignUserRole } from '../api/userApi'
 import { fetchRoles } from '../api/roleApi'
 import type { User } from '../types'
@@ -32,7 +32,7 @@ export function AssignRoleDialog({ open, onOpenChange, user }: AssignRoleDialogP
       toast.success('Role assigned.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (!user) return null

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { fetchSuppliersLookup } from '@/features/master/api/lookupsApi'
 import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymentEntry } from '../api/paymentEntryApi'
@@ -97,7 +97,7 @@ export function OutgoingPaymentEditorPage() {
       toast.success(isEdit ? 'Payment details updated.' : 'Payment saved as draft.')
       navigate(`/finance/outgoing/${payment.id}/edit`, { replace: true })
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
@@ -108,7 +108,7 @@ export function OutgoingPaymentEditorPage() {
       toast.success('Payment confirmed — payable updated.')
       navigate(`/finance/outgoing/${payment.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const supplierId = form.watch('supplier_id')

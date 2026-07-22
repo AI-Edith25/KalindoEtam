@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { fetchItemsLookup, fetchSuppliersLookup, fetchTaxesLookup } from '@/features/master/api/lookupsApi'
 import { createPurchaseOrder, fetchPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder } from '../api/purchaseOrderApi'
@@ -100,7 +100,7 @@ export function PurchaseOrderEditorPage() {
         navigate(`/purchase/orders/${order.id}/edit`, { replace: true })
       }
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
@@ -110,7 +110,7 @@ export function PurchaseOrderEditorPage() {
       toast.success('Purchase Order submitted.')
       navigate(`/purchase/orders/${order.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const watchedItems = form.watch('items')

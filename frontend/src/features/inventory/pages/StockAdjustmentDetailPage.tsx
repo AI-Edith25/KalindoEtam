@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { cn, formatDate, formatNumber } from '@/lib/utils'
 import { deleteStockAdjustment, fetchStockAdjustment, submitStockAdjustment } from '../api/stockAdjustmentApi'
 import type { StockAdjustmentItem } from '../types'
@@ -61,7 +61,7 @@ export function StockAdjustmentDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['stock-ledger-entries'] })
       toast.success('Adjustment confirmed — stock updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -71,7 +71,7 @@ export function StockAdjustmentDetailPage() {
       toast.success('Stock Adjustment deleted.')
       navigate('/inventory/adjustments')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (adjustmentQuery.isLoading) {

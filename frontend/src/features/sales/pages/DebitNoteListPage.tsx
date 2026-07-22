@@ -13,7 +13,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deleteDebitNote, fetchDebitNotes, reverseDebitNote, submitDebitNote } from '../api/debitNoteApi'
@@ -60,7 +60,7 @@ export function DebitNoteListPage() {
       invalidate()
       toast.success('Debit Note submitted — Accounts Receivable updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const reverseMutation = useMutation({
@@ -69,7 +69,7 @@ export function DebitNoteListPage() {
       invalidate()
       toast.success('Debit Note reversed.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -79,7 +79,7 @@ export function DebitNoteListPage() {
       toast.success('Debit Note deleted.')
       setDeletingDebitNote(null)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const rows = listQuery.data?.data ?? []

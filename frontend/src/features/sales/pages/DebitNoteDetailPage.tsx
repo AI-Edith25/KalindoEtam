@@ -12,7 +12,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deleteDebitNote, fetchDebitNote, reverseDebitNote, submitDebitNote } from '../api/debitNoteApi'
 import { DEBIT_NOTE_REASON_LABELS } from '../lib/debitNoteReasonLabels'
@@ -49,7 +49,7 @@ export function DebitNoteDetailPage() {
       invalidate()
       toast.success('Debit Note submitted — Accounts Receivable updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const reverseMutation = useMutation({
@@ -58,7 +58,7 @@ export function DebitNoteDetailPage() {
       invalidate()
       toast.success('Debit Note reversed.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -68,7 +68,7 @@ export function DebitNoteDetailPage() {
       toast.success('Debit Note deleted.')
       navigate('/sales/debit-notes')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (debitNoteQuery.isLoading) {

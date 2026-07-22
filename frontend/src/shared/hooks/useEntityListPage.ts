@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import type { ApiListResponse } from '@/shared/types/api'
 import type { DataTableSort } from '@/components/shared/DataTable'
 
@@ -72,13 +72,7 @@ export function useEntityListPage<T extends { id: string }, F>({
       toast.success(deletedMessage)
       setDeletingItem(null)
     },
-    onError: (error: unknown) => {
-      const message = getErrorMessage(error)
-
-      if (message) {
-        toast.error(message)
-      }
-    },
+    onError: toastApiError,
   })
 
   const rows = useMemo(() => {

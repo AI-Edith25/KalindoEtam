@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { fetchStockBalances } from '../api/stockApi'
 import {
@@ -133,7 +133,7 @@ export function StockAdjustmentEditorPage() {
         navigate(`/inventory/adjustments/${adjustment.id}/edit`, { replace: true })
       }
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
@@ -145,7 +145,7 @@ export function StockAdjustmentEditorPage() {
       toast.success('Adjustment confirmed — stock updated.')
       navigate(`/inventory/adjustments/${adjustment.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (isEdit && adjustmentQuery.isLoading) {

@@ -12,7 +12,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deleteCreditNote, fetchCreditNote, reverseCreditNote, submitCreditNote } from '../api/creditNoteApi'
 import { CREDIT_NOTE_REASON_LABELS } from '../lib/creditNoteReasonLabels'
@@ -50,7 +50,7 @@ export function CreditNoteDetailPage() {
       invalidate()
       toast.success('Credit Note submitted — Accounts Receivable updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const reverseMutation = useMutation({
@@ -59,7 +59,7 @@ export function CreditNoteDetailPage() {
       invalidate()
       toast.success('Credit Note reversed.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -69,7 +69,7 @@ export function CreditNoteDetailPage() {
       toast.success('Credit Note deleted.')
       navigate('/sales/credit-notes')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (creditNoteQuery.isLoading) {

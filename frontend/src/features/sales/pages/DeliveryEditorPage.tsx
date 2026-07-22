@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeGrandTotal, computeSubtotal, computeTax } from '@/shared/lib/documentTotals'
 import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
@@ -167,7 +167,7 @@ export function DeliveryEditorPage() {
         navigate(`/sales/deliveries/${delivery.id}/edit`, { replace: true })
       }
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
@@ -178,7 +178,7 @@ export function DeliveryEditorPage() {
       toast.success('Delivery confirmed — stock updated.')
       navigate(`/sales/deliveries/${delivery.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const watchedItems = form.watch('items')

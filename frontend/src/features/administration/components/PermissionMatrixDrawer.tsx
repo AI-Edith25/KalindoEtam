@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { assignRolePermissions, fetchPermissions } from '../api/roleApi'
 import type { Role } from '../types'
 
@@ -72,7 +72,7 @@ export function PermissionMatrixDrawer({ open, onOpenChange, role }: PermissionM
       toast.success('Permissions updated.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (!role) return null

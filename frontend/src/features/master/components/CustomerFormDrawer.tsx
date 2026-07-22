@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { createCustomer, updateCustomer } from '../api/customerApi'
 import type { Customer } from '../types'
 
@@ -81,7 +81,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
       toast.success(isEdit ? 'Customer updated.' : 'Customer created.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: CustomerFormValues) => mutation.mutate(values)

@@ -11,7 +11,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatNumber } from '@/lib/utils'
 import { deleteTax, fetchTaxesPaged, updateTax } from '../api/taxApi'
 import { TaxFormDrawer } from '../components/TaxFormDrawer'
@@ -57,7 +57,7 @@ export function TaxListPage() {
       queryClient.invalidateQueries({ queryKey: ['taxes-paged'] })
       toast.success(tax.is_active ? `${tax.name} activated.` : `${tax.name} deactivated.`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const columns: DataTableColumn<Tax>[] = [

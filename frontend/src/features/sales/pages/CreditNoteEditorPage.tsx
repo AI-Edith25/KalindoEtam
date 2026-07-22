@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchInvoice, fetchInvoices } from '../api/invoiceApi'
 import { createCreditNote, fetchCreditNote, submitCreditNote, updateCreditNote } from '../api/creditNoteApi'
@@ -162,7 +162,7 @@ export function CreditNoteEditorPage() {
         navigate(`/sales/credit-notes/${creditNote.id}/edit`, { replace: true })
       }
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
@@ -174,7 +174,7 @@ export function CreditNoteEditorPage() {
       toast.success('Credit Note submitted — Accounts Receivable updated.')
       navigate(`/sales/credit-notes/${creditNote.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const subtotal = Object.values(lines).reduce((sum, line) => sum + (Number(line.amount) || 0), 0)

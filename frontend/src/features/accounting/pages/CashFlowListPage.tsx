@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { formatCurrency } from '@/lib/utils'
-import { fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { fetchCashFlow } from '../api/cashFlowApi'
 import { CashFlowFiltersBar } from '../components/CashFlowFiltersBar'
 import { emptyCashFlowFilters } from '../lib/cashFlowFilters'
@@ -22,7 +22,7 @@ export function CashFlowListPage() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState<CashFlowFilterValues>(emptyCashFlowFilters)
 
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const companies = useCompaniesLookup()
   const { dateFrom, dateTo } = resolvePeriodPreset(filters, companies.data ?? [])
 
   const reportQuery = useQuery({

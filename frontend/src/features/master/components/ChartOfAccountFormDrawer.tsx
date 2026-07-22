@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { createChartOfAccount, updateChartOfAccount } from '../api/chartOfAccountApi'
 import type { ChartOfAccount } from '../types'
 
@@ -69,7 +69,7 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
       toast.success(isEdit ? 'Chart of Account updated.' : 'Chart of Account created.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: ChartOfAccountFormValues) => mutation.mutate(values)

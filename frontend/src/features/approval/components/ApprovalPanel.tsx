@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatDate } from '@/lib/utils'
 import { approveFlow, fetchApprovalHistory, requestApproval } from '../api/approvalApi'
 import { RejectApprovalDialog } from './RejectApprovalDialog'
@@ -53,7 +53,7 @@ export function ApprovalPanel({ approvableType, approvableId, module, documentSt
       toast.success('Approval requested.')
       invalidate()
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const approveMutation = useMutation({
@@ -62,7 +62,7 @@ export function ApprovalPanel({ approvableType, approvableId, module, documentSt
       toast.success('Approved.')
       invalidate()
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (documentStatus !== 'draft' && history.length === 0) {

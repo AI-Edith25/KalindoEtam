@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchBranches, fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useBranchesLookup, useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { emptyProfitLossFilters, hasActiveProfitLossFilters } from '../lib/profitLossFilters'
 import type { ProfitLossFilterValues, ProfitLossPeriodPreset } from '../types'
 
@@ -15,8 +14,8 @@ interface ProfitLossFiltersBarProps {
 
 /** Own filter set, not a GeneralLedgerFiltersBar/TrialBalanceFiltersBar variant — no Account Range, no zero-balance toggle, neither applies to a P&L. See docs/PROFIT_LOSS_DESIGN.md §8. */
 export function ProfitLossFiltersBar({ value, onChange }: ProfitLossFiltersBarProps) {
-  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const branches = useBranchesLookup()
+  const companies = useCompaniesLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyProfitLossFilters)} hasActiveFilters={hasActiveProfitLossFilters(value)}>

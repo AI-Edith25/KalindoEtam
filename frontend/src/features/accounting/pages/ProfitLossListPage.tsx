@@ -8,7 +8,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { formatCurrency } from '@/lib/utils'
-import { fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { fetchProfitLoss } from '../api/profitLossApi'
 import { ProfitLossFiltersBar } from '../components/ProfitLossFiltersBar'
 import { emptyProfitLossFilters, resolvePeriodPreset } from '../lib/profitLossFilters'
@@ -28,7 +28,7 @@ export function ProfitLossListPage() {
     return { ...emptyProfitLossFilters, periodPreset: 'custom', dateFrom, dateTo: searchParams.get('date_to') ?? '' }
   })
 
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const companies = useCompaniesLookup()
   const { dateFrom, dateTo } = resolvePeriodPreset(filters, companies.data ?? [])
 
   const reportQuery = useQuery({

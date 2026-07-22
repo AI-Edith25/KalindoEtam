@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -13,7 +12,7 @@ import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatNumber } from '@/lib/utils'
 import { deleteWarehouse, fetchWarehouses } from '../api/warehouseApi'
-import { fetchBranches } from '../api/lookupsApi'
+import { useBranchesLookup } from '../hooks/useLookups'
 import { WarehouseFormDrawer } from '../components/WarehouseFormDrawer'
 import { WarehouseDetailDrawer } from '../components/WarehouseDetailDrawer'
 import { WarehouseFiltersBar } from '../components/WarehouseFiltersBar'
@@ -40,7 +39,7 @@ export function WarehouseListPage() {
     deletedMessage: 'Warehouse deleted.',
   })
 
-  const branches = useQuery({ queryKey: ['branches'], queryFn: fetchBranches })
+  const branches = useBranchesLookup()
   const branchName = (branchId: string) => branches.data?.find((b) => b.id === branchId)?.name ?? '—'
 
   const columns: DataTableColumn<Warehouse>[] = [

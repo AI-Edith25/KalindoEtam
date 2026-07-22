@@ -9,7 +9,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { fetchTrialBalance } from '../api/trialBalanceApi'
 import { TrialBalanceFiltersBar } from '../components/TrialBalanceFiltersBar'
 import { emptyTrialBalanceFilters, resolvePeriodPreset, withinAccountRange } from '../lib/trialBalanceFilters'
@@ -21,7 +21,7 @@ export function TrialBalanceListPage() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState<TrialBalanceFilterValues>(emptyTrialBalanceFilters)
 
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const companies = useCompaniesLookup()
   const { dateFrom, dateTo } = resolvePeriodPreset(filters, companies.data ?? [])
 
   const listQuery = useQuery({

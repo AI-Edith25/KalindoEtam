@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -10,9 +10,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { createWarehouse, updateWarehouse } from '../api/warehouseApi'
-import { fetchBranches } from '../api/lookupsApi'
+import { useBranchesLookup } from '../hooks/useLookups'
 import type { Warehouse } from '../types'
 
 const warehouseFormSchema = z.object({
@@ -61,7 +61,7 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
     )
   }, [open, warehouse, form])
 
-  const branches = useQuery({ queryKey: ['branches'], queryFn: fetchBranches })
+  const branches = useBranchesLookup()
 
   const mutation = useMutation({
     mutationFn: (values: WarehouseFormValues) =>
@@ -71,7 +71,7 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
       toast.success(isEdit ? 'Warehouse updated.' : 'Warehouse created.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: WarehouseFormValues) => mutation.mutate(values)

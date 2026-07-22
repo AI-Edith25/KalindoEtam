@@ -13,9 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatDate } from '@/lib/utils'
-import { fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { closePeriod, createFiscalYear, fetchAccountingPeriods, fetchFiscalYears, fetchPeriodValidation, reopenPeriod } from '../api/periodApi'
 import { accountingSectionNav } from '../navigation'
 import type { AccountingPeriod } from '../types'
@@ -39,7 +39,7 @@ export function PeriodManagementPage() {
   const [closingPeriod, setClosingPeriod] = useState<AccountingPeriod | null>(null)
   const [reopeningPeriod, setReopeningPeriod] = useState<AccountingPeriod | null>(null)
 
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const companies = useCompaniesLookup()
   const fiscalYearsQuery = useQuery({ queryKey: ['fiscal-years'], queryFn: fetchFiscalYears })
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export function PeriodManagementPage() {
       setStartDate('')
       toast.success(`${fiscalYear.name} created — 12 monthly periods generated, all Open.`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const closeMutation = useMutation({
@@ -88,7 +88,7 @@ export function PeriodManagementPage() {
       toast.success(`${period.name} closed.`)
       setClosingPeriod(null)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const reopenMutation = useMutation({
@@ -98,7 +98,7 @@ export function PeriodManagementPage() {
       toast.success(`${period.name} reopened.`)
       setReopeningPeriod(null)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const columns: DataTableColumn<AccountingPeriod>[] = [

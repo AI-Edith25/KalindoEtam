@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, cn } from '@/lib/utils'
 import { createJournalEntry, fetchJournalEntry, postJournalEntry, updateJournalEntry } from '../api/journalEntryApi'
 import { JournalEntryLineItemTable } from '../components/JournalEntryLineItemTable'
@@ -83,7 +83,7 @@ export function JournalEntryEditorPage() {
         navigate(`/accounting/journal-entries/${entry.id}/edit`, { replace: true })
       }
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const postMutation = useMutation({
@@ -93,7 +93,7 @@ export function JournalEntryEditorPage() {
       toast.success('Journal Entry posted.')
       navigate(`/accounting/journal-entries/${entry.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const watchedLines = useWatch({ control: form.control, name: 'lines' })

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchCustomersLookup } from '@/features/master/api/lookupsApi'
 import { createReceiptEntry, fetchReceiptEntry, submitReceiptEntry, updateReceiptEntry } from '../api/receiptEntryApi'
 import { receiptEntryFormSchema, type ReceiptEntryEditorValues } from '../lib/receiptEntryFormSchema'
@@ -87,7 +87,7 @@ export function IncomingPaymentEditorPage() {
       toast.success(isEdit ? 'Payment details updated.' : 'Payment saved as draft.')
       navigate(`/finance/incoming/${receipt.id}/edit`, { replace: true })
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
@@ -97,7 +97,7 @@ export function IncomingPaymentEditorPage() {
       toast.success('Payment received. Allocate it to an invoice from the detail page.')
       navigate(`/finance/incoming/${receipt.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (isEdit && receiptQuery.isLoading) {

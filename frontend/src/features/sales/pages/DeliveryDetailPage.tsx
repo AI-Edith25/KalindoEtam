@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { computeTax, lineAmount } from '@/shared/lib/documentTotals'
 import { deleteDelivery, fetchDelivery, submitDelivery } from '../api/deliveryApi'
@@ -46,7 +46,7 @@ export function DeliveryDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success('Delivery confirmed — stock updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -56,7 +56,7 @@ export function DeliveryDetailPage() {
       toast.success('Delivery deleted.')
       navigate('/sales/deliveries')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (deliveryQuery.isLoading) {

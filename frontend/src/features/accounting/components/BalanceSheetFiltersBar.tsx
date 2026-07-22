@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchBranches, fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useBranchesLookup, useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { emptyBalanceSheetFilters, hasActiveBalanceSheetFilters } from '../lib/balanceSheetFilters'
 import type { BalanceSheetFilterValues } from '../types'
 
@@ -15,8 +14,8 @@ interface BalanceSheetFiltersBarProps {
 
 /** Simplest filter bar in Accounting Reports — a single As Of Date, no period preset (a snapshot, not a range). See docs/BALANCE_SHEET_DESIGN.md §7/§9. */
 export function BalanceSheetFiltersBar({ value, onChange }: BalanceSheetFiltersBarProps) {
-  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const branches = useBranchesLookup()
+  const companies = useCompaniesLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyBalanceSheetFilters)} hasActiveFilters={hasActiveBalanceSheetFilters(value)}>

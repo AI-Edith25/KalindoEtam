@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { deletePaymentEntry, fetchPaymentEntry, submitPaymentEntry } from '../api/paymentEntryApi'
 import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
@@ -36,7 +36,7 @@ export function OutgoingPaymentDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
       toast.success('Payment confirmed — payable updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -46,7 +46,7 @@ export function OutgoingPaymentDetailPage() {
       toast.success('Payment deleted.')
       navigate('/finance/outgoing')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (paymentQuery.isLoading) {

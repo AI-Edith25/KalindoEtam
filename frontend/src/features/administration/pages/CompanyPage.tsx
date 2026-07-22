@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { LoadingOverlay } from '@/components/shared/LoadingOverlay'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import {
   deleteCompanyLogo,
   fetchCompanyLogo,
@@ -91,7 +91,7 @@ export function CompanyPage() {
       queryClient.invalidateQueries({ queryKey: ['company'] })
       toast.success('Company updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const uploadLogoMutation = useMutation({
@@ -106,7 +106,7 @@ export function CompanyPage() {
       queryClient.invalidateQueries({ queryKey: ['company-logo', company?.id] })
       toast.success('Logo updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: CompanyFormValues) => saveMutation.mutate(values)

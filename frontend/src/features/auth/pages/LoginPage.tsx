@@ -3,10 +3,9 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { useAuth } from '@/app/AuthContext'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -42,7 +41,7 @@ export function LoginPage() {
       const redirectTo = (location.state as { from?: string } | null)?.from ?? '/dashboard'
       navigate(redirectTo, { replace: true })
     } catch (error) {
-      toast.error(getErrorMessage(error))
+      toastApiError(error)
     } finally {
       setIsSubmitting(false)
     }

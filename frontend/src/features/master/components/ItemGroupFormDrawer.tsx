@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { createItemGroup, updateItemGroup } from '../api/itemGroupApi'
 import type { ItemGroup } from '../types'
 
@@ -52,7 +52,7 @@ export function ItemGroupFormDrawer({ open, onOpenChange, itemGroup }: ItemGroup
       toast.success(isEdit ? 'Item Group updated.' : 'Item Group created.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: ItemGroupFormValues) => mutation.mutate(values)

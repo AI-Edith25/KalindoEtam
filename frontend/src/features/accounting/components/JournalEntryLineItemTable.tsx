@@ -1,5 +1,4 @@
 import { useFieldArray, type UseFormReturn } from 'react-hook-form'
-import { useQuery } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -7,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
+import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import type { JournalEntryEditorValues } from '../lib/journalEntryFormSchema'
 
 interface JournalEntryLineItemTableProps {
@@ -19,7 +18,7 @@ interface JournalEntryLineItemTableProps {
 export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineItemTableProps) {
   const { control } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
-  const accounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
+  const accounts = useChartOfAccountsLookup()
 
   return (
     <div className="flex flex-col gap-3">

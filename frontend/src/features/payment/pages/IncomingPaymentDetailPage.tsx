@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { deleteReceiptEntry, fetchReceiptEntry, submitReceiptEntry } from '../api/receiptEntryApi'
 import { reverseAllocation } from '../api/paymentAllocationApi'
@@ -39,7 +39,7 @@ export function IncomingPaymentDetailPage() {
       invalidate()
       toast.success('Payment received. Allocate it to an invoice below.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -49,7 +49,7 @@ export function IncomingPaymentDetailPage() {
       toast.success('Payment deleted.')
       navigate('/finance/incoming')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const reverseMutation = useMutation({
@@ -59,7 +59,7 @@ export function IncomingPaymentDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['accounts-receivables'] })
       toast.success('Allocation reversed.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (receiptQuery.isLoading) {

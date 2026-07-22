@@ -12,7 +12,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { PAYMENT_METHOD_LABELS } from '@/features/payment/lib/paymentMethodLabels'
 import type { PaymentMethod } from '@/features/payment/types'
@@ -144,7 +144,7 @@ export function InvoiceDetailPage() {
       invalidate()
       toast.success('Invoice submitted — Accounts Receivable created.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const cancelMutation = useMutation({
@@ -153,7 +153,7 @@ export function InvoiceDetailPage() {
       invalidate()
       toast.success('Invoice cancelled.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -163,7 +163,7 @@ export function InvoiceDetailPage() {
       toast.success('Invoice deleted.')
       navigate('/sales/invoices')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (invoiceQuery.isLoading) {

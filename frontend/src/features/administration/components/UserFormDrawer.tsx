@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { createUser, updateUser } from '../api/userApi'
 import { fetchRoles } from '../api/roleApi'
 import type { User } from '../types'
@@ -70,7 +70,7 @@ export function UserFormDrawer({ open, onOpenChange, user }: UserFormDrawerProps
       toast.success(isEdit ? 'User updated.' : 'User created.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: UserFormSchemaValues) => mutation.mutate(values)

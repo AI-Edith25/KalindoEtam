@@ -12,7 +12,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelPurchaseOrder, deletePurchaseOrder, fetchPurchaseOrders, submitPurchaseOrder } from '../api/purchaseOrderApi'
@@ -62,7 +62,7 @@ export function PurchaseOrderListPage() {
       invalidate()
       toast.success('Purchase Order submitted.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const cancelMutation = useMutation({
@@ -71,7 +71,7 @@ export function PurchaseOrderListPage() {
       invalidate()
       toast.success('Purchase Order cancelled.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -81,7 +81,7 @@ export function PurchaseOrderListPage() {
       toast.success('Purchase Order deleted.')
       setDeletingOrder(null)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const rows = useMemo(() => {

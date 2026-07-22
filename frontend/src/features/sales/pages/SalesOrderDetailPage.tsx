@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { computeTax } from '@/shared/lib/documentTotals'
 import { cancelSalesOrder, deleteSalesOrder, fetchSalesOrder, submitSalesOrder } from '../api/salesOrderApi'
@@ -81,7 +81,7 @@ export function SalesOrderDetailPage() {
       invalidate()
       toast.success('Sales Order submitted.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const cancelMutation = useMutation({
@@ -90,7 +90,7 @@ export function SalesOrderDetailPage() {
       invalidate()
       toast.success('Sales Order cancelled.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -100,7 +100,7 @@ export function SalesOrderDetailPage() {
       toast.success('Sales Order deleted.')
       navigate('/sales/orders')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (orderQuery.isLoading) {

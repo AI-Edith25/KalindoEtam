@@ -1,10 +1,9 @@
 import { Pencil } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
 import { Separator } from '@/components/ui/separator'
 import { DetailDrawerLayout, DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { formatDate } from '@/lib/utils'
-import { fetchBranches } from '../api/lookupsApi'
+import { useBranchesLookup } from '../hooks/useLookups'
 import type { Warehouse } from '../types'
 
 interface WarehouseDetailDrawerProps {
@@ -21,7 +20,7 @@ interface WarehouseDetailDrawerProps {
  * request under the shared ['branches'] key.
  */
 export function WarehouseDetailDrawer({ open, onOpenChange, warehouse, onEdit }: WarehouseDetailDrawerProps) {
-  const branches = useQuery({ queryKey: ['branches'], queryFn: fetchBranches, enabled: open })
+  const branches = useBranchesLookup(open)
 
   if (!warehouse) return null
 

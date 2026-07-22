@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deleteGoodsReceipt, fetchGoodsReceipt, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { computeTax, lineAmount } from '@/shared/lib/documentTotals'
@@ -46,7 +46,7 @@ export function GoodsReceiptDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       toast.success('Receipt confirmed — stock updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -56,7 +56,7 @@ export function GoodsReceiptDetailPage() {
       toast.success('Goods Receipt deleted.')
       navigate('/purchase/goods-receipts')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (receiptQuery.isLoading) {

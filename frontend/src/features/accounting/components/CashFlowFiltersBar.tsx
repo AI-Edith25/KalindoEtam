@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchBranches, fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useBranchesLookup, useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { emptyCashFlowFilters, hasActiveCashFlowFilters } from '../lib/cashFlowFilters'
 import type { CashFlowFilterValues, CashFlowPeriodPreset } from '../types'
 
@@ -15,8 +14,8 @@ interface CashFlowFiltersBarProps {
 
 /** Same Reporting Period preset shape as Profit & Loss — date_from is mandatory (§7), never a way to clear it. See docs/CASH_FLOW_DESIGN.md §9. */
 export function CashFlowFiltersBar({ value, onChange }: CashFlowFiltersBarProps) {
-  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const branches = useBranchesLookup()
+  const companies = useCompaniesLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyCashFlowFilters)} hasActiveFilters={hasActiveCashFlowFilters(value)}>

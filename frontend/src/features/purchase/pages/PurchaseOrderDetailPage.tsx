@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelPurchaseOrder, deletePurchaseOrder, fetchPurchaseOrder, submitPurchaseOrder } from '../api/purchaseOrderApi'
 import { fetchGoodsReceipts } from '../api/goodsReceiptApi'
@@ -80,7 +80,7 @@ export function PurchaseOrderDetailPage() {
       invalidate()
       toast.success('Purchase Order submitted.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const cancelMutation = useMutation({
@@ -89,7 +89,7 @@ export function PurchaseOrderDetailPage() {
       invalidate()
       toast.success('Purchase Order cancelled.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -99,7 +99,7 @@ export function PurchaseOrderDetailPage() {
       toast.success('Purchase Order deleted.')
       navigate('/purchase/orders')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (orderQuery.isLoading) {

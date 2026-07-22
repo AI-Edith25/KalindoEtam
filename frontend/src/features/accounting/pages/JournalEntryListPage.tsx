@@ -11,7 +11,7 @@ import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMe
 import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchJournalEntries, postJournalEntry } from '../api/journalEntryApi'
@@ -52,7 +52,7 @@ export function JournalEntryListPage() {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success('Journal Entry posted.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const rows = listQuery.data?.data ?? []

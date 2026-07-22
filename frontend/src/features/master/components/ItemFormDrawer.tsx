@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { createItem, updateItem } from '../api/itemApi'
 import { fetchItemGroups, fetchUoms } from '../api/lookupsApi'
 import type { Item } from '../types'
@@ -88,7 +88,7 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
       toast.success(isEdit ? 'Item updated.' : 'Item created.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: ItemFormValues) => mutation.mutate(values)

@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchTaxesLookup } from '@/features/master/api/lookupsApi'
 import { fetchDeliveries } from '../api/deliveryApi'
@@ -123,7 +123,7 @@ export function InvoiceEditorPage() {
         navigate(`/sales/invoices/${invoice.id}/edit`, { replace: true })
       }
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
@@ -134,7 +134,7 @@ export function InvoiceEditorPage() {
       toast.success('Invoice submitted — Accounts Receivable created.')
       navigate(`/sales/invoices/${invoice.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const watchedDiscount = Number(form.watch('discount_amount') || 0)

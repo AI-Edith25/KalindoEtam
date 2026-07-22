@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { createTax, updateTax } from '../api/taxApi'
 import type { Tax } from '../types'
 
@@ -76,7 +76,7 @@ export function TaxFormDrawer({ open, onOpenChange, tax }: TaxFormDrawerProps) {
       toast.success(isEdit ? 'Tax updated.' : 'Tax created.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: TaxFormSchemaValues) => mutation.mutate(values)

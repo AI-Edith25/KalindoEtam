@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { deleteJournalEntry, fetchJournalEntry, postJournalEntry, reverseJournalEntry } from '../api/journalEntryApi'
 import { resolveJournalReferenceLink } from '../lib/journalReferenceLink'
@@ -46,7 +46,7 @@ export function JournalEntryDetailPage() {
       invalidate()
       toast.success('Journal Entry posted.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const reverseMutation = useMutation({
@@ -56,7 +56,7 @@ export function JournalEntryDetailPage() {
       toast.success('Journal Entry reversed.')
       navigate(`/accounting/journal-entries/${reversal.id}`)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -66,7 +66,7 @@ export function JournalEntryDetailPage() {
       toast.success('Journal Entry deleted.')
       navigate('/accounting/journal-entries')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   if (entryQuery.isLoading) {

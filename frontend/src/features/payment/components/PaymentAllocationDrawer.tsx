@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { fetchAccountsReceivables } from '../api/accountsReceivableApi'
 import { allocatePayment } from '../api/paymentAllocationApi'
@@ -73,7 +73,7 @@ export function PaymentAllocationDrawer({ open, onOpenChange, receiptEntry }: Pa
       toast.success('Payment allocated.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   return (

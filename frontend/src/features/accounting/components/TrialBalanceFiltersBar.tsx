@@ -1,10 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { fetchBranches, fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useBranchesLookup, useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { emptyTrialBalanceFilters, hasActiveTrialBalanceFilters } from '../lib/trialBalanceFilters'
 import type { TrialBalanceFilterValues, TrialBalancePeriodPreset } from '../types'
 
@@ -17,8 +16,8 @@ interface TrialBalanceFiltersBarProps {
 
 /** Own filter set — deliberately not a third GeneralLedgerFiltersBar variant, see docs/TRIAL_BALANCE_DESIGN.md §5. */
 export function TrialBalanceFiltersBar({ value, onChange }: TrialBalanceFiltersBarProps) {
-  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const branches = useBranchesLookup()
+  const companies = useCompaniesLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyTrialBalanceFilters)} hasActiveFilters={hasActiveTrialBalanceFilters(value)}>

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { createSupplier, updateSupplier } from '../api/supplierApi'
 import type { Supplier } from '../types'
 
@@ -82,7 +82,7 @@ export function SupplierFormDrawer({ open, onOpenChange, supplier }: SupplierFor
       toast.success(isEdit ? 'Supplier updated.' : 'Supplier created.')
       onOpenChange(false)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const onSubmit = (values: SupplierFormValues) => mutation.mutate(values)

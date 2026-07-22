@@ -13,7 +13,7 @@ import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
-import { getErrorMessage } from '@/shared/services/errorHandler'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatDate, formatNumber } from '@/lib/utils'
 import { deleteDelivery, fetchDeliveries, submitDelivery } from '../api/deliveryApi'
@@ -70,7 +70,7 @@ export function DeliveryListPage() {
       invalidate()
       toast.success('Delivery confirmed — stock updated.')
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const deleteMutation = useMutation({
@@ -80,7 +80,7 @@ export function DeliveryListPage() {
       toast.success('Delivery deleted.')
       setDeletingDelivery(null)
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toastApiError(error),
   })
 
   const rows = useMemo(() => {

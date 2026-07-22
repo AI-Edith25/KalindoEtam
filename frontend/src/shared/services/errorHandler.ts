@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { toast } from 'sonner'
 import type { ValidationErrorBody } from '@/shared/types/api'
 
 /**
@@ -10,8 +11,6 @@ import type { ValidationErrorBody } from '@/shared/types/api'
  */
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as Partial<ValidationErrorBody> & { message?: string } | undefined
-
     if (error.response?.status === 403) {
       return ''
     }
@@ -41,6 +40,20 @@ export function getErrorMessage(error: unknown): string {
   }
 
   return 'Something went wrong. Please try again.'
+}
+
+/**
+ * The one place that turns a failed request into a toast. A 403 means the
+ * backend correctly rejected an action the UI shouldn't have offered in the
+ * first place — never the user's fault, so getErrorMessage returns '' for
+ * it and this silently no-ops instead of surfacing "You do not have
+ * permission…". Every onError handler should call this instead of
+ * `toastApiError(error)` directly, so that rule lives once.
+ */
+export function toastApiError(error: unknown): void {
+  const message = getErrorMessage(error)
+  if (!message) return
+  toast.error(message)
 }
 
 export function getFieldErrors(error: unknown): Record<string, string[]> | null {

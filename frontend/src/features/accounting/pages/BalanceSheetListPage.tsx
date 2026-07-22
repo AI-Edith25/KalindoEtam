@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { formatCurrency } from '@/lib/utils'
-import { fetchCompaniesLookup } from '@/features/master/api/lookupsApi'
+import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { fetchBalanceSheet } from '../api/balanceSheetApi'
 import { BalanceSheetFiltersBar } from '../components/BalanceSheetFiltersBar'
 import { emptyBalanceSheetFilters } from '../lib/balanceSheetFilters'
@@ -22,7 +22,7 @@ export function BalanceSheetListPage() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState<BalanceSheetFilterValues>(emptyBalanceSheetFilters)
 
-  const companies = useQuery({ queryKey: ['companies-lookup'], queryFn: fetchCompaniesLookup })
+  const companies = useCompaniesLookup()
 
   const reportQuery = useQuery({
     queryKey: ['balance-sheet', filters.asOfDate, filters.branchId, filters.companyId],
