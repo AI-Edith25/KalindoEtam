@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PRINT_FONT_SIZE_LABELS, type PrintFontSize, type PrintOptions } from '@/shared/lib/printOptions'
 
-const DECIMAL_CHOICES = [0, 1, 2, 3, 4]
+const DECIMAL_CHOICES = ['0', '1', '2', '3', '4']
 
 interface PrintOptionsDialogProps {
   open: boolean
@@ -52,7 +52,7 @@ export function PrintOptionsDialog({ open, onOpenChange, options, onChange, fiel
                 </SelectTrigger>
                 <SelectContent>
                   {DECIMAL_CHOICES.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
+                    <SelectItem key={n} value={n}>
                       {n}
                     </SelectItem>
                   ))}
@@ -69,7 +69,7 @@ export function PrintOptionsDialog({ open, onOpenChange, options, onChange, fiel
                 </SelectTrigger>
                 <SelectContent>
                   {DECIMAL_CHOICES.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
+                    <SelectItem key={n} value={n}>
                       {n}
                     </SelectItem>
                   ))}
@@ -86,7 +86,7 @@ export function PrintOptionsDialog({ open, onOpenChange, options, onChange, fiel
                 </SelectTrigger>
                 <SelectContent>
                   {DECIMAL_CHOICES.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
+                    <SelectItem key={n} value={n}>
                       {n}
                     </SelectItem>
                   ))}
