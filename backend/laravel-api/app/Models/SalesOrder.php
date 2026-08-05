@@ -37,7 +37,7 @@ class SalesOrder extends Model
         'cancelled_at' => 'datetime',
     ];
 
-    public static function documentType(): string
+    public function documentType(): string
     {
         return 'sales';
     }

@@ -2,6 +2,9 @@ import type { ApprovalFlow } from '../approval/types'
 
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 
+/** Drives which Naming Series generates an Invoice's document_number — see Invoice::documentType() on the backend. */
+export type InvoiceType = 'goods' | 'transportation'
+
 export interface SalesOrderItem {
   id: string
   item_id: string
@@ -125,6 +128,7 @@ export interface InvoicePaymentHistoryLine {
 export interface Invoice {
   id: string
   document_number: string | null
+  invoice_type: InvoiceType
   status: DocumentStatus
   display_status: InvoiceDisplayStatus
   revision: number
@@ -158,6 +162,7 @@ export interface Invoice {
 
 export interface InvoiceFormValues {
   delivery_id: string
+  invoice_type?: InvoiceType
   invoice_date: string
   due_date: string
   discount_amount: number | null

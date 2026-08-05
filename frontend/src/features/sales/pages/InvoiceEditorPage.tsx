@@ -21,7 +21,8 @@ import { fetchTaxesLookup } from '@/features/master/api/lookupsApi'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
-import type { InvoiceFormValues } from '../types'
+import { INVOICE_TYPE_LABELS, INVOICE_TYPE_OPTIONS } from '../lib/invoiceTypeLabels'
+import type { InvoiceFormValues, InvoiceType } from '../types'
 
 const NO_TAX = '__none__'
 
@@ -50,6 +51,7 @@ export function InvoiceEditorPage() {
   const queryClient = useQueryClient()
 
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null)
+  const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType | null>(null)
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -101,6 +103,9 @@ export function InvoiceEditorPage() {
 
   const toPayload = (values: InvoiceEditorValues): InvoiceFormValues => ({
     delivery_id: selectedDeliveryId ?? '',
+    // Immutable once created (see invoiceFormSchema.ts) — only sent on create; UpdateInvoiceRequest
+    // doesn't accept it, so omitting it here on edit is what the backend already expects.
+    ...(isEdit ? {} : { invoice_type: selectedInvoiceType ?? undefined }),
     invoice_date: values.invoice_date,
     due_date: values.due_date,
     discount_amount: values.discount_amount === '' ? null : Number(values.discount_amount),
@@ -160,37 +165,57 @@ export function InvoiceEditorPage() {
     )
   }
 
-  // Step 1 (create mode only): pick the Delivery this invoice originates from.
-  if (!isEdit && !selectedDeliveryId) {
+  // Step 1 (create mode only): pick the Invoice Type (which Naming Series numbers it) and
+  // the Delivery this invoice originates from — both fixed for the invoice's lifetime.
+  if (!isEdit && (!selectedDeliveryId || !selectedInvoiceType)) {
     return (
       <div className="flex flex-col gap-4">
         <PageHeader title="New Invoice" description="Every Invoice originates from exactly one delivered, not-yet-invoiced Delivery." />
         <Card>
           <CardHeader>
-            <CardTitle>Select Delivery</CardTitle>
+            <CardTitle>Select Invoice Type &amp; Delivery</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <Select value="" onValueChange={setSelectedDeliveryId} disabled={eligibleDeliveriesQuery.isLoading}>
-              <SelectTrigger className="w-full sm:w-96">
-                <SelectValue
-                  placeholder={
-                    eligibleDeliveriesQuery.isLoading
-                      ? 'Loading…'
-                      : eligibleDeliveries.length === 0
-                        ? 'No deliveries available to invoice'
-                        : 'Select delivery'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {eligibleDeliveries.map((delivery) => (
-                  <SelectItem key={delivery.id} value={delivery.id}>
-                    {delivery.document_number} — {delivery.customer?.customer_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">Only delivered orders that have not already been invoiced are shown.</p>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Invoice Type</label>
+              <Select value={selectedInvoiceType ?? ''} onValueChange={(value) => setSelectedInvoiceType(value as InvoiceType)}>
+                <SelectTrigger className="w-full sm:w-96">
+                  <SelectValue placeholder="Select invoice type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {INVOICE_TYPE_OPTIONS.map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">Determines which Naming Series generates the document number — cannot be changed afterward.</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Delivery</label>
+              <Select value={selectedDeliveryId ?? ''} onValueChange={setSelectedDeliveryId} disabled={eligibleDeliveriesQuery.isLoading}>
+                <SelectTrigger className="w-full sm:w-96">
+                  <SelectValue
+                    placeholder={
+                      eligibleDeliveriesQuery.isLoading
+                        ? 'Loading…'
+                        : eligibleDeliveries.length === 0
+                          ? 'No deliveries available to invoice'
+                          : 'Select delivery'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {eligibleDeliveries.map((delivery) => (
+                    <SelectItem key={delivery.id} value={delivery.id}>
+                      {delivery.document_number} — {delivery.customer?.customer_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">Only delivered orders that have not already been invoiced are shown.</p>
+            </div>
             <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/sales/invoices')}>
               Cancel
             </Button>
@@ -202,6 +227,7 @@ export function InvoiceEditorPage() {
 
   const delivery = isEdit ? invoiceQuery.data?.delivery : selectedDelivery
   const customerName = isEdit ? invoiceQuery.data?.customer?.customer_name : selectedDelivery?.customer?.customer_name
+  const invoiceType = isEdit ? invoiceQuery.data?.invoice_type : selectedInvoiceType
 
   return (
     <div className="flex flex-col gap-4">
@@ -223,6 +249,10 @@ export function InvoiceEditorPage() {
                 <span className="text-sm font-medium">
                   {delivery?.document_number} — {customerName}
                 </span>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs text-muted-foreground">Invoice Type</span>
+                <span className="text-sm font-medium">{invoiceType ? INVOICE_TYPE_LABELS[invoiceType] : '—'}</span>
               </div>
               <FormField
                 control={form.control}

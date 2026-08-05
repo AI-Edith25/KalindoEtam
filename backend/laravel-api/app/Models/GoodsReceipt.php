@@ -38,7 +38,7 @@ class GoodsReceipt extends Model
         'cancelled_at' => 'datetime',
     ];
 
-    public static function documentType(): string
+    public function documentType(): string
     {
         return 'goods_receipt';
     }

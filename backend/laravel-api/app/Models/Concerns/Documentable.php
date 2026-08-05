@@ -46,7 +46,12 @@ trait Documentable
         });
     }
 
-    abstract public static function documentType(): string;
+    /**
+     * Not static — most implementations return a constant, but Invoice's
+     * varies per-instance (Sprint 2: Invoice Numbering, Goods vs
+     * Transportation each get their own Naming Series).
+     */
+    abstract public function documentType(): string;
 
     public function attachments(): MorphMany
     {

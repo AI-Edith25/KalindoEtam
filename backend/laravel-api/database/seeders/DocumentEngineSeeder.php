@@ -20,7 +20,9 @@ class DocumentEngineSeeder extends Seeder
             ['module' => 'purchase', 'document_type' => 'goods_receipt', 'prefix' => 'GR-'],
             ['module' => 'sales', 'document_type' => 'sales', 'prefix' => 'SO-'],
             ['module' => 'sales', 'document_type' => 'delivery', 'prefix' => 'DN-'],
-            ['module' => 'invoice', 'document_type' => 'invoice', 'prefix' => 'INV-'],
+            // Sprint 2 (Invoice Numbering): Goods and Transportation invoices number independently.
+            ['module' => 'invoice', 'document_type' => 'invoice_goods', 'prefix' => 'INV-'],
+            ['module' => 'invoice', 'document_type' => 'invoice_transportation', 'prefix' => 'ANG-'],
             ['module' => 'invoice', 'document_type' => 'credit_note', 'prefix' => 'CN-'],
             // 'DN-' is already Delivery's prefix — 'DBN-' avoids the collision.
             ['module' => 'invoice', 'document_type' => 'debit_note', 'prefix' => 'DBN-'],

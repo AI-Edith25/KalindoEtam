@@ -91,6 +91,38 @@ export interface AuditLog {
   created_at: string
 }
 
+/**
+ * document_type is a plain string key, not a fixed enum on either side —
+ * the whole point of Sprint 2 (Invoice Numbering) is that a new document
+ * type's numbering is configured here, not hardcoded in app code. Existing
+ * keys in use: invoice_goods, invoice_transportation, credit_note,
+ * debit_note, purchase, goods_receipt, sales, delivery, journal, payment,
+ * receipt, stock_adjustment.
+ */
+export interface NamingSeries {
+  id: string
+  module: string
+  document_type: string
+  prefix: string | null
+  suffix: string | null
+  digit_length: number
+  current_number: number
+  is_default: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface NamingSeriesFormValues {
+  module: string
+  document_type: string
+  prefix: string | null
+  suffix: string | null
+  digit_length: number
+  is_default: boolean
+  is_active: boolean
+}
+
 export interface AuditLogFilterValues {
   user_id?: string
   module?: string

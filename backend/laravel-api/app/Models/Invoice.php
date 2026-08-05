@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DocumentStatus;
+use App\Enums\InvoiceType;
 use App\Models\Concerns\Documentable;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -18,6 +19,7 @@ class Invoice extends Model
 
     protected $fillable = [
         'document_number',
+        'invoice_type',
         'status',
         'revision',
         'submitted_at',
@@ -37,6 +39,7 @@ class Invoice extends Model
 
     protected $casts = [
         'status' => DocumentStatus::class,
+        'invoice_type' => InvoiceType::class,
         'invoice_date' => 'date',
         'due_date' => 'date',
         'subtotal' => 'decimal:2',
@@ -47,9 +50,18 @@ class Invoice extends Model
         'cancelled_at' => 'datetime',
     ];
 
-    public static function documentType(): string
+    /**
+     * Sprint 2 (Invoice Numbering): Goods and Transportation each number
+     * independently — 'invoice_goods' is the historical 'invoice' series
+     * renamed in place (see naming_series migration), so every already-
+     * generated document_number and its counter carry over unchanged.
+     */
+    public function documentType(): string
     {
-        return 'invoice';
+        return match ($this->invoice_type) {
+            InvoiceType::TRANSPORTATION => 'invoice_transportation',
+            default => 'invoice_goods',
+        };
     }
 
     public function delivery(): BelongsTo

@@ -19,6 +19,7 @@ import type { PaymentMethod } from '@/features/payment/types'
 import { cancelInvoice, deleteInvoice, fetchInvoice, submitInvoice } from '../api/invoiceApi'
 import { CREDIT_NOTE_REASON_LABELS } from '../lib/creditNoteReasonLabels'
 import { DEBIT_NOTE_REASON_LABELS } from '../lib/debitNoteReasonLabels'
+import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
 import type { InvoiceCreditNoteHistoryLine, InvoiceDebitNoteHistoryLine, InvoiceItem, InvoicePaymentHistoryLine } from '../types'
 
 const lineColumns: DataTableColumn<InvoiceItem>[] = [
@@ -234,6 +235,7 @@ export function InvoiceDetailPage() {
         <CardContent>
           <DetailSection>
             <DetailField label="Invoice Number" value={invoice.document_number ?? '—'} />
+            <DetailField label="Invoice Type" value={INVOICE_TYPE_LABELS[invoice.invoice_type]} />
             <DetailField label="Invoice Date" value={formatDate(invoice.invoice_date)} />
             <DetailField label="Due Date" value={formatDate(invoice.due_date)} />
             <DetailField label="Notes" value={invoice.remarks || '—'} />

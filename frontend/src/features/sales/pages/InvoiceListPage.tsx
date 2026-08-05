@@ -18,6 +18,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../api/invoiceApi'
 import { SalesOrderFiltersBar } from '../components/SalesOrderFiltersBar'
 import { emptyInvoiceFilters } from '../lib/invoiceFilters'
+import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
 import type { Invoice, InvoiceFilterValues } from '../types'
 
 const SORTERS: Record<string, (invoice: Invoice) => string | number> = {
@@ -128,6 +129,7 @@ export function InvoiceListPage() {
 
   const columns: DataTableColumn<Invoice>[] = [
     { header: 'Invoice Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    { header: 'Type', accessor: (row) => INVOICE_TYPE_LABELS[row.invoice_type] },
     { header: 'Invoice Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
     { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
     { header: 'Delivery', accessor: (row) => row.delivery?.document_number ?? '—' },

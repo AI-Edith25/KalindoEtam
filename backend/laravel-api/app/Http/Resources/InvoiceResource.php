@@ -19,6 +19,7 @@ class InvoiceResource extends JsonResource
         return [
             'id' => $this->id,
             'document_number' => $this->document_number,
+            'invoice_type' => $this->invoice_type,
             'status' => $this->status,
             'display_status' => $this->resolveDisplayStatus(),
             'revision' => $this->revision,

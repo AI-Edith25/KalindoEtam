@@ -63,6 +63,7 @@ import { CompanyPage } from '@/features/administration/pages/CompanyPage'
 import { UserListPage } from '@/features/administration/pages/UserListPage'
 import { RoleListPage } from '@/features/administration/pages/RoleListPage'
 import { AuditLogListPage } from '@/features/administration/pages/AuditLogListPage'
+import { NamingSeriesListPage } from '@/features/administration/pages/NamingSeriesListPage'
 import { ProtectedRoute } from './ProtectedRoute'
 
 export function AppRouter() {
@@ -151,6 +152,7 @@ export function AppRouter() {
         <Route path="/administration/users" element={<ProtectedRoute permission="administration.users.view"><UserListPage /></ProtectedRoute>} />
         <Route path="/administration/roles" element={<ProtectedRoute permission="administration.roles.view"><RoleListPage /></ProtectedRoute>} />
         <Route path="/administration/audit-log" element={<ProtectedRoute permission="administration.audit_log.view"><AuditLogListPage /></ProtectedRoute>} />
+        <Route path="/administration/naming-series" element={<ProtectedRoute permission="administration.naming_series.view"><NamingSeriesListPage /></ProtectedRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

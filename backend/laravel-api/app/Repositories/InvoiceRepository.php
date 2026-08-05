@@ -26,6 +26,7 @@ class InvoiceRepository extends BaseRepository
         return $this->model->query()
             ->with(self::EAGER)
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['invoice_type'] ?? null, fn ($query, $invoiceType) => $query->where('invoice_type', $invoiceType))
             ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
             ->when($filters['delivery_id'] ?? null, fn ($query, $deliveryId) => $query->where('delivery_id', $deliveryId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '>=', $date))

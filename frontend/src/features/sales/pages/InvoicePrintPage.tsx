@@ -4,6 +4,7 @@ import { Loader2, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchInvoice } from '../api/invoiceApi'
+import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
 
 /**
  * Print-optimized layout, not a PDF — @media print CSS + the browser's
@@ -43,6 +44,7 @@ export function InvoicePrintPage() {
         <div>
           <h2 className="text-2xl font-bold">INVOICE</h2>
           <p className="text-sm text-muted-foreground">{invoice.document_number}</p>
+          <p className="text-sm text-muted-foreground">{INVOICE_TYPE_LABELS[invoice.invoice_type]} Invoice</p>
         </div>
         <div className="text-right text-sm">
           <p>Invoice Date: {formatDate(invoice.invoice_date)}</p>

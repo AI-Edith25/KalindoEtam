@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\InvoiceType;
 use App\Enums\TaxCalculationMode;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -17,6 +18,8 @@ class StoreInvoiceRequest extends FormRequest
     {
         return [
             'delivery_id' => ['required', 'uuid', 'exists:deliveries,id'],
+            // Drives which Naming Series generates document_number — see Invoice::documentType().
+            'invoice_type' => ['required', Rule::enum(InvoiceType::class)],
             'invoice_date' => ['required', 'date'],
             'due_date' => ['required', 'date', 'after_or_equal:invoice_date'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],

@@ -134,6 +134,7 @@ export const navTree: NavGroup[] = [
       { key: 'company', label: 'Company', path: '/administration/company', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'users', label: 'Users', path: '/administration/users', actions: ['view', 'create', 'update'] },
       { key: 'roles', label: 'Roles & Permissions', path: '/administration/roles', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'naming_series', label: 'Naming Series', path: '/administration/naming-series', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'audit_log', label: 'Audit Log', path: '/administration/audit-log', actions: ['view'] },
     ],
   },
@@ -161,7 +162,6 @@ export const extraPermissions: ExtraPermission[] = [
   { key: 'payment_allocation', label: 'Payment Allocation', group: 'finance', actions: ['create', 'update'] },
   { key: 'document_attachment', label: 'Document Attachment', group: 'system', actions: ['view', 'create', 'delete'] },
   { key: 'document_timeline', label: 'Document Timeline', group: 'system', actions: ['view'] },
-  { key: 'naming_series', label: 'Naming Series', group: 'administration', actions: ['view', 'create', 'update', 'delete'] },
   { key: 'branch', label: 'Branch', group: 'administration', actions: ['view', 'create', 'update', 'delete'] },
   { key: 'currencies', label: 'Currencies', group: 'master', actions: ['view', 'create', 'update', 'delete'] },
 ]

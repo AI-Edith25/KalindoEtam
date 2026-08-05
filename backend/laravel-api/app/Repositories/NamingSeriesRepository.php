@@ -11,13 +11,14 @@ class NamingSeriesRepository extends BaseRepository
         parent::__construct($model);
     }
 
-    public function lockDefaultForType(string $documentType): NamingSeries
+    /** Null, not firstOrFail() — an unconfigured document type is a business condition the caller must report clearly, not a 404. */
+    public function lockDefaultForType(string $documentType): ?NamingSeries
     {
         return $this->model->query()
             ->where('document_type', $documentType)
             ->where('is_default', true)
             ->where('is_active', true)
             ->lockForUpdate()
-            ->firstOrFail();
+            ->first();
     }
 }

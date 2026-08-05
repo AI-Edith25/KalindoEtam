@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Contracts\DocumentNumberGeneratorInterface;
+use App\Exceptions\BusinessException;
 use App\Repositories\NamingSeriesRepository;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class DocumentNumberGeneratorService implements DocumentNumberGeneratorInterface
 {
@@ -14,6 +16,12 @@ class DocumentNumberGeneratorService implements DocumentNumberGeneratorInterface
     {
         return DB::transaction(function () use ($documentType) {
             $series = $this->namingSeriesRepository->lockDefaultForType($documentType);
+
+            if ($series === null) {
+                $label = Str::headline($documentType);
+
+                throw new BusinessException("No active Naming Series is configured for \"{$label}\". Set one up under Administration > Naming Series before creating this document.");
+            }
 
             $nextNumber = $series->current_number + 1;
             $series->update(['current_number' => $nextNumber]);

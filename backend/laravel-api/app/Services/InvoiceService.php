@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DocumentStatus;
+use App\Enums\InvoiceType;
 use App\Enums\TaxCalculationMode;
 use App\Exceptions\BusinessException;
 use App\Models\Invoice;
@@ -67,6 +68,9 @@ class InvoiceService
                 'delivery_id' => $delivery->id,
                 'sales_order_id' => $delivery->sales_order_id,
                 'customer_id' => $delivery->customer_id,
+                // Defaults to Goods — every caller that predates Sprint 2 (Invoice Numbering),
+                // including existing tests, never passes this and means Goods either way.
+                'invoice_type' => $data['invoice_type'] ?? InvoiceType::GOODS->value,
                 'invoice_date' => $data['invoice_date'],
                 'due_date' => $data['due_date'],
                 'subtotal' => $subtotal,
