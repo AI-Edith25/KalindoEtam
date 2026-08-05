@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, ExternalLink, Eye, Pencil, Plus, RotateCw, Send, Trash2, Upload } from 'lucide-react'
+import { Download, ExternalLink, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
@@ -102,7 +102,10 @@ export function DeliveryListPage() {
   }
 
   const actionsFor = (delivery: Delivery): RowAction[] => {
-    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/sales/deliveries/${delivery.id}`) }]
+    const actions: RowAction[] = [
+      { label: 'View', icon: Eye, onClick: () => navigate(`/sales/deliveries/${delivery.id}`) },
+      { label: 'Print', icon: Printer, onClick: () => navigate(`/sales/deliveries/${delivery.id}/print`) },
+    ]
 
     if (delivery.status === 'draft') {
       if (canUpdate) {

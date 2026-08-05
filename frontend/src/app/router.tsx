@@ -22,6 +22,7 @@ import { SalesOrderDetailPage } from '@/features/sales/pages/SalesOrderDetailPag
 import { DeliveryListPage } from '@/features/sales/pages/DeliveryListPage'
 import { DeliveryEditorPage } from '@/features/sales/pages/DeliveryEditorPage'
 import { DeliveryDetailPage } from '@/features/sales/pages/DeliveryDetailPage'
+import { DeliveryPrintPage } from '@/features/sales/pages/DeliveryPrintPage'
 import { InvoiceListPage } from '@/features/sales/pages/InvoiceListPage'
 import { InvoiceEditorPage } from '@/features/sales/pages/InvoiceEditorPage'
 import { InvoiceDetailPage } from '@/features/sales/pages/InvoiceDetailPage'
@@ -104,6 +105,7 @@ export function AppRouter() {
         <Route path="/sales/deliveries/new" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryEditorPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id/edit" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryEditorPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryDetailPage /></ProtectedRoute>} />
+        <Route path="/sales/deliveries/:id/print" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryPrintPage /></ProtectedRoute>} />
         <Route path="/sales/invoices" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceListPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/new" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceEditorPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/:id/edit" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceEditorPage /></ProtectedRoute>} />

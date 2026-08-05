@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ExternalLink, Loader2, Pencil, Send, Trash2 } from 'lucide-react'
+import { ExternalLink, Loader2, Pencil, Printer, Send, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -79,22 +79,28 @@ export function DeliveryDetailPage() {
         title={delivery.document_number ?? 'Delivery'}
         description="Delivery details."
         actions={
-          delivery.status === 'draft' ? (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => navigate(`/sales/deliveries/${delivery.id}/edit`)}>
-                <Pencil className="size-4" />
-                Edit
-              </Button>
-              <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
-                {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                Confirm Delivery
-              </Button>
-              <Button variant="destructive" onClick={() => setConfirmingDelete(true)}>
-                <Trash2 className="size-4" />
-                Delete
-              </Button>
-            </div>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate(`/sales/deliveries/${delivery.id}/print`)}>
+              <Printer className="size-4" />
+              Print
+            </Button>
+            {delivery.status === 'draft' && (
+              <>
+                <Button variant="outline" onClick={() => navigate(`/sales/deliveries/${delivery.id}/edit`)}>
+                  <Pencil className="size-4" />
+                  Edit
+                </Button>
+                <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+                  {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  Confirm Delivery
+                </Button>
+                <Button variant="destructive" onClick={() => setConfirmingDelete(true)}>
+                  <Trash2 className="size-4" />
+                  Delete
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
