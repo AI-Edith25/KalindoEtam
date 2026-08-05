@@ -1,10 +1,10 @@
 import { z } from 'zod'
 
 /**
- * Sprint 12: receiving payment only — customer, date, method, and a total
- * amount. Applying it to specific invoices is a separate step (see
- * PaymentAllocationDrawer), so no invoice/receivable field lives here
- * anymore.
+ * Receiving payment only — customer, date, method, and a total amount.
+ * Invoice selection (Sprint 1: Invoice Allocation) lives as separate,
+ * un-validated component state on IncomingPaymentEditorPage, not here —
+ * it's optional and doesn't shape what a valid Receipt Entry itself is.
  */
 export const receiptEntryFormSchema = z
   .object({

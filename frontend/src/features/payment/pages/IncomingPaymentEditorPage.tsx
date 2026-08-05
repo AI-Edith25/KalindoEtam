@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,6 +16,10 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchCustomersLookup } from '@/features/master/api/lookupsApi'
 import { createReceiptEntry, fetchReceiptEntry, submitReceiptEntry, updateReceiptEntry } from '../api/receiptEntryApi'
+import { fetchAccountsReceivables } from '../api/accountsReceivableApi'
+import { allocatePayment } from '../api/paymentAllocationApi'
+import { OutstandingInvoicesTable } from '../components/OutstandingInvoicesTable'
+import { computeWaterfallAllocations } from '../lib/paymentAllocationWaterfall'
 import { receiptEntryFormSchema, type ReceiptEntryEditorValues } from '../lib/receiptEntryFormSchema'
 import { PAYMENT_METHOD_OPTIONS } from '../lib/paymentMethodLabels'
 import type { PaymentMethod } from '../types'
@@ -48,6 +52,33 @@ export function IncomingPaymentEditorPage() {
     defaultValues: emptyValues,
   })
 
+  const customerId = form.watch('customer_id')
+  const totalAmount = Number(form.watch('total_amount')) || 0
+
+  // Sprint 1 (Invoice Allocation): which of the customer's outstanding invoices
+  // the user checked, to allocate this payment against once it's confirmed.
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
+
+  const outstandingQuery = useQuery({
+    queryKey: ['accounts-receivables', customerId],
+    queryFn: () => fetchAccountsReceivables({ customer_id: customerId, per_page: 100 }),
+    enabled: !!customerId,
+  })
+
+  const outstandingInvoices = useMemo(
+    () => (outstandingQuery.data?.data ?? []).filter((ar) => ar.status !== 'paid' && ar.invoice_id !== null),
+    [outstandingQuery.data],
+  )
+
+  const toggleInvoice = (accountsReceivableId: string, checked: boolean) => {
+    setSelectedInvoiceIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(accountsReceivableId)
+      else next.delete(accountsReceivableId)
+      return next
+    })
+  }
+
   useEffect(() => {
     const receipt = receiptQuery.data
     if (!receipt) return
@@ -68,6 +99,11 @@ export function IncomingPaymentEditorPage() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiptQuery.data])
+
+  // A customer switch invalidates any invoice selection made for the previous one.
+  useEffect(() => {
+    setSelectedInvoiceIds(new Set())
+  }, [customerId])
 
   const saveMutation = useMutation({
     mutationFn: (values: ReceiptEntryEditorValues) => {
@@ -91,10 +127,38 @@ export function IncomingPaymentEditorPage() {
   })
 
   const submitMutation = useMutation({
-    mutationFn: () => submitReceiptEntry(id!),
-    onSuccess: (receipt) => {
+    mutationFn: async () => {
+      const receipt = await submitReceiptEntry(id!)
+
+      const lines = computeWaterfallAllocations(outstandingInvoices, selectedInvoiceIds, totalAmount)
+      if (lines.length === 0) {
+        return { receipt, allocationError: null as unknown }
+      }
+
+      // The payment is already received at this point — an allocation failure here
+      // (e.g. an invoice got settled elsewhere in the meantime) must not look like
+      // the whole submit failed. It's reported separately; the existing "Allocate
+      // Payment" action on the detail page remains available to finish it.
+      try {
+        await allocatePayment(receipt.id, lines)
+        return { receipt, allocationError: null as unknown }
+      } catch (error) {
+        return { receipt, allocationError: error }
+      }
+    },
+    onSuccess: ({ receipt, allocationError }) => {
       queryClient.invalidateQueries({ queryKey: ['receipt-entries'] })
-      toast.success('Payment received. Allocate it to an invoice from the detail page.')
+      queryClient.invalidateQueries({ queryKey: ['accounts-receivables'] })
+
+      if (allocationError) {
+        toast.success('Payment received.')
+        toastApiError(allocationError)
+      } else if (selectedInvoiceIds.size > 0) {
+        toast.success('Payment received and allocated to the selected invoice(s).')
+      } else {
+        toast.success('Payment received. Allocate it to an invoice from the detail page.')
+      }
+
       navigate(`/finance/incoming/${receipt.id}`)
     },
     onError: (error) => toastApiError(error),
@@ -112,7 +176,7 @@ export function IncomingPaymentEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${receiptQuery.data?.document_number ?? 'Payment'}` : 'New Incoming Payment'}
-        description="Record a payment received from a customer. Allocating it to specific invoices is a separate step, once it's confirmed."
+        description="Record a payment received from a customer, and optionally allocate it to their outstanding invoices in the same step."
       />
 
       <Form {...form}>
@@ -226,9 +290,28 @@ export function IncomingPaymentEditorPage() {
             </CardContent>
           </Card>
 
+          {customerId && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Outstanding Invoices</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <OutstandingInvoicesTable
+                  receivables={outstandingInvoices}
+                  isLoading={outstandingQuery.isLoading}
+                  selectedIds={selectedInvoiceIds}
+                  onToggle={toggleInvoice}
+                  paymentAmount={totalAmount}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           <p className="text-right text-sm text-muted-foreground">
             {isEdit && receiptQuery.data?.status === 'draft'
-              ? 'Saving records the payment. Confirming marks the money as received — allocate it to an invoice afterward.'
+              ? selectedInvoiceIds.size > 0
+                ? 'Confirming marks the money as received and allocates it to the invoices checked above.'
+                : 'Saving records the payment. Confirming marks the money as received — allocate it to an invoice afterward.'
               : 'Saving records the payment as a draft — nothing is received until you confirm it.'}
           </p>
 
