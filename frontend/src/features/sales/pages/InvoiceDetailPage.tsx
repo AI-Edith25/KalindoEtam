@@ -20,6 +20,7 @@ import { cancelInvoice, deleteInvoice, fetchInvoice, submitInvoice } from '../ap
 import { CREDIT_NOTE_REASON_LABELS } from '../lib/creditNoteReasonLabels'
 import { DEBIT_NOTE_REASON_LABELS } from '../lib/debitNoteReasonLabels'
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
+import { discountLabel } from '../lib/discount'
 import type { InvoiceCreditNoteHistoryLine, InvoiceDebitNoteHistoryLine, InvoiceItem, InvoicePaymentHistoryLine } from '../types'
 
 const lineColumns: DataTableColumn<InvoiceItem>[] = [
@@ -293,7 +294,7 @@ export function InvoiceDetailPage() {
             <span>{formatCurrency(invoice.subtotal)}</span>
           </div>
           <div className="flex w-full max-w-64 justify-between text-sm">
-            <span className="text-muted-foreground">Discount</span>
+            <span className="text-muted-foreground">{discountLabel(invoice.discount_type, invoice.discount_percentage)}</span>
             <span>-{formatCurrency(invoice.discount_amount)}</span>
           </div>
           <div className="flex w-full max-w-64 justify-between text-sm">

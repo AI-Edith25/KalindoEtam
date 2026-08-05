@@ -22,7 +22,25 @@ import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
 import { INVOICE_TYPE_LABELS, INVOICE_TYPE_OPTIONS } from '../lib/invoiceTypeLabels'
+import { discountLabel } from '../lib/discount'
 import type { InvoiceFormValues, InvoiceType } from '../types'
+
+/** Digits-only value in RHF (string-then-convert), formatted with Indonesian thousand separators while editing. */
+function RupiahInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const display = value ? new Intl.NumberFormat('id-ID').format(Number(value)) : ''
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
+      <Input
+        className="pl-9"
+        inputMode="numeric"
+        placeholder="0"
+        value={display}
+        onChange={(event) => onChange(event.target.value.replace(/\D/g, ''))}
+      />
+    </div>
+  )
+}
 
 const NO_TAX = '__none__'
 
@@ -94,7 +112,9 @@ export function InvoiceEditorPage() {
     form.reset({
       invoice_date: invoice.invoice_date,
       due_date: invoice.due_date,
+      discount_type: invoice.discount_type ?? 'amount',
       discount_amount: String(invoice.discount_amount),
+      discount_percentage: invoice.discount_percentage != null ? String(invoice.discount_percentage) : '',
       tax_id: invoice.tax_id ?? '',
       remarks: invoice.remarks ?? '',
     })
@@ -108,7 +128,11 @@ export function InvoiceEditorPage() {
     ...(isEdit ? {} : { invoice_type: selectedInvoiceType ?? undefined }),
     invoice_date: values.invoice_date,
     due_date: values.due_date,
-    discount_amount: values.discount_amount === '' ? null : Number(values.discount_amount),
+    discount_type: values.discount_type,
+    // Only the field matching discount_type carries real data — InvoiceService::resolveDiscount()
+    // on the backend derives discount_amount from discount_percentage itself in Percentage mode.
+    discount_amount: values.discount_type === 'amount' ? (values.discount_amount === '' ? 0 : Number(values.discount_amount)) : null,
+    discount_percentage: values.discount_type === 'percentage' ? (values.discount_percentage === '' ? 0 : Number(values.discount_percentage)) : null,
     // TaxService::calculate() computes tax_amount server-side from tax_id — never sent directly
     // from here. See docs/TAX_ENGINE_DESIGN.md §6.
     tax_id: values.tax_id || null,
@@ -142,7 +166,9 @@ export function InvoiceEditorPage() {
     onError: (error) => toastApiError(error),
   })
 
-  const watchedDiscount = Number(form.watch('discount_amount') || 0)
+  const watchedDiscountType = form.watch('discount_type')
+  const watchedDiscountAmount = form.watch('discount_amount')
+  const watchedDiscountPercentage = form.watch('discount_percentage')
   const watchedTaxId = form.watch('tax_id')
   const selectedTax = taxOptions.find((tax) => tax.id === watchedTaxId) ?? null
 
@@ -150,12 +176,18 @@ export function InvoiceEditorPage() {
     ? (invoiceQuery.data?.items ?? []).map((line) => ({ ...line }))
     : (selectedDelivery?.items ?? []).map((line) => ({ ...line }))
   const subtotal = previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
+  // Preview only — InvoiceService::resolveDiscount() on the backend is the authoritative
+  // computation on save; this mirrors that same formula purely for instant visual feedback.
+  const discountAmount =
+    watchedDiscountType === 'percentage'
+      ? Math.round(subtotal * (Number(watchedDiscountPercentage || 0) / 100) * 100) / 100
+      : Number(watchedDiscountAmount || 0)
   // Preview only — TaxService::calculate() on the backend always computes and returns the
   // authoritative tax_amount on save (Exclusive mode, this document's only mode today). This
   // mirrors that same formula purely for instant visual feedback before the round trip; the
   // saved value never comes from here. See docs/TAX_ENGINE_DESIGN.md §4/§6.
   const watchedTax = selectedTax && selectedTax.type === 'vat' ? Math.round(subtotal * (Number(selectedTax.rate) / 100) * 100) / 100 : 0
-  const grandTotal = subtotal - watchedDiscount + watchedTax
+  const grandTotal = subtotal - discountAmount + watchedTax
 
   if (isEdit && invoiceQuery.isLoading) {
     return (
@@ -225,6 +257,18 @@ export function InvoiceEditorPage() {
     )
   }
 
+  const onSubmit = form.handleSubmit((values) => {
+    if (values.discount_type === 'amount' && Number(values.discount_amount || 0) > subtotal) {
+      form.setError('discount_amount', { message: 'Cannot exceed subtotal' })
+      return
+    }
+    if (values.discount_type === 'percentage' && Number(values.discount_percentage || 0) > 100) {
+      form.setError('discount_percentage', { message: 'Cannot exceed 100%' })
+      return
+    }
+    saveMutation.mutate(values)
+  })
+
   const delivery = isEdit ? invoiceQuery.data?.delivery : selectedDelivery
   const customerName = isEdit ? invoiceQuery.data?.customer?.customer_name : selectedDelivery?.customer?.customer_name
   const invoiceType = isEdit ? invoiceQuery.data?.invoice_type : selectedInvoiceType
@@ -237,7 +281,7 @@ export function InvoiceEditorPage() {
       />
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))} className="flex flex-col gap-4">
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Invoice Details</CardTitle>
@@ -282,17 +326,57 @@ export function InvoiceEditorPage() {
               />
               <FormField
                 control={form.control}
-                name="discount_amount"
+                name="discount_type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Discount</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="0" placeholder="0" {...field} />
-                    </FormControl>
+                    <FormLabel>Discount Type</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="amount">Amount (Rp)</SelectItem>
+                        <SelectItem value="percentage">Percentage (%)</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              {watchedDiscountType === 'percentage' ? (
+                <FormField
+                  control={form.control}
+                  name="discount_percentage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Discount (%)</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input type="number" min="0" max="100" step="0.01" placeholder="0" className="pr-9" {...field} />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="discount_amount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Discount (Rp)</FormLabel>
+                      <FormControl>
+                        <RupiahInput value={field.value} onChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="tax_id"
@@ -358,8 +442,8 @@ export function InvoiceEditorPage() {
                 <span>{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex w-full max-w-64 justify-between text-sm">
-                <span className="text-muted-foreground">Discount</span>
-                <span>-{formatCurrency(watchedDiscount)}</span>
+                <span className="text-muted-foreground">{discountLabel(watchedDiscountType, watchedDiscountPercentage)}</span>
+                <span>-{formatCurrency(discountAmount)}</span>
               </div>
               <div className="flex w-full max-w-64 justify-between text-sm">
                 <span className="text-muted-foreground">Tax</span>

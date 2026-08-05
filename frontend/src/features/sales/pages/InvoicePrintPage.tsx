@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchInvoice } from '../api/invoiceApi'
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
+import { discountLabel } from '../lib/discount'
 
 /**
  * Print-optimized layout, not a PDF — @media print CSS + the browser's
@@ -97,7 +98,7 @@ export function InvoicePrintPage() {
           <span>{formatCurrency(invoice.subtotal)}</span>
         </div>
         <div className="flex w-64 justify-between">
-          <span className="text-muted-foreground">Discount</span>
+          <span className="text-muted-foreground">{discountLabel(invoice.discount_type, invoice.discount_percentage)}</span>
           <span>-{formatCurrency(invoice.discount_amount)}</span>
         </div>
         <div className="flex w-64 justify-between">

@@ -116,6 +116,96 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertCount(1, $invoice->items);
     }
 
+    public function test_invoice_supports_a_fixed_amount_discount(): void
+    {
+        $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_id' => $delivery->id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'discount_type' => 'amount',
+            'discount_amount' => 15000,
+        ]);
+
+        $this->assertEquals(100000, (float) $invoice->subtotal);
+        $this->assertEquals(15000, (float) $invoice->discount_amount);
+        $this->assertSame('amount', $invoice->discount_type->value);
+        $this->assertNull($invoice->discount_percentage);
+        $this->assertEquals(85000, (float) $invoice->grand_total);
+    }
+
+    public function test_invoice_supports_a_percentage_discount_derived_from_subtotal(): void
+    {
+        $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_id' => $delivery->id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'discount_type' => 'percentage',
+            'discount_percentage' => 10,
+        ]);
+
+        $this->assertEquals(100000, (float) $invoice->subtotal);
+        $this->assertEquals(10000, (float) $invoice->discount_amount);
+        $this->assertSame('percentage', $invoice->discount_type->value);
+        $this->assertEquals(10, (float) $invoice->discount_percentage);
+        $this->assertEquals(90000, (float) $invoice->grand_total);
+    }
+
+    public function test_a_fixed_discount_amount_cannot_exceed_the_subtotal(): void
+    {
+        $delivery = $this->submittedDelivery(qty: 1, rate: 10000);
+
+        $this->expectException(BusinessException::class);
+
+        $this->invoiceService->create([
+            'delivery_id' => $delivery->id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'discount_type' => 'amount',
+            'discount_amount' => 20000,
+        ]);
+    }
+
+    public function test_an_invoice_without_a_discount_type_defaults_to_amount_mode(): void
+    {
+        $delivery = $this->submittedDelivery(qty: 1, rate: 10000);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_id' => $delivery->id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'discount_amount' => 1000,
+        ]);
+
+        $this->assertSame('amount', $invoice->discount_type->value);
+        $this->assertEquals(1000, (float) $invoice->discount_amount);
+        $this->assertNull($invoice->discount_percentage);
+    }
+
+    public function test_updating_an_invoice_can_switch_it_to_a_percentage_discount(): void
+    {
+        $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_id' => $delivery->id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $invoice = $this->invoiceService->update($invoice, [
+            'discount_type' => 'percentage',
+            'discount_percentage' => 25,
+        ]);
+
+        $this->assertSame('percentage', $invoice->discount_type->value);
+        $this->assertEquals(25, (float) $invoice->discount_percentage);
+        $this->assertEquals(25000, (float) $invoice->discount_amount);
+        $this->assertEquals(75000, (float) $invoice->grand_total);
+    }
+
     public function test_a_delivery_cannot_be_invoiced_twice(): void
     {
         $delivery = $this->submittedDelivery();

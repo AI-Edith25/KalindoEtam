@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
 use App\Enums\TaxCalculationMode;
@@ -56,7 +57,7 @@ class InvoiceService
             }
 
             $subtotal = $delivery->items->sum('amount');
-            $discountAmount = $data['discount_amount'] ?? 0;
+            [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
             [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
             $grandTotal = $subtotal - $discountAmount + $taxAmount;
 
@@ -75,6 +76,8 @@ class InvoiceService
                 'due_date' => $data['due_date'],
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
+                'discount_type' => $discountType->value,
+                'discount_percentage' => $discountPercentage,
                 'tax_id' => $taxId,
                 'tax_amount' => $taxAmount,
                 'grand_total' => $grandTotal,
@@ -108,7 +111,15 @@ class InvoiceService
         return DB::transaction(function () use ($invoice, $data) {
             $this->assertDraft($invoice, 'updated');
 
-            $discountAmount = $data['discount_amount'] ?? $invoice->discount_amount;
+            // Only re-resolve discount when the caller actually touched it — otherwise keep the
+            // invoice's existing discount_amount/discount_type/discount_percentage exactly as they were.
+            if (array_key_exists('discount_type', $data) || array_key_exists('discount_amount', $data) || array_key_exists('discount_percentage', $data)) {
+                [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, (float) $invoice->subtotal);
+            } else {
+                $discountAmount = $invoice->discount_amount;
+                $discountType = $invoice->discount_type;
+                $discountPercentage = $invoice->discount_percentage;
+            }
 
             // Only re-resolve tax when the caller actually touched it — otherwise keep the
             // invoice's existing tax_id/tax_amount exactly as they were.
@@ -129,6 +140,8 @@ class InvoiceService
                 'invoice_date' => $data['invoice_date'] ?? $invoice->invoice_date,
                 'due_date' => $data['due_date'] ?? $invoice->due_date,
                 'discount_amount' => $discountAmount,
+                'discount_type' => $discountType instanceof DiscountType ? $discountType->value : $discountType,
+                'discount_percentage' => $discountPercentage,
                 'tax_id' => $taxId,
                 'tax_amount' => $taxAmount,
                 'grand_total' => $grandTotal,
@@ -140,6 +153,40 @@ class InvoiceService
 
             return $invoice;
         });
+    }
+
+    /**
+     * Mirrors resolveTax()'s shape: Amount mode trusts discount_amount directly (the same
+     * behavior this field already had before Discount Type existed, so pre-Sprint-3.1 rows
+     * and callers keep working untouched — they default to Amount via the migration/enum
+     * default). Percentage mode derives discount_amount from discount_percentage here, the
+     * one place both create() and update() compute it from.
+     *
+     * @return array{0: float, 1: DiscountType, 2: ?float} [discountAmount, discountType, discountPercentage]
+     */
+    protected function resolveDiscount(array $data, float $subtotal): array
+    {
+        $type = isset($data['discount_type']) ? DiscountType::from($data['discount_type']) : DiscountType::AMOUNT;
+
+        if ($type === DiscountType::PERCENTAGE) {
+            $percentage = (float) ($data['discount_percentage'] ?? 0);
+
+            if ($percentage < 0 || $percentage > 100) {
+                throw new BusinessException('Discount percentage must be between 0 and 100.');
+            }
+
+            $amount = round($subtotal * $percentage / 100, 2);
+
+            return [$amount, $type, $percentage];
+        }
+
+        $amount = (float) ($data['discount_amount'] ?? 0);
+
+        if ($amount > $subtotal) {
+            throw new BusinessException('Discount amount cannot exceed the subtotal.');
+        }
+
+        return [$amount, $type, null];
     }
 
     /**

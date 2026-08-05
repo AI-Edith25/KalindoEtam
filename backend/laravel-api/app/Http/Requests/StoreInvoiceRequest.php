@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\DiscountType;
 use App\Enums\InvoiceType;
 use App\Enums\TaxCalculationMode;
 use Illuminate\Foundation\Http\FormRequest;
@@ -22,7 +23,11 @@ class StoreInvoiceRequest extends FormRequest
             'invoice_type' => ['required', Rule::enum(InvoiceType::class)],
             'invoice_date' => ['required', 'date'],
             'due_date' => ['required', 'date', 'after_or_equal:invoice_date'],
+            // Type decides which of the next two fields InvoiceService::resolveDiscount() reads —
+            // 'amount cannot exceed subtotal' is enforced there, since subtotal isn't known yet here.
+            'discount_type' => ['nullable', Rule::enum(DiscountType::class)],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             // Only an Active tax may be selected for a new document — docs/TAX_ENGINE_DESIGN.md §9 (Tax Status).
             'tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('is_active', true)],
             'tax_mode' => ['sometimes', 'nullable', Rule::enum(TaxCalculationMode::class)],

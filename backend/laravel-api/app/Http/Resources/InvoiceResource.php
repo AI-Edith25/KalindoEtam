@@ -35,6 +35,8 @@ class InvoiceResource extends JsonResource
             'due_date' => $this->due_date?->format('Y-m-d'),
             'subtotal' => $this->subtotal,
             'discount_amount' => $this->discount_amount,
+            'discount_type' => $this->discount_type,
+            'discount_percentage' => $this->discount_percentage,
             'tax_id' => $this->tax_id,
             'tax' => $this->whenLoaded('tax', fn () => $this->tax ? new TaxResource($this->tax) : null),
             'tax_amount' => $this->tax_amount,

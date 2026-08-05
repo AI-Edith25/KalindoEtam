@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
 use App\Models\Concerns\Documentable;
@@ -31,6 +32,8 @@ class Invoice extends Model
         'due_date',
         'subtotal',
         'discount_amount',
+        'discount_type',
+        'discount_percentage',
         'tax_id',
         'tax_amount',
         'grand_total',
@@ -44,6 +47,8 @@ class Invoice extends Model
         'due_date' => 'date',
         'subtotal' => 'decimal:2',
         'discount_amount' => 'decimal:2',
+        'discount_type' => DiscountType::class,
+        'discount_percentage' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'submitted_at' => 'datetime',

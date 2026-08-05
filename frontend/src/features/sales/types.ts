@@ -5,6 +5,9 @@ export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 /** Drives which Naming Series generates an Invoice's document_number — see Invoice::documentType() on the backend. */
 export type InvoiceType = 'goods' | 'transportation'
 
+/** Drives whether Invoice.discount_amount is a fixed Rupiah figure or derived from discount_percentage — see InvoiceService::resolveDiscount() on the backend. */
+export type DiscountType = 'amount' | 'percentage'
+
 export interface SalesOrderItem {
   id: string
   item_id: string
@@ -141,6 +144,8 @@ export interface Invoice {
   due_date: string
   subtotal: string | number
   discount_amount: string | number
+  discount_type: DiscountType
+  discount_percentage: string | number | null
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
   tax_amount: string | number
@@ -165,7 +170,9 @@ export interface InvoiceFormValues {
   invoice_type?: InvoiceType
   invoice_date: string
   due_date: string
+  discount_type: DiscountType
   discount_amount: number | null
+  discount_percentage: number | null
   tax_id: string | null
   tax_amount: number | null
   remarks: string | null
