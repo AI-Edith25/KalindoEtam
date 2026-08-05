@@ -56,6 +56,23 @@ class AccountingService
         return $journalEntry ? $this->journalEntryService->reverse($journalEntry) : null;
     }
 
+    /**
+     * Indonesian description of what each hardcoded account code (see the
+     * various Models' journalLines()) is used for — not the CoA's own
+     * `name` field, which a company may customize or, as here, omit
+     * entirely. Only used to make resolveLines()' error actionable.
+     */
+    protected const ACCOUNT_PURPOSE = [
+        '1100' => 'Kas/Bank',
+        '1150' => 'Uang Muka Pelanggan',
+        '1200' => 'Piutang Usaha',
+        '2100' => 'Pajak',
+        '4000' => 'Pendapatan Penjualan',
+        '4050' => 'Retur Penjualan',
+        '4100' => 'Pendapatan Lain-lain',
+        '4900' => 'Diskon',
+    ];
+
     /** Maps journalLines()' {account: code, type: debit|credit, amount} shape onto {chart_of_account_id, debit, credit}. */
     protected function resolveLines(array $lines): array
     {
@@ -63,7 +80,13 @@ class AccountingService
             $account = $this->chartOfAccountRepository->findActiveByCode($line['account']);
 
             if ($account === null) {
-                throw new BusinessException("Unknown or inactive chart of account code: {$line['account']}.");
+                $purpose = self::ACCOUNT_PURPOSE[$line['account']] ?? null;
+                $purposeText = $purpose ? "untuk {$purpose} " : '';
+
+                throw new BusinessException(
+                    "Dokumen ini tidak bisa disimpan karena akun COA {$purposeText}(kode {$line['account']}) tidak ditemukan atau nonaktif. ".
+                    'Silakan tambahkan atau aktifkan akun tersebut di halaman Master Data > Chart of Accounts.'
+                );
             }
 
             return [
