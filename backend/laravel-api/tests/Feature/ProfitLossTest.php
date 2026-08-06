@@ -229,7 +229,7 @@ class ProfitLossTest extends TestCase
         Log::spy();
 
         $unmapped = ChartOfAccount::query()->create([
-            'code' => '6900',
+            'code' => '9900',
             'name' => 'Unmapped Expense',
             'account_type' => AccountType::EXPENSE,
             'is_active' => true,
@@ -240,11 +240,11 @@ class ProfitLossTest extends TestCase
 
         foreach ($result['sections'] as $section) {
             foreach ($section['lines'] as $line) {
-                $this->assertNotEquals('6900', $line['account']->code);
+                $this->assertNotEquals('9900', $line['account']->code);
             }
         }
 
-        Log::shouldHaveReceived('warning')->withArgs(fn (string $message) => str_contains($message, '6900'))->once();
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $message) => str_contains($message, '9900'))->once();
     }
 
     public function test_asset_liability_equity_accounts_never_appear_on_the_report(): void

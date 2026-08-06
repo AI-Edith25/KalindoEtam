@@ -5,12 +5,19 @@ import { z } from 'zod'
  * document is picked (not sent to the API) — used only so `amount` can be
  * refined against it here, same "editable string field + read-only
  * snapshot number" shape as goodsReceiptFormSchema's `remaining`.
+ *
+ * One schema, two branches by payment_type — Supplier keeps every existing
+ * rule unchanged; General Expense (Category + Description, no
+ * Supplier/Source Document) is new.
  */
 export const paymentEntryFormSchema = z
   .object({
-    supplier_id: z.string().min(1, 'Supplier is required'),
-    accounts_payable_id: z.string().min(1, 'Select a source document'),
+    payment_type: z.enum(['supplier', 'general_expense']),
+    supplier_id: z.string(),
+    accounts_payable_id: z.string(),
     outstandingAmount: z.number(),
+    expense_account_id: z.string(),
+    description: z.string(),
     amount: z.string(),
     payment_date: z.string().min(1, 'Payment date is required'),
     payment_method: z.string().min(1, 'Payment method is required'),
@@ -25,12 +32,27 @@ export const paymentEntryFormSchema = z
       return
     }
 
-    if (amount > values.outstandingAmount) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Cannot exceed outstanding (${values.outstandingAmount})`,
-        path: ['amount'],
-      })
+    if (values.payment_type === 'supplier') {
+      if (!values.supplier_id) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Supplier is required', path: ['supplier_id'] })
+      }
+      if (!values.accounts_payable_id) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Select a source document', path: ['accounts_payable_id'] })
+      }
+      if (amount > values.outstandingAmount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Cannot exceed outstanding (${values.outstandingAmount})`,
+          path: ['amount'],
+        })
+      }
+    } else {
+      if (!values.expense_account_id) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Category is required', path: ['expense_account_id'] })
+      }
+      if (values.description.trim() === '') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Description is required', path: ['description'] })
+      }
     }
   })
 

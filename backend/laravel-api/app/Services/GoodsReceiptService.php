@@ -24,6 +24,7 @@ class GoodsReceiptService
         protected PurchaseOrderItemRepository $purchaseOrderItemRepository,
         protected StockLedgerService $stockLedgerService,
         protected AccountsPayableService $accountsPayableService,
+        protected AccountingService $accountingService,
         protected AuditLogService $auditLogService,
     ) {}
 
@@ -162,6 +163,12 @@ class GoodsReceiptService
             $goodsReceipt->submit();
 
             $this->accountsPayableService->createFromGoodsReceipt($goodsReceipt);
+            $this->accountingService->postForDocument(
+                $goodsReceipt,
+                $goodsReceipt->journalLines(),
+                "Goods Receipt {$goodsReceipt->document_number}",
+                $goodsReceipt->receipt_date->toDateString(),
+            );
 
             $goodsReceipt = $goodsReceipt->fresh(['supplier', 'warehouse', 'purchaseOrder', 'items']);
             $this->auditLogService->record('submitted', 'goods_receipt', "Submitted Goods Receipt \"{$goodsReceipt->document_number}\".");

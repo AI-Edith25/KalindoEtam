@@ -64,6 +64,24 @@ class GoodsReceipt extends Model
     }
 
     /**
+     * Dr Purchase Expense, Cr Accounts Payable — for AccountingService::
+     * postForDocument() to post (see GoodsReceiptService::submit()). Same
+     * shape/purpose as Invoice::journalLines(). Amount matches
+     * AccountsPayableService::createFromGoodsReceipt()'s own computation
+     * exactly (same source: items.sum('amount')), so the AP row and this
+     * journal never diverge.
+     */
+    public function journalLines(): array
+    {
+        $amount = (float) $this->items->sum('amount');
+
+        return [
+            ['account' => '5100', 'type' => 'debit', 'amount' => $amount], // Purchase Expense
+            ['account' => '2000', 'type' => 'credit', 'amount' => $amount], // Accounts Payable
+        ];
+    }
+
+    /**
      * A submitted Goods Receipt has already moved stock and created an
      * Accounts Payable record. Reversing that safely means a Return
      * workflow (compensating stock + AP entries), which does not exist

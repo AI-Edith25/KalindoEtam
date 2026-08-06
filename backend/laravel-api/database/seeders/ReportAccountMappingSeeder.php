@@ -28,6 +28,11 @@ class ReportAccountMappingSeeder extends Seeder
         '5000' => ProfitLossSection::COST_OF_GOODS_SOLD,   // Cost of Goods Sold
         '5100' => ProfitLossSection::COST_OF_GOODS_SOLD,   // Purchase Expense
         '6000' => ProfitLossSection::OPERATING_EXPENSE,    // Operating Expenses
+        '6100' => ProfitLossSection::OPERATING_EXPENSE,    // Beban Transport
+        '6200' => ProfitLossSection::OPERATING_EXPENSE,    // Beban Konsumsi
+        '6300' => ProfitLossSection::OPERATING_EXPENSE,    // Beban ATK
+        '6400' => ProfitLossSection::OPERATING_EXPENSE,    // Beban Listrik & Air
+        '6900' => ProfitLossSection::OPERATING_EXPENSE,    // Beban Lain-lain
     ];
 
     public function run(): void

@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { DocumentStatus, PaymentEntry, PaymentMethod } from '../types'
+import type { DocumentStatus, PaymentEntry, PaymentEntryType, PaymentMethod } from '../types'
 
 export interface PaymentEntryListParams {
   page: number
@@ -12,13 +12,23 @@ export interface PaymentEntryListParams {
   per_page?: number
 }
 
+/**
+ * Covers both branches — Supplier fields (supplier_id/items) and General
+ * Expense fields (expense_account_id/description/amount) are each optional
+ * here since only one branch's fields are ever sent per payment_type; the
+ * backend's StorePaymentEntryRequest enforces which are actually required.
+ */
 export interface PaymentEntryPayload {
-  supplier_id: string
+  payment_type: PaymentEntryType
+  supplier_id?: string | null
+  items?: { accounts_payable_id: string; paid_amount: number }[]
+  expense_account_id?: string | null
+  description?: string | null
+  amount?: number
   payment_date: string
   payment_method: PaymentMethod
   reference_number: string | null
   remarks: string | null
-  items: { accounts_payable_id: string; paid_amount: number }[]
 }
 
 /** Server-side paginated + filtered — mirrors deliveryApi.ts. No cancelPaymentEntry — the backend has no route. */

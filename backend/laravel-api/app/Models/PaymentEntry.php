@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DocumentStatus;
+use App\Enums\PaymentEntryType;
 use App\Enums\PaymentMethod;
 use App\Exceptions\BusinessException;
 use App\Models\Concerns\Documentable;
@@ -24,6 +25,9 @@ class PaymentEntry extends Model
         'submitted_at',
         'cancelled_at',
         'supplier_id',
+        'payment_type',
+        'expense_account_id',
+        'description',
         'payment_date',
         'payment_method',
         'reference_number',
@@ -33,6 +37,7 @@ class PaymentEntry extends Model
 
     protected $casts = [
         'status' => DocumentStatus::class,
+        'payment_type' => PaymentEntryType::class,
         'payment_method' => PaymentMethod::class,
         'payment_date' => 'date',
         'total_amount' => 'decimal:2',
@@ -50,9 +55,55 @@ class PaymentEntry extends Model
         return $this->belongsTo(Supplier::class);
     }
 
+    public function expenseAccount(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'expense_account_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PaymentEntryItem::class);
+    }
+
+    /**
+     * Cr Cash/Bank always; Dr side depends on payment_type — Accounts
+     * Payable for a Supplier payment (settling a payable already posted by
+     * GoodsReceipt::journalLines()), or the chosen Expense account for a
+     * General Expense payment (no Supplier/PO involved at all). For
+     * AccountingService::postForDocument() to post (see
+     * PaymentEntryService::submit()). Same shape/purpose as
+     * ReceiptEntry::journalLines().
+     */
+    public function journalLines(): array
+    {
+        if ($this->payment_type === PaymentEntryType::GENERAL_EXPENSE) {
+            return [
+                ['account' => $this->expenseAccount->code, 'type' => 'debit', 'amount' => (float) $this->total_amount],
+                ['account' => $this->cashAccountCode(), 'type' => 'credit', 'amount' => (float) $this->total_amount],
+            ];
+        }
+
+        return [
+            ['account' => '2000', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Accounts Payable
+            ['account' => $this->cashAccountCode(), 'type' => 'credit', 'amount' => (float) $this->total_amount],
+        ];
+    }
+
+    /**
+     * Every PaymentMethod case is listed explicitly (not a wildcard
+     * default) so adding a new case forces a decision here — mirrors
+     * ReceiptEntry::cashAccountCode() exactly; today they all clear to one
+     * account.
+     */
+    protected function cashAccountCode(): string
+    {
+        return match ($this->payment_method) {
+            PaymentMethod::CASH,
+            PaymentMethod::BANK_TRANSFER,
+            PaymentMethod::CHEQUE,
+            PaymentMethod::QRIS,
+            PaymentMethod::CREDIT_CARD => '1100', // Cash and Bank
+        };
     }
 
     /**

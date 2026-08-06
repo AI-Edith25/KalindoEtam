@@ -33,6 +33,9 @@ const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
   approved: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
   rejected: 'bg-red-100 text-red-700 border-transparent dark:bg-red-950 dark:text-red-300',
+  // Outgoing Payment's Payment Type (Supplier vs. General Expense) — the list's type indicator.
+  supplier: 'bg-blue-100 text-blue-700 border-transparent dark:bg-blue-950 dark:text-blue-300',
+  general_expense: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
 }
 
 function formatLabel(status: string): string {

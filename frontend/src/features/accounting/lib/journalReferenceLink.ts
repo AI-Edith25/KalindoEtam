@@ -9,5 +9,7 @@ export function resolveJournalReferenceLink(referenceLabel: string, referenceId:
   if (referenceLabel === 'Receipt Entry') return `/finance/incoming/${referenceId}`
   if (referenceLabel === 'Credit Note') return `/sales/credit-notes/${referenceId}`
   if (referenceLabel === 'Debit Note') return `/sales/debit-notes/${referenceId}`
+  if (referenceLabel === 'Goods Receipt') return `/purchase/goods-receipts/${referenceId}`
+  if (referenceLabel === 'Payment Entry') return `/finance/outgoing/${referenceId}`
   return null
 }

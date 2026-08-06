@@ -13,10 +13,19 @@ class UpdatePaymentEntryRequest extends FormRequest
         return true;
     }
 
+    /**
+     * payment_type is deliberately not accepted here — it's immutable after
+     * create() (PaymentEntryService::update() branches on the existing
+     * record's own type, never a request value), so a draft can't be
+     * switched between Supplier and General Expense mid-edit.
+     */
     public function rules(): array
     {
         return [
             'supplier_id' => ['sometimes', 'required', 'uuid', 'exists:suppliers,id'],
+            'expense_account_id' => ['sometimes', 'nullable', 'uuid', 'exists:chart_of_accounts,id'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'amount' => ['sometimes', 'nullable', 'numeric', 'gt:0'],
             'payment_date' => ['sometimes', 'required', 'date'],
             'payment_method' => ['sometimes', 'required', Rule::enum(PaymentMethod::class)],
             'reference_number' => ['nullable', 'string', 'max:255'],

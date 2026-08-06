@@ -5,8 +5,10 @@ namespace App\Providers;
 use App\Contracts\DocumentNumberGeneratorInterface;
 use App\Models\CreditNote;
 use App\Models\DebitNote;
+use App\Models\GoodsReceipt;
 use App\Models\Invoice;
 use App\Models\PaymentAllocation;
+use App\Models\PaymentEntry;
 use App\Models\ReceiptEntry;
 use App\Services\DocumentNumberGeneratorService;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -41,6 +43,8 @@ class AppServiceProvider extends ServiceProvider
             'payment_allocation' => PaymentAllocation::class,
             'credit_note' => CreditNote::class,
             'debit_note' => DebitNote::class,
+            'goods_receipt' => GoodsReceipt::class,
+            'payment_entry' => PaymentEntry::class,
         ]);
     }
 }

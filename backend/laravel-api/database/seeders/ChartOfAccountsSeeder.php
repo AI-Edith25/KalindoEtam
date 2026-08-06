@@ -38,6 +38,12 @@ class ChartOfAccountsSeeder extends Seeder
             ['code' => '5000', 'name' => 'Cost of Goods Sold', 'account_type' => AccountType::EXPENSE],
             ['code' => '5100', 'name' => 'Purchase Expense', 'account_type' => AccountType::EXPENSE],
             ['code' => '6000', 'name' => 'Operating Expenses', 'account_type' => AccountType::EXPENSE],
+            // General Expense (Outgoing Payment, non-PO office spending) — granular categories under 6000's catch-all.
+            ['code' => '6100', 'name' => 'Beban Transport', 'account_type' => AccountType::EXPENSE],
+            ['code' => '6200', 'name' => 'Beban Konsumsi', 'account_type' => AccountType::EXPENSE],
+            ['code' => '6300', 'name' => 'Beban ATK', 'account_type' => AccountType::EXPENSE],
+            ['code' => '6400', 'name' => 'Beban Listrik & Air', 'account_type' => AccountType::EXPENSE],
+            ['code' => '6900', 'name' => 'Beban Lain-lain', 'account_type' => AccountType::EXPENSE],
         ];
 
         foreach ($accounts as $account) {

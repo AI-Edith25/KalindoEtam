@@ -15,17 +15,20 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { fetchSuppliersLookup } from '@/features/master/api/lookupsApi'
-import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymentEntry } from '../api/paymentEntryApi'
+import { fetchSuppliersLookup, fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
+import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymentEntry, type PaymentEntryPayload } from '../api/paymentEntryApi'
 import { OutstandingPayableSelect } from '../components/OutstandingPayableSelect'
 import { paymentEntryFormSchema, type PaymentEntryEditorValues } from '../lib/paymentEntryFormSchema'
 import { PAYMENT_METHOD_OPTIONS } from '../lib/paymentMethodLabels'
-import type { AccountsPayable, PaymentMethod } from '../types'
+import type { AccountsPayable, PaymentEntryType, PaymentMethod } from '../types'
 
 const emptyValues: PaymentEntryEditorValues = {
+  payment_type: 'supplier',
   supplier_id: '',
   accounts_payable_id: '',
   outstandingAmount: 0,
+  expense_account_id: '',
+  description: '',
   amount: '',
   payment_date: '',
   payment_method: '',
@@ -48,6 +51,8 @@ export function OutgoingPaymentEditorPage() {
   })
 
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
+  const expenseAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
+  const expenseAccountOptions = expenseAccounts.data?.filter((account) => account.account_type === 'expense') ?? []
 
   const form = useForm<PaymentEntryEditorValues>({
     resolver: zodResolver(paymentEntryFormSchema),
@@ -67,10 +72,13 @@ export function OutgoingPaymentEditorPage() {
     const line = payment.items[0]
     setSelectedPayable(line?.accounts_payable ?? null)
     form.reset({
-      supplier_id: payment.supplier_id,
+      payment_type: payment.payment_type,
+      supplier_id: payment.supplier_id ?? '',
       accounts_payable_id: line?.accounts_payable_id ?? '',
       outstandingAmount: line ? Number(line.accounts_payable.outstanding_amount) : 0,
-      amount: line ? String(line.paid_amount) : '',
+      expense_account_id: payment.expense_account_id ?? '',
+      description: payment.description ?? '',
+      amount: payment.payment_type === 'general_expense' ? String(payment.total_amount) : line ? String(line.paid_amount) : '',
       payment_date: payment.payment_date,
       payment_method: payment.payment_method,
       reference_number: payment.reference_number ?? '',
@@ -81,14 +89,27 @@ export function OutgoingPaymentEditorPage() {
 
   const saveMutation = useMutation({
     mutationFn: (values: PaymentEntryEditorValues) => {
-      const payload = {
-        supplier_id: values.supplier_id,
-        payment_date: values.payment_date,
-        payment_method: values.payment_method as PaymentMethod,
-        reference_number: values.reference_number || null,
-        remarks: values.remarks || null,
-        items: [{ accounts_payable_id: values.accounts_payable_id, paid_amount: Number(values.amount) }],
-      }
+      const payload: PaymentEntryPayload =
+        values.payment_type === 'general_expense'
+          ? {
+              payment_type: 'general_expense',
+              expense_account_id: values.expense_account_id,
+              description: values.description,
+              amount: Number(values.amount),
+              payment_date: values.payment_date,
+              payment_method: values.payment_method as PaymentMethod,
+              reference_number: values.reference_number || null,
+              remarks: values.remarks || null,
+            }
+          : {
+              payment_type: 'supplier',
+              supplier_id: values.supplier_id,
+              items: [{ accounts_payable_id: values.accounts_payable_id, paid_amount: Number(values.amount) }],
+              payment_date: values.payment_date,
+              payment_method: values.payment_method as PaymentMethod,
+              reference_number: values.reference_number || null,
+              remarks: values.remarks || null,
+            }
 
       return isEdit ? updatePaymentEntry(id!, payload) : createPaymentEntry(payload)
     },
@@ -105,13 +126,15 @@ export function OutgoingPaymentEditorPage() {
     onSuccess: (payment) => {
       queryClient.invalidateQueries({ queryKey: ['payment-entries'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
-      toast.success('Payment confirmed — payable updated.')
+      toast.success('Payment confirmed.')
       navigate(`/finance/outgoing/${payment.id}`)
     },
     onError: (error) => toastApiError(error),
   })
 
   const supplierId = form.watch('supplier_id')
+  const paymentType = form.watch('payment_type')
+  const isSupplierType = paymentType === 'supplier'
 
   if (isEdit && paymentQuery.isLoading) {
     return (
@@ -125,7 +148,7 @@ export function OutgoingPaymentEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${paymentQuery.data?.document_number ?? 'Payment'}` : 'New Outgoing Payment'}
-        description="Record a payment made to a supplier, settling one outstanding Purchase transaction."
+        description="Record a payment to a supplier, or a general office expense with no supplier/source document."
       />
 
       <Form {...form}>
@@ -138,59 +161,139 @@ export function OutgoingPaymentEditorPage() {
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
-                name="supplier_id"
+                name="payment_type"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Supplier</FormLabel>
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Payment Type</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={(next) => {
-                        field.onChange(next)
+                        field.onChange(next as PaymentEntryType)
+                        form.setValue('supplier_id', '')
                         form.setValue('accounts_payable_id', '')
                         form.setValue('outstandingAmount', 0)
+                        form.setValue('expense_account_id', '')
+                        form.setValue('description', '')
                         form.setValue('amount', '')
                         setSelectedPayable(null)
                       }}
+                      disabled={isEdit}
                     >
                       <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'Select supplier'} />
+                        <SelectTrigger className="w-full sm:w-72">
+                          <SelectValue />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {suppliers.data?.map((supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.supplier_name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="supplier">Against Supplier (Purchase)</SelectItem>
+                        <SelectItem value="general_expense">General Expense / Office Cash</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="accounts_payable_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Source Document</FormLabel>
-                    <FormControl>
-                      <OutstandingPayableSelect
-                        supplierId={supplierId || null}
-                        value={field.value || null}
-                        onChange={(ap) => {
-                          field.onChange(ap.id)
-                          form.setValue('outstandingAmount', Number(ap.outstanding_amount))
-                          form.setValue('amount', String(ap.outstanding_amount))
-                          setSelectedPayable(ap)
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
+              {isSupplierType ? (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="supplier_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Supplier</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={(next) => {
+                            field.onChange(next)
+                            form.setValue('accounts_payable_id', '')
+                            form.setValue('outstandingAmount', 0)
+                            form.setValue('amount', '')
+                            setSelectedPayable(null)
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'Select supplier'} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {suppliers.data?.map((supplier) => (
+                              <SelectItem key={supplier.id} value={supplier.id}>
+                                {supplier.supplier_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="accounts_payable_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Source Document</FormLabel>
+                        <FormControl>
+                          <OutstandingPayableSelect
+                            supplierId={supplierId || null}
+                            value={field.value || null}
+                            onChange={(ap) => {
+                              field.onChange(ap.id)
+                              form.setValue('outstandingAmount', Number(ap.outstanding_amount))
+                              form.setValue('amount', String(ap.outstanding_amount))
+                              setSelectedPayable(ap)
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              ) : (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="expense_account_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder={expenseAccounts.isLoading ? 'Loading…' : 'Select category'} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {expenseAccountOptions.map((account) => (
+                              <SelectItem key={account.id} value={account.id}>
+                                {account.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. Ojek online ke kantor pajak" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
               <FormField
                 control={form.control}
                 name="payment_date"
@@ -237,7 +340,7 @@ export function OutgoingPaymentEditorPage() {
                     <FormControl>
                       <Input type="number" step="0.01" placeholder="0" {...field} />
                     </FormControl>
-                    {selectedPayable && (
+                    {isSupplierType && selectedPayable && (
                       <p className="text-xs text-muted-foreground">
                         Max: {formatCurrency(selectedPayable.outstanding_amount)}
                       </p>
@@ -275,7 +378,7 @@ export function OutgoingPaymentEditorPage() {
             </CardContent>
           </Card>
 
-          {selectedPayable && (
+          {isSupplierType && selectedPayable && (
             <Card>
               <CardHeader>
                 <CardTitle>Purchase Summary</CardTitle>
@@ -303,8 +406,10 @@ export function OutgoingPaymentEditorPage() {
 
           <p className="text-right text-sm text-muted-foreground">
             {isEdit && paymentQuery.data?.status === 'draft'
-              ? 'Saving records the payment. Confirming settles it against the payable — this cannot be undone.'
-              : 'Saving records the payment as a draft — nothing is settled until you confirm it.'}
+              ? isSupplierType
+                ? 'Saving records the payment. Confirming settles it against the payable — this cannot be undone.'
+                : 'Saving records the payment. Confirming posts it to the ledger — this cannot be undone.'
+              : 'Saving records the payment as a draft — nothing is posted until you confirm it.'}
           </p>
 
           <div className="flex justify-end gap-2">

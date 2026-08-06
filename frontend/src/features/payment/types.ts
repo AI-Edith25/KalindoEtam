@@ -1,8 +1,9 @@
-import type { Customer, Supplier } from '@/features/master/types'
+import type { ChartOfAccount, Customer, Supplier } from '@/features/master/types'
 
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 export type SettlementStatus = 'unpaid' | 'partially_paid' | 'paid'
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'cheque' | 'qris' | 'credit_card'
+export type PaymentEntryType = 'supplier' | 'general_expense'
 
 export interface AccountsPayable {
   id: string
@@ -31,8 +32,12 @@ export interface PaymentEntry {
   document_number: string | null
   status: DocumentStatus
   revision: number
-  supplier_id: string
+  payment_type: PaymentEntryType
+  supplier_id: string | null
   supplier: Supplier | null
+  expense_account_id: string | null
+  expense_account: ChartOfAccount | null
+  description: string | null
   payment_date: string
   payment_method: PaymentMethod
   reference_number: string | null

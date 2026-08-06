@@ -15,7 +15,7 @@ import { deletePaymentEntry, fetchPaymentEntry, submitPaymentEntry } from '../ap
 import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 
-/** Read-only, section-grouped — same shell as GoodsReceiptDetailPage. */
+/** Read-only, section-grouped — same shell as GoodsReceiptDetailPage. Conditional fields per payment_type: Source Document/Supplier (Supplier) vs. Category/Description (General Expense). */
 export function OutgoingPaymentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -95,24 +95,34 @@ export function OutgoingPaymentDetailPage() {
         <CardContent>
           <DetailSection>
             <DetailField label="Payment No" value={payment.document_number ?? '—'} />
-            <DetailField
-              label="Source Document"
-              value={
-                line ? (
-                  <Button
-                    variant="link"
-                    className="h-auto p-0"
-                    onClick={() => navigate(resolveSourceDocumentLink('purchase_order', line.accounts_payable.purchase_order_id))}
-                  >
-                    View Purchase Order
-                    <ExternalLink className="size-3.5" />
-                  </Button>
-                ) : (
-                  '—'
-                )
-              }
-            />
-            <DetailField label="Supplier" value={payment.supplier?.supplier_name ?? '—'} />
+            <DetailField label="Type" value={<StatusBadge status={payment.payment_type} />} />
+            {payment.payment_type === 'general_expense' ? (
+              <>
+                <DetailField label="Category" value={payment.expense_account?.name ?? '—'} />
+                <DetailField label="Description" value={payment.description || '—'} />
+              </>
+            ) : (
+              <>
+                <DetailField
+                  label="Source Document"
+                  value={
+                    line ? (
+                      <Button
+                        variant="link"
+                        className="h-auto p-0"
+                        onClick={() => navigate(resolveSourceDocumentLink('purchase_order', line.accounts_payable.purchase_order_id))}
+                      >
+                        View Purchase Order
+                        <ExternalLink className="size-3.5" />
+                      </Button>
+                    ) : (
+                      '—'
+                    )
+                  }
+                />
+                <DetailField label="Supplier" value={payment.supplier?.supplier_name ?? '—'} />
+              </>
+            )}
             <DetailField label="Payment Date" value={formatDate(payment.payment_date)} />
             <DetailField label="Payment Method" value={PAYMENT_METHOD_LABELS[payment.payment_method]} />
             <DetailField label="Amount" value={formatCurrency(payment.total_amount)} />
@@ -122,7 +132,7 @@ export function OutgoingPaymentDetailPage() {
         </CardContent>
       </Card>
 
-      {line && (
+      {payment.payment_type === 'supplier' && line && (
         <Card>
           <CardHeader>
             <CardTitle>Purchase Summary</CardTitle>

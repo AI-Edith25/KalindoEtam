@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DocumentStatus;
+use App\Enums\PaymentEntryType;
 use App\Exceptions\BusinessException;
 use App\Models\AccountsPayable;
 use App\Models\PaymentEntry;
@@ -19,6 +20,7 @@ class PaymentEntryService
         protected PaymentEntryItemRepository $paymentEntryItemRepository,
         protected AccountsPayableRepository $accountsPayableRepository,
         protected AccountsPayableService $accountsPayableService,
+        protected AccountingService $accountingService,
         protected AuditLogService $auditLogService,
     ) {}
 
@@ -30,9 +32,30 @@ class PaymentEntryService
     public function create(array $data): PaymentEntry
     {
         return DB::transaction(function () use ($data) {
+            $paymentType = PaymentEntryType::from($data['payment_type'] ?? PaymentEntryType::SUPPLIER->value);
+
+            if ($paymentType === PaymentEntryType::GENERAL_EXPENSE) {
+                $paymentEntry = $this->paymentEntryRepository->create([
+                    'payment_type' => $paymentType,
+                    'expense_account_id' => $data['expense_account_id'],
+                    'description' => $data['description'],
+                    'payment_date' => $data['payment_date'],
+                    'payment_method' => $data['payment_method'],
+                    'reference_number' => $data['reference_number'] ?? null,
+                    'remarks' => $data['remarks'] ?? null,
+                    'total_amount' => $data['amount'],
+                ]);
+
+                $paymentEntry = $paymentEntry->fresh(['expenseAccount']);
+                $this->auditLogService->record('created', 'payment_entry', "Created Payment Entry \"{$paymentEntry->document_number}\".");
+
+                return $paymentEntry;
+            }
+
             $this->assertNoDuplicateReferences($data['items'], 'accounts_payable_id');
 
             $paymentEntry = $this->paymentEntryRepository->create([
+                'payment_type' => $paymentType,
                 'supplier_id' => $data['supplier_id'],
                 'payment_date' => $data['payment_date'],
                 'payment_method' => $data['payment_method'],
@@ -56,6 +79,21 @@ class PaymentEntryService
     {
         return DB::transaction(function () use ($paymentEntry, $data) {
             $this->assertDraft($paymentEntry, 'updated');
+
+            if ($paymentEntry->payment_type === PaymentEntryType::GENERAL_EXPENSE) {
+                $headerData = collect($data)->except(['items', 'amount'])->all();
+
+                if (isset($data['amount'])) {
+                    $headerData['total_amount'] = $data['amount'];
+                }
+
+                $this->paymentEntryRepository->update($paymentEntry, $headerData);
+
+                $paymentEntry = $paymentEntry->fresh(['expenseAccount']);
+                $this->auditLogService->record('updated', 'payment_entry', "Updated Payment Entry \"{$paymentEntry->document_number}\".");
+
+                return $paymentEntry;
+            }
 
             $headerData = collect($data)->except('items')->all();
 
@@ -90,13 +128,26 @@ class PaymentEntryService
     }
 
     /**
-     * Re-validates every line against the payable's *current* outstanding
-     * balance (it may have changed since create()), then settles each one
-     * and flips status via Documentable.
+     * Supplier: re-validates every line against the payable's *current*
+     * outstanding balance (it may have changed since create()), settles
+     * each one, flips status via Documentable, then posts Dr Accounts
+     * Payable/Cr Cash. General Expense: no payable to settle — flips
+     * status, then posts Dr the chosen Expense account/Cr Cash directly.
      */
     public function submit(PaymentEntry $paymentEntry): PaymentEntry
     {
         return DB::transaction(function () use ($paymentEntry) {
+            if ($paymentEntry->payment_type === PaymentEntryType::GENERAL_EXPENSE) {
+                $paymentEntry->load('expenseAccount');
+                $paymentEntry->submit();
+                $this->postJournalEntry($paymentEntry);
+
+                $paymentEntry = $paymentEntry->fresh(['expenseAccount']);
+                $this->auditLogService->record('submitted', 'payment_entry', "Submitted Payment Entry \"{$paymentEntry->document_number}\".");
+
+                return $paymentEntry;
+            }
+
             $paymentEntry->load('items.accountsPayable');
 
             foreach ($paymentEntry->items as $line) {
@@ -108,12 +159,23 @@ class PaymentEntryService
             }
 
             $paymentEntry->submit();
+            $this->postJournalEntry($paymentEntry);
 
             $paymentEntry = $paymentEntry->fresh(['supplier', 'items.accountsPayable']);
             $this->auditLogService->record('submitted', 'payment_entry', "Submitted Payment Entry \"{$paymentEntry->document_number}\".");
 
             return $paymentEntry;
         });
+    }
+
+    protected function postJournalEntry(PaymentEntry $paymentEntry): void
+    {
+        $this->accountingService->postForDocument(
+            $paymentEntry,
+            $paymentEntry->journalLines(),
+            "Payment Entry {$paymentEntry->document_number}",
+            $paymentEntry->payment_date->toDateString(),
+        );
     }
 
     protected function addLine(PaymentEntry $paymentEntry, string $supplierId, string $accountsPayableId, float $paidAmount): void

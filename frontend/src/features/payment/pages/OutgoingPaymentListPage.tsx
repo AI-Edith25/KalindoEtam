@@ -24,7 +24,7 @@ import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 import type { PaymentEntry, PaymentEntryFilterValues } from '../types'
 
-/** Outgoing Payment — settles Accounts Payable created by Goods Receipt. Never touches stock. */
+/** Outgoing Payment — either settles Accounts Payable created by Goods Receipt, or posts a General Expense (no Supplier/PO) directly to an Expense account. Never touches stock. */
 export function OutgoingPaymentListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -102,9 +102,14 @@ export function OutgoingPaymentListPage() {
 
   const columns: DataTableColumn<PaymentEntry>[] = [
     { header: 'Payment No', accessor: (row) => row.document_number ?? '—' },
+    { header: 'Type', accessor: (row) => <StatusBadge status={row.payment_type} /> },
     {
       header: 'Source Document',
       accessor: (row) => {
+        if (row.payment_type === 'general_expense') {
+          return <span className="text-muted-foreground">General Expense</span>
+        }
+
         const line = row.items[0]
         if (!line) return '—'
 
@@ -123,7 +128,10 @@ export function OutgoingPaymentListPage() {
         )
       },
     },
-    { header: 'Supplier', accessor: (row) => row.supplier?.supplier_name ?? '—' },
+    {
+      header: 'Supplier',
+      accessor: (row) => (row.payment_type === 'general_expense' ? (row.expense_account?.name ?? '—') : (row.supplier?.supplier_name ?? '—')),
+    },
     { header: 'Payment Method', accessor: (row) => PAYMENT_METHOD_LABELS[row.payment_method] },
     { header: 'Payment Date', accessor: (row) => formatDate(row.payment_date) },
     { header: 'Amount', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right' },
@@ -151,7 +159,7 @@ export function OutgoingPaymentListPage() {
 
       <PageHeader
         title="Outgoing Payment"
-        description="Payments the company makes to suppliers, settling outstanding Accounts Payable."
+        description="Payments to suppliers (settling Accounts Payable) and general office expenses, in one list."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} payments` : undefined}
         actions={
           <ActionBar
