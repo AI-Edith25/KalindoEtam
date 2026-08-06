@@ -5,24 +5,44 @@ import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import { formatDate } from '@/lib/utils'
-import { defaultPrintOptions, formatMoney, formatQty, PRINT_FONT_SIZE_PX, type PrintOptions } from '@/shared/lib/printOptions'
+import {
+  defaultPrintOptions,
+  formatMoney,
+  formatQty,
+  loadPaperTypePreference,
+  PRINT_FONT_SIZE_PX,
+  PRINT_PAPER_PAGE_CSS,
+  savePaperTypePreference,
+  type PrintOptions,
+} from '@/shared/lib/printOptions'
 import { useCompanyBranding } from '@/features/administration/hooks/useCompany'
 import { fetchInvoice } from '../api/invoiceApi'
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
 import { discountLabel } from '../lib/discount'
 
 /**
- * Continuous Form layout — full-bordered "cetak" style matching the legacy
- * system's dot-matrix invoice print, with the same pre-print options
- * (Font Size, Decimal Qty/Price/Amount) users already know. Not a PDF —
+ * Full-bordered "cetak" style matching the legacy system's dot-matrix
+ * invoice print, with the same pre-print options (Font Size, Decimal
+ * Qty/Price/Amount) users already know, plus Paper Type — A4 (default,
+ * unaffected: no @page override) or Continuous 9.5"x11", which narrows the
+ * live preview immediately and adds a `<style>@page{...}</style>` so the
+ * real print output (Ctrl+P / the Print button) follows suit. Not a PDF —
  * @media print CSS + the browser's native print dialog (window.print()).
  * AppLayout hides its Sidebar/Header chrome under print:hidden, so this
  * page's content is all that prints.
  */
 export function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>()
-  const [printOptions, setPrintOptions] = useState<PrintOptions>(defaultPrintOptions)
+  const [printOptions, setPrintOptions] = useState<PrintOptions>(() => ({
+    ...defaultPrintOptions,
+    paperType: loadPaperTypePreference(),
+  }))
   const [optionsOpen, setOptionsOpen] = useState(false)
+
+  const handlePrintOptionsChange = (next: PrintOptions) => {
+    setPrintOptions(next)
+    savePaperTypePreference(next.paperType)
+  }
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -41,8 +61,15 @@ export function InvoicePrintPage() {
   const invoice = invoiceQuery.data
   if (!invoice) return null
 
+  const compact = printOptions.paperType === 'continuous'
+  const pageCss = PRINT_PAPER_PAGE_CSS[printOptions.paperType]
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0">
+    <div
+      className={`mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0 ${compact ? 'max-w-[9.5in]' : 'max-w-3xl'}`}
+    >
+      {pageCss && <style>{pageCss}</style>}
+
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
         <div className="flex items-center gap-2">
@@ -58,10 +85,10 @@ export function InvoicePrintPage() {
       </div>
 
       <div className="border-2 border-foreground/80" style={{ fontSize: PRINT_FONT_SIZE_PX[printOptions.fontSize] }}>
-        <div className="flex items-start justify-between border-b-2 border-foreground/80 p-3">
+        <div className={`flex items-start justify-between border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
           <div>
             <p className="font-semibold">{brandingQuery.data?.name ?? '—'}</p>
-            <h2 className="text-lg font-bold">INVOICE</h2>
+            <h2 className={compact ? 'text-base font-bold' : 'text-lg font-bold'}>INVOICE</h2>
             <p>{invoice.document_number}</p>
             <p>{INVOICE_TYPE_LABELS[invoice.invoice_type]} Invoice</p>
           </div>
@@ -71,7 +98,7 @@ export function InvoicePrintPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 border-b-2 border-foreground/80 p-3">
+        <div className={`grid grid-cols-2 gap-4 border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
           <div>
             <p className="font-medium">Bill To</p>
             <p className="font-semibold">{invoice.customer?.customer_name}</p>
@@ -154,7 +181,7 @@ export function InvoicePrintPage() {
         </div>
       </div>
 
-      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={setPrintOptions} />
+      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={handlePrintOptionsChange} showPaperType />
     </div>
   )
 }

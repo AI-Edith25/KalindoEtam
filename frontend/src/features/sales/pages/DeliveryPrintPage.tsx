@@ -5,21 +5,39 @@ import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import { formatDate } from '@/lib/utils'
-import { defaultPrintOptions, formatQty, PRINT_FONT_SIZE_PX, type PrintOptions } from '@/shared/lib/printOptions'
+import {
+  defaultPrintOptions,
+  formatQty,
+  loadPaperTypePreference,
+  PRINT_FONT_SIZE_PX,
+  PRINT_PAPER_PAGE_CSS,
+  savePaperTypePreference,
+  type PrintOptions,
+} from '@/shared/lib/printOptions'
 import { useCompanyBranding } from '@/features/administration/hooks/useCompany'
 import { fetchDelivery } from '../api/deliveryApi'
 
 /**
- * Continuous Form layout — packing-list style (quantities only, no pricing,
- * since Delivery carries no pricing authority in this system). Same
- * bordered "cetak" look and pre-print options as InvoicePrintPage; only
- * the Decimal Qty control applies here. Not a PDF — @media print CSS +
+ * Packing-list style (quantities only, no pricing, since Delivery carries
+ * no pricing authority in this system). Same bordered "cetak" look and
+ * pre-print options as InvoicePrintPage — including Paper Type (A4 default,
+ * unaffected; Continuous 9.5"x11" narrows the live preview and adds a
+ * `<style>@page{...}</style>` so the real print output follows suit).
+ * Only the Decimal Qty control applies here. Not a PDF — @media print CSS +
  * the browser's native print dialog (window.print()).
  */
 export function DeliveryPrintPage() {
   const { id } = useParams<{ id: string }>()
-  const [printOptions, setPrintOptions] = useState<PrintOptions>(defaultPrintOptions)
+  const [printOptions, setPrintOptions] = useState<PrintOptions>(() => ({
+    ...defaultPrintOptions,
+    paperType: loadPaperTypePreference(),
+  }))
   const [optionsOpen, setOptionsOpen] = useState(false)
+
+  const handlePrintOptionsChange = (next: PrintOptions) => {
+    setPrintOptions(next)
+    savePaperTypePreference(next.paperType)
+  }
 
   const deliveryQuery = useQuery({
     queryKey: ['deliveries', id],
@@ -38,8 +56,15 @@ export function DeliveryPrintPage() {
   const delivery = deliveryQuery.data
   if (!delivery) return null
 
+  const compact = printOptions.paperType === 'continuous'
+  const pageCss = PRINT_PAPER_PAGE_CSS[printOptions.paperType]
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0">
+    <div
+      className={`mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0 ${compact ? 'max-w-[9.5in]' : 'max-w-3xl'}`}
+    >
+      {pageCss && <style>{pageCss}</style>}
+
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Delivery Print Preview</h1>
         <div className="flex items-center gap-2">
@@ -55,10 +80,10 @@ export function DeliveryPrintPage() {
       </div>
 
       <div className="border-2 border-foreground/80" style={{ fontSize: PRINT_FONT_SIZE_PX[printOptions.fontSize] }}>
-        <div className="flex items-start justify-between border-b-2 border-foreground/80 p-3">
+        <div className={`flex items-start justify-between border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
           <div>
             <p className="font-semibold">{brandingQuery.data?.name ?? '—'}</p>
-            <h2 className="text-lg font-bold">DELIVERY NOTE</h2>
+            <h2 className={compact ? 'text-base font-bold' : 'text-lg font-bold'}>DELIVERY NOTE</h2>
             <p>{delivery.document_number}</p>
           </div>
           <div className="text-right">
@@ -67,7 +92,7 @@ export function DeliveryPrintPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 border-b-2 border-foreground/80 p-3">
+        <div className={`grid grid-cols-2 gap-4 border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
           <div>
             <p className="font-medium">Ship To</p>
             <p className="font-semibold">{delivery.customer?.customer_name ?? '—'}</p>
@@ -116,7 +141,7 @@ export function DeliveryPrintPage() {
         </div>
       </div>
 
-      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={setPrintOptions} fields={['qty']} />
+      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={handlePrintOptionsChange} fields={['qty']} showPaperType />
     </div>
   )
 }

@@ -1,7 +1,13 @@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { PRINT_FONT_SIZE_LABELS, type PrintFontSize, type PrintOptions } from '@/shared/lib/printOptions'
+import {
+  PRINT_FONT_SIZE_LABELS,
+  PRINT_PAPER_TYPE_LABELS,
+  type PrintFontSize,
+  type PrintOptions,
+  type PrintPaperType,
+} from '@/shared/lib/printOptions'
 
 const DECIMAL_CHOICES = ['0', '1', '2', '3', '4']
 
@@ -12,6 +18,8 @@ interface PrintOptionsDialogProps {
   onChange: (options: PrintOptions) => void
   /** Which decimal-precision controls to show — Delivery (no pricing) only needs Qty. */
   fields?: Array<'qty' | 'price' | 'amount'>
+  /** Only Invoice/Delivery print pages actually act on paperType (render @page CSS + resize the preview) — every other consumer leaves it hidden so the control isn't shown with no effect. */
+  showPaperType?: boolean
 }
 
 /**
@@ -19,7 +27,14 @@ interface PrintOptionsDialogProps {
  * so the pre-print workflow stays familiar. Changes apply live to the print
  * preview underneath — this dialog is a config panel, not a form to submit.
  */
-export function PrintOptionsDialog({ open, onOpenChange, options, onChange, fields = ['qty', 'price', 'amount'] }: PrintOptionsDialogProps) {
+export function PrintOptionsDialog({
+  open,
+  onOpenChange,
+  options,
+  onChange,
+  fields = ['qty', 'price', 'amount'],
+  showPaperType = false,
+}: PrintOptionsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -28,6 +43,23 @@ export function PrintOptionsDialog({ open, onOpenChange, options, onChange, fiel
           <DialogDescription>Adjust before printing — applies to the preview immediately.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
+          {showPaperType && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Paper Type</label>
+              <Select value={options.paperType} onValueChange={(value) => onChange({ ...options, paperType: value as PrintPaperType })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PRINT_PAPER_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Font Size</label>
             <Select value={options.fontSize} onValueChange={(value) => onChange({ ...options, fontSize: value as PrintFontSize })}>

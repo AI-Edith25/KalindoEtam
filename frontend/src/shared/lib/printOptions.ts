@@ -1,18 +1,43 @@
 export type PrintFontSize = 'small' | 'medium' | 'large'
+export type PrintPaperType = 'a4' | 'continuous'
 
 export interface PrintOptions {
   fontSize: PrintFontSize
+  paperType: PrintPaperType
   qtyDecimals: number
   priceDecimals: number
   amountDecimals: number
 }
 
-/** Matches the pre-existing print output exactly (formatNumber/formatCurrency both rendered 0 decimals) so opening this dialog is opt-in, never a silent format change. */
+/** Matches the pre-existing print output exactly (formatNumber/formatCurrency both rendered 0 decimals, A4/browser-default paper) so opening this dialog is opt-in, never a silent format change. */
 export const defaultPrintOptions: PrintOptions = {
   fontSize: 'medium',
+  paperType: 'a4',
   qtyDecimals: 0,
   priceDecimals: 0,
   amountDecimals: 0,
+}
+
+export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
+  a4: 'A4',
+  continuous: 'Continuous 9.5" × 11" (Dot Matrix)',
+}
+
+/** Only Continuous gets an explicit @page override — A4 relies on the browser/printer default, exactly like before this option existed. */
+export const PRINT_PAPER_PAGE_CSS: Record<PrintPaperType, string | null> = {
+  a4: null,
+  continuous: '@page { size: 9.5in 11in; margin: 6mm; }',
+}
+
+const PRINT_PAPER_TYPE_STORAGE_KEY = 'print-paper-type'
+
+/** Per-user preference, not per-document — so a chosen paper type sticks across invoices/deliveries without re-selecting each time. */
+export function loadPaperTypePreference(): PrintPaperType {
+  return localStorage.getItem(PRINT_PAPER_TYPE_STORAGE_KEY) === 'continuous' ? 'continuous' : 'a4'
+}
+
+export function savePaperTypePreference(paperType: PrintPaperType): void {
+  localStorage.setItem(PRINT_PAPER_TYPE_STORAGE_KEY, paperType)
 }
 
 export const PRINT_FONT_SIZE_PX: Record<PrintFontSize, string> = {
