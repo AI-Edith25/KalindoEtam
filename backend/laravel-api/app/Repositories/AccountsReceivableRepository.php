@@ -52,8 +52,20 @@ class AccountsReceivableRepository extends BaseRepository
             ->with(['customer', 'invoice', 'salesOrder', 'delivery'])
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
+            ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
             ->latest('due_date')
             ->paginate($perPage);
+    }
+
+    /** Every not-yet-fully-paid receivable, with its customer — the row set AccountsReceivableService::summarizeAging() buckets by due_date. */
+    public function outstanding(?string $customerId = null): Collection
+    {
+        return $this->model->query()
+            ->where('status', '!=', AccountsReceivableStatus::PAID->value)
+            ->when($customerId, fn ($query, $id) => $query->where('customer_id', $id))
+            ->with('customer')
+            ->get();
     }
 
     public function outstandingSummary(): array

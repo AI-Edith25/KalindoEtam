@@ -2,24 +2,24 @@ import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchCustomersLookup, fetchItemsLookup } from '@/features/master/api/lookupsApi'
-import type { DocumentStatus } from '@/features/sales/types'
-import { emptySalesReportFilters, hasActiveSalesReportFilters } from '../lib/reportFilters'
-import type { SalesReportFilterValues } from '../types'
+import { fetchCustomersLookup } from '@/features/master/api/lookupsApi'
+import type { SettlementStatus } from '@/features/payment/types'
+import { emptyArDetailReportFilters, hasActiveArDetailReportFilters } from '../lib/reportFilters'
+import type { ArDetailReportFilterValues } from '../types'
 
 const ALL = '__all__'
 
-interface SalesReportFiltersBarProps {
-  value: SalesReportFilterValues
-  onChange: (value: SalesReportFilterValues) => void
+interface AccountsReceivableDetailReportFiltersBarProps {
+  value: ArDetailReportFilterValues
+  onChange: (value: ArDetailReportFilterValues) => void
 }
 
-export function SalesReportFiltersBar({ value, onChange }: SalesReportFiltersBarProps) {
+/** Own filter set for this report — deliberately not a shared generic filter engine, matching every other report's FiltersBar in this codebase. */
+export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: AccountsReceivableDetailReportFiltersBarProps) {
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
 
   return (
-    <FilterPanel onClear={() => onChange(emptySalesReportFilters)} hasActiveFilters={hasActiveSalesReportFilters(value)}>
+    <FilterPanel onClear={() => onChange(emptyArDetailReportFilters)} hasActiveFilters={hasActiveArDetailReportFilters(value)}>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Customer</span>
         <Select
@@ -40,38 +40,19 @@ export function SalesReportFiltersBar({ value, onChange }: SalesReportFiltersBar
         </Select>
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Item</span>
-        <Select
-          value={value.item_id || ALL}
-          onValueChange={(next) => onChange({ ...value, item_id: next === ALL ? '' : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={items.isLoading ? 'Loading…' : 'All items'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All items</SelectItem>
-            {items.data?.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.item_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Status</span>
         <Select
           value={value.status ?? ALL}
-          onValueChange={(next) => onChange({ ...value, status: next === ALL ? null : (next as DocumentStatus) })}
+          onValueChange={(next) => onChange({ ...value, status: next === ALL ? null : (next as SettlementStatus) })}
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="submitted">Submitted</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="unpaid">Unpaid</SelectItem>
+            <SelectItem value="partially_paid">Partially Paid</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
           </SelectContent>
         </Select>
       </div>

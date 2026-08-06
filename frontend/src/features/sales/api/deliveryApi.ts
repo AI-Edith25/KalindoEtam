@@ -7,6 +7,8 @@ export interface DeliveryListParams {
   search?: string
   status?: string
   warehouse_id?: string
+  customer_id?: string
+  item_id?: string
   date_from?: string
   date_to?: string
   per_page?: number

@@ -63,6 +63,8 @@ class RolePermissionSeeder extends Seeder
         'reports.deliveries' => ['view'],
         'reports.inventory_movement' => ['view'],
         'reports.inventory_balance' => ['view'],
+        'reports.ar_detail' => ['view'],
+        'reports.ar_aging' => ['view'],
         'system.document_attachment' => ['view', 'create', 'delete'],
         'system.document_timeline' => ['view'],
     ];

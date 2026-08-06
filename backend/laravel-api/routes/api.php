@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountsPayableController;
+use App\Http\Controllers\Api\V1\AccountsReceivableAgingController;
 use App\Http\Controllers\Api\V1\AccountsReceivableController;
 use App\Http\Controllers\Api\V1\ApprovalController;
 use App\Http\Controllers\Api\V1\AuditLogController;
@@ -180,7 +181,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('debit-notes/{debitNote}/submit', [DebitNoteController::class, 'submit'])->middleware('permission:sales.debit_notes.update');
     Route::post('debit-notes/{debitNote}/reverse', [DebitNoteController::class, 'reverse'])->middleware('permission:sales.debit_notes.update');
 
-    Route::get('accounts-receivables', [AccountsReceivableController::class, 'index'])->middleware('permission:finance.accounts_receivable.view');
+    // Reports > AR Detail (Batch B) also reads this index — pure filter narrowing, same OR-permission
+    // pattern already used for Sales Orders/Deliveries above.
+    Route::get('accounts-receivables', [AccountsReceivableController::class, 'index'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/{accountsReceivable}', [AccountsReceivableController::class, 'show'])->middleware('permission:finance.accounts_receivable.view');
 
     // Inventory Module (Phase 2G): physical count reconciliation -> Stock Ledger(+/-). No cancel route,
@@ -225,6 +228,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // — no new balance calculation, no new accounting table. See docs/TRIAL_BALANCE_DESIGN.md.
     // Own distinct page/permission, same reasoning as General Ledger above.
     Route::get('trial-balance', [TrialBalanceController::class, 'summary'])->middleware('permission:accounting.trial_balance.view');
+
+    // AR Aging Report (Batch B): every open receivable's customer aged into 4 due-date buckets —
+    // reuses AccountsReceivableRepository/Service (one additive method each), no new accounting table.
+    Route::get('accounts-receivable-aging', [AccountsReceivableAgingController::class, 'summary'])->middleware('permission:reports.ar_aging.view');
 
     // Profit & Loss (Sprint 17B): a presentation layer over GeneralLedgerService::listAccounts(),
     // classified via the separate report_account_mappings table — chart_of_accounts gains no new

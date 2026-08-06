@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Download, FileText, RotateCw, Upload, Wallet } from 'lucide-react'
+import { Download, FileText, Printer, RotateCw, Upload, Wallet } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -12,10 +12,24 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchSalesOrders } from '@/features/sales/api/salesOrderApi'
-import type { SalesOrder } from '@/features/sales/types'
+import type { DocumentStatus } from '@/features/sales/types'
 import { SalesReportFiltersBar } from '../components/SalesReportFiltersBar'
 import { emptySalesReportFilters } from '../lib/reportFilters'
 import type { SalesReportFilterValues } from '../types'
+
+/** One row per sales order line — order-level fields repeated per item, same flattening SalesReportPrintPage mirrors. */
+interface SalesReportRow {
+  id: string
+  orderId: string
+  document_number: string | null
+  customer_name: string
+  order_date: string
+  status: DocumentStatus
+  item_code: string | null
+  item_name: string | null
+  qty: number
+  amount: string | number
+}
 
 /** Read-only report over Sales Order — reuses fetchSalesOrders() as-is, no new endpoint. */
 export function SalesReportPage() {
@@ -26,12 +40,22 @@ export function SalesReportPage() {
   const [filters, setFilters] = useState<SalesReportFilterValues>(emptySalesReportFilters)
 
   const listQuery = useQuery({
-    queryKey: ['sales-report', page, search, filters.customer_id, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: [
+      'sales-report',
+      page,
+      search,
+      filters.customer_id,
+      filters.item_id,
+      filters.status,
+      filters.dateFrom,
+      filters.dateTo,
+    ],
     queryFn: () =>
       fetchSalesOrders({
         page,
         ...(search ? { search } : {}),
         ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
+        ...(filters.item_id ? { item_id: filters.item_id } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
@@ -39,20 +63,54 @@ export function SalesReportPage() {
     placeholderData: (previous) => previous,
   })
 
-  const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
+  // Flattened to one row per order line — the Item filter and Qty/Sales Amount columns need line-level data, not the order aggregate.
+  const rows = useMemo<SalesReportRow[]>(() => {
+    const orders = listQuery.data?.data ?? []
+    return orders.flatMap((order) =>
+      order.items.map((item) => ({
+        id: item.id,
+        orderId: order.id,
+        document_number: order.document_number,
+        customer_name: order.customer?.customer_name ?? '—',
+        order_date: order.order_date,
+        status: order.status,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        qty: item.qty,
+        amount: item.amount,
+      })),
+    )
+  }, [listQuery.data])
 
   // ponytail: summed from the currently-loaded page only, not a backend aggregate — same ceiling as Purchase Report's Total Amount card.
-  const totalRevenue = useMemo(() => rows.reduce((sum, row) => sum + Number(row.total_amount), 0), [rows])
+  const totalRevenue = useMemo(() => rows.reduce((sum, row) => sum + Number(row.amount), 0), [rows])
 
-  const columns: DataTableColumn<SalesOrder>[] = [
+  const columns: DataTableColumn<SalesReportRow>[] = [
     { header: 'Sales No', accessor: (row) => row.document_number ?? '—' },
-    { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
+    { header: 'Customer', accessor: (row) => row.customer_name },
     { header: 'Date', accessor: (row) => formatDate(row.order_date) },
-    { header: 'Total', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right' },
+    { header: 'Item', accessor: (row) => row.item_name ?? row.item_code ?? '—' },
+    { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
+    { header: 'Sales Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
   ]
 
-  const hasFilters = !!(search || filters.customer_id || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(
+    search ||
+    filters.customer_id ||
+    filters.item_id ||
+    filters.status ||
+    filters.dateFrom ||
+    filters.dateTo
+  )
+
+  const printParams = new URLSearchParams({
+    ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
+    ...(filters.item_id ? { item_id: filters.item_id } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+  }).toString()
 
   return (
     <div className="flex flex-col gap-4">
@@ -66,6 +124,11 @@ export function SalesReportPage() {
           <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+              {
+                label: 'Print',
+                icon: Printer,
+                onClick: () => navigate(`/reports/sales/print${printParams ? `?${printParams}` : ''}`),
+              },
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: true },
             ]}
@@ -115,7 +178,7 @@ export function SalesReportPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No sales orders match your search or filters.' : 'No sales orders yet.'}
-        onRowClick={(row) => navigate(`/sales/orders/${row.id}`)}
+        onRowClick={(row) => navigate(`/sales/orders/${row.orderId}`)}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}

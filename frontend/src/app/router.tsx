@@ -41,9 +41,15 @@ import { StockAdjustmentDetailPage } from '@/features/inventory/pages/StockAdjus
 import { PurchaseReportPage } from '@/features/reports/pages/PurchaseReportPage'
 import { GoodsReceiptReportPage } from '@/features/reports/pages/GoodsReceiptReportPage'
 import { SalesReportPage } from '@/features/reports/pages/SalesReportPage'
+import { SalesReportPrintPage } from '@/features/reports/pages/SalesReportPrintPage'
 import { DeliveryReportPage } from '@/features/reports/pages/DeliveryReportPage'
+import { DeliveryReportPrintPage } from '@/features/reports/pages/DeliveryReportPrintPage'
 import { InventoryMovementReportPage } from '@/features/reports/pages/InventoryMovementReportPage'
 import { InventoryBalanceReportPage } from '@/features/reports/pages/InventoryBalanceReportPage'
+import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/AccountsReceivableDetailReportPage'
+import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/pages/AccountsReceivableDetailReportPrintPage'
+import { AccountsReceivableAgingReportPage } from '@/features/reports/pages/AccountsReceivableAgingReportPage'
+import { AccountsReceivableAgingReportPrintPage } from '@/features/reports/pages/AccountsReceivableAgingReportPrintPage'
 import { IncomingPaymentListPage } from '@/features/payment/pages/IncomingPaymentListPage'
 import { IncomingPaymentEditorPage } from '@/features/payment/pages/IncomingPaymentEditorPage'
 import { IncomingPaymentDetailPage } from '@/features/payment/pages/IncomingPaymentDetailPage'
@@ -128,9 +134,15 @@ export function AppRouter() {
         <Route path="/reports/purchase" element={<ProtectedRoute permission="reports.purchase.view"><PurchaseReportPage /></ProtectedRoute>} />
         <Route path="/reports/goods-receipts" element={<ProtectedRoute permission="reports.goods_receipts.view"><GoodsReceiptReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPage /></ProtectedRoute>} />
+        <Route path="/reports/sales/print" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPage /></ProtectedRoute>} />
+        <Route path="/reports/deliveries/print" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/inventory-movement" element={<ProtectedRoute permission="reports.inventory_movement.view"><InventoryMovementReportPage /></ProtectedRoute>} />
         <Route path="/reports/inventory-balance" element={<ProtectedRoute permission="reports.inventory_balance.view"><InventoryBalanceReportPage /></ProtectedRoute>} />
+        <Route path="/reports/ar-detail" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPage /></ProtectedRoute>} />
+        <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/ar-aging" element={<ProtectedRoute permission="reports.ar_aging.view"><AccountsReceivableAgingReportPage /></ProtectedRoute>} />
+        <Route path="/reports/ar-aging/print" element={<ProtectedRoute permission="reports.ar_aging.view"><AccountsReceivableAgingReportPrintPage /></ProtectedRoute>} />
         <Route path="/finance/incoming" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentListPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/new" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/:id/edit" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />

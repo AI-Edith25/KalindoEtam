@@ -4,6 +4,10 @@ import type { AccountsReceivable } from '../types'
 
 export interface AccountsReceivableListParams {
   customer_id?: string
+  status?: string
+  date_from?: string
+  date_to?: string
+  page?: number
   per_page?: number
 }
 

@@ -7,6 +7,7 @@ export interface SalesOrderListParams {
   search?: string
   status?: string
   customer_id?: string
+  item_id?: string
   date_from?: string
   date_to?: string
   per_page?: number

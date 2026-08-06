@@ -1,5 +1,6 @@
 import type { DocumentStatus as PurchaseDocumentStatus } from '@/features/purchase/types'
 import type { DocumentStatus as SalesDocumentStatus } from '@/features/sales/types'
+import type { SettlementStatus } from '@/features/payment/types'
 
 /**
  * Reports is read-only and consumes Purchase/Sales/Inventory data directly
@@ -26,13 +27,28 @@ export interface GoodsReceiptReportFilterValues {
 
 export interface SalesReportFilterValues {
   customer_id: string
+  item_id: string
   status: SalesDocumentStatus | null
   dateFrom: string
   dateTo: string
 }
 
 export interface DeliveryReportFilterValues {
+  customer_id: string
+  item_id: string
   warehouse_id: string
   dateFrom: string
   dateTo: string
+}
+
+export interface ArDetailReportFilterValues {
+  customer_id: string
+  status: SettlementStatus | null
+  dateFrom: string
+  dateTo: string
+}
+
+export interface ArAgingReportFilterValues {
+  customer_id: string
+  asOfDate: string
 }

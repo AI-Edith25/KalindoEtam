@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Download, ExternalLink, RotateCw, Upload } from 'lucide-react'
+import { Download, ExternalLink, Printer, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -12,10 +12,23 @@ import { Button } from '@/components/ui/button'
 import { formatDate, formatNumber } from '@/lib/utils'
 import { fetchDeliveries } from '@/features/sales/api/deliveryApi'
 import { fetchSalesOrders } from '@/features/sales/api/salesOrderApi'
-import type { Delivery } from '@/features/sales/types'
 import { DeliveryReportFiltersBar } from '../components/DeliveryReportFiltersBar'
 import { emptyDeliveryReportFilters } from '../lib/reportFilters'
 import type { DeliveryReportFilterValues } from '../types'
+
+/** One row per delivery line — the Item filter and per-line Quantity column need line-level data, not the delivery aggregate. */
+interface DeliveryReportRow {
+  id: string
+  deliveryId: string
+  document_number: string | null
+  sales_order_id: string
+  customer_name: string
+  warehouse_name: string
+  delivery_date: string
+  item_code: string | null
+  item_name: string | null
+  qty: number
+}
 
 /** Read-only report over Delivery — reuses fetchDeliveries() as-is, no new endpoint. */
 export function DeliveryReportPage() {
@@ -26,11 +39,22 @@ export function DeliveryReportPage() {
   const [filters, setFilters] = useState<DeliveryReportFilterValues>(emptyDeliveryReportFilters)
 
   const listQuery = useQuery({
-    queryKey: ['delivery-report', page, search, filters.warehouse_id, filters.dateFrom, filters.dateTo],
+    queryKey: [
+      'delivery-report',
+      page,
+      search,
+      filters.customer_id,
+      filters.item_id,
+      filters.warehouse_id,
+      filters.dateFrom,
+      filters.dateTo,
+    ],
     queryFn: () =>
       fetchDeliveries({
         page,
         ...(search ? { search } : {}),
+        ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
+        ...(filters.item_id ? { item_id: filters.item_id } : {}),
         ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
@@ -46,12 +70,33 @@ export function DeliveryReportPage() {
   const salesOrderNumber = (salesOrderId: string) =>
     salesOrdersLookup.data?.data.find((so) => so.id === salesOrderId)?.document_number ?? '—'
 
-  const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
+  const rows = useMemo<DeliveryReportRow[]>(() => {
+    const deliveries = listQuery.data?.data ?? []
+    return deliveries.flatMap((delivery) =>
+      delivery.items.map((item) => ({
+        id: item.id,
+        deliveryId: delivery.id,
+        document_number: delivery.document_number,
+        sales_order_id: delivery.sales_order_id,
+        customer_name: delivery.customer?.customer_name ?? '—',
+        warehouse_name: delivery.warehouse?.name ?? '—',
+        delivery_date: delivery.delivery_date,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        qty: item.qty,
+      })),
+    )
+  }, [listQuery.data])
 
-  const columns: DataTableColumn<Delivery>[] = [
+  const columns: DataTableColumn<DeliveryReportRow>[] = [
+    { header: 'Date', accessor: (row) => formatDate(row.delivery_date) },
     { header: 'Delivery No', accessor: (row) => row.document_number ?? '—' },
+    { header: 'Customer', accessor: (row) => row.customer_name },
+    { header: 'Item', accessor: (row) => row.item_name ?? row.item_code ?? '—' },
+    { header: 'Quantity', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
+    { header: 'Warehouse', accessor: (row) => row.warehouse_name },
     {
-      header: 'Sales Order',
+      header: 'Reference Document',
       accessor: (row) => (
         <Button
           variant="link"
@@ -66,16 +111,24 @@ export function DeliveryReportPage() {
         </Button>
       ),
     },
-    { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
-    { header: 'Date', accessor: (row) => formatDate(row.delivery_date) },
-    {
-      header: 'Delivered Qty',
-      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + line.qty, 0)),
-      className: 'text-right',
-    },
   ]
 
-  const hasFilters = !!(search || filters.warehouse_id || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(
+    search ||
+    filters.customer_id ||
+    filters.item_id ||
+    filters.warehouse_id ||
+    filters.dateFrom ||
+    filters.dateTo
+  )
+
+  const printParams = new URLSearchParams({
+    ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
+    ...(filters.item_id ? { item_id: filters.item_id } : {}),
+    ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
+    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+  }).toString()
 
   return (
     <div className="flex flex-col gap-4">
@@ -89,6 +142,11 @@ export function DeliveryReportPage() {
           <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+              {
+                label: 'Print',
+                icon: Printer,
+                onClick: () => navigate(`/reports/deliveries/print${printParams ? `?${printParams}` : ''}`),
+              },
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: true },
             ]}
@@ -122,7 +180,7 @@ export function DeliveryReportPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No deliveries match your search or filters.' : 'No deliveries yet.'}
-        onRowClick={(row) => navigate(`/sales/deliveries/${row.id}`)}
+        onRowClick={(row) => navigate(`/sales/deliveries/${row.deliveryId}`)}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}

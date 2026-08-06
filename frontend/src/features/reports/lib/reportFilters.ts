@@ -1,4 +1,6 @@
 import type {
+  ArAgingReportFilterValues,
+  ArDetailReportFilterValues,
   DeliveryReportFilterValues,
   GoodsReceiptReportFilterValues,
   PurchaseReportFilterValues,
@@ -24,17 +26,53 @@ export function hasActiveGoodsReceiptReportFilters(filters: GoodsReceiptReportFi
 
 export const emptySalesReportFilters: SalesReportFilterValues = {
   customer_id: '',
+  item_id: '',
   status: null,
   dateFrom: '',
   dateTo: '',
 }
 
 export function hasActiveSalesReportFilters(filters: SalesReportFilterValues): boolean {
+  return (
+    filters.customer_id !== '' ||
+    filters.item_id !== '' ||
+    filters.status !== null ||
+    filters.dateFrom !== '' ||
+    filters.dateTo !== ''
+  )
+}
+
+export const emptyDeliveryReportFilters: DeliveryReportFilterValues = {
+  customer_id: '',
+  item_id: '',
+  warehouse_id: '',
+  dateFrom: '',
+  dateTo: '',
+}
+
+export function hasActiveDeliveryReportFilters(filters: DeliveryReportFilterValues): boolean {
+  return (
+    filters.customer_id !== '' ||
+    filters.item_id !== '' ||
+    filters.warehouse_id !== '' ||
+    filters.dateFrom !== '' ||
+    filters.dateTo !== ''
+  )
+}
+
+export const emptyArDetailReportFilters: ArDetailReportFilterValues = {
+  customer_id: '',
+  status: null,
+  dateFrom: '',
+  dateTo: '',
+}
+
+export function hasActiveArDetailReportFilters(filters: ArDetailReportFilterValues): boolean {
   return filters.customer_id !== '' || filters.status !== null || filters.dateFrom !== '' || filters.dateTo !== ''
 }
 
-export const emptyDeliveryReportFilters: DeliveryReportFilterValues = { warehouse_id: '', dateFrom: '', dateTo: '' }
+export const emptyArAgingReportFilters: ArAgingReportFilterValues = { customer_id: '', asOfDate: '' }
 
-export function hasActiveDeliveryReportFilters(filters: DeliveryReportFilterValues): boolean {
-  return filters.warehouse_id !== '' || filters.dateFrom !== '' || filters.dateTo !== ''
+export function hasActiveArAgingReportFilters(filters: ArAgingReportFilterValues): boolean {
+  return filters.customer_id !== '' || filters.asOfDate !== ''
 }
