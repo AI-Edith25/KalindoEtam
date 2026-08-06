@@ -14,7 +14,16 @@ class ChartOfAccountService
         protected AuditLogService $auditLogService,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    /**
+     * Default raised from the app-wide 15 — Chart of Accounts is a small,
+     * bounded reference list (same "dozens at most" reasoning
+     * ChartOfAccountRepository::allOrderedByCode() already documents for
+     * this exact table), and fetchLookupList() (shared/services/lookupApi.ts)
+     * only ever reads page 1 — a real account past position 15 (e.g. this
+     * sprint's new Expense categories) would otherwise silently disappear
+     * from every dropdown built on this endpoint.
+     */
+    public function list(int $perPage = 100): LengthAwarePaginator
     {
         return $this->chartOfAccountRepository->paginate($perPage);
     }
