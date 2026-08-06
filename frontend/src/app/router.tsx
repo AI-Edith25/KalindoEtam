@@ -5,6 +5,7 @@ import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { ItemListPage } from '@/features/master/pages/ItemListPage'
 import { SupplierListPage } from '@/features/master/pages/SupplierListPage'
 import { CustomerListPage } from '@/features/master/pages/CustomerListPage'
+import { SalesPersonListPage } from '@/features/master/pages/SalesPersonListPage'
 import { WarehouseListPage } from '@/features/master/pages/WarehouseListPage'
 import { ItemGroupListPage } from '@/features/master/pages/ItemGroupListPage'
 import { UomListPage } from '@/features/master/pages/UomListPage'
@@ -65,6 +66,7 @@ import { BalanceSheetListPage } from '@/features/accounting/pages/BalanceSheetLi
 import { CashFlowListPage } from '@/features/accounting/pages/CashFlowListPage'
 import { PeriodManagementPage } from '@/features/accounting/pages/PeriodManagementPage'
 import { CompanyPage } from '@/features/administration/pages/CompanyPage'
+import { BranchListPage } from '@/features/administration/pages/BranchListPage'
 import { UserListPage } from '@/features/administration/pages/UserListPage'
 import { RoleListPage } from '@/features/administration/pages/RoleListPage'
 import { AuditLogListPage } from '@/features/administration/pages/AuditLogListPage'
@@ -88,6 +90,7 @@ export function AppRouter() {
         <Route path="/master/items" element={<ProtectedRoute permission="master.items.view"><ItemListPage /></ProtectedRoute>} />
         <Route path="/master/suppliers" element={<ProtectedRoute permission="master.suppliers.view"><SupplierListPage /></ProtectedRoute>} />
         <Route path="/master/customers" element={<ProtectedRoute permission="master.customers.view"><CustomerListPage /></ProtectedRoute>} />
+        <Route path="/master/sales-persons" element={<ProtectedRoute permission="master.sales_persons.view"><SalesPersonListPage /></ProtectedRoute>} />
         <Route path="/master/warehouses" element={<ProtectedRoute permission="master.warehouses.view"><WarehouseListPage /></ProtectedRoute>} />
         <Route path="/master/item-groups" element={<ProtectedRoute permission="master.item_groups.view"><ItemGroupListPage /></ProtectedRoute>} />
         <Route path="/master/uoms" element={<ProtectedRoute permission="master.uoms.view"><UomListPage /></ProtectedRoute>} />
@@ -159,6 +162,7 @@ export function AppRouter() {
         <Route path="/accounting/cash-flow" element={<ProtectedRoute permission="accounting.cash_flow.view"><CashFlowListPage /></ProtectedRoute>} />
         <Route path="/accounting/period-closing" element={<ProtectedRoute permission="accounting.period_closing.view"><PeriodManagementPage /></ProtectedRoute>} />
         <Route path="/administration/company" element={<ProtectedRoute permission="administration.company.view"><CompanyPage /></ProtectedRoute>} />
+        <Route path="/administration/branches" element={<ProtectedRoute permission="administration.branch.view"><BranchListPage /></ProtectedRoute>} />
         <Route path="/administration/users" element={<ProtectedRoute permission="administration.users.view"><UserListPage /></ProtectedRoute>} />
         <Route path="/administration/roles" element={<ProtectedRoute permission="administration.roles.view"><RoleListPage /></ProtectedRoute>} />
         <Route path="/administration/audit-log" element={<ProtectedRoute permission="administration.audit_log.view"><AuditLogListPage /></ProtectedRoute>} />

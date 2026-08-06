@@ -28,6 +28,8 @@ export interface GoodsReceiptReportFilterValues {
 export interface SalesReportFilterValues {
   customer_id: string
   item_id: string
+  sales_person_id: string
+  branch_id: string
   status: SalesDocumentStatus | null
   dateFrom: string
   dateTo: string

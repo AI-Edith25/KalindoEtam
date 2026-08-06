@@ -17,7 +17,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeGrandTotal, computeSubtotal, computeTax } from '@/shared/lib/documentTotals'
-import { fetchCustomersLookup, fetchItemsLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchCustomersLookup, fetchItemsLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
 import { createSalesOrder, fetchSalesOrder, submitSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
 import { SalesOrderLineItemTable } from '../components/SalesOrderLineItemTable'
 import { emptySalesOrderEditorValues, salesOrderFormSchema, type SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
@@ -25,6 +25,7 @@ import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
 import type { SalesOrderFormValues } from '../types'
 
 const APPROVABLE_TYPE = 'App\\Models\\SalesOrder'
+const NONE = '__none__'
 
 export function SalesOrderEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -40,6 +41,8 @@ export function SalesOrderEditorPage() {
 
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
   const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
+  const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
+  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
 
   const form = useForm<SalesOrderEditorValues>({
     resolver: zodResolver(salesOrderFormSchema),
@@ -58,6 +61,8 @@ export function SalesOrderEditorPage() {
 
     form.reset({
       customer_id: order.customer_id,
+      sales_person_id: order.sales_person_id ?? '',
+      branch_id: order.branch_id ?? '',
       order_date: order.order_date,
       expected_delivery_date: order.expected_delivery_date ?? '',
       remarks: order.remarks ?? '',
@@ -70,8 +75,21 @@ export function SalesOrderEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderQuery.data])
 
+  // New order only — default to the head-office branch, matching the ticket's
+  // "default ke cabang utama" (single-branch companies never need to touch this field).
+  useEffect(() => {
+    if (isEdit || !branches.data?.length) return
+    if (form.getValues('branch_id')) return
+
+    const headOffice = branches.data.find((branch) => branch.is_head_office) ?? branches.data[0]
+    form.setValue('branch_id', headOffice.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branches.data, isEdit])
+
   const toPayload = (values: SalesOrderEditorValues): SalesOrderFormValues => ({
     customer_id: values.customer_id,
+    sales_person_id: values.sales_person_id || null,
+    branch_id: values.branch_id,
     order_date: values.order_date,
     expected_delivery_date: values.expected_delivery_date || null,
     remarks: values.remarks || null,
@@ -157,6 +175,55 @@ export function SalesOrderEditorPage() {
                         {customers.data?.map((customer) => (
                           <SelectItem key={customer.id} value={customer.id}>
                             {customer.customer_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sales_person_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sales Person</FormLabel>
+                    <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={salesPersons.isLoading ? 'Loading…' : 'Select sales person'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NONE}>None</SelectItem>
+                        {salesPersons.data?.map((salesPerson) => (
+                          <SelectItem key={salesPerson.id} value={salesPerson.id}>
+                            {salesPerson.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="branch_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Branch</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Select branch'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {branches.data?.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

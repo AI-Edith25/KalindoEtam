@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateBranchRequest extends FormRequest
+class UpdateSalesPersonRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -15,11 +15,10 @@ class UpdateBranchRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'company_id' => ['sometimes', 'required', 'uuid', 'exists:companies,id'],
+            'code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('sales_persons', 'code')->ignore($this->route('sales_person'))],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('branches', 'code')->ignore($this->route('branch'))],
-            'address' => ['nullable', 'string', 'max:255'],
-            'is_head_office' => ['sometimes', 'boolean'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'email' => ['nullable', 'email', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

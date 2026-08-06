@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreBranchRequest extends FormRequest
+class StoreSalesPersonRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,11 +14,10 @@ class StoreBranchRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'company_id' => ['required', 'uuid', 'exists:companies,id'],
+            'code' => ['required', 'string', 'max:255', 'unique:sales_persons,code'],
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:255', 'unique:branches,code'],
-            'address' => ['nullable', 'string', 'max:255'],
-            'is_head_office' => ['sometimes', 'boolean'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'email' => ['nullable', 'email', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

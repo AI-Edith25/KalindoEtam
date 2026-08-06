@@ -175,6 +175,8 @@ export function SalesOrderDetailPage() {
           <DetailSection>
             <DetailField label="Document Number" value={order.document_number ?? '—'} />
             <DetailField label="Customer" value={order.customer?.customer_name ?? '—'} />
+            <DetailField label="Sales Person" value={order.sales_person?.name ?? '—'} />
+            <DetailField label="Branch" value={order.branch?.name ?? '—'} />
             <DetailField label="Order Date" value={formatDate(order.order_date)} />
             <DetailField label="Expected Delivery Date" value={formatDate(order.expected_delivery_date)} />
             <DetailField label="Notes" value={order.remarks || '—'} />

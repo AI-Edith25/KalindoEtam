@@ -1,10 +1,11 @@
 import { fetchLookupList } from '@/shared/services/lookupApi'
-import type { Branch, ChartOfAccount, Company, Customer, Item, ItemGroup, Supplier, Tax, Uom, Warehouse } from '../types'
+import type { Branch, ChartOfAccount, Company, Customer, Item, ItemGroup, SalesPerson, Supplier, Tax, Uom, Warehouse } from '../types'
 
 export const fetchItemGroups = () => fetchLookupList<ItemGroup>('/item-groups')
 export const fetchUoms = () => fetchLookupList<Uom>('/uoms')
 export const fetchBranches = () => fetchLookupList<Branch>('/branches')
 export const fetchCompaniesLookup = () => fetchLookupList<Company>('/companies')
+export const fetchSalesPersonsLookup = () => fetchLookupList<SalesPerson>('/sales-persons')
 
 /** Cross-feature reuse: Purchase's and Sales's editors need these same page-1 lookups. */
 export const fetchItemsLookup = () => fetchLookupList<Item>('/items')

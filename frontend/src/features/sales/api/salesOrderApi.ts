@@ -8,6 +8,8 @@ export interface SalesOrderListParams {
   status?: string
   customer_id?: string
   item_id?: string
+  sales_person_id?: string
+  branch_id?: string
   date_from?: string
   date_to?: string
   per_page?: number

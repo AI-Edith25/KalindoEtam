@@ -22,6 +22,8 @@ class SalesOrder extends Model
         'submitted_at',
         'cancelled_at',
         'customer_id',
+        'sales_person_id',
+        'branch_id',
         'order_date',
         'expected_delivery_date',
         'total_amount',
@@ -51,6 +53,16 @@ class SalesOrder extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function salesPerson(): BelongsTo
+    {
+        return $this->belongsTo(SalesPerson::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function items(): HasMany

@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
+use App\Http\Controllers\Api\V1\SalesPersonController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockInController;
 use App\Http\Controllers\Api\V1\StockLedgerController;
@@ -117,6 +118,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('taxes', TaxController::class), 'master.taxes');
     $withPagePermissions(Route::apiResource('customers', CustomerController::class), 'master.customers');
     $withPagePermissions(Route::apiResource('suppliers', SupplierController::class), 'master.suppliers');
+    $withPagePermissions(Route::apiResource('sales-persons', SalesPersonController::class), 'master.sales_persons');
 
     $withPagePermissions(Route::apiResource('items', ItemController::class), 'master.items');
     Route::get('items/{item}/stock-ledger', [StockLedgerController::class, 'index'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view');

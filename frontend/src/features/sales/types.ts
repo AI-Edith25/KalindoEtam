@@ -27,6 +27,10 @@ export interface SalesOrder {
   revision: number
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string } | null
+  sales_person_id: string | null
+  sales_person: { id: string; code: string; name: string } | null
+  branch_id: string | null
+  branch: { id: string; code: string; name: string } | null
   order_date: string
   expected_delivery_date: string | null
   total_amount: string | number
@@ -42,6 +46,8 @@ export interface SalesOrder {
 
 export interface SalesOrderFormValues {
   customer_id: string
+  sales_person_id: string | null
+  branch_id: string
   order_date: string
   expected_delivery_date: string | null
   remarks: string | null

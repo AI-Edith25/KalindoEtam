@@ -26,6 +26,8 @@ export function hasActiveGoodsReceiptReportFilters(filters: GoodsReceiptReportFi
 export const emptySalesReportFilters: SalesReportFilterValues = {
   customer_id: '',
   item_id: '',
+  sales_person_id: '',
+  branch_id: '',
   status: null,
   dateFrom: '',
   dateTo: '',
@@ -35,6 +37,8 @@ export function hasActiveSalesReportFilters(filters: SalesReportFilterValues): b
   return (
     filters.customer_id !== '' ||
     filters.item_id !== '' ||
+    filters.sales_person_id !== '' ||
+    filters.branch_id !== '' ||
     filters.status !== null ||
     filters.dateFrom !== '' ||
     filters.dateTo !== ''

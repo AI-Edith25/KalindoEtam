@@ -28,6 +28,8 @@ class SalesOrderService
         return DB::transaction(function () use ($data) {
             $salesOrder = $this->salesOrderRepository->create([
                 'customer_id' => $data['customer_id'],
+                'sales_person_id' => $data['sales_person_id'] ?? null,
+                'branch_id' => $data['branch_id'] ?? null,
                 'order_date' => $data['order_date'],
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
@@ -36,7 +38,7 @@ class SalesOrderService
 
             $this->replaceItems($salesOrder, $data['items']);
 
-            $salesOrder = $salesOrder->fresh(['customer', 'items.item']);
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'items.item']);
             $this->auditLogService->record('created', 'sales_order', "Created Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;
@@ -57,7 +59,7 @@ class SalesOrderService
 
             $this->salesOrderRepository->update($salesOrder, $headerData);
 
-            $salesOrder = $salesOrder->fresh(['customer', 'items.item']);
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'items.item']);
             $this->auditLogService->record('updated', 'sales_order', "Updated Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;

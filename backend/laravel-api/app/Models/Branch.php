@@ -19,10 +19,12 @@ class Branch extends Model
         'code',
         'address',
         'is_head_office',
+        'is_active',
     ];
 
     protected $casts = [
         'is_head_office' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     public function company(): BelongsTo

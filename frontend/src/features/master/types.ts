@@ -141,6 +141,37 @@ export interface Branch {
   code: string
   address: string | null
   is_head_office: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface BranchFormValues {
+  company_id: string
+  name: string
+  code: string
+  address: string | null
+  is_head_office?: boolean
+  is_active: boolean
+}
+
+export interface SalesPerson {
+  id: string
+  code: string
+  name: string
+  phone: string | null
+  email: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface SalesPersonFormValues {
+  code: string
+  name: string
+  phone: string | null
+  email: string | null
+  is_active: boolean
 }
 
 export interface Company {

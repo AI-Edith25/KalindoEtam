@@ -15,6 +15,8 @@ class StoreSalesOrderRequest extends FormRequest
     {
         return [
             'customer_id' => ['required', 'uuid', 'exists:customers,id'],
+            'sales_person_id' => ['nullable', 'uuid', 'exists:sales_persons,id'],
+            'branch_id' => ['required', 'uuid', 'exists:branches,id'],
             'order_date' => ['required', 'date'],
             'expected_delivery_date' => ['nullable', 'date', 'after_or_equal:order_date'],
             'remarks' => ['nullable', 'string'],

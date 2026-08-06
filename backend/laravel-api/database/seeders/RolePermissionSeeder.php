@@ -33,6 +33,7 @@ class RolePermissionSeeder extends Seeder
         'master.taxes' => ['view', 'create', 'update', 'delete'],
         'master.customers' => ['view', 'create', 'update', 'delete'],
         'master.suppliers' => ['view', 'create', 'update', 'delete'],
+        'master.sales_persons' => ['view', 'create', 'update', 'delete'],
         'master.warehouses' => ['view', 'create', 'update', 'delete'],
         'master.chart_of_accounts' => ['view', 'create', 'update', 'delete'],
         'inventory.stock_balance' => ['view'],

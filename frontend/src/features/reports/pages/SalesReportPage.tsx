@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Download, FileText, Printer, RotateCw, Upload, Wallet } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
@@ -23,6 +24,8 @@ interface SalesReportRow {
   orderId: string
   document_number: string | null
   customer_name: string
+  sales_person_name: string
+  branch_name: string
   order_date: string
   status: DocumentStatus
   item_code: string | null
@@ -30,6 +33,18 @@ interface SalesReportRow {
   qty: number
   amount: string | number
 }
+
+interface SalesPersonRecapRow {
+  name: string
+  qty: number
+  amount: number
+}
+
+const salesPersonRecapColumns: DataTableColumn<SalesPersonRecapRow>[] = [
+  { header: 'Sales Person', accessor: (row) => row.name },
+  { header: 'Total Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
+  { header: 'Total Nominal', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+]
 
 /** Read-only report over Sales Order — reuses fetchSalesOrders() as-is, no new endpoint. */
 export function SalesReportPage() {
@@ -46,6 +61,8 @@ export function SalesReportPage() {
       search,
       filters.customer_id,
       filters.item_id,
+      filters.sales_person_id,
+      filters.branch_id,
       filters.status,
       filters.dateFrom,
       filters.dateTo,
@@ -56,6 +73,8 @@ export function SalesReportPage() {
         ...(search ? { search } : {}),
         ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
         ...(filters.item_id ? { item_id: filters.item_id } : {}),
+        ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
+        ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
@@ -72,6 +91,8 @@ export function SalesReportPage() {
         orderId: order.id,
         document_number: order.document_number,
         customer_name: order.customer?.customer_name ?? '—',
+        sales_person_name: order.sales_person?.name ?? 'Unassigned',
+        branch_name: order.branch?.name ?? '—',
         order_date: order.order_date,
         status: order.status,
         item_code: item.item_code,
@@ -85,9 +106,23 @@ export function SalesReportPage() {
   // ponytail: summed from the currently-loaded page only, not a backend aggregate — same ceiling as Purchase Report's Total Amount card.
   const totalRevenue = useMemo(() => rows.reduce((sum, row) => sum + Number(row.amount), 0), [rows])
 
+  // ponytail: same page-local aggregation ceiling as totalRevenue above — grouped over the currently-loaded page only.
+  const salesPersonRecap = useMemo<SalesPersonRecapRow[]>(() => {
+    const byName = new Map<string, { qty: number; amount: number }>()
+    for (const row of rows) {
+      const entry = byName.get(row.sales_person_name) ?? { qty: 0, amount: 0 }
+      entry.qty += row.qty
+      entry.amount += Number(row.amount)
+      byName.set(row.sales_person_name, entry)
+    }
+    return Array.from(byName.entries()).map(([name, totals]) => ({ name, ...totals }))
+  }, [rows])
+
   const columns: DataTableColumn<SalesReportRow>[] = [
     { header: 'Sales No', accessor: (row) => row.document_number ?? '—' },
     { header: 'Customer', accessor: (row) => row.customer_name },
+    { header: 'Sales Person', accessor: (row) => row.sales_person_name },
+    { header: 'Branch', accessor: (row) => row.branch_name },
     { header: 'Date', accessor: (row) => formatDate(row.order_date) },
     { header: 'Item', accessor: (row) => row.item_name ?? row.item_code ?? '—' },
     { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
@@ -99,6 +134,8 @@ export function SalesReportPage() {
     search ||
     filters.customer_id ||
     filters.item_id ||
+    filters.sales_person_id ||
+    filters.branch_id ||
     filters.status ||
     filters.dateFrom ||
     filters.dateTo
@@ -107,6 +144,8 @@ export function SalesReportPage() {
   const printParams = new URLSearchParams({
     ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
     ...(filters.item_id ? { item_id: filters.item_id } : {}),
+    ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
+    ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
@@ -151,6 +190,17 @@ export function SalesReportPage() {
           isLoading={listQuery.isLoading}
         />
       </div>
+
+      {salesPersonRecap.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sales Achievement by Sales Person</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DataTable columns={salesPersonRecapColumns} data={salesPersonRecap} rowKey={(row) => row.name} />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox

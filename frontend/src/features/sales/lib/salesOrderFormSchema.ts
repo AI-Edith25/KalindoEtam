@@ -23,6 +23,8 @@ export const lineItemFormSchema = z.object({
 
 export const salesOrderFormSchema = z.object({
   customer_id: z.string().min(1, 'Customer is required'),
+  sales_person_id: z.string().optional().or(z.literal('')),
+  branch_id: z.string().min(1, 'Branch is required'),
   order_date: z.string().min(1, 'Order date is required'),
   expected_delivery_date: z.string().optional().or(z.literal('')),
   remarks: z.string().optional().or(z.literal('')),
@@ -33,6 +35,8 @@ export type SalesOrderEditorValues = z.infer<typeof salesOrderFormSchema>
 
 export const emptySalesOrderEditorValues: SalesOrderEditorValues = {
   customer_id: '',
+  sales_person_id: '',
+  branch_id: '',
   order_date: '',
   expected_delivery_date: '',
   remarks: '',
