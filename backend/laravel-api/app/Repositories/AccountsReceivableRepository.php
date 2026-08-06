@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Enums\AccountsReceivableStatus;
 use App\Models\AccountsReceivable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 class AccountsReceivableRepository extends BaseRepository
@@ -46,26 +47,50 @@ class AccountsReceivableRepository extends BaseRepository
         $accountsReceivable->update(['amount' => $amount, 'debited_amount' => $debitedAmount, 'status' => $status]);
     }
 
-    public function search(array $filters, int $perPage = 15): LengthAwarePaginator
+    /**
+     * Shared filter definition for search()/outstandingTotal() — both need the
+     * identical where-clause set, so it's built once instead of duplicated.
+     * aging_bucket is a ceiling filter ("overdue up to N days"), not a
+     * discrete bucket — 1-30/1-45/1-60/1-90 deliberately overlap/nest, and
+     * over_180 is the one floor (>180, unbounded above). Day-0/not-yet-due
+     * receivables are excluded from every specific option by design (the
+     * business's own spec measures "overdue" starting at 1 day). Expressed
+     * as due_date range comparisons via whereDate() (portable across MySQL/
+     * SQLite, and this table's own established pattern — see date_from/
+     * date_to just above) rather than DATEDIFF()/CURDATE(), which are
+     * MySQL-only and break the SQLite-backed test suite.
+     */
+    private function filteredQuery(array $filters): Builder
     {
         return $this->model->query()
-            ->with(['customer', 'invoice', 'salesOrder', 'delivery'])
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
+            ->when($filters['aging_bucket'] ?? null, fn ($query, $bucket) => match ($bucket) {
+                '30' => $query->whereDate('due_date', '>=', now()->subDays(30))->whereDate('due_date', '<=', now()->subDay()),
+                '45' => $query->whereDate('due_date', '>=', now()->subDays(45))->whereDate('due_date', '<=', now()->subDay()),
+                '60' => $query->whereDate('due_date', '>=', now()->subDays(60))->whereDate('due_date', '<=', now()->subDay()),
+                '90' => $query->whereDate('due_date', '>=', now()->subDays(90))->whereDate('due_date', '<=', now()->subDay()),
+                'over_180' => $query->whereDate('due_date', '<', now()->subDays(180)),
+                default => $query,
+            });
+    }
+
+    public function search(array $filters, int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->filteredQuery($filters)
+            ->with(['customer', 'invoice', 'salesOrder', 'delivery'])
             ->latest('due_date')
             ->paginate($perPage);
     }
 
-    /** Every not-yet-fully-paid receivable, with its customer — the row set AccountsReceivableService::summarizeAging() buckets by due_date. */
-    public function outstanding(?string $customerId = null): Collection
+    /** AR Detail Report's "Total Outstanding" footer — same filters as search(), never a second definition. */
+    public function outstandingTotal(array $filters): float
     {
-        return $this->model->query()
-            ->where('status', '!=', AccountsReceivableStatus::PAID->value)
-            ->when($customerId, fn ($query, $id) => $query->where('customer_id', $id))
-            ->with('customer')
-            ->get();
+        return (float) $this->filteredQuery($filters)
+            ->selectRaw('COALESCE(SUM(amount - paid_amount), 0) as outstanding')
+            ->value('outstanding');
     }
 
     public function outstandingSummary(): array

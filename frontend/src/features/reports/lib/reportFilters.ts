@@ -1,5 +1,4 @@
 import type {
-  ArAgingReportFilterValues,
   ArDetailReportFilterValues,
   DeliveryReportFilterValues,
   GoodsReceiptReportFilterValues,
@@ -63,16 +62,17 @@ export function hasActiveDeliveryReportFilters(filters: DeliveryReportFilterValu
 export const emptyArDetailReportFilters: ArDetailReportFilterValues = {
   customer_id: '',
   status: null,
+  agingBucket: null,
   dateFrom: '',
   dateTo: '',
 }
 
 export function hasActiveArDetailReportFilters(filters: ArDetailReportFilterValues): boolean {
-  return filters.customer_id !== '' || filters.status !== null || filters.dateFrom !== '' || filters.dateTo !== ''
-}
-
-export const emptyArAgingReportFilters: ArAgingReportFilterValues = { customer_id: '', asOfDate: '' }
-
-export function hasActiveArAgingReportFilters(filters: ArAgingReportFilterValues): boolean {
-  return filters.customer_id !== '' || filters.asOfDate !== ''
+  return (
+    filters.customer_id !== '' ||
+    filters.status !== null ||
+    filters.agingBucket !== null ||
+    filters.dateFrom !== '' ||
+    filters.dateTo !== ''
+  )
 }

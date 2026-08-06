@@ -25,9 +25,12 @@ class AccountsReceivableController extends Controller
         $filters = $request->validated();
         $perPage = $filters['per_page'] ?? 15;
 
-        return $this->success(AccountsReceivableResource::collection(
-            $this->accountsReceivableService->list($filters, $perPage)
-        ));
+        return $this->success(
+            AccountsReceivableResource::collection($this->accountsReceivableService->list($filters, $perPage)),
+            '',
+            200,
+            ['total_outstanding' => $this->accountsReceivableService->outstandingTotal($filters)]
+        );
     }
 
     public function show(AccountsReceivable $accountsReceivable): JsonResponse

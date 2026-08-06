@@ -41,14 +41,13 @@ export interface DeliveryReportFilterValues {
   dateTo: string
 }
 
+/** Ceiling filter ("overdue up to N days"), deliberately overlapping — 60 is a superset of 30, not a discrete bucket. over_180 is the one floor (unbounded above). */
+export type AgingBucketValue = '30' | '45' | '60' | '90' | 'over_180'
+
 export interface ArDetailReportFilterValues {
   customer_id: string
   status: SettlementStatus | null
+  agingBucket: AgingBucketValue | null
   dateFrom: string
   dateTo: string
-}
-
-export interface ArAgingReportFilterValues {
-  customer_id: string
-  asOfDate: string
 }

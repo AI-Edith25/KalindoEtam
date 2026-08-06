@@ -20,17 +20,19 @@ export function AccountsReceivableDetailReportPrintPage() {
 
   const customerId = searchParams.get('customer_id') ?? undefined
   const status = searchParams.get('status') ?? undefined
+  const agingBucket = searchParams.get('aging_bucket') ?? undefined
   const dateFrom = searchParams.get('date_from') ?? undefined
   const dateTo = searchParams.get('date_to') ?? undefined
 
   const listQuery = useQuery({
-    queryKey: ['ar-detail-report-print', customerId, status, dateFrom, dateTo],
+    queryKey: ['ar-detail-report-print', customerId, status, agingBucket, dateFrom, dateTo],
     queryFn: () =>
       fetchAccountsReceivables({
         page: 1,
         per_page: 100,
         ...(customerId ? { customer_id: customerId } : {}),
         ...(status ? { status } : {}),
+        ...(agingBucket ? { aging_bucket: agingBucket } : {}),
         ...(dateFrom ? { date_from: dateFrom } : {}),
         ...(dateTo ? { date_to: dateTo } : {}),
       }),
@@ -104,6 +106,18 @@ export function AccountsReceivableDetailReportPrintPage() {
               </tr>
             ))}
           </tbody>
+          {listQuery.data?.meta && (
+            <tfoot>
+              <tr className="border-t-2 border-foreground/80 font-semibold">
+                <td colSpan={6} className="border-r-2 border-foreground/80 p-2 text-right">
+                  Total Outstanding
+                </td>
+                <td colSpan={2} className="p-2 text-right">
+                  {formatMoney(listQuery.data.meta.total_outstanding, printOptions.amountDecimals)}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 

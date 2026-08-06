@@ -8,7 +8,8 @@ use Illuminate\Http\Resources\Json\ResourceCollection;
 
 trait ApiResponse
 {
-    protected function success(mixed $data = null, string $message = '', int $status = 200): JsonResponse
+    /** $extraMeta merges into the response's meta block (e.g. a filtered aggregate alongside a paginated list) — additive only, every existing 3-arg call site is unaffected. */
+    protected function success(mixed $data = null, string $message = '', int $status = 200, array $extraMeta = []): JsonResponse
     {
         $payload = [
             'success' => true,
@@ -25,6 +26,10 @@ trait ApiResponse
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
             ];
+        }
+
+        if ($extraMeta !== []) {
+            $payload['meta'] = array_merge($payload['meta'] ?? [], $extraMeta);
         }
 
         return response()->json($payload, $status);

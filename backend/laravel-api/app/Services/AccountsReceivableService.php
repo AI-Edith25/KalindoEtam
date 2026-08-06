@@ -8,7 +8,6 @@ use App\Models\AccountsReceivable;
 use App\Models\Invoice;
 use App\Repositories\AccountsReceivableRepository;
 use App\Support\SettlementStatus;
-use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -180,61 +179,14 @@ class AccountsReceivableService
     }
 
     /**
-     * AR Aging Report (Batch B): one grid — every open receivable's customer
-     * aged into 4 due-date buckets against `as_of_date` (default today), plus
-     * a total-outstanding column. Bucketed in PHP over the (small, "still
-     * open") row set outstanding() returns — no raw SQL aggregate, same
-     * "derive, don't store" shape TrialBalanceService already uses. The
-     * ticket names only 4 buckets, so a not-yet-due receivable clamps to 0
-     * days past due and lands in 0-30 — there is no separate "current" bucket.
+     * AR Detail Report's "Total Outstanding" footer — sums amount-paid_amount
+     * over the same filtered row set search() returns, so the figure always
+     * matches what's on screen regardless of pagination. Thin passthrough,
+     * matching list()'s own delegation shape.
      */
-    public function summarizeAging(array $filters): array
+    public function outstandingTotal(array $filters): float
     {
-        $asOfDate = Carbon::parse($filters['as_of_date'] ?? now())->startOfDay();
-        $receivables = $this->accountsReceivableRepository->outstanding($filters['customer_id'] ?? null);
-
-        $emptyBuckets = ['bucket_0_30' => 0.0, 'bucket_31_60' => 0.0, 'bucket_61_90' => 0.0, 'bucket_over_90' => 0.0];
-
-        $rows = $receivables
-            ->groupBy('customer_id')
-            ->map(function ($group) use ($asOfDate, $emptyBuckets) {
-                $buckets = $emptyBuckets;
-
-                foreach ($group as $receivable) {
-                    $outstanding = (float) $receivable->amount - (float) $receivable->paid_amount;
-                    if ($outstanding <= 0) {
-                        continue;
-                    }
-
-                    $daysPastDue = $receivable->due_date->lt($asOfDate) ? (int) $receivable->due_date->diffInDays($asOfDate) : 0;
-                    $bucket = match (true) {
-                        $daysPastDue <= 30 => 'bucket_0_30',
-                        $daysPastDue <= 60 => 'bucket_31_60',
-                        $daysPastDue <= 90 => 'bucket_61_90',
-                        default => 'bucket_over_90',
-                    };
-                    $buckets[$bucket] += $outstanding;
-                }
-
-                return [
-                    'customer' => $group->first()->customer,
-                    ...$buckets,
-                    'total_outstanding' => array_sum($buckets),
-                ];
-            })
-            ->filter(fn ($row) => $row['total_outstanding'] > 0)
-            ->values()
-            ->all();
-
-        $totals = array_reduce($rows, function (array $carry, array $row) {
-            foreach (array_keys($carry) as $key) {
-                $carry[$key] += $row[$key];
-            }
-
-            return $carry;
-        }, [...$emptyBuckets, 'total_outstanding' => 0.0]);
-
-        return ['rows' => $rows, 'totals' => $totals, 'as_of_date' => $asOfDate->toDateString()];
+        return $this->accountsReceivableRepository->outstandingTotal($filters);
     }
 
     /**

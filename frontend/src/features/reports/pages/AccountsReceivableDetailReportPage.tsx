@@ -9,6 +9,7 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
+import { Card, CardContent } from '@/components/ui/card'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchAccountsReceivables } from '@/features/payment/api/accountsReceivableApi'
 import type { AccountsReceivable } from '@/features/payment/types'
@@ -25,12 +26,21 @@ export function AccountsReceivableDetailReportPage() {
   const [filters, setFilters] = useState<ArDetailReportFilterValues>(emptyArDetailReportFilters)
 
   const listQuery = useQuery({
-    queryKey: ['ar-detail-report', page, filters.customer_id, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: [
+      'ar-detail-report',
+      page,
+      filters.customer_id,
+      filters.status,
+      filters.agingBucket,
+      filters.dateFrom,
+      filters.dateTo,
+    ],
     queryFn: () =>
       fetchAccountsReceivables({
         page,
         ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
         ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.agingBucket ? { aging_bucket: filters.agingBucket } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
       }),
@@ -62,11 +72,19 @@ export function AccountsReceivableDetailReportPage() {
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
   ]
 
-  const hasFilters = !!(search || filters.customer_id || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(
+    search ||
+    filters.customer_id ||
+    filters.status ||
+    filters.agingBucket ||
+    filters.dateFrom ||
+    filters.dateTo
+  )
 
   const printParams = new URLSearchParams({
     ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
     ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.agingBucket ? { aging_bucket: filters.agingBucket } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
   }).toString()
@@ -124,6 +142,15 @@ export function AccountsReceivableDetailReportPage() {
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
+
+      {listQuery.data?.meta && (
+        <Card>
+          <CardContent className="flex items-center justify-end gap-2 py-4 text-base">
+            <span className="text-muted-foreground">Total Outstanding</span>
+            <span className="font-semibold">{formatCurrency(listQuery.data.meta.total_outstanding)}</span>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

@@ -126,4 +126,56 @@ class AccountsReceivableDetailReportTest extends TestCase
 
         $this->assertCount(1, $results->items());
     }
+
+    /** aging_bucket is a ceiling filter ("overdue up to N days"), never a discrete non-overlapping bucket. */
+    public function test_aging_bucket_30_includes_exactly_30_days_overdue_and_excludes_31(): void
+    {
+        $this->submittedInvoice(now()->subDays(30)->toDateString());
+        $this->submittedInvoice(now()->subDays(31)->toDateString());
+
+        $results = $this->accountsReceivableRepository->search(['aging_bucket' => '30']);
+
+        $this->assertCount(1, $results->items());
+        $this->assertEquals(now()->subDays(30)->toDateString(), $results->items()[0]->due_date->toDateString());
+    }
+
+    public function test_aging_bucket_60_includes_both_a_30_day_and_a_59_day_overdue_invoice(): void
+    {
+        $this->submittedInvoice(now()->subDays(30)->toDateString());
+        $this->submittedInvoice(now()->subDays(59)->toDateString());
+        $this->submittedInvoice(now()->subDays(61)->toDateString());
+
+        $results = $this->accountsReceivableRepository->search(['aging_bucket' => '60']);
+
+        $this->assertCount(2, $results->items());
+    }
+
+    public function test_aging_bucket_over_180_only_includes_181_plus_days_overdue(): void
+    {
+        $this->submittedInvoice(now()->subDays(180)->toDateString());
+        $this->submittedInvoice(now()->subDays(181)->toDateString());
+
+        $results = $this->accountsReceivableRepository->search(['aging_bucket' => 'over_180']);
+
+        $this->assertCount(1, $results->items());
+        $this->assertEquals(now()->subDays(181)->toDateString(), $results->items()[0]->due_date->toDateString());
+    }
+
+    public function test_not_yet_due_invoice_excluded_from_every_specific_bucket_but_present_unfiltered(): void
+    {
+        $this->submittedInvoice(now()->addDays(10)->toDateString());
+
+        $this->assertCount(0, $this->accountsReceivableRepository->search(['aging_bucket' => '30'])->items());
+        $this->assertCount(1, $this->accountsReceivableRepository->search([])->items());
+    }
+
+    public function test_outstanding_total_sums_the_same_filtered_set_as_search(): void
+    {
+        $this->submittedInvoice(now()->subDays(10)->toDateString()); // 100000
+        $this->submittedInvoice(now()->subDays(40)->toDateString()); // 100000, outside aging_bucket=30
+
+        $total = $this->accountsReceivableRepository->outstandingTotal(['aging_bucket' => '30']);
+
+        $this->assertEquals(100000.0, $total);
+    }
 }

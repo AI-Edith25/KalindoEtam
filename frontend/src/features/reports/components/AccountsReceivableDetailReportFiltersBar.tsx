@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { fetchCustomersLookup } from '@/features/master/api/lookupsApi'
 import type { SettlementStatus } from '@/features/payment/types'
 import { emptyArDetailReportFilters, hasActiveArDetailReportFilters } from '../lib/reportFilters'
-import type { ArDetailReportFilterValues } from '../types'
+import type { AgingBucketValue, ArDetailReportFilterValues } from '../types'
 
 const ALL = '__all__'
 
@@ -53,6 +53,25 @@ export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: Ac
             <SelectItem value="unpaid">Unpaid</SelectItem>
             <SelectItem value="partially_paid">Partially Paid</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Aging</span>
+        <Select
+          value={value.agingBucket ?? ALL}
+          onValueChange={(next) => onChange({ ...value, agingBucket: next === ALL ? null : (next as AgingBucketValue) })}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All</SelectItem>
+            <SelectItem value="30">30 Days</SelectItem>
+            <SelectItem value="45">45 Days</SelectItem>
+            <SelectItem value="60">60 Days</SelectItem>
+            <SelectItem value="90">90 Days</SelectItem>
+            <SelectItem value="over_180">Over 180 Days</SelectItem>
           </SelectContent>
         </Select>
       </div>
