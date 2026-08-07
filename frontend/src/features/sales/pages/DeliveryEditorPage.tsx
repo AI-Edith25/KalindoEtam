@@ -108,9 +108,7 @@ export function DeliveryEditorPage() {
       warehouse_id: deliveryQuery.data?.warehouse_id ?? '',
       delivery_date: deliveryQuery.data?.delivery_date ?? '',
       due_date: deliveryQuery.data?.due_date ?? '',
-      // Create mode only: default to the customer's own Terms of Payment (still freely
-      // changeable) — edit mode always trusts whatever was actually saved on this Delivery.
-      terms_of_payment_id: deliveryQuery.data?.terms_of_payment_id ?? (isEdit ? '' : salesOrder.customer?.terms_of_payment_id ?? ''),
+      terms_of_payment_id: deliveryQuery.data?.terms_of_payment_id ?? '',
       remarks: deliveryQuery.data?.remarks ?? '',
       items: salesOrder.items.map((soItem) => ({
         sales_order_item_id: soItem.id,
@@ -127,6 +125,23 @@ export function DeliveryEditorPage() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salesOrderQuery.data, deliveryQuery.data])
+
+  // Create mode only: default to the customer's own Terms of Payment (still freely
+  // changeable) — edit mode always trusts whatever was actually saved on this Delivery.
+  // Deliberately a separate setValue(), not folded into the reset() above — reset() only
+  // syncs _defaultValues for a field that isn't yet mounted/registered when it also resets
+  // a nested field array (items) in the same call; setValue() after mount reliably updates
+  // the actually-rendered value.
+  useEffect(() => {
+    if (isEdit) return
+    const salesOrder = salesOrderQuery.data
+    if (!salesOrder) return
+    if (form.getValues('terms_of_payment_id')) return
+
+    const defaultTop = salesOrder.customer?.terms_of_payment_id
+    if (defaultTop) form.setValue('terms_of_payment_id', defaultTop)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salesOrderQuery.data, isEdit])
 
   // Fills in availableStock per row once the balance lookup resolves — deliberately separate from the reset above so changing the warehouse never wipes Deliver Now quantities the user already entered.
   useEffect(() => {
