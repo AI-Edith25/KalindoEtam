@@ -131,12 +131,18 @@ export function DeliveryPrintPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-8 border-t-2 border-foreground/80 p-3 pt-10">
+        <div className={`grid grid-cols-3 border-t-2 border-foreground/80 ${compact ? 'gap-2 p-2 pt-6' : 'gap-4 p-3 pt-10'}`}>
           <div className="text-center">
-            <div className="border-t border-foreground/80 pt-1">Prepared By</div>
+            <div className="border-t border-foreground/80 pt-1">Tanda Terima</div>
+            <p className={compact ? 'text-[9px] text-foreground/70' : 'text-xs text-foreground/70'}>Toko/Penerima Barang</p>
           </div>
           <div className="text-center">
-            <div className="border-t border-foreground/80 pt-1">Received By</div>
+            <div className="border-t border-foreground/80 pt-1">Dikeluarkan</div>
+            <p className={compact ? 'text-[9px] text-foreground/70' : 'text-xs text-foreground/70'}>Kepala Gudang</p>
+          </div>
+          <div className="text-center">
+            <div className="border-t border-foreground/80 pt-1">Prepared By</div>
+            <p className={compact ? 'text-[9px] text-foreground/70' : 'text-xs text-foreground/70'}>Admin</p>
           </div>
         </div>
       </div>
