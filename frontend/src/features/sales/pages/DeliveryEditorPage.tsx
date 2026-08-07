@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -98,22 +98,30 @@ export function DeliveryEditorPage() {
   }, [deliveryQuery.data])
 
   // Establishes the fixed row set from the Sales Order — availableStock starts at 0 (unknown until a warehouse is picked) and is filled in by the effect below, without disturbing anything the user has already typed.
+  // Terms of Payment's one-time default is computed inline, in this same synchronous
+  // call, gated by a ref so it only ever applies on the very first reset — every later
+  // reset (triggered by an unrelated re-fetch of salesOrderQuery/deliveryQuery) preserves
+  // whatever is currently in the field instead. Earlier attempts split this into a
+  // separate useEffect racing against this one on dependency-array timing and
+  // intermittently lost; folding it into one function call removes the race entirely.
+  const hasSetInitialTopRef = useRef(false)
   useEffect(() => {
     const salesOrder = salesOrderQuery.data
     if (!salesOrder) return
 
     const existingQtyBySoItemId = new Map((deliveryQuery.data?.items ?? []).map((line) => [line.sales_order_item_id, line.qty]))
 
+    let termsOfPaymentId = form.getValues('terms_of_payment_id')
+    if (!hasSetInitialTopRef.current) {
+      hasSetInitialTopRef.current = true
+      termsOfPaymentId = isEdit ? (deliveryQuery.data?.terms_of_payment_id ?? '') : (salesOrder.customer?.terms_of_payment_id ?? '')
+    }
+
     form.reset({
       warehouse_id: deliveryQuery.data?.warehouse_id ?? '',
       delivery_date: deliveryQuery.data?.delivery_date ?? '',
       due_date: deliveryQuery.data?.due_date ?? '',
-      // Deliberately NOT reset here, even to '' — see the two dedicated effects below.
-      // Bundling it into this same reset() (which also replaces the items field array)
-      // raced against Terms of Payment's own default-population and intermittently lost,
-      // even via a separate setValue() effect ordered after this one; fully isolating the
-      // field from this call removes that interaction entirely, confirmed by live testing.
-      terms_of_payment_id: form.getValues('terms_of_payment_id'),
+      terms_of_payment_id: termsOfPaymentId,
       remarks: deliveryQuery.data?.remarks ?? '',
       items: salesOrder.items.map((soItem) => ({
         sales_order_item_id: soItem.id,
@@ -130,25 +138,6 @@ export function DeliveryEditorPage() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salesOrderQuery.data, deliveryQuery.data])
-
-  // Edit mode: populate Terms of Payment from the saved Delivery once it loads.
-  useEffect(() => {
-    if (!isEdit || !deliveryQuery.data) return
-    form.setValue('terms_of_payment_id', deliveryQuery.data.terms_of_payment_id ?? '')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deliveryQuery.data, isEdit])
-
-  // Create mode only: default to the customer's own Terms of Payment (still freely
-  // changeable) — depends on the specific string, not the whole salesOrder object, so it
-  // can't be re-triggered by an unrelated reference change elsewhere on that object.
-  const salesOrderCustomerTopId = salesOrderQuery.data?.customer?.terms_of_payment_id
-  useEffect(() => {
-    if (isEdit || !salesOrderCustomerTopId) return
-    if (form.getValues('terms_of_payment_id')) return
-
-    form.setValue('terms_of_payment_id', salesOrderCustomerTopId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salesOrderCustomerTopId, isEdit])
 
   // Fills in availableStock per row once the balance lookup resolves — deliberately separate from the reset above so changing the warehouse never wipes Deliver Now quantities the user already entered.
   useEffect(() => {
