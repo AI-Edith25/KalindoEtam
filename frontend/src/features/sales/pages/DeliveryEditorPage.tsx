@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2, Save, Send } from 'lucide-react'
+import type { NavigateFunction } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,19 +23,11 @@ import { fetchStockBalances } from '@/features/inventory/api/stockApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { fetchDelivery, createDelivery, updateDelivery, submitDelivery } from '../api/deliveryApi'
 import { fetchSalesOrder, fetchSalesOrders } from '../api/salesOrderApi'
+import type { Delivery, SalesOrder } from '../types'
 import { DeliveryLineItemTable } from '../components/DeliveryLineItemTable'
 import { deliveryFormSchema, type DeliveryEditorValues } from '../lib/deliveryFormSchema'
 
 const NONE = '__none__'
-
-const emptyValues: DeliveryEditorValues = {
-  warehouse_id: '',
-  delivery_date: '',
-  due_date: '',
-  terms_of_payment_id: '',
-  remarks: '',
-  items: [],
-}
 
 export function DeliveryEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -67,25 +60,6 @@ export function DeliveryEditorPage() {
     enabled: !!salesOrderId,
   })
 
-  const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
-  const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
-
-  const form = useForm<DeliveryEditorValues>({
-    resolver: zodResolver(deliveryFormSchema),
-    defaultValues: emptyValues,
-  })
-
-  const warehouseId = form.watch('warehouse_id')
-
-  const itemIds = useMemo(() => (salesOrderQuery.data?.items ?? []).map((line) => line.item_id), [salesOrderQuery.data])
-
-  // Available Stock is warehouse-scoped, so it can only be known once a warehouse is chosen — refetches whenever the warehouse selection changes.
-  const stockBalancesQuery = useQuery({
-    queryKey: ['stock-balances', warehouseId, itemIds],
-    queryFn: () => fetchStockBalances({ warehouse_id: warehouseId, item_ids: itemIds }),
-    enabled: !!warehouseId && itemIds.length > 0,
-  })
-
   useEffect(() => {
     const delivery = deliveryQuery.data
     if (!delivery) return
@@ -96,133 +70,6 @@ export function DeliveryEditorPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveryQuery.data])
-
-  // Establishes the fixed row set from the Sales Order — availableStock starts at 0 (unknown until a warehouse is picked) and is filled in by the effect below, without disturbing anything the user has already typed.
-  // Terms of Payment's one-time default is computed inline, in this same synchronous
-  // call, gated by a ref so it only ever applies on the very first reset — every later
-  // reset (triggered by an unrelated re-fetch of salesOrderQuery/deliveryQuery) preserves
-  // whatever is currently in the field instead. Earlier attempts split this into a
-  // separate useEffect racing against this one on dependency-array timing and
-  // intermittently lost; folding it into one function call removes the race entirely.
-  const hasSetInitialTopRef = useRef(false)
-  useEffect(() => {
-    const salesOrder = salesOrderQuery.data
-    if (!salesOrder) return
-
-    const existingQtyBySoItemId = new Map((deliveryQuery.data?.items ?? []).map((line) => [line.sales_order_item_id, line.qty]))
-
-    let termsOfPaymentId = form.getValues('terms_of_payment_id')
-    if (!hasSetInitialTopRef.current) {
-      hasSetInitialTopRef.current = true
-      termsOfPaymentId = isEdit ? (deliveryQuery.data?.terms_of_payment_id ?? '') : (salesOrder.customer?.terms_of_payment_id ?? '')
-    }
-
-    form.reset({
-      warehouse_id: deliveryQuery.data?.warehouse_id ?? '',
-      delivery_date: deliveryQuery.data?.delivery_date ?? '',
-      due_date: deliveryQuery.data?.due_date ?? '',
-      terms_of_payment_id: termsOfPaymentId,
-      remarks: deliveryQuery.data?.remarks ?? '',
-      items: salesOrder.items.map((soItem) => ({
-        sales_order_item_id: soItem.id,
-        item_id: soItem.item_id,
-        item_code: soItem.item_code ?? '',
-        item_name: soItem.item_name ?? '',
-        rate: Number(soItem.rate),
-        ordered: soItem.qty,
-        alreadyDelivered: soItem.delivered_qty,
-        remaining: soItem.outstanding_qty,
-        availableStock: 0,
-        deliverNow: String(existingQtyBySoItemId.get(soItem.id) ?? 0),
-      })),
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salesOrderQuery.data, deliveryQuery.data])
-
-  // Fills in availableStock per row once the balance lookup resolves — deliberately separate from the reset above so changing the warehouse never wipes Deliver Now quantities the user already entered.
-  useEffect(() => {
-    const salesOrder = salesOrderQuery.data
-    const balances = stockBalancesQuery.data
-    if (!salesOrder || !balances) return
-
-    salesOrder.items.forEach((soItem, index) => {
-      form.setValue(`items.${index}.availableStock`, balances[soItem.item_id] ?? 0, { shouldValidate: true })
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockBalancesQuery.data])
-
-  const watchedTopId = form.watch('terms_of_payment_id')
-  const watchedDeliveryDate = form.watch('delivery_date')
-
-  // Recomputes Due Date whenever the Terms of Payment or Delivery Date changes — Due Date
-  // itself is never a dependency here, so a manual edit to it holds until the user touches
-  // one of these two inputs again.
-  useEffect(() => {
-    if (!watchedTopId || !watchedDeliveryDate) return
-
-    const top = termsOfPayment.data?.find((t) => t.id === watchedTopId)
-    if (!top) return
-
-    form.setValue('due_date', addDays(watchedDeliveryDate, top.days), { shouldValidate: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedTopId, watchedDeliveryDate, termsOfPayment.data])
-
-  const toItemsPayload = (values: DeliveryEditorValues) =>
-    values.items
-      .filter((line) => Number(line.deliverNow) > 0)
-      .map((line) => ({ sales_order_item_id: line.sales_order_item_id, qty: Number(line.deliverNow) }))
-
-  const saveMutation = useMutation({
-    mutationFn: (values: DeliveryEditorValues) => {
-      const items = toItemsPayload(values)
-
-      if (isEdit) {
-        return updateDelivery(id!, {
-          warehouse_id: values.warehouse_id,
-          delivery_date: values.delivery_date,
-          due_date: values.due_date,
-          terms_of_payment_id: values.terms_of_payment_id || null,
-          remarks: values.remarks || null,
-          items,
-        })
-      }
-
-      return createDelivery({
-        sales_order_id: salesOrderId!,
-        warehouse_id: values.warehouse_id,
-        delivery_date: values.delivery_date,
-        due_date: values.due_date,
-        terms_of_payment_id: values.terms_of_payment_id || null,
-        remarks: values.remarks || null,
-        items,
-      })
-    },
-    onSuccess: (delivery) => {
-      queryClient.invalidateQueries({ queryKey: ['deliveries'] })
-      toast.success(isEdit ? 'Delivery details updated.' : 'Delivery recorded. Confirm to update stock and create the receivable.')
-      if (!isEdit) {
-        navigate(`/sales/deliveries/${delivery.id}/edit`, { replace: true })
-      }
-    },
-    onError: (error) => toastApiError(error),
-  })
-
-  const submitMutation = useMutation({
-    mutationFn: () => submitDelivery(id!),
-    onSuccess: (delivery) => {
-      queryClient.invalidateQueries({ queryKey: ['deliveries'] })
-      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
-      toast.success('Delivery confirmed — stock updated.')
-      navigate(`/sales/deliveries/${delivery.id}`)
-    },
-    onError: (error) => toastApiError(error),
-  })
-
-  const watchedItems = form.watch('items')
-  const deliveringNowLines = (watchedItems ?? []).map((line) => ({ qty: line.deliverNow, rate: line.rate }))
-  const subtotal = computeSubtotal(deliveringNowLines)
-  const tax = computeTax()
-  const grandTotal = computeGrandTotal(deliveringNowLines)
 
   if (isEdit && deliveryQuery.isLoading) {
     return (
@@ -276,7 +123,9 @@ export function DeliveryEditorPage() {
 
   const salesOrder = salesOrderQuery.data
 
-  if (!salesOrder) {
+  // In edit mode, salesOrderId derives from deliveryQuery.data, so deliveryQuery.data is
+  // already guaranteed loaded here — this is just the type-narrowing companion to it.
+  if (!salesOrder || (isEdit && !deliveryQuery.data)) {
     return (
       <div className="flex min-h-64 items-center justify-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -285,9 +134,177 @@ export function DeliveryEditorPage() {
   }
 
   return (
+    <DeliveryForm
+      key={isEdit ? id : salesOrderId}
+      salesOrder={salesOrder}
+      delivery={deliveryQuery.data}
+      isEdit={isEdit}
+      id={id}
+      salesOrderId={salesOrderId!}
+      navigate={navigate}
+      queryClient={queryClient}
+    />
+  )
+}
+
+/**
+ * Only mounts once its Sales Order (and, in edit mode, its Delivery) have already loaded —
+ * so useForm's defaultValues can be computed directly from real data on first render.
+ * Earlier versions tried to populate these values via a form.reset() effect firing after
+ * an async fetch resolved; that raced against react-hook-form's own field registration
+ * (Terms of Payment intermittently ended up correct in _defaultValues but not in
+ * _formValues) across multiple production-verified attempts. Mounting fresh with the
+ * right defaultValues from the start sidesteps that class of bug entirely — remounted via
+ * `key` if the user picks a different Sales Order.
+ */
+function DeliveryForm({
+  salesOrder,
+  delivery,
+  isEdit,
+  id,
+  salesOrderId,
+  navigate,
+  queryClient,
+}: {
+  salesOrder: SalesOrder
+  delivery: Delivery | undefined
+  isEdit: boolean
+  id: string | undefined
+  salesOrderId: string
+  navigate: NavigateFunction
+  queryClient: QueryClient
+}) {
+  const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+
+  const existingQtyBySoItemId = useMemo(
+    () => new Map((delivery?.items ?? []).map((line) => [line.sales_order_item_id, line.qty])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
+  const form = useForm<DeliveryEditorValues>({
+    resolver: zodResolver(deliveryFormSchema),
+    defaultValues: {
+      warehouse_id: delivery?.warehouse_id ?? '',
+      delivery_date: delivery?.delivery_date ?? '',
+      due_date: delivery?.due_date ?? '',
+      terms_of_payment_id: isEdit ? (delivery?.terms_of_payment_id ?? '') : (salesOrder.customer?.terms_of_payment_id ?? ''),
+      remarks: delivery?.remarks ?? '',
+      items: salesOrder.items.map((soItem) => ({
+        sales_order_item_id: soItem.id,
+        item_id: soItem.item_id,
+        item_code: soItem.item_code ?? '',
+        item_name: soItem.item_name ?? '',
+        rate: Number(soItem.rate),
+        ordered: soItem.qty,
+        alreadyDelivered: soItem.delivered_qty,
+        remaining: soItem.outstanding_qty,
+        availableStock: 0,
+        deliverNow: String(existingQtyBySoItemId.get(soItem.id) ?? 0),
+      })),
+    },
+  })
+
+  const warehouseId = form.watch('warehouse_id')
+
+  const itemIds = useMemo(() => salesOrder.items.map((line) => line.item_id), [salesOrder])
+
+  // Available Stock is warehouse-scoped, so it can only be known once a warehouse is chosen — refetches whenever the warehouse selection changes.
+  const stockBalancesQuery = useQuery({
+    queryKey: ['stock-balances', warehouseId, itemIds],
+    queryFn: () => fetchStockBalances({ warehouse_id: warehouseId, item_ids: itemIds }),
+    enabled: !!warehouseId && itemIds.length > 0,
+  })
+
+  // Fills in availableStock per row once the balance lookup resolves — deliberately separate from the form's initial values so changing the warehouse never wipes Deliver Now quantities the user already entered.
+  useEffect(() => {
+    const balances = stockBalancesQuery.data
+    if (!balances) return
+
+    salesOrder.items.forEach((soItem, index) => {
+      form.setValue(`items.${index}.availableStock`, balances[soItem.item_id] ?? 0, { shouldValidate: true })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockBalancesQuery.data])
+
+  const watchedTopId = form.watch('terms_of_payment_id')
+  const watchedDeliveryDate = form.watch('delivery_date')
+
+  // Recomputes Due Date whenever the Terms of Payment or Delivery Date changes — Due Date
+  // itself is never a dependency here, so a manual edit to it holds until the user touches
+  // one of these two inputs again.
+  useEffect(() => {
+    if (!watchedTopId || !watchedDeliveryDate) return
+
+    const top = termsOfPayment.data?.find((t) => t.id === watchedTopId)
+    if (!top) return
+
+    form.setValue('due_date', addDays(watchedDeliveryDate, top.days), { shouldValidate: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedTopId, watchedDeliveryDate, termsOfPayment.data])
+
+  const toItemsPayload = (values: DeliveryEditorValues) =>
+    values.items
+      .filter((line) => Number(line.deliverNow) > 0)
+      .map((line) => ({ sales_order_item_id: line.sales_order_item_id, qty: Number(line.deliverNow) }))
+
+  const saveMutation = useMutation({
+    mutationFn: (values: DeliveryEditorValues) => {
+      const items = toItemsPayload(values)
+
+      if (isEdit) {
+        return updateDelivery(id!, {
+          warehouse_id: values.warehouse_id,
+          delivery_date: values.delivery_date,
+          due_date: values.due_date,
+          terms_of_payment_id: values.terms_of_payment_id || null,
+          remarks: values.remarks || null,
+          items,
+        })
+      }
+
+      return createDelivery({
+        sales_order_id: salesOrderId,
+        warehouse_id: values.warehouse_id,
+        delivery_date: values.delivery_date,
+        due_date: values.due_date,
+        terms_of_payment_id: values.terms_of_payment_id || null,
+        remarks: values.remarks || null,
+        items,
+      })
+    },
+    onSuccess: (savedDelivery) => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] })
+      toast.success(isEdit ? 'Delivery details updated.' : 'Delivery recorded. Confirm to update stock and create the receivable.')
+      if (!isEdit) {
+        navigate(`/sales/deliveries/${savedDelivery.id}/edit`, { replace: true })
+      }
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const submitMutation = useMutation({
+    mutationFn: () => submitDelivery(id!),
+    onSuccess: (submittedDelivery) => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] })
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      toast.success('Delivery confirmed — stock updated.')
+      navigate(`/sales/deliveries/${submittedDelivery.id}`)
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const watchedItems = form.watch('items')
+  const deliveringNowLines = (watchedItems ?? []).map((line) => ({ qty: line.deliverNow, rate: line.rate }))
+  const subtotal = computeSubtotal(deliveringNowLines)
+  const tax = computeTax()
+  const grandTotal = computeGrandTotal(deliveringNowLines)
+
+  return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={isEdit ? `Edit ${deliveryQuery.data?.document_number ?? 'Delivery'}` : 'New Delivery'}
+        title={isEdit ? `Edit ${delivery?.document_number ?? 'Delivery'}` : 'New Delivery'}
         description={`Delivering against ${salesOrder.document_number} — ${salesOrder.customer?.customer_name ?? ''}.`}
       />
 
@@ -296,7 +313,7 @@ export function DeliveryEditorPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Delivery Details</CardTitle>
-              <StatusBadge status={isEdit ? (deliveryQuery.data?.status ?? 'draft') : 'draft'} />
+              <StatusBadge status={isEdit ? (delivery?.status ?? 'draft') : 'draft'} />
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-0.5 sm:col-span-2">
@@ -430,7 +447,7 @@ export function DeliveryEditorPage() {
           </Card>
 
           <p className="text-right text-sm text-muted-foreground">
-            {isEdit && deliveryQuery.data?.status === 'draft'
+            {isEdit && delivery?.status === 'draft'
               ? 'Recording a Delivery captures what is about to leave the warehouse. Confirming updates stock levels and creates the receivable from your customer.'
               : 'Recording quantities here doesn’t move stock yet — you’ll confirm the delivery on the next screen.'}
           </p>
@@ -443,7 +460,7 @@ export function DeliveryEditorPage() {
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Record Delivery
             </Button>
-            {isEdit && deliveryQuery.data?.status === 'draft' && (
+            {isEdit && delivery?.status === 'draft' && (
               <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
                 {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 Confirm Delivery
