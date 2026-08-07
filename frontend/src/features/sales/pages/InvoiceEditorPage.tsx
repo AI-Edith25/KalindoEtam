@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -142,12 +142,19 @@ export function InvoiceEditorPage() {
 
   // Recomputes Due Date whenever the Terms of Payment or Invoice Date changes — Due Date
   // itself is never a dependency here, so a manual edit to it holds until the user touches
-  // one of these two inputs again.
+  // one of these two inputs again. Seeded with the mounted values so the *first* time the
+  // Terms of Payment lookup finishes loading (a data-arrival dependency change, not a user
+  // change) doesn't read as "changed" and silently stomp a saved/manually-set Due Date.
+  const lastRecomputedForRef = useRef({ topId: watchedTopId, invoiceDate: watchedInvoiceDate })
   useEffect(() => {
     if (!watchedTopId || !watchedInvoiceDate) return
 
     const top = termsOfPayment.data?.find((t) => t.id === watchedTopId)
     if (!top) return
+
+    const last = lastRecomputedForRef.current
+    if (last.topId === watchedTopId && last.invoiceDate === watchedInvoiceDate) return
+    lastRecomputedForRef.current = { topId: watchedTopId, invoiceDate: watchedInvoiceDate }
 
     form.setValue('due_date', addDays(watchedInvoiceDate, top.days), { shouldValidate: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
