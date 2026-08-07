@@ -4,11 +4,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Loader2, Save, Send } from 'lucide-react'
+import { AlertTriangle, Loader2, Save, Send } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
@@ -18,7 +19,9 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeGrandTotal, computeSubtotal, computeTax } from '@/shared/lib/documentTotals'
 import { fetchBranches, fetchCustomersLookup, fetchItemsLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
+import { useHasPermission } from '@/shared/hooks/usePermission'
 import { createSalesOrder, fetchSalesOrder, submitSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
+import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
 import { SalesOrderLineItemTable } from '../components/SalesOrderLineItemTable'
 import { emptySalesOrderEditorValues, salesOrderFormSchema, type SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
 import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
@@ -98,6 +101,7 @@ export function SalesOrderEditorPage() {
       qty: Number(line.qty),
       rate: Number(line.rate),
     })),
+    ...(values.override_credit_block ? { override_credit_block: true, override_reason: values.override_reason || null } : {}),
   })
 
   const saveMutation = useMutation({
@@ -116,7 +120,11 @@ export function SalesOrderEditorPage() {
   })
 
   const submitMutation = useMutation({
-    mutationFn: () => submitSalesOrder(id!),
+    mutationFn: () =>
+      submitSalesOrder(
+        id!,
+        overrideChecked ? { override_credit_block: true, override_reason: form.getValues('override_reason') || null } : undefined,
+      ),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success('Sales Order submitted.')
@@ -135,6 +143,15 @@ export function SalesOrderEditorPage() {
   const subtotal = computeSubtotal(watchedItems ?? [])
   const tax = computeTax()
   const grandTotal = computeGrandTotal(watchedItems ?? [])
+
+  // Customer Credit block — see CustomerCreditService on the backend. Live-rechecked against
+  // grandTotal on every line-item change with no extra network call (see useCustomerCreditCheck).
+  const watchedCustomerId = form.watch('customer_id')
+  const { blocked: creditBlocked, message: creditMessage } = useCustomerCreditCheck(watchedCustomerId || undefined, grandTotal)
+  const canOverrideCredit = useHasPermission('sales.orders.override_credit_check')
+  const overrideChecked = form.watch('override_credit_block')
+  const overrideReasonFilled = !!form.watch('override_reason')?.trim()
+  const creditBlockActive = creditBlocked && !(overrideChecked && overrideReasonFilled)
 
   if (isEdit && orderQuery.isLoading) {
     return (
@@ -183,6 +200,45 @@ export function SalesOrderEditorPage() {
                   </FormItem>
                 )}
               />
+              {creditBlocked && (
+                <div className="flex flex-col gap-3 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm sm:col-span-2">
+                  <div className="flex items-start gap-2 text-destructive">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    <span>{creditMessage}</span>
+                  </div>
+                  {canOverrideCredit && (
+                    <div className="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+                      <FormField
+                        control={form.control}
+                        name="override_credit_block"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between">
+                            <FormLabel className="cursor-pointer font-normal">Override and continue anyway</FormLabel>
+                            <FormControl>
+                              <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      {overrideChecked && (
+                        <FormField
+                          control={form.control}
+                          name="override_reason"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Override Reason</FormLabel>
+                              <FormControl>
+                                <Textarea placeholder="Required — explain the manual approval for this exception" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="sales_person_id"
@@ -319,7 +375,12 @@ export function SalesOrderEditorPage() {
             <Button type="button" variant="outline" onClick={() => navigate('/sales/orders')}>
               Cancel
             </Button>
-            <Button type="submit" variant="outline" disabled={saveMutation.isPending}>
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={saveMutation.isPending || creditBlockActive}
+              title={creditBlockActive ? creditMessage : undefined}
+            >
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Save Draft
             </Button>
@@ -327,8 +388,14 @@ export function SalesOrderEditorPage() {
               <Button
                 type="button"
                 onClick={() => submitMutation.mutate()}
-                disabled={submitMutation.isPending || blockedByApproval}
-                title={blockedByApproval ? 'This order needs an approved request before it can be submitted.' : undefined}
+                disabled={submitMutation.isPending || blockedByApproval || creditBlockActive}
+                title={
+                  creditBlockActive
+                    ? creditMessage
+                    : blockedByApproval
+                      ? 'This order needs an approved request before it can be submitted.'
+                      : undefined
+                }
               >
                 {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 Submit

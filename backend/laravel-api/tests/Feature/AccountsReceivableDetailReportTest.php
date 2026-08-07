@@ -73,13 +73,23 @@ class AccountsReceivableDetailReportTest extends TestCase
 
     protected function submittedInvoice(string $dueDate): Invoice
     {
+        // This helper deliberately creates several back-dated (already-overdue) invoices
+        // for the same customer to exercise aging buckets — the 2nd+ call trips the real
+        // Customer Credit block by design, so it's bypassed here as test-fixture setup,
+        // not something this test suite is meant to verify. See actingAsCreditOverride().
+        $this->actingAsCreditOverride();
+
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
             'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 20000]],
+            'override_credit_block' => true,
+            'override_reason' => 'Test fixture: intentional back-dated invoice for AR aging report coverage.',
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+
+        $this->actingAsCreditOverride();
+        $this->salesOrderService->submit($salesOrder, true, 'Test fixture: intentional back-dated invoice for AR aging report coverage.');
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,

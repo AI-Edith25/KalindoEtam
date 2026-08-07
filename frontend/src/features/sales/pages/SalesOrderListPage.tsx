@@ -56,7 +56,10 @@ export function SalesOrderListPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
 
   const submitMutation = useMutation({
-    mutationFn: submitSalesOrder,
+    // Row-action quick submit — no room here for the Editor/Detail pages' pre-emptive credit
+    // banner, but the backend gate still applies; a block surfaces as a clear toast error
+    // (see CustomerCreditService's message) rather than a silent failure.
+    mutationFn: (id: string) => submitSalesOrder(id),
     onSuccess: () => {
       invalidate()
       toast.success('Sales Order submitted.')

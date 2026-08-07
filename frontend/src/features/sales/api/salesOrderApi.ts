@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { SalesOrder, SalesOrderFormValues } from '../types'
+import type { CustomerCreditStatus, SalesOrder, SalesOrderFormValues } from '../types'
 
 export interface SalesOrderListParams {
   page: number
@@ -40,8 +40,17 @@ export async function deleteSalesOrder(id: string): Promise<void> {
   await apiClient.delete(`/sales-orders/${id}`)
 }
 
-export async function submitSalesOrder(id: string): Promise<SalesOrder> {
-  const { data } = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/submit`)
+export async function submitSalesOrder(
+  id: string,
+  payload?: { override_credit_block?: boolean; override_reason?: string | null },
+): Promise<SalesOrder> {
+  const { data } = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/submit`, payload)
+  return data.data
+}
+
+/** Sales Order credit/overdue block's customer-select-time check — see CustomerCreditService on the backend. */
+export async function fetchCustomerCreditStatus(customerId: string): Promise<CustomerCreditStatus> {
+  const { data } = await apiClient.get<ApiResponse<CustomerCreditStatus>>(`/customers/${customerId}/credit-status`)
   return data.data
 }
 

@@ -20,6 +20,11 @@ const customerFormSchema = z.object({
   phone: z.string().max(50).optional().or(z.literal('')),
   email: z.string().email('Enter a valid email address').optional().or(z.literal('')),
   address: z.string().max(255).optional().or(z.literal('')),
+  credit_limit: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .refine((value) => !value || (!Number.isNaN(Number(value)) && Number(value) >= 0), 'Must be zero or greater'),
   is_active: z.boolean(),
 })
 
@@ -31,6 +36,7 @@ const emptyValues: CustomerFormValues = {
   phone: '',
   email: '',
   address: '',
+  credit_limit: '',
   is_active: true,
 }
 
@@ -60,6 +66,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
             phone: customer.phone ?? '',
             email: customer.email ?? '',
             address: customer.address ?? '',
+            credit_limit: customer.credit_limit != null ? String(customer.credit_limit) : '',
             is_active: customer.is_active,
           }
         : emptyValues,
@@ -73,6 +80,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
         phone: values.phone || null,
         email: values.email || null,
         address: values.address || null,
+        credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
       }
       return isEdit ? updateCustomer(customer.id, payload) : createCustomer(payload)
     },
@@ -159,6 +167,19 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                     <FormLabel>Address</FormLabel>
                     <FormControl>
                       <Input placeholder="Optional" autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="credit_limit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Credit Limit</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" placeholder="Leave blank for unlimited" autoComplete="off" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

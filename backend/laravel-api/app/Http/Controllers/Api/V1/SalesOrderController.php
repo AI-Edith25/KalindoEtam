@@ -13,6 +13,7 @@ use App\Models\SalesOrder;
 use App\Services\ApprovalService;
 use App\Services\SalesOrderService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class SalesOrderController extends Controller
 {
@@ -59,9 +60,13 @@ class SalesOrderController extends Controller
         return $this->success(null, 'Sales Order deleted.');
     }
 
-    public function submit(SalesOrder $salesOrder): JsonResponse
+    public function submit(Request $request, SalesOrder $salesOrder): JsonResponse
     {
-        $salesOrder = $this->salesOrderService->submit($salesOrder);
+        $salesOrder = $this->salesOrderService->submit(
+            $salesOrder,
+            $request->boolean('override_credit_block'),
+            $request->input('override_reason'),
+        );
 
         return $this->success(new SalesOrderResource($salesOrder), 'Sales Order submitted.');
     }

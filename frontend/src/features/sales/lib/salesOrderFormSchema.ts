@@ -29,6 +29,8 @@ export const salesOrderFormSchema = z.object({
   expected_delivery_date: z.string().optional().or(z.literal('')),
   remarks: z.string().optional().or(z.literal('')),
   items: z.array(lineItemFormSchema).min(1, 'Add at least one line item'),
+  override_credit_block: z.boolean().optional(),
+  override_reason: z.string().optional().or(z.literal('')),
 })
 
 export type SalesOrderEditorValues = z.infer<typeof salesOrderFormSchema>
@@ -41,4 +43,6 @@ export const emptySalesOrderEditorValues: SalesOrderEditorValues = {
   expected_delivery_date: '',
   remarks: '',
   items: [],
+  override_credit_block: false,
+  override_reason: '',
 }

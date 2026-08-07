@@ -93,6 +93,23 @@ class AccountsReceivableRepository extends BaseRepository
             ->value('outstanding');
     }
 
+    /**
+     * Per-invoice overdue detail for the Sales Order credit-block check (new
+     * Customer Credit feature) — outstandingTotal() gives a sum, this gives
+     * the row-level detail ("which invoice, how much, due when") the block
+     * message needs. Arithmetic comparison (not a date function), so it's
+     * portable to the SQLite test suite same as the rest of this file.
+     */
+    public function overdueForCustomer(string $customerId): Collection
+    {
+        return $this->model->query()
+            ->where('customer_id', $customerId)
+            ->whereDate('due_date', '<', now())
+            ->whereRaw('amount - paid_amount > 0')
+            ->orderBy('due_date')
+            ->get();
+    }
+
     public function outstandingSummary(): array
     {
         $notPaid = AccountsReceivableStatus::PAID->value;

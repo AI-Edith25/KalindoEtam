@@ -158,6 +158,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Delivery Report additionally reads Sales Orders client-side (to resolve each delivery's
     // sales_order_id -> document number), so this view gate must also accept reports.deliveries.view.
     $withPagePermissions(Route::apiResource('sales-orders', SalesOrderController::class), 'sales.orders', 'reports.sales.view|reports.deliveries.view');
+    // Credit/overdue block's customer-select-time check — lives under customers/ but is a Sales Order screen concern, so it's gated by the page that owns it (sales.orders.create), not master.customers.*.
+    Route::get('customers/{customer}/credit-status', [CustomerController::class, 'creditStatus'])->middleware('permission:sales.orders.create');
     Route::post('sales-orders/{salesOrder}/submit', [SalesOrderController::class, 'submit'])->middleware('permission:sales.orders.update');
     Route::post('sales-orders/{salesOrder}/cancel', [SalesOrderController::class, 'cancel'])->middleware('permission:sales.orders.update');
     Route::post('sales-orders/{salesOrder}/request-approval', [SalesOrderController::class, 'requestApproval'])->middleware('permission:sales.orders.update');

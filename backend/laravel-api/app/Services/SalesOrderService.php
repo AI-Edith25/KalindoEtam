@@ -8,6 +8,7 @@ use App\Models\SalesOrder;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class SalesOrderService
@@ -16,6 +17,7 @@ class SalesOrderService
         protected SalesOrderRepository $salesOrderRepository,
         protected SalesOrderItemRepository $salesOrderItemRepository,
         protected AuditLogService $auditLogService,
+        protected CustomerCreditService $customerCreditService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -26,6 +28,14 @@ class SalesOrderService
     public function create(array $data): SalesOrder
     {
         return DB::transaction(function () use ($data) {
+            $this->enforceCreditCheck(
+                $data['customer_id'],
+                $this->sumLines($data['items']),
+                $data['override_credit_block'] ?? false,
+                $data['override_reason'] ?? null,
+                'creating Sales Order',
+            );
+
             $salesOrder = $this->salesOrderRepository->create([
                 'customer_id' => $data['customer_id'],
                 'sales_person_id' => $data['sales_person_id'] ?? null,
@@ -76,12 +86,20 @@ class SalesOrderService
         });
     }
 
-    public function submit(SalesOrder $salesOrder): SalesOrder
+    public function submit(SalesOrder $salesOrder, bool $overrideCreditBlock = false, ?string $overrideReason = null): SalesOrder
     {
-        return DB::transaction(function () use ($salesOrder) {
+        return DB::transaction(function () use ($salesOrder, $overrideCreditBlock, $overrideReason) {
             if ($salesOrder->items()->count() === 0) {
                 throw new BusinessException('Cannot submit a Sales Order without items.');
             }
+
+            $this->enforceCreditCheck(
+                $salesOrder->customer_id,
+                (float) $salesOrder->total_amount,
+                $overrideCreditBlock,
+                $overrideReason,
+                "submitting Sales Order \"{$salesOrder->document_number}\"",
+            );
 
             $salesOrder->submit();
             $this->auditLogService->record('submitted', 'sales_order', "Submitted Sales Order \"{$salesOrder->document_number}\".");
@@ -104,6 +122,33 @@ class SalesOrderService
 
             return $salesOrder;
         });
+    }
+
+    /**
+     * Shared by create() and submit() — a Draft saved while under-limit can
+     * drift over-limit (or an invoice can go overdue) by the time it's
+     * reopened and submitted, so both write paths re-run the identical
+     * check rather than only guarding the initial create. Auth::user()->can()
+     * follows ApprovalService::decide()'s own permission-check shape, never
+     * a role-name check.
+     */
+    protected function enforceCreditCheck(string $customerId, float $orderAmount, bool $overridden, ?string $overrideReason, string $context): void
+    {
+        $credit = $this->customerCreditService->evaluate($customerId, $orderAmount);
+
+        if (! $credit['is_blocked']) {
+            return;
+        }
+
+        if (! $overridden || ! Auth::user()->can('sales.orders.override_credit_check')) {
+            throw new BusinessException($credit['message'], 403);
+        }
+
+        $this->auditLogService->record(
+            'credit_block_overridden',
+            'sales_order',
+            "Overrode credit block while {$context}: {$credit['message']}".($overrideReason ? " Reason: {$overrideReason}" : ''),
+        );
     }
 
     protected function assertDraft(SalesOrder $salesOrder, string $action): void

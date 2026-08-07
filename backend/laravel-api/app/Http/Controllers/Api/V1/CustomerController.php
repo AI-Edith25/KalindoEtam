@@ -8,6 +8,7 @@ use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Models\Customer;
+use App\Services\CustomerCreditService;
 use App\Services\CustomerService;
 use Illuminate\Http\JsonResponse;
 
@@ -15,7 +16,10 @@ class CustomerController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(protected CustomerService $customerService) {}
+    public function __construct(
+        protected CustomerService $customerService,
+        protected CustomerCreditService $customerCreditService,
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -46,5 +50,11 @@ class CustomerController extends Controller
         $this->customerService->delete($customer);
 
         return $this->success(null, 'Customer deleted.');
+    }
+
+    /** Powers the New Sales Order credit/overdue block's customer-select-time check — see CustomerCreditService. */
+    public function creditStatus(Customer $customer): JsonResponse
+    {
+        return $this->success($this->customerCreditService->evaluate($customer->id));
     }
 }

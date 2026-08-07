@@ -52,6 +52,20 @@ export interface SalesOrderFormValues {
   expected_delivery_date: string | null
   remarks: string | null
   items: { item_id: string; qty: number; rate: number }[]
+  override_credit_block?: boolean
+  override_reason?: string | null
+}
+
+/** Sales Order credit/overdue block — see CustomerCreditService on the backend. additional_amount is always 0 (the customer-select-time check); the "would this order's own value push it over" layer is computed client-side, see evaluateCreditBlock(). */
+export interface CustomerCreditStatus {
+  is_overdue: boolean
+  is_over_limit: boolean
+  is_blocked: boolean
+  overdue_invoices: { id: string; reference_number: string | null; due_date: string; outstanding_amount: number }[]
+  outstanding_total: number
+  credit_limit: number | null
+  available_credit: number | null
+  message: string
 }
 
 export interface SalesOrderFilterValues {

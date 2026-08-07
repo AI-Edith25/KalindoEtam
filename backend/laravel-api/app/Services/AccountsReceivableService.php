@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Repositories\AccountsReceivableRepository;
 use App\Support\SettlementStatus;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class AccountsReceivableService
@@ -187,6 +188,12 @@ class AccountsReceivableService
     public function outstandingTotal(array $filters): float
     {
         return $this->accountsReceivableRepository->outstandingTotal($filters);
+    }
+
+    /** Powers CustomerCreditService's overdue check — thin passthrough, same shape as outstandingTotal(). */
+    public function overdueInvoicesFor(string $customerId): Collection
+    {
+        return $this->accountsReceivableRepository->overdueForCustomer($customerId);
     }
 
     /**

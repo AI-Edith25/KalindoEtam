@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Ban, ExternalLink, Loader2, Pencil, Send, Trash2 } from 'lucide-react'
+import { AlertTriangle, Ban, ExternalLink, Loader2, Pencil, Send, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -14,8 +16,10 @@ import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayo
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { computeTax } from '@/shared/lib/documentTotals'
+import { useHasPermission } from '@/shared/hooks/usePermission'
 import { cancelSalesOrder, deleteSalesOrder, fetchSalesOrder, submitSalesOrder } from '../api/salesOrderApi'
 import { fetchDeliveries } from '../api/deliveryApi'
+import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
 import { DeliveryProgress } from '../components/DeliveryProgress'
 import { computeDeliveryStatus } from '../lib/deliveryProgress'
 import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
@@ -59,11 +63,24 @@ export function SalesOrderDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [overrideCreditBlock, setOverrideCreditBlock] = useState(false)
+  const [overrideReason, setOverrideReason] = useState('')
 
   const orderQuery = useQuery({
     queryKey: ['sales-orders', id],
     queryFn: () => fetchSalesOrder(id!),
   })
+
+  // Customer Credit block — see CustomerCreditService on the backend. This page has its own
+  // independent Submit button (same backend action as the Editor's), so it needs the identical
+  // check rather than only being caught by a 403 with no pre-warning. Called with the hooks
+  // above the loading/null-guard early returns below, per React's rules of hooks.
+  const { blocked: creditBlocked, message: creditMessage } = useCustomerCreditCheck(
+    orderQuery.data?.customer_id,
+    Number(orderQuery.data?.total_amount ?? 0),
+  )
+  const canOverrideCredit = useHasPermission('sales.orders.override_credit_check')
+  const creditBlockActive = creditBlocked && !(overrideCreditBlock && overrideReason.trim())
 
   // Only a submitted SO can ever have Deliveries against it (draft has none yet; cancel() is blocked once any exist) — no point fetching otherwise.
   const relatedDeliveriesQuery = useQuery({
@@ -76,7 +93,8 @@ export function SalesOrderDetailPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
 
   const submitMutation = useMutation({
-    mutationFn: () => submitSalesOrder(id!),
+    mutationFn: () =>
+      submitSalesOrder(id!, overrideCreditBlock ? { override_credit_block: true, override_reason: overrideReason || null } : undefined),
     onSuccess: () => {
       invalidate()
       toast.success('Sales Order submitted.')
@@ -133,8 +151,14 @@ export function SalesOrderDetailPage() {
                 </Button>
                 <Button
                   onClick={() => submitMutation.mutate()}
-                  disabled={submitMutation.isPending || blockedByApproval}
-                  title={blockedByApproval ? 'This order needs an approved request before it can be submitted.' : undefined}
+                  disabled={submitMutation.isPending || blockedByApproval || creditBlockActive}
+                  title={
+                    creditBlockActive
+                      ? creditMessage
+                      : blockedByApproval
+                        ? 'This order needs an approved request before it can be submitted.'
+                        : undefined
+                  }
                 >
                   {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                   Submit
@@ -154,6 +178,32 @@ export function SalesOrderDetailPage() {
           </div>
         }
       />
+
+      {order.status === 'draft' && creditBlocked && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="flex flex-col gap-3 py-4 text-sm">
+            <div className="flex items-start gap-2 text-destructive">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>{creditMessage}</span>
+            </div>
+            {canOverrideCredit && (
+              <div className="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+                <div className="flex flex-row items-center justify-between">
+                  <span className="cursor-pointer">Override and continue anyway</span>
+                  <Switch checked={overrideCreditBlock} onCheckedChange={setOverrideCreditBlock} />
+                </div>
+                {overrideCreditBlock && (
+                  <Textarea
+                    placeholder="Required — explain the manual approval for this exception"
+                    value={overrideReason}
+                    onChange={(event) => setOverrideReason(event.target.value)}
+                  />
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {computeDeliveryStatus(order) && (
         <Card>
