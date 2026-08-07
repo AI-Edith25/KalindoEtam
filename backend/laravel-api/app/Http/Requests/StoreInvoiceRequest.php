@@ -23,6 +23,7 @@ class StoreInvoiceRequest extends FormRequest
             'invoice_type' => ['required', Rule::enum(InvoiceType::class)],
             'invoice_date' => ['required', 'date'],
             'due_date' => ['required', 'date', 'after_or_equal:invoice_date'],
+            'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
             // Type decides which of the next two fields InvoiceService::resolveDiscount() reads —
             // 'amount cannot exceed subtotal' is enforced there, since subtotal isn't known yet here.
             'discount_type' => ['nullable', Rule::enum(DiscountType::class)],

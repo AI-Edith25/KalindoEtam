@@ -46,6 +46,7 @@ class DeliveryService
                 'warehouse_id' => $data['warehouse_id'],
                 'delivery_date' => $data['delivery_date'],
                 'due_date' => $data['due_date'],
+                'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
             ]);
 
@@ -53,7 +54,7 @@ class DeliveryService
                 $this->addLine($delivery, $salesOrder->id, $line['sales_order_item_id'], $line['qty']);
             }
 
-            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items']);
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items', 'termsOfPayment']);
             $this->auditLogService->record('created', 'delivery', "Created Delivery \"{$delivery->document_number}\".");
 
             return $delivery;
@@ -77,7 +78,7 @@ class DeliveryService
 
             $this->deliveryRepository->update($delivery, $headerData);
 
-            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items']);
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items', 'termsOfPayment']);
             $this->auditLogService->record('updated', 'delivery', "Updated Delivery \"{$delivery->document_number}\".");
 
             return $delivery;
@@ -133,7 +134,7 @@ class DeliveryService
 
             $delivery->submit();
 
-            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items']);
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items', 'termsOfPayment']);
             $this->auditLogService->record('submitted', 'delivery', "Submitted Delivery \"{$delivery->document_number}\".");
 
             return $delivery;

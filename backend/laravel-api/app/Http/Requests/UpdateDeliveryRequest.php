@@ -17,6 +17,7 @@ class UpdateDeliveryRequest extends FormRequest
             'warehouse_id' => ['sometimes', 'required', 'uuid', 'exists:warehouses,id'],
             'delivery_date' => ['sometimes', 'required', 'date'],
             'due_date' => ['sometimes', 'required', 'date', 'after_or_equal:delivery_date'],
+            'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.sales_order_item_id' => ['required_with:items', 'uuid', 'exists:sales_order_items,id'],

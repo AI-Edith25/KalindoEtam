@@ -6,6 +6,7 @@ import { ItemListPage } from '@/features/master/pages/ItemListPage'
 import { SupplierListPage } from '@/features/master/pages/SupplierListPage'
 import { CustomerListPage } from '@/features/master/pages/CustomerListPage'
 import { SalesPersonListPage } from '@/features/master/pages/SalesPersonListPage'
+import { TermsOfPaymentListPage } from '@/features/master/pages/TermsOfPaymentListPage'
 import { WarehouseListPage } from '@/features/master/pages/WarehouseListPage'
 import { ItemGroupListPage } from '@/features/master/pages/ItemGroupListPage'
 import { UomListPage } from '@/features/master/pages/UomListPage'
@@ -91,6 +92,7 @@ export function AppRouter() {
         <Route path="/master/suppliers" element={<ProtectedRoute permission="master.suppliers.view"><SupplierListPage /></ProtectedRoute>} />
         <Route path="/master/customers" element={<ProtectedRoute permission="master.customers.view"><CustomerListPage /></ProtectedRoute>} />
         <Route path="/master/sales-persons" element={<ProtectedRoute permission="master.sales_persons.view"><SalesPersonListPage /></ProtectedRoute>} />
+        <Route path="/master/terms-of-payment" element={<ProtectedRoute permission="master.terms_of_payment.view"><TermsOfPaymentListPage /></ProtectedRoute>} />
         <Route path="/master/warehouses" element={<ProtectedRoute permission="master.warehouses.view"><WarehouseListPage /></ProtectedRoute>} />
         <Route path="/master/item-groups" element={<ProtectedRoute permission="master.item_groups.view"><ItemGroupListPage /></ProtectedRoute>} />
         <Route path="/master/uoms" element={<ProtectedRoute permission="master.uoms.view"><UomListPage /></ProtectedRoute>} />

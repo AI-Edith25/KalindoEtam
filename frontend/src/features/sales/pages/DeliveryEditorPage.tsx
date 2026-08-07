@@ -17,17 +17,21 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeGrandTotal, computeSubtotal, computeTax } from '@/shared/lib/documentTotals'
-import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchWarehousesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
 import { fetchStockBalances } from '@/features/inventory/api/stockApi'
+import { addDays } from '@/shared/lib/dateMath'
 import { fetchDelivery, createDelivery, updateDelivery, submitDelivery } from '../api/deliveryApi'
 import { fetchSalesOrder, fetchSalesOrders } from '../api/salesOrderApi'
 import { DeliveryLineItemTable } from '../components/DeliveryLineItemTable'
 import { deliveryFormSchema, type DeliveryEditorValues } from '../lib/deliveryFormSchema'
 
+const NONE = '__none__'
+
 const emptyValues: DeliveryEditorValues = {
   warehouse_id: '',
   delivery_date: '',
   due_date: '',
+  terms_of_payment_id: '',
   remarks: '',
   items: [],
 }
@@ -64,6 +68,7 @@ export function DeliveryEditorPage() {
   })
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
 
   const form = useForm<DeliveryEditorValues>({
     resolver: zodResolver(deliveryFormSchema),
@@ -103,6 +108,9 @@ export function DeliveryEditorPage() {
       warehouse_id: deliveryQuery.data?.warehouse_id ?? '',
       delivery_date: deliveryQuery.data?.delivery_date ?? '',
       due_date: deliveryQuery.data?.due_date ?? '',
+      // Create mode only: default to the customer's own Terms of Payment (still freely
+      // changeable) — edit mode always trusts whatever was actually saved on this Delivery.
+      terms_of_payment_id: deliveryQuery.data?.terms_of_payment_id ?? (isEdit ? '' : salesOrder.customer?.terms_of_payment_id ?? ''),
       remarks: deliveryQuery.data?.remarks ?? '',
       items: salesOrder.items.map((soItem) => ({
         sales_order_item_id: soItem.id,
@@ -132,6 +140,22 @@ export function DeliveryEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockBalancesQuery.data])
 
+  const watchedTopId = form.watch('terms_of_payment_id')
+  const watchedDeliveryDate = form.watch('delivery_date')
+
+  // Recomputes Due Date whenever the Terms of Payment or Delivery Date changes — Due Date
+  // itself is never a dependency here, so a manual edit to it holds until the user touches
+  // one of these two inputs again.
+  useEffect(() => {
+    if (!watchedTopId || !watchedDeliveryDate) return
+
+    const top = termsOfPayment.data?.find((t) => t.id === watchedTopId)
+    if (!top) return
+
+    form.setValue('due_date', addDays(watchedDeliveryDate, top.days), { shouldValidate: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedTopId, watchedDeliveryDate, termsOfPayment.data])
+
   const toItemsPayload = (values: DeliveryEditorValues) =>
     values.items
       .filter((line) => Number(line.deliverNow) > 0)
@@ -146,6 +170,7 @@ export function DeliveryEditorPage() {
           warehouse_id: values.warehouse_id,
           delivery_date: values.delivery_date,
           due_date: values.due_date,
+          terms_of_payment_id: values.terms_of_payment_id || null,
           remarks: values.remarks || null,
           items,
         })
@@ -156,6 +181,7 @@ export function DeliveryEditorPage() {
         warehouse_id: values.warehouse_id,
         delivery_date: values.delivery_date,
         due_date: values.due_date,
+        terms_of_payment_id: values.terms_of_payment_id || null,
         remarks: values.remarks || null,
         items,
       })
@@ -292,7 +318,31 @@ export function DeliveryEditorPage() {
                   </FormItem>
                 )}
               />
-              <div />
+              <FormField
+                control={form.control}
+                name="terms_of_payment_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Terms of Payment</FormLabel>
+                    <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={termsOfPayment.isLoading ? 'Loading…' : 'None'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NONE}>None</SelectItem>
+                        {termsOfPayment.data?.map((top) => (
+                          <SelectItem key={top.id} value={top.id}>
+                            {top.name} ({top.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="delivery_date"

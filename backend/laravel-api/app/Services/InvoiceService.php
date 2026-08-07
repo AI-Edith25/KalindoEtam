@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesOrder', 'delivery', 'items', 'tax', 'accountsReceivable.receiptEntryItems.receiptEntry', 'creditNotes', 'debitNotes'];
+    protected const EAGER = ['customer', 'salesOrder', 'delivery', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry', 'creditNotes', 'debitNotes'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
@@ -74,6 +74,7 @@ class InvoiceService
                 'invoice_type' => $data['invoice_type'] ?? InvoiceType::GOODS->value,
                 'invoice_date' => $data['invoice_date'],
                 'due_date' => $data['due_date'],
+                'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
                 'discount_type' => $discountType->value,
@@ -139,6 +140,7 @@ class InvoiceService
             $this->invoiceRepository->update($invoice, [
                 'invoice_date' => $data['invoice_date'] ?? $invoice->invoice_date,
                 'due_date' => $data['due_date'] ?? $invoice->due_date,
+                'terms_of_payment_id' => array_key_exists('terms_of_payment_id', $data) ? $data['terms_of_payment_id'] : $invoice->terms_of_payment_id,
                 'discount_amount' => $discountAmount,
                 'discount_type' => $discountType instanceof DiscountType ? $discountType->value : $discountType,
                 'discount_percentage' => $discountPercentage,

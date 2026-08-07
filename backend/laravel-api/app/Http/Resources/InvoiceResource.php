@@ -33,6 +33,8 @@ class InvoiceResource extends JsonResource
             'customer' => new CustomerResource($this->whenLoaded('customer')),
             'invoice_date' => $this->invoice_date?->format('Y-m-d'),
             'due_date' => $this->due_date?->format('Y-m-d'),
+            'terms_of_payment_id' => $this->terms_of_payment_id,
+            'terms_of_payment' => $this->whenLoaded('termsOfPayment', fn () => $this->termsOfPayment ? new TermsOfPaymentResource($this->termsOfPayment) : null),
             'subtotal' => $this->subtotal,
             'discount_amount' => $this->discount_amount,
             'discount_type' => $this->discount_type,

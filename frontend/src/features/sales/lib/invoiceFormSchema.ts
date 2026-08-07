@@ -17,6 +17,7 @@ import { z } from 'zod'
 export const invoiceFormSchema = z.object({
   invoice_date: z.string().min(1, 'Invoice date is required'),
   due_date: z.string().min(1, 'Due date is required'),
+  terms_of_payment_id: z.string().optional().or(z.literal('')),
   discount_type: z.enum(['amount', 'percentage']),
   discount_amount: z.string().refine((value) => value === '' || (!Number.isNaN(Number(value)) && Number(value) >= 0), 'Must be zero or greater'),
   discount_percentage: z
@@ -31,6 +32,7 @@ export type InvoiceEditorValues = z.infer<typeof invoiceFormSchema>
 export const emptyInvoiceEditorValues: InvoiceEditorValues = {
   invoice_date: '',
   due_date: '',
+  terms_of_payment_id: '',
   discount_type: 'amount',
   discount_amount: '',
   discount_percentage: '',

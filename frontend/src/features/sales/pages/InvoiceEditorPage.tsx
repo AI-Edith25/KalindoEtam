@@ -17,7 +17,8 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { fetchTaxesLookup } from '@/features/master/api/lookupsApi'
+import { fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
+import { addDays } from '@/shared/lib/dateMath'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
@@ -43,6 +44,7 @@ function RupiahInput({ value, onChange }: { value: string; onChange: (value: str
 }
 
 const NO_TAX = '__none__'
+const NO_TOP = '__none__'
 
 interface PreviewLine {
   id: string
@@ -87,6 +89,7 @@ export function InvoiceEditorPage() {
   const selectedDelivery = eligibleDeliveries.find((delivery) => delivery.id === selectedDeliveryId) ?? null
 
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
+  const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   // Only Active taxes may be selected for a new/changed assignment (docs/TAX_ENGINE_DESIGN.md §9)
   // — but an invoice already referencing a since-deactivated tax must keep showing it correctly.
   const existingTax = isEdit ? invoiceQuery.data?.tax : null
@@ -112,6 +115,7 @@ export function InvoiceEditorPage() {
     form.reset({
       invoice_date: invoice.invoice_date,
       due_date: invoice.due_date,
+      terms_of_payment_id: invoice.terms_of_payment_id ?? '',
       discount_type: invoice.discount_type ?? 'amount',
       discount_amount: String(invoice.discount_amount),
       discount_percentage: invoice.discount_percentage != null ? String(invoice.discount_percentage) : '',
@@ -121,6 +125,34 @@ export function InvoiceEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceQuery.data])
 
+  // Create mode only: default to whatever Terms of Payment was actually used on the source
+  // Delivery (inheriting a deliberate override, not just re-deriving the Customer's default
+  // again), falling back to the Customer's own default only if the Delivery had none. Still
+  // freely changeable — fires once when the Delivery becomes known, right after Step 1.
+  useEffect(() => {
+    if (isEdit || !selectedDelivery) return
+    if (form.getValues('terms_of_payment_id')) return
+
+    form.setValue('terms_of_payment_id', selectedDelivery.terms_of_payment_id ?? selectedDelivery.customer?.terms_of_payment_id ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDelivery, isEdit])
+
+  const watchedTopId = form.watch('terms_of_payment_id')
+  const watchedInvoiceDate = form.watch('invoice_date')
+
+  // Recomputes Due Date whenever the Terms of Payment or Invoice Date changes — Due Date
+  // itself is never a dependency here, so a manual edit to it holds until the user touches
+  // one of these two inputs again.
+  useEffect(() => {
+    if (!watchedTopId || !watchedInvoiceDate) return
+
+    const top = termsOfPayment.data?.find((t) => t.id === watchedTopId)
+    if (!top) return
+
+    form.setValue('due_date', addDays(watchedInvoiceDate, top.days), { shouldValidate: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedTopId, watchedInvoiceDate, termsOfPayment.data])
+
   const toPayload = (values: InvoiceEditorValues): InvoiceFormValues => ({
     delivery_id: selectedDeliveryId ?? '',
     // Immutable once created (see invoiceFormSchema.ts) — only sent on create; UpdateInvoiceRequest
@@ -128,6 +160,7 @@ export function InvoiceEditorPage() {
     ...(isEdit ? {} : { invoice_type: selectedInvoiceType ?? undefined }),
     invoice_date: values.invoice_date,
     due_date: values.due_date,
+    terms_of_payment_id: values.terms_of_payment_id || null,
     discount_type: values.discount_type,
     // Only the field matching discount_type carries real data — InvoiceService::resolveDiscount()
     // on the backend derives discount_amount from discount_percentage itself in Percentage mode.
@@ -320,6 +353,31 @@ export function InvoiceEditorPage() {
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="terms_of_payment_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Terms of Payment</FormLabel>
+                    <Select value={field.value || NO_TOP} onValueChange={(value) => field.onChange(value === NO_TOP ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={termsOfPayment.isLoading ? 'Loading…' : 'None'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_TOP}>None</SelectItem>
+                        {termsOfPayment.data?.map((top) => (
+                          <SelectItem key={top.id} value={top.id}>
+                            {top.name} ({top.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

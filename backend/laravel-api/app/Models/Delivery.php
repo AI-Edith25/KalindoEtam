@@ -28,6 +28,7 @@ class Delivery extends Model
         'warehouse_id',
         'delivery_date',
         'due_date',
+        'terms_of_payment_id',
         'remarks',
     ];
 
@@ -57,6 +58,11 @@ class Delivery extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function termsOfPayment(): BelongsTo
+    {
+        return $this->belongsTo(TermsOfPayment::class);
     }
 
     public function items(): HasMany

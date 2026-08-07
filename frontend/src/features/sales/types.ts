@@ -26,7 +26,7 @@ export interface SalesOrder {
   status: DocumentStatus
   revision: number
   customer_id: string
-  customer: { id: string; customer_code: string; customer_name: string } | null
+  customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
   sales_person_id: string | null
   sales_person: { id: string; code: string; name: string } | null
   branch_id: string | null
@@ -93,11 +93,13 @@ export interface Delivery {
   revision: number
   sales_order_id: string
   customer_id: string
-  customer: { id: string; customer_code: string; customer_name: string } | null
+  customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
   warehouse_id: string
   warehouse: { id: string; name: string; code: string } | null
   delivery_date: string
   due_date: string
+  terms_of_payment_id: string | null
+  terms_of_payment: { id: string; code: string; name: string; days: number } | null
   remarks: string | null
   items: DeliveryItem[]
   is_invoiced: boolean | null
@@ -111,6 +113,7 @@ export interface DeliveryFormValues {
   warehouse_id: string
   delivery_date: string
   due_date: string
+  terms_of_payment_id: string | null
   remarks: string | null
   items: { sales_order_item_id: string; qty: number }[]
 }
@@ -162,6 +165,8 @@ export interface Invoice {
   customer: { id: string; customer_code: string; customer_name: string; phone: string | null; address: string | null } | null
   invoice_date: string
   due_date: string
+  terms_of_payment_id: string | null
+  terms_of_payment: { id: string; code: string; name: string; days: number } | null
   subtotal: string | number
   discount_amount: string | number
   discount_type: DiscountType
@@ -190,6 +195,7 @@ export interface InvoiceFormValues {
   invoice_type?: InvoiceType
   invoice_date: string
   due_date: string
+  terms_of_payment_id: string | null
   discount_type: DiscountType
   discount_amount: number | null
   discount_percentage: number | null

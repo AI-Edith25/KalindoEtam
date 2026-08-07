@@ -129,6 +129,7 @@ export function DeliveryDetailPage() {
             <DetailField label="Warehouse" value={delivery.warehouse?.name ?? '—'} />
             <DetailField label="Delivery Date" value={formatDate(delivery.delivery_date)} />
             <DetailField label="Due Date" value={formatDate(delivery.due_date)} />
+            <DetailField label="Terms of Payment" value={delivery.terms_of_payment ? `${delivery.terms_of_payment.name} (${delivery.terms_of_payment.code})` : '—'} />
             <DetailField label="Notes" value={delivery.remarks || '—'} />
           </DetailSection>
         </CardContent>

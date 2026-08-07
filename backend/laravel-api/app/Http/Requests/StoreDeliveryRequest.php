@@ -18,6 +18,7 @@ class StoreDeliveryRequest extends FormRequest
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'delivery_date' => ['required', 'date'],
             'due_date' => ['required', 'date', 'after_or_equal:delivery_date'],
+            'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
             'remarks' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.sales_order_item_id' => ['required', 'uuid', 'exists:sales_order_items,id'],

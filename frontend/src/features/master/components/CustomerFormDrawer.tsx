@@ -2,17 +2,21 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { fetchTermsOfPaymentLookup } from '../api/lookupsApi'
 import { createCustomer, updateCustomer } from '../api/customerApi'
 import type { Customer } from '../types'
+
+const NO_TOP = '__none__'
 
 const customerFormSchema = z.object({
   customer_code: z.string().min(1, 'Customer Code is required').max(255),
@@ -25,6 +29,7 @@ const customerFormSchema = z.object({
     .optional()
     .or(z.literal(''))
     .refine((value) => !value || (!Number.isNaN(Number(value)) && Number(value) >= 0), 'Must be zero or greater'),
+  terms_of_payment_id: z.string().optional().or(z.literal('')),
   is_active: z.boolean(),
 })
 
@@ -37,6 +42,7 @@ const emptyValues: CustomerFormValues = {
   email: '',
   address: '',
   credit_limit: '',
+  terms_of_payment_id: '',
   is_active: true,
 }
 
@@ -49,6 +55,7 @@ interface CustomerFormDrawerProps {
 export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFormDrawerProps) {
   const isEdit = !!customer
   const queryClient = useQueryClient()
+  const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerFormSchema),
@@ -67,6 +74,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
             email: customer.email ?? '',
             address: customer.address ?? '',
             credit_limit: customer.credit_limit != null ? String(customer.credit_limit) : '',
+            terms_of_payment_id: customer.terms_of_payment_id ?? '',
             is_active: customer.is_active,
           }
         : emptyValues,
@@ -81,6 +89,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
         email: values.email || null,
         address: values.address || null,
         credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
+        terms_of_payment_id: values.terms_of_payment_id || null,
       }
       return isEdit ? updateCustomer(customer.id, payload) : createCustomer(payload)
     },
@@ -181,6 +190,31 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                     <FormControl>
                       <Input type="number" min="0" placeholder="Leave blank for unlimited" autoComplete="off" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="terms_of_payment_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Default Terms of Payment</FormLabel>
+                    <Select value={field.value || NO_TOP} onValueChange={(value) => field.onChange(value === NO_TOP ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={termsOfPayment.isLoading ? 'Loading…' : 'No default'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_TOP}>No default</SelectItem>
+                        {termsOfPayment.data?.map((top) => (
+                          <SelectItem key={top.id} value={top.id}>
+                            {top.name} ({top.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

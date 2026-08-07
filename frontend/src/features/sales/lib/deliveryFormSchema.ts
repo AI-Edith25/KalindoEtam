@@ -53,6 +53,7 @@ export const deliveryFormSchema = z.object({
   warehouse_id: z.string().min(1, 'Warehouse is required'),
   delivery_date: z.string().min(1, 'Delivery date is required'),
   due_date: z.string().min(1, 'Due date is required'),
+  terms_of_payment_id: z.string().optional().or(z.literal('')),
   remarks: z.string().optional().or(z.literal('')),
   items: z.array(deliveryLineRowSchema).superRefine((items, ctx) => {
     const hasAny = items.some((line) => Number(line.deliverNow || 0) > 0)

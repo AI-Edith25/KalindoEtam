@@ -53,6 +53,7 @@ export const navTree: NavGroup[] = [
       { key: 'suppliers', label: 'Suppliers', path: '/master/suppliers', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'customers', label: 'Customers', path: '/master/customers', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'sales_persons', label: 'Sales Persons', path: '/master/sales-persons', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'terms_of_payment', label: 'Terms of Payment', path: '/master/terms-of-payment', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'warehouses', label: 'Warehouses', path: '/master/warehouses', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'item_groups', label: 'Item Groups', path: '/master/item-groups', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'uoms', label: 'UOMs', path: '/master/uoms', actions: ['view', 'create', 'update', 'delete'] },

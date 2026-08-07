@@ -19,6 +19,7 @@ class UpdateInvoiceRequest extends FormRequest
         return [
             'invoice_date' => ['sometimes', 'required', 'date'],
             'due_date' => ['sometimes', 'required', 'date', 'after_or_equal:invoice_date'],
+            'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
             'discount_type' => ['sometimes', 'nullable', Rule::enum(DiscountType::class)],
             'discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'discount_percentage' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],

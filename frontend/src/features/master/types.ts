@@ -121,6 +121,7 @@ export interface Customer {
   email: string | null
   address: string | null
   credit_limit: string | number | null
+  terms_of_payment_id: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -133,6 +134,7 @@ export interface CustomerFormValues {
   email: string | null
   address: string | null
   credit_limit: number | null
+  terms_of_payment_id: string | null
   is_active: boolean
 }
 
@@ -173,6 +175,23 @@ export interface SalesPersonFormValues {
   name: string
   phone: string | null
   email: string | null
+  is_active: boolean
+}
+
+export interface TermsOfPayment {
+  id: string
+  code: string
+  name: string
+  days: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TermsOfPaymentFormValues {
+  code: string
+  name: string
+  days: number
   is_active: boolean
 }
 

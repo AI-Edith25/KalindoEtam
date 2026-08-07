@@ -30,6 +30,7 @@ class Invoice extends Model
         'customer_id',
         'invoice_date',
         'due_date',
+        'terms_of_payment_id',
         'subtotal',
         'discount_amount',
         'discount_type',
@@ -88,6 +89,11 @@ class Invoice extends Model
     public function tax(): BelongsTo
     {
         return $this->belongsTo(Tax::class);
+    }
+
+    public function termsOfPayment(): BelongsTo
+    {
+        return $this->belongsTo(TermsOfPayment::class);
     }
 
     public function items(): HasMany

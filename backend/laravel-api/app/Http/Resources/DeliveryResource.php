@@ -21,6 +21,8 @@ class DeliveryResource extends JsonResource
             'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
             'delivery_date' => $this->delivery_date?->format('Y-m-d'),
             'due_date' => $this->due_date?->format('Y-m-d'),
+            'terms_of_payment_id' => $this->terms_of_payment_id,
+            'terms_of_payment' => new TermsOfPaymentResource($this->whenLoaded('termsOfPayment')),
             'remarks' => $this->remarks,
             'items' => DeliveryItemResource::collection($this->whenLoaded('items')),
             'is_invoiced' => $this->whenLoaded('invoice', fn () => $this->invoice !== null),

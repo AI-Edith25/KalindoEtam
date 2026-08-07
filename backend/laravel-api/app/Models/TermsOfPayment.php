@@ -7,23 +7,19 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Customer extends Model
+class TermsOfPayment extends Model
 {
     use HasAuditTrail, HasUuids, SoftDeletes;
 
     protected $fillable = [
-        'customer_code',
-        'customer_name',
-        'phone',
-        'email',
-        'address',
-        'credit_limit',
-        'terms_of_payment_id',
+        'code',
+        'name',
+        'days',
         'is_active',
     ];
 
     protected $casts = [
+        'days' => 'integer',
         'is_active' => 'boolean',
-        'credit_limit' => 'decimal:2',
     ];
 }
