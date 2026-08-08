@@ -19,7 +19,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('invoice_id')->constrained('invoices')->restrictOnDelete();
             $table->string('status')->default('pending');
-            $table->foreignUuid('requested_by_id')->constrained('users')->nullOnDelete();
+            $table->foreignUuid('requested_by_id')->nullable()->constrained('users')->nullOnDelete();
             $table->text('request_reason');
             $table->foreignUuid('decided_by_id')->nullable()->constrained('users')->nullOnDelete();
             $table->text('decision_remarks')->nullable();
