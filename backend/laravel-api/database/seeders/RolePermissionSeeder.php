@@ -44,7 +44,7 @@ class RolePermissionSeeder extends Seeder
         'purchase.goods_receipts' => ['view', 'create', 'update', 'delete'],
         'sales.orders' => ['view', 'create', 'update', 'delete', 'approve', 'override_credit_check'],
         'sales.deliveries' => ['view', 'create', 'update', 'delete'],
-        'sales.invoices' => ['view', 'create', 'update', 'delete'],
+        'sales.invoices' => ['view', 'create', 'update', 'delete', 'approve'],
         'sales.credit_notes' => ['view', 'create', 'update', 'delete'],
         'sales.debit_notes' => ['view', 'create', 'update', 'delete'],
         'finance.outgoing_payment' => ['view', 'create', 'update', 'delete'],

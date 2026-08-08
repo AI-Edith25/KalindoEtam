@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\BalanceSheetController;
 use App\Http\Controllers\Api\V1\CashFlowController;
 use App\Http\Controllers\Api\V1\PeriodController;
 use App\Http\Controllers\Api\V1\GoodsReceiptController;
+use App\Http\Controllers\Api\V1\InvoiceChangeRequestController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\ItemController;
 use App\Http\Controllers\Api\V1\ItemGroupController;
@@ -173,6 +174,16 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('invoices', InvoiceController::class), 'sales.invoices');
     Route::post('invoices/{invoice}/submit', [InvoiceController::class, 'submit'])->middleware('permission:sales.invoices.update');
     Route::post('invoices/{invoice}/cancel', [InvoiceController::class, 'cancel'])->middleware('permission:sales.invoices.update');
+
+    // Invoice Angkutan nominal lock + approval: a Submitted Transportation Invoice's Rate/Amount/
+    // Grand Total are otherwise immutable (no write path exists at all); this is the sole, audited,
+    // approval-gated exception, distinct from ApprovalFlow (that's a pre-submit gate, not a
+    // post-submit temporary unlock) — see InvoiceChangeRequestService.
+    Route::get('invoice-change-requests', [InvoiceChangeRequestController::class, 'index'])->middleware('permission:sales.invoices.view');
+    Route::post('invoice-change-requests', [InvoiceChangeRequestController::class, 'store'])->middleware('permission:sales.invoices.update');
+    Route::post('invoice-change-requests/{invoiceChangeRequest}/approve', [InvoiceChangeRequestController::class, 'approve'])->middleware('permission:sales.invoices.approve');
+    Route::post('invoice-change-requests/{invoiceChangeRequest}/reject', [InvoiceChangeRequestController::class, 'reject'])->middleware('permission:sales.invoices.approve');
+    Route::put('invoice-change-requests/{invoiceChangeRequest}/nominal', [InvoiceChangeRequestController::class, 'applyNominal'])->middleware('permission:sales.invoices.update');
 
     // Credit Note (Sprint 13B): the only accounting-correction path for a posted Invoice —
     // Invoice::cancel() deliberately never touches the ledger, see InvoiceService::cancel().

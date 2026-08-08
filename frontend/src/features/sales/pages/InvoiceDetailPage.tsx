@@ -17,6 +17,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { PAYMENT_METHOD_LABELS } from '@/features/payment/lib/paymentMethodLabels'
 import type { PaymentMethod } from '@/features/payment/types'
 import { cancelInvoice, deleteInvoice, fetchInvoice, submitInvoice } from '../api/invoiceApi'
+import { NominalChangeRequestPanel } from '../components/NominalChangeRequestPanel'
 import { CREDIT_NOTE_REASON_LABELS } from '../lib/creditNoteReasonLabels'
 import { DEBIT_NOTE_REASON_LABELS } from '../lib/debitNoteReasonLabels'
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
@@ -287,6 +288,8 @@ export function InvoiceDetailPage() {
           <DataTable columns={lineColumns} data={invoice.items} rowKey={(row) => row.id} emptyMessage="No line items." />
         </CardContent>
       </Card>
+
+      <NominalChangeRequestPanel invoice={invoice} onChanged={invalidate} />
 
       <Card>
         <CardContent className="flex flex-col items-end gap-1.5 py-4">

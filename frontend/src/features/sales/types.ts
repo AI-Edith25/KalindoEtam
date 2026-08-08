@@ -210,6 +210,25 @@ export interface InvoiceFilterValues {
   dateTo: string
 }
 
+/**
+ * Approval-gated, one-time nominal unlock for a Submitted Transportation
+ * Invoice — see InvoiceChangeRequestService on the backend. Deliberately not
+ * an ApprovalFlow: that's a pre-submit "can this document be submitted"
+ * gate, a different concept from this post-submit temporary edit window.
+ */
+export interface InvoiceChangeRequest {
+  id: string
+  invoice_id: string
+  status: 'pending' | 'approved' | 'rejected'
+  requested_by: { id: string; name: string; email: string } | null
+  request_reason: string
+  decided_by: { id: string; name: string; email: string } | null
+  decision_remarks: string | null
+  decided_at: string | null
+  consumed_at: string | null
+  created_at: string
+}
+
 export interface InvoiceCreditNoteHistoryLine {
   id: string
   document_number: string | null

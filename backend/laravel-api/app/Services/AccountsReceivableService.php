@@ -180,6 +180,27 @@ class AccountsReceivableService
     }
 
     /**
+     * Keeps the receivable's face amount in sync with an approved Invoice
+     * Change Request's delta — called only by InvoiceChangeRequestService::
+     * applyNominal(). Unlike writeUp()/writeDown() (Credit/Debit Note), this
+     * never touches credited_amount/debited_amount: a nominal correction
+     * isn't a credit or debit event, just a resizing of the original amount.
+     */
+    public function adjustForNominalChange(AccountsReceivable $accountsReceivable, float $delta): AccountsReceivable
+    {
+        return DB::transaction(function () use ($accountsReceivable, $delta) {
+            $newAmount = (float) $accountsReceivable->amount + $delta;
+            $newStatus = AccountsReceivableStatus::from(
+                SettlementStatus::resolve($newAmount, (float) $accountsReceivable->paid_amount)
+            );
+
+            $this->accountsReceivableRepository->update($accountsReceivable, ['amount' => $newAmount, 'status' => $newStatus]);
+
+            return $accountsReceivable->fresh();
+        });
+    }
+
+    /**
      * AR Detail Report's "Total Outstanding" footer — sums amount-paid_amount
      * over the same filtered row set search() returns, so the figure always
      * matches what's on screen regardless of pagination. Thin passthrough,
