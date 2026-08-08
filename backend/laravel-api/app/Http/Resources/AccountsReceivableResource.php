@@ -26,6 +26,15 @@ class AccountsReceivableResource extends JsonResource
                 'id' => $this->delivery->id,
                 'document_number' => $this->delivery->document_number,
             ] : null),
+            // Masa: the Invoice's own terms_of_payment_id (already the authoritative value after
+            // the Customer->Delivery->Invoice inheritance chain) — null if unset upstream.
+            'terms_of_payment_days' => $this->whenLoaded('invoice', fn () => $this->invoice?->termsOfPayment?->days),
+            // Umur: days elapsed since invoice_date, computed PHP-side (not whereRaw/DATEDIFF) —
+            // same MySQL-vs-SQLite portability rule as this repository's aging_bucket filter.
+            'age_in_days' => $this->invoice?->invoice_date ? (int) $this->invoice->invoice_date->copy()->startOfDay()->diffInDays(now()->startOfDay(), true) : null,
+            // Nama Sales: AccountsReceivable -> SalesOrder -> SalesPerson — null if the Sales
+            // Order predates Sales Person assignment or none was set.
+            'sales_person_name' => $this->whenLoaded('salesOrder', fn () => $this->salesOrder?->salesPerson?->name),
             'reference_number' => $this->reference_number,
             'amount' => $this->amount,
             'paid_amount' => $this->paid_amount,

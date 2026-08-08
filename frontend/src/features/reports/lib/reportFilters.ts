@@ -69,6 +69,8 @@ export const emptyArDetailReportFilters: ArDetailReportFilterValues = {
   agingBucket: null,
   dateFrom: '',
   dateTo: '',
+  invoiceDateFrom: '',
+  invoiceDateTo: '',
 }
 
 export function hasActiveArDetailReportFilters(filters: ArDetailReportFilterValues): boolean {
@@ -77,6 +79,8 @@ export function hasActiveArDetailReportFilters(filters: ArDetailReportFilterValu
     filters.status !== null ||
     filters.agingBucket !== null ||
     filters.dateFrom !== '' ||
-    filters.dateTo !== ''
+    filters.dateTo !== '' ||
+    filters.invoiceDateFrom !== '' ||
+    filters.invoiceDateTo !== ''
   )
 }

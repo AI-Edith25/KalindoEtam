@@ -76,7 +76,7 @@ export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: Ac
         </Select>
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">From</span>
+        <span className="text-xs text-muted-foreground">Due Date From</span>
         <Input
           type="date"
           className="w-40"
@@ -85,12 +85,30 @@ export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: Ac
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">To</span>
+        <span className="text-xs text-muted-foreground">Due Date To</span>
         <Input
           type="date"
           className="w-40"
           value={value.dateTo}
           onChange={(event) => onChange({ ...value, dateTo: event.target.value })}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Invoice Date From</span>
+        <Input
+          type="date"
+          className="w-40"
+          value={value.invoiceDateFrom}
+          onChange={(event) => onChange({ ...value, invoiceDateFrom: event.target.value })}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Invoice Date To</span>
+        <Input
+          type="date"
+          className="w-40"
+          value={value.invoiceDateTo}
+          onChange={(event) => onChange({ ...value, invoiceDateTo: event.target.value })}
         />
       </div>
     </FilterPanel>

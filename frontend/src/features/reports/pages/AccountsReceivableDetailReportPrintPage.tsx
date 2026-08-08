@@ -23,9 +23,11 @@ export function AccountsReceivableDetailReportPrintPage() {
   const agingBucket = searchParams.get('aging_bucket') ?? undefined
   const dateFrom = searchParams.get('date_from') ?? undefined
   const dateTo = searchParams.get('date_to') ?? undefined
+  const invoiceDateFrom = searchParams.get('invoice_date_from') ?? undefined
+  const invoiceDateTo = searchParams.get('invoice_date_to') ?? undefined
 
   const listQuery = useQuery({
-    queryKey: ['ar-detail-report-print', customerId, status, agingBucket, dateFrom, dateTo],
+    queryKey: ['ar-detail-report-print', customerId, status, agingBucket, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo],
     queryFn: () =>
       fetchAccountsReceivables({
         page: 1,
@@ -35,6 +37,8 @@ export function AccountsReceivableDetailReportPrintPage() {
         ...(agingBucket ? { aging_bucket: agingBucket } : {}),
         ...(dateFrom ? { date_from: dateFrom } : {}),
         ...(dateTo ? { date_to: dateTo } : {}),
+        ...(invoiceDateFrom ? { invoice_date_from: invoiceDateFrom } : {}),
+        ...(invoiceDateTo ? { invoice_date_to: invoiceDateTo } : {}),
       }),
   })
 
@@ -71,14 +75,22 @@ export function AccountsReceivableDetailReportPrintPage() {
               Due {dateFrom ? formatDate(dateFrom) : '—'} to {dateTo ? formatDate(dateTo) : '—'}
             </p>
           )}
+          {(invoiceDateFrom || invoiceDateTo) && (
+            <p>
+              Invoice Date {invoiceDateFrom ? formatDate(invoiceDateFrom) : '—'} to {invoiceDateTo ? formatDate(invoiceDateTo) : '—'}
+            </p>
+          )}
         </div>
 
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-foreground/80 text-left">
               <th className="border-r-2 border-foreground/80 p-2">Customer</th>
+              <th className="border-r-2 border-foreground/80 p-2">Sales Person</th>
               <th className="border-r-2 border-foreground/80 p-2">Invoice Number</th>
               <th className="border-r-2 border-foreground/80 p-2">Invoice Date</th>
+              <th className="border-r-2 border-foreground/80 p-2">Masa</th>
+              <th className="border-r-2 border-foreground/80 p-2">Umur</th>
               <th className="border-r-2 border-foreground/80 p-2">Due Date</th>
               <th className="border-r-2 border-foreground/80 p-2 text-right">Total Invoice</th>
               <th className="border-r-2 border-foreground/80 p-2 text-right">Paid Amount</th>
@@ -90,10 +102,13 @@ export function AccountsReceivableDetailReportPrintPage() {
             {rows.map((row) => (
               <tr key={row.id} className="border-b border-foreground/30">
                 <td className="border-r-2 border-foreground/80 p-2">{row.customer?.customer_name ?? '—'}</td>
+                <td className="border-r-2 border-foreground/80 p-2">{row.sales_person_name ?? '—'}</td>
                 <td className="border-r-2 border-foreground/80 p-2">{row.invoice?.document_number ?? '—'}</td>
                 <td className="border-r-2 border-foreground/80 p-2">
                   {row.invoice?.invoice_date ? formatDate(row.invoice.invoice_date) : '—'}
                 </td>
+                <td className="border-r-2 border-foreground/80 p-2">{row.terms_of_payment_days !== null ? `${row.terms_of_payment_days} hari` : '—'}</td>
+                <td className="border-r-2 border-foreground/80 p-2">{row.age_in_days !== null ? `${row.age_in_days} hari` : '—'}</td>
                 <td className="border-r-2 border-foreground/80 p-2">{formatDate(row.due_date)}</td>
                 <td className="border-r-2 border-foreground/80 p-2 text-right">{formatMoney(row.amount, printOptions.amountDecimals)}</td>
                 <td className="border-r-2 border-foreground/80 p-2 text-right">
@@ -109,7 +124,7 @@ export function AccountsReceivableDetailReportPrintPage() {
           {listQuery.data?.meta && (
             <tfoot>
               <tr className="border-t-2 border-foreground/80 font-semibold">
-                <td colSpan={6} className="border-r-2 border-foreground/80 p-2 text-right">
+                <td colSpan={9} className="border-r-2 border-foreground/80 p-2 text-right">
                   Total Outstanding
                 </td>
                 <td colSpan={2} className="p-2 text-right">

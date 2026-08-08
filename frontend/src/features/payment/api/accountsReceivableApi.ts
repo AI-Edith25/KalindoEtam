@@ -8,6 +8,8 @@ export interface AccountsReceivableListParams {
   aging_bucket?: string
   date_from?: string
   date_to?: string
+  invoice_date_from?: string
+  invoice_date_to?: string
   page?: number
   per_page?: number
 }

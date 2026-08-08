@@ -34,6 +34,8 @@ export function AccountsReceivableDetailReportPage() {
       filters.agingBucket,
       filters.dateFrom,
       filters.dateTo,
+      filters.invoiceDateFrom,
+      filters.invoiceDateTo,
     ],
     queryFn: () =>
       fetchAccountsReceivables({
@@ -43,6 +45,8 @@ export function AccountsReceivableDetailReportPage() {
         ...(filters.agingBucket ? { aging_bucket: filters.agingBucket } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+        ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
+        ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
       }),
     placeholderData: (previous) => previous,
   })
@@ -63,8 +67,11 @@ export function AccountsReceivableDetailReportPage() {
 
   const columns: DataTableColumn<AccountsReceivable>[] = [
     { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
+    { header: 'Sales Person', accessor: (row) => row.sales_person_name ?? '—' },
     { header: 'Invoice Number', accessor: (row) => row.invoice?.document_number ?? '—' },
     { header: 'Invoice Date', accessor: (row) => (row.invoice?.invoice_date ? formatDate(row.invoice.invoice_date) : '—') },
+    { header: 'Masa', accessor: (row) => (row.terms_of_payment_days !== null ? `${row.terms_of_payment_days} hari` : '—') },
+    { header: 'Umur', accessor: (row) => (row.age_in_days !== null ? `${row.age_in_days} hari` : '—') },
     { header: 'Due Date', accessor: (row) => formatDate(row.due_date) },
     { header: 'Total Invoice', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
     { header: 'Paid Amount', accessor: (row) => formatCurrency(row.paid_amount), className: 'text-right' },
@@ -78,7 +85,9 @@ export function AccountsReceivableDetailReportPage() {
     filters.status ||
     filters.agingBucket ||
     filters.dateFrom ||
-    filters.dateTo
+    filters.dateTo ||
+    filters.invoiceDateFrom ||
+    filters.invoiceDateTo
   )
 
   const printParams = new URLSearchParams({
@@ -87,6 +96,8 @@ export function AccountsReceivableDetailReportPage() {
     ...(filters.agingBucket ? { aging_bucket: filters.agingBucket } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+    ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
+    ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
   }).toString()
 
   return (

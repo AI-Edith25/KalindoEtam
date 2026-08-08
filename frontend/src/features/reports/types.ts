@@ -50,6 +50,9 @@ export interface ArDetailReportFilterValues {
   customer_id: string
   status: SettlementStatus | null
   agingBucket: AgingBucketValue | null
+  /** Due Date range — the pre-existing "From/To" filter, relabeled for clarity now that Invoice Date is a second, independent range. */
   dateFrom: string
   dateTo: string
+  invoiceDateFrom: string
+  invoiceDateTo: string
 }

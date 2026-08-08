@@ -67,6 +67,8 @@ class AccountsReceivableRepository extends BaseRepository
             ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
+            ->when($filters['invoice_date_from'] ?? null, fn ($query, $date) => $query->whereHas('invoice', fn ($invoiceQuery) => $invoiceQuery->whereDate('invoice_date', '>=', $date)))
+            ->when($filters['invoice_date_to'] ?? null, fn ($query, $date) => $query->whereHas('invoice', fn ($invoiceQuery) => $invoiceQuery->whereDate('invoice_date', '<=', $date)))
             ->when($filters['aging_bucket'] ?? null, fn ($query, $bucket) => match ($bucket) {
                 '30' => $query->whereDate('due_date', '>=', now()->subDays(30))->whereDate('due_date', '<=', now()->subDay()),
                 '45' => $query->whereDate('due_date', '>=', now()->subDays(45))->whereDate('due_date', '<=', now()->subDay()),
@@ -80,7 +82,7 @@ class AccountsReceivableRepository extends BaseRepository
     public function search(array $filters, int $perPage = 15): LengthAwarePaginator
     {
         return $this->filteredQuery($filters)
-            ->with(['customer', 'invoice', 'salesOrder', 'delivery'])
+            ->with(['customer', 'invoice.termsOfPayment', 'salesOrder.salesPerson', 'delivery'])
             ->latest('due_date')
             ->paginate($perPage);
     }

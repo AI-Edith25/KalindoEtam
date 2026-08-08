@@ -66,6 +66,9 @@ export interface AccountsReceivable {
   sales_order_id: string
   delivery_id: string
   delivery: { id: string; document_number: string | null } | null
+  terms_of_payment_days: number | null
+  age_in_days: number | null
+  sales_person_name: string | null
   reference_number: string
   amount: string | number
   paid_amount: string | number
