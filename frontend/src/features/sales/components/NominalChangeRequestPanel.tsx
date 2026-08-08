@@ -53,6 +53,9 @@ export function NominalChangeRequestPanel({ invoice, onChanged }: NominalChangeR
   const history = historyQuery.data ?? []
   const latest = history[0] ?? null
   const unlocked = latest?.status === 'approved' && !latest.consumed_at
+  // Terminal states only: rejected, or approved-and-already-consumed (a completed prior
+  // correction). Pending and approved-unconsumed are active — no new request while one's live.
+  const canRequestNew = !latest || latest.status === 'rejected' || (latest.status === 'approved' && !!latest.consumed_at)
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['invoice-change-requests', invoice.id] })
@@ -124,7 +127,7 @@ export function NominalChangeRequestPanel({ invoice, onChanged }: NominalChangeR
         {latest && <StatusBadge status={latest.status} />}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {(!latest || latest.status === 'rejected') && canEdit && (
+        {canRequestNew && canEdit && (
           <div>
             <Button variant="outline" onClick={() => setRequesting(true)}>
               Request Change
