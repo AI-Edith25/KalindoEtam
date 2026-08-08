@@ -20,7 +20,6 @@ import { deletePaymentEntry, fetchPaymentEntries, submitPaymentEntry } from '../
 import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
 import { PaymentEntryFiltersBar } from '../components/PaymentEntryFiltersBar'
 import { emptyPaymentEntryFilters } from '../lib/paymentEntryFilters'
-import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 import type { PaymentEntry, PaymentEntryFilterValues } from '../types'
 
@@ -132,7 +131,7 @@ export function OutgoingPaymentListPage() {
       header: 'Supplier',
       accessor: (row) => (row.payment_type === 'general_expense' ? (row.expense_account?.name ?? '—') : (row.supplier?.supplier_name ?? '—')),
     },
-    { header: 'Payment Method', accessor: (row) => PAYMENT_METHOD_LABELS[row.payment_method] },
+    { header: 'Payment Method', accessor: (row) => row.cash_account?.name ?? '—' },
     { header: 'Payment Date', accessor: (row) => formatDate(row.payment_date) },
     { header: 'Amount', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right' },
     {

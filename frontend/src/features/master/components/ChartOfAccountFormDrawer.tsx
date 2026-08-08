@@ -20,6 +20,7 @@ const chartOfAccountFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   account_type: z.enum(['asset', 'liability', 'equity', 'revenue', 'expense']),
   is_active: z.boolean(),
+  is_cash_bank: z.boolean(),
 })
 
 type ChartOfAccountFormValues = z.infer<typeof chartOfAccountFormSchema>
@@ -29,6 +30,7 @@ const emptyValues: ChartOfAccountFormValues = {
   name: '',
   account_type: 'asset',
   is_active: true,
+  is_cash_bank: false,
 }
 
 interface ChartOfAccountFormDrawerProps {
@@ -56,6 +58,7 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
             name: chartOfAccount.name,
             account_type: chartOfAccount.account_type,
             is_active: chartOfAccount.is_active,
+            is_cash_bank: chartOfAccount.is_cash_bank,
           }
         : emptyValues,
     )
@@ -143,6 +146,21 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
                     <FormLabel className="cursor-pointer">Active</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="is_cash_bank"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
+                    <div className="flex flex-col gap-0.5">
+                      <FormLabel className="cursor-pointer">Cash / Bank Account</FormLabel>
+                      <span className="text-xs text-muted-foreground">Appears as a Payment Method option on Incoming/Outgoing Payments.</span>
+                    </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>

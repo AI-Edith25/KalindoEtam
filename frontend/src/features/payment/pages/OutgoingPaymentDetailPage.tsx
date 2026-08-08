@@ -12,7 +12,6 @@ import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayo
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { deletePaymentEntry, fetchPaymentEntry, submitPaymentEntry } from '../api/paymentEntryApi'
-import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 
 /** Read-only, section-grouped — same shell as GoodsReceiptDetailPage. Conditional fields per payment_type: Source Document/Supplier (Supplier) vs. Category/Description (General Expense). */
@@ -124,7 +123,7 @@ export function OutgoingPaymentDetailPage() {
               </>
             )}
             <DetailField label="Payment Date" value={formatDate(payment.payment_date)} />
-            <DetailField label="Payment Method" value={PAYMENT_METHOD_LABELS[payment.payment_method]} />
+            <DetailField label="Payment Method" value={payment.cash_account?.name ?? '—'} />
             <DetailField label="Amount" value={formatCurrency(payment.total_amount)} />
             <DetailField label="Reference Number" value={payment.reference_number || '—'} />
             <DetailField label="Notes" value={payment.remarks || '—'} />

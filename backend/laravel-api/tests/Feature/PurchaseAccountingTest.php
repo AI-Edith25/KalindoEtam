@@ -115,7 +115,7 @@ class PurchaseAccountingTest extends TestCase
             'payment_type' => 'supplier',
             'supplier_id' => $this->supplier->id,
             'payment_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH->value,
+            'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
             'items' => [['accounts_payable_id' => $accountsPayable->id, 'paid_amount' => 40000]],
         ]);
         $this->paymentEntryService->submit($paymentEntry);
@@ -139,7 +139,7 @@ class PurchaseAccountingTest extends TestCase
             'description' => 'Ojek online ke kantor pajak',
             'amount' => 75000,
             'payment_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH->value,
+            'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
         ]);
         $this->paymentEntryService->submit($paymentEntry);
 
@@ -164,7 +164,7 @@ class PurchaseAccountingTest extends TestCase
             'description' => 'Konsumsi rapat',
             'amount' => 50000,
             'payment_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH->value,
+            'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
         ]);
 
         $this->assertNull($paymentEntry->supplier_id);

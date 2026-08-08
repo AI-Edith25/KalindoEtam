@@ -18,7 +18,6 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deleteReceiptEntry, fetchReceiptEntries, submitReceiptEntry } from '../api/receiptEntryApi'
 import { ReceiptEntryFiltersBar } from '../components/ReceiptEntryFiltersBar'
 import { emptyReceiptEntryFilters } from '../lib/receiptEntryFilters'
-import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 import type { ReceiptEntry, ReceiptEntryFilterValues } from '../types'
 
 /** Incoming Payment — settles Accounts Receivable created by Delivery. Never touches stock. */
@@ -92,7 +91,7 @@ export function IncomingPaymentListPage() {
   const columns: DataTableColumn<ReceiptEntry>[] = [
     { header: 'Payment No', accessor: (row) => row.document_number ?? '—' },
     { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
-    { header: 'Payment Method', accessor: (row) => PAYMENT_METHOD_LABELS[row.payment_method] },
+    { header: 'Payment Method', accessor: (row) => row.cash_account?.name ?? '—' },
     { header: 'Payment Date', accessor: (row) => formatDate(row.receipt_date) },
     { header: 'Amount', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right' },
     {

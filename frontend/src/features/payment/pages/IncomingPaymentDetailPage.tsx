@@ -15,7 +15,6 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { deleteReceiptEntry, fetchReceiptEntry, submitReceiptEntry } from '../api/receiptEntryApi'
 import { reverseAllocation } from '../api/paymentAllocationApi'
 import { PaymentAllocationDrawer } from '../components/PaymentAllocationDrawer'
-import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 
 /** Read-only, section-grouped — mirrors OutgoingPaymentDetailPage exactly. */
@@ -115,7 +114,7 @@ export function IncomingPaymentDetailPage() {
             <DetailField label="Payment No" value={receipt.document_number ?? '—'} />
             <DetailField label="Customer" value={receipt.customer?.customer_name ?? '—'} />
             <DetailField label="Payment Date" value={formatDate(receipt.receipt_date)} />
-            <DetailField label="Payment Method" value={PAYMENT_METHOD_LABELS[receipt.payment_method]} />
+            <DetailField label="Payment Method" value={receipt.cash_account?.name ?? '—'} />
             <DetailField label="Reference Number" value={receipt.reference_number || '—'} />
             <DetailField label="Notes" value={receipt.remarks || '—'} />
           </DetailSection>

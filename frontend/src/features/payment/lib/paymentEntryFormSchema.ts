@@ -20,7 +20,7 @@ export const paymentEntryFormSchema = z
     description: z.string(),
     amount: z.string(),
     payment_date: z.string().min(1, 'Payment date is required'),
-    payment_method: z.string().min(1, 'Payment method is required'),
+    cash_account_id: z.string().min(1, 'Cash/Bank account is required'),
     reference_number: z.string().optional().or(z.literal('')),
     remarks: z.string().optional().or(z.literal('')),
   })

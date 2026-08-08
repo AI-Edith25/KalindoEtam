@@ -17,11 +17,13 @@ class ChartOfAccount extends Model
         'name',
         'account_type',
         'is_active',
+        'is_cash_bank',
     ];
 
     protected $casts = [
         'account_type' => AccountType::class,
         'is_active' => 'boolean',
+        'is_cash_bank' => 'boolean',
     ];
 
     /**

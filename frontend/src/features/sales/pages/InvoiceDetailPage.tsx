@@ -14,8 +14,6 @@ import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { PAYMENT_METHOD_LABELS } from '@/features/payment/lib/paymentMethodLabels'
-import type { PaymentMethod } from '@/features/payment/types'
 import { cancelInvoice, deleteInvoice, fetchInvoice, submitInvoice } from '../api/invoiceApi'
 import { NominalChangeRequestPanel } from '../components/NominalChangeRequestPanel'
 import { CREDIT_NOTE_REASON_LABELS } from '../lib/creditNoteReasonLabels'
@@ -54,7 +52,7 @@ function buildPaymentColumns(navigate: (path: string) => void): DataTableColumn<
         ),
     },
     { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },
-    { header: 'Method', accessor: (row) => PAYMENT_METHOD_LABELS[row.payment_method as PaymentMethod] ?? row.payment_method },
+    { header: 'Method', accessor: (row) => row.cash_account_name ?? '—' },
     { header: 'Amount', accessor: (row) => formatCurrency(row.received_amount), className: 'text-right' },
   ]
 }

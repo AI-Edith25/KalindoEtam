@@ -2,7 +2,6 @@ import type { ChartOfAccount, Customer, Supplier } from '@/features/master/types
 
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 export type SettlementStatus = 'unpaid' | 'partially_paid' | 'paid'
-export type PaymentMethod = 'cash' | 'bank_transfer' | 'cheque' | 'qris' | 'credit_card'
 export type PaymentEntryType = 'supplier' | 'general_expense'
 
 export interface AccountsPayable {
@@ -39,7 +38,8 @@ export interface PaymentEntry {
   expense_account: ChartOfAccount | null
   description: string | null
   payment_date: string
-  payment_method: PaymentMethod
+  cash_account_id: string | null
+  cash_account: ChartOfAccount | null
   reference_number: string | null
   remarks: string | null
   total_amount: string | number
@@ -91,7 +91,8 @@ export interface ReceiptEntry {
   customer_id: string
   customer: Customer | null
   receipt_date: string
-  payment_method: PaymentMethod
+  cash_account_id: string | null
+  cash_account: ChartOfAccount | null
   reference_number: string | null
   remarks: string | null
   total_amount: string | number

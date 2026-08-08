@@ -34,7 +34,7 @@ class ReceiptEntryService
             $receiptEntry = $this->receiptEntryRepository->create([
                 'customer_id' => $data['customer_id'],
                 'receipt_date' => $data['receipt_date'],
-                'payment_method' => $data['payment_method'],
+                'cash_account_id' => $data['cash_account_id'],
                 'reference_number' => $data['reference_number'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'total_amount' => $data['total_amount'],

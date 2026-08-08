@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\DB;
  */
 class InvoiceChangeRequestService
 {
-    protected const INVOICE_EAGER = ['customer', 'salesOrder', 'delivery', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry', 'creditNotes', 'debitNotes'];
+    protected const INVOICE_EAGER = ['customer', 'salesOrder', 'delivery', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
 
     public function __construct(
         protected InvoiceChangeRequestRepository $invoiceChangeRequestRepository,

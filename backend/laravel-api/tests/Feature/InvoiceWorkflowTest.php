@@ -297,7 +297,7 @@ class InvoiceWorkflowTest extends TestCase
         $receiptEntry = ReceiptEntry::query()->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH,
+            'cash_account_id' => \App\Models\ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
             'total_amount' => 5000,
             'allocated_amount' => 0,
         ])->submit();

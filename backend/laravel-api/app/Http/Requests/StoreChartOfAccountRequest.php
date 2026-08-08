@@ -20,6 +20,7 @@ class StoreChartOfAccountRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'account_type' => ['required', Rule::enum(AccountType::class)],
             'is_active' => ['sometimes', 'boolean'],
+            'is_cash_bank' => ['sometimes', 'boolean'],
         ];
     }
 }

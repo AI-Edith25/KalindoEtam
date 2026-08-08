@@ -60,7 +60,7 @@ class InvoiceResource extends JsonResource
                     'receipt_entry_id' => $line->receipt_entry_id,
                     'receipt_entry_document_number' => $line->receiptEntry->document_number,
                     'receipt_date' => $line->receiptEntry->receipt_date?->format('Y-m-d'),
-                    'payment_method' => $line->receiptEntry->payment_method,
+                    'cash_account_name' => $line->receiptEntry->cashAccount?->name,
                 ])
                 : [],
             'credit_note_history' => $this->relationLoaded('creditNotes')

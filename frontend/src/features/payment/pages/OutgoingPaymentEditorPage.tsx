@@ -19,8 +19,7 @@ import { fetchSuppliersLookup, fetchChartOfAccountsLookup } from '@/features/mas
 import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymentEntry, type PaymentEntryPayload } from '../api/paymentEntryApi'
 import { OutstandingPayableSelect } from '../components/OutstandingPayableSelect'
 import { paymentEntryFormSchema, type PaymentEntryEditorValues } from '../lib/paymentEntryFormSchema'
-import { PAYMENT_METHOD_OPTIONS } from '../lib/paymentMethodLabels'
-import type { AccountsPayable, PaymentEntryType, PaymentMethod } from '../types'
+import type { AccountsPayable, PaymentEntryType } from '../types'
 
 const emptyValues: PaymentEntryEditorValues = {
   payment_type: 'supplier',
@@ -31,7 +30,7 @@ const emptyValues: PaymentEntryEditorValues = {
   description: '',
   amount: '',
   payment_date: '',
-  payment_method: '',
+  cash_account_id: '',
   reference_number: '',
   remarks: '',
 }
@@ -51,8 +50,9 @@ export function OutgoingPaymentEditorPage() {
   })
 
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
-  const expenseAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
-  const expenseAccountOptions = expenseAccounts.data?.filter((account) => account.account_type === 'expense') ?? []
+  const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
+  const expenseAccountOptions = chartOfAccounts.data?.filter((account) => account.account_type === 'expense') ?? []
+  const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank) ?? []
 
   const form = useForm<PaymentEntryEditorValues>({
     resolver: zodResolver(paymentEntryFormSchema),
@@ -80,7 +80,7 @@ export function OutgoingPaymentEditorPage() {
       description: payment.description ?? '',
       amount: payment.payment_type === 'general_expense' ? String(payment.total_amount) : line ? String(line.paid_amount) : '',
       payment_date: payment.payment_date,
-      payment_method: payment.payment_method,
+      cash_account_id: payment.cash_account_id ?? '',
       reference_number: payment.reference_number ?? '',
       remarks: payment.remarks ?? '',
     })
@@ -97,7 +97,7 @@ export function OutgoingPaymentEditorPage() {
               description: values.description,
               amount: Number(values.amount),
               payment_date: values.payment_date,
-              payment_method: values.payment_method as PaymentMethod,
+              cash_account_id: values.cash_account_id,
               reference_number: values.reference_number || null,
               remarks: values.remarks || null,
             }
@@ -106,7 +106,7 @@ export function OutgoingPaymentEditorPage() {
               supplier_id: values.supplier_id,
               items: [{ accounts_payable_id: values.accounts_payable_id, paid_amount: Number(values.amount) }],
               payment_date: values.payment_date,
-              payment_method: values.payment_method as PaymentMethod,
+              cash_account_id: values.cash_account_id,
               reference_number: values.reference_number || null,
               remarks: values.remarks || null,
             }
@@ -263,7 +263,7 @@ export function OutgoingPaymentEditorPage() {
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger className="w-full">
-                              <SelectValue placeholder={expenseAccounts.isLoading ? 'Loading…' : 'Select category'} />
+                              <SelectValue placeholder={chartOfAccounts.isLoading ? 'Loading…' : 'Select category'} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -309,20 +309,20 @@ export function OutgoingPaymentEditorPage() {
               />
               <FormField
                 control={form.control}
-                name="payment_method"
+                name="cash_account_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Payment Method</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select payment method" />
+                          <SelectValue placeholder={chartOfAccounts.isLoading ? 'Loading…' : 'Select cash/bank account'} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {PAYMENT_METHOD_OPTIONS.map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
+                        {cashAccountOptions.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

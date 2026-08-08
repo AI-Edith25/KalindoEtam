@@ -26,6 +26,7 @@ class ReceiptEntry extends Model
         'customer_id',
         'receipt_date',
         'payment_method',
+        'cash_account_id',
         'reference_number',
         'remarks',
         'total_amount',
@@ -50,6 +51,11 @@ class ReceiptEntry extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function cashAccount(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'cash_account_id');
     }
 
     public function items(): HasMany
@@ -78,27 +84,9 @@ class ReceiptEntry extends Model
     public function journalLines(): array
     {
         return [
-            ['account' => $this->cashAccountCode(), 'type' => 'debit', 'amount' => (float) $this->total_amount],
+            ['account' => $this->cashAccount->code, 'type' => 'debit', 'amount' => (float) $this->total_amount],
             ['account' => '1150', 'type' => 'credit', 'amount' => (float) $this->total_amount], // Unapplied Customer Payments
         ];
-    }
-
-    /**
-     * Every PaymentMethod case is listed explicitly (not a wildcard
-     * default) so adding a new case forces a decision here — today they
-     * all clear to one account.
-     * ponytail: split Bank Transfer/QRIS/Credit Card/Cheque into their own
-     * accounts once bank reconciliation needs the distinction.
-     */
-    protected function cashAccountCode(): string
-    {
-        return match ($this->payment_method) {
-            PaymentMethod::CASH,
-            PaymentMethod::BANK_TRANSFER,
-            PaymentMethod::CHEQUE,
-            PaymentMethod::QRIS,
-            PaymentMethod::CREDIT_CARD => '1100', // Cash and Bank
-        };
     }
 
     /**

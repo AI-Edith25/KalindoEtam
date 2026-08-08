@@ -14,21 +14,19 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchCustomersLookup } from '@/features/master/api/lookupsApi'
+import { fetchChartOfAccountsLookup, fetchCustomersLookup } from '@/features/master/api/lookupsApi'
 import { createReceiptEntry, fetchReceiptEntry, submitReceiptEntry, updateReceiptEntry } from '../api/receiptEntryApi'
 import { fetchAccountsReceivables } from '../api/accountsReceivableApi'
 import { allocatePayment } from '../api/paymentAllocationApi'
 import { OutstandingInvoicesTable } from '../components/OutstandingInvoicesTable'
 import { computeWaterfallAllocations } from '../lib/paymentAllocationWaterfall'
 import { receiptEntryFormSchema, type ReceiptEntryEditorValues } from '../lib/receiptEntryFormSchema'
-import { PAYMENT_METHOD_OPTIONS } from '../lib/paymentMethodLabels'
-import type { PaymentMethod } from '../types'
 
 const emptyValues: ReceiptEntryEditorValues = {
   customer_id: '',
   total_amount: '',
   receipt_date: '',
-  payment_method: '',
+  cash_account_id: '',
   reference_number: '',
   remarks: '',
 }
@@ -46,6 +44,8 @@ export function IncomingPaymentEditorPage() {
   })
 
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
+  const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
+  const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank) ?? []
 
   const form = useForm<ReceiptEntryEditorValues>({
     resolver: zodResolver(receiptEntryFormSchema),
@@ -93,7 +93,7 @@ export function IncomingPaymentEditorPage() {
       customer_id: receipt.customer_id,
       total_amount: String(receipt.total_amount),
       receipt_date: receipt.receipt_date,
-      payment_method: receipt.payment_method,
+      cash_account_id: receipt.cash_account_id ?? '',
       reference_number: receipt.reference_number ?? '',
       remarks: receipt.remarks ?? '',
     })
@@ -110,7 +110,7 @@ export function IncomingPaymentEditorPage() {
       const payload = {
         customer_id: values.customer_id,
         receipt_date: values.receipt_date,
-        payment_method: values.payment_method as PaymentMethod,
+        cash_account_id: values.cash_account_id,
         reference_number: values.reference_number || null,
         remarks: values.remarks || null,
         total_amount: Number(values.total_amount),
@@ -239,20 +239,20 @@ export function IncomingPaymentEditorPage() {
               />
               <FormField
                 control={form.control}
-                name="payment_method"
+                name="cash_account_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Payment Method</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select payment method" />
+                          <SelectValue placeholder={chartOfAccounts.isLoading ? 'Loading…' : 'Select cash/bank account'} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {PAYMENT_METHOD_OPTIONS.map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
+                        {cashAccountOptions.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

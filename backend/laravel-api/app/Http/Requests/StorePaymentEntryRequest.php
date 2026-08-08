@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\PaymentEntryType;
-use App\Enums\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -23,7 +22,7 @@ class StorePaymentEntryRequest extends FormRequest
             'description' => ['required_if:payment_type,general_expense', 'nullable', 'string', 'max:255'],
             'amount' => ['required_if:payment_type,general_expense', 'nullable', 'numeric', 'gt:0'],
             'payment_date' => ['required', 'date'],
-            'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
+            'cash_account_id' => ['required', 'uuid', Rule::exists('chart_of_accounts', 'id')->where('is_cash_bank', true)],
             'reference_number' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
             'items' => ['required_if:payment_type,supplier', 'nullable', 'array', 'min:1'],

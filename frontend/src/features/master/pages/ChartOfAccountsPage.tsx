@@ -8,6 +8,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { Badge } from '@/components/ui/badge'
 import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatNumber } from '@/lib/utils'
@@ -45,6 +46,7 @@ export function ChartOfAccountsPage() {
     { header: 'Code', accessor: (row) => row.code, sortKey: 'code' },
     { header: 'Name', accessor: (row) => row.name, sortKey: 'name' },
     { header: 'Type', accessor: (row) => <StatusBadge status={row.account_type} /> },
+    { header: 'Cash/Bank', accessor: (row) => (row.is_cash_bank ? <Badge variant="secondary">Cash/Bank</Badge> : null) },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.is_active ? 'active' : 'inactive'} /> },
     {
       header: '',

@@ -6,6 +6,7 @@ export interface ChartOfAccount {
   name: string
   account_type: AccountType
   is_active: boolean
+  is_cash_bank: boolean
   created_at: string
   updated_at: string
 }
@@ -15,6 +16,7 @@ export interface ChartOfAccountFormValues {
   name: string
   account_type: AccountType
   is_active?: boolean
+  is_cash_bank?: boolean
 }
 
 export type TaxType = 'vat' | 'zero_rated' | 'exempt'

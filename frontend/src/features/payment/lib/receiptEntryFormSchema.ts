@@ -11,7 +11,7 @@ export const receiptEntryFormSchema = z
     customer_id: z.string().min(1, 'Customer is required'),
     total_amount: z.string(),
     receipt_date: z.string().min(1, 'Receipt date is required'),
-    payment_method: z.string().min(1, 'Payment method is required'),
+    cash_account_id: z.string().min(1, 'Cash/Bank account is required'),
     reference_number: z.string().optional().or(z.literal('')),
     remarks: z.string().optional().or(z.literal('')),
   })

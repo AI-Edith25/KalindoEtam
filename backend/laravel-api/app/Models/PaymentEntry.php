@@ -30,6 +30,7 @@ class PaymentEntry extends Model
         'description',
         'payment_date',
         'payment_method',
+        'cash_account_id',
         'reference_number',
         'remarks',
         'total_amount',
@@ -60,6 +61,11 @@ class PaymentEntry extends Model
         return $this->belongsTo(ChartOfAccount::class, 'expense_account_id');
     }
 
+    public function cashAccount(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'cash_account_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PaymentEntryItem::class);
@@ -79,31 +85,14 @@ class PaymentEntry extends Model
         if ($this->payment_type === PaymentEntryType::GENERAL_EXPENSE) {
             return [
                 ['account' => $this->expenseAccount->code, 'type' => 'debit', 'amount' => (float) $this->total_amount],
-                ['account' => $this->cashAccountCode(), 'type' => 'credit', 'amount' => (float) $this->total_amount],
+                ['account' => $this->cashAccount->code, 'type' => 'credit', 'amount' => (float) $this->total_amount],
             ];
         }
 
         return [
             ['account' => '2000', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Accounts Payable
-            ['account' => $this->cashAccountCode(), 'type' => 'credit', 'amount' => (float) $this->total_amount],
+            ['account' => $this->cashAccount->code, 'type' => 'credit', 'amount' => (float) $this->total_amount],
         ];
-    }
-
-    /**
-     * Every PaymentMethod case is listed explicitly (not a wildcard
-     * default) so adding a new case forces a decision here — mirrors
-     * ReceiptEntry::cashAccountCode() exactly; today they all clear to one
-     * account.
-     */
-    protected function cashAccountCode(): string
-    {
-        return match ($this->payment_method) {
-            PaymentMethod::CASH,
-            PaymentMethod::BANK_TRANSFER,
-            PaymentMethod::CHEQUE,
-            PaymentMethod::QRIS,
-            PaymentMethod::CREDIT_CARD => '1100', // Cash and Bank
-        };
     }
 
     /**

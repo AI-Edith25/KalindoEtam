@@ -20,6 +20,7 @@ class UpdateChartOfAccountRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'account_type' => ['sometimes', 'required', Rule::enum(AccountType::class)],
             'is_active' => ['sometimes', 'boolean'],
+            'is_cash_bank' => ['sometimes', 'boolean'],
         ];
     }
 }

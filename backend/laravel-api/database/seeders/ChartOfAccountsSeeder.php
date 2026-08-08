@@ -18,7 +18,7 @@ class ChartOfAccountsSeeder extends Seeder
     {
         $accounts = [
             // Assets
-            ['code' => '1100', 'name' => 'Cash and Bank', 'account_type' => AccountType::ASSET],
+            ['code' => '1100', 'name' => 'Cash and Bank', 'account_type' => AccountType::ASSET, 'is_cash_bank' => true],
             ['code' => '1200', 'name' => 'Accounts Receivable', 'account_type' => AccountType::ASSET],
             ['code' => '1300', 'name' => 'Inventory', 'account_type' => AccountType::ASSET],
             // Liabilities
@@ -49,7 +49,7 @@ class ChartOfAccountsSeeder extends Seeder
         foreach ($accounts as $account) {
             ChartOfAccount::query()->firstOrCreate(
                 ['code' => $account['code']],
-                ['name' => $account['name'], 'account_type' => $account['account_type'], 'is_active' => true],
+                ['name' => $account['name'], 'account_type' => $account['account_type'], 'is_active' => true, 'is_cash_bank' => $account['is_cash_bank'] ?? false],
             );
         }
     }

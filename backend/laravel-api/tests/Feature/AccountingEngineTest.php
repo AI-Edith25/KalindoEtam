@@ -151,7 +151,7 @@ class AccountingEngineTest extends TestCase
         $receiptEntry = $this->receiptEntryService->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH,
+            'cash_account_id' => $this->accountId('1100'),
             'total_amount' => 100000,
         ]);
         $receiptEntry = $this->receiptEntryService->submit($receiptEntry);
@@ -262,7 +262,7 @@ class AccountingEngineTest extends TestCase
         $receiptEntry = $this->receiptEntryService->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH,
+            'cash_account_id' => $this->accountId('1100'),
             'total_amount' => 50000,
         ]);
 

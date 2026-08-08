@@ -35,7 +35,7 @@ class ReceiptEntryController extends Controller
 
     public function show(ReceiptEntry $receiptEntry): JsonResponse
     {
-        return $this->success(new ReceiptEntryResource($receiptEntry->load(['customer', 'items.accountsReceivable.invoice', 'items.accountsReceivable.delivery'])));
+        return $this->success(new ReceiptEntryResource($receiptEntry->load(['customer', 'cashAccount', 'items.accountsReceivable.invoice', 'items.accountsReceivable.delivery'])));
     }
 
     public function update(UpdateReceiptEntryRequest $request, ReceiptEntry $receiptEntry): JsonResponse

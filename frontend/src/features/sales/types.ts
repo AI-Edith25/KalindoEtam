@@ -148,7 +148,7 @@ export interface InvoicePaymentHistoryLine {
   receipt_entry_id: string
   receipt_entry_document_number: string | null
   receipt_date: string | null
-  payment_method: string
+  cash_account_name: string | null
 }
 
 export interface Invoice {

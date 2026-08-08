@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class PaymentEntryRepository extends BaseRepository
 {
-    protected const EAGER = ['supplier', 'expenseAccount', 'items.accountsPayable'];
+    protected const EAGER = ['supplier', 'expenseAccount', 'cashAccount', 'items.accountsPayable'];
 
     public function __construct(PaymentEntry $model)
     {

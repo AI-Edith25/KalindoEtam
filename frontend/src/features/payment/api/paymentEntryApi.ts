@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { DocumentStatus, PaymentEntry, PaymentEntryType, PaymentMethod } from '../types'
+import type { DocumentStatus, PaymentEntry, PaymentEntryType } from '../types'
 
 export interface PaymentEntryListParams {
   page: number
@@ -26,7 +26,7 @@ export interface PaymentEntryPayload {
   description?: string | null
   amount?: number
   payment_date: string
-  payment_method: PaymentMethod
+  cash_account_id: string
   reference_number: string | null
   remarks: string | null
 }

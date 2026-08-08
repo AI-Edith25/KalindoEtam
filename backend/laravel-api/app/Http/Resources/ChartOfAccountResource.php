@@ -15,6 +15,7 @@ class ChartOfAccountResource extends JsonResource
             'name' => $this->name,
             'account_type' => $this->account_type,
             'is_active' => $this->is_active,
+            'is_cash_bank' => $this->is_cash_bank,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

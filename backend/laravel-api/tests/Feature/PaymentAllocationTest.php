@@ -129,7 +129,7 @@ class PaymentAllocationTest extends TestCase
         $receiptEntry = ReceiptEntry::query()->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH,
+            'cash_account_id' => $this->accountId('1100'),
             'total_amount' => $amount,
             'allocated_amount' => 0,
         ]);
@@ -153,7 +153,7 @@ class PaymentAllocationTest extends TestCase
         $payment = $this->receiptEntryService->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH,
+            'cash_account_id' => $this->accountId('1100'),
             'total_amount' => 100000,
         ]);
         $payment = $this->receiptEntryService->submit($payment);
@@ -320,7 +320,7 @@ class PaymentAllocationTest extends TestCase
         $draftPayment = ReceiptEntry::query()->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH,
+            'cash_account_id' => $this->accountId('1100'),
             'total_amount' => 20000,
             'allocated_amount' => 0,
         ]);
@@ -437,7 +437,7 @@ class PaymentAllocationTest extends TestCase
         $draftPayment = ReceiptEntry::query()->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => now()->toDateString(),
-            'payment_method' => PaymentMethod::CASH,
+            'cash_account_id' => $this->accountId('1100'),
             'total_amount' => 50000,
             'allocated_amount' => 0,
         ]);
