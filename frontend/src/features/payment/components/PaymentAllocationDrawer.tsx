@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -20,13 +21,14 @@ interface PaymentAllocationDrawerProps {
 
 /**
  * Applies an already-received Payment to one or more outstanding Invoices'
- * receivables for the same customer. One amount input per outstanding
- * invoice, each capped at min(invoice outstanding, payment's remaining
- * unallocated balance) — submits every non-zero line as a single
- * allocateBatch() call, atomic under the hood.
+ * receivables for the same customer. Each row has a checkbox and an amount
+ * input, each capped at min(invoice outstanding, payment's remaining
+ * unallocated balance) — only checked rows count toward the total and get
+ * submitted as a single allocateBatch() call, atomic under the hood.
  */
 export function PaymentAllocationDrawer({ open, onOpenChange, receiptEntry }: PaymentAllocationDrawerProps) {
   const queryClient = useQueryClient()
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [amounts, setAmounts] = useState<Record<string, string>>({})
 
   const unallocated = Number(receiptEntry.unallocated_amount)
@@ -43,10 +45,16 @@ export function PaymentAllocationDrawer({ open, onOpenChange, receiptEntry }: Pa
   )
 
   useEffect(() => {
-    if (open) setAmounts({})
+    if (open) {
+      setAmounts({})
+      setSelected({})
+    }
   }, [open])
 
-  const enteredTotal = Object.values(amounts).reduce((sum, value) => sum + (Number(value) || 0), 0)
+  const enteredTotal = outstanding.reduce(
+    (sum, ar) => (selected[ar.id] ? sum + (Number(amounts[ar.id]) || 0) : sum),
+    0,
+  )
   const remaining = unallocated - enteredTotal
 
   const lineError = (arId: string, cap: number): string | null => {
@@ -56,16 +64,18 @@ export function PaymentAllocationDrawer({ open, onOpenChange, receiptEntry }: Pa
     return null
   }
 
-  const hasErrors = outstanding.some((ar) => lineError(ar.id, Math.min(Number(ar.outstanding_amount), unallocated)) !== null)
+  const hasErrors = outstanding.some(
+    (ar) => selected[ar.id] && lineError(ar.id, Math.min(Number(ar.outstanding_amount), unallocated)) !== null,
+  )
   const canSubmit = enteredTotal > 0 && remaining >= 0 && !hasErrors
 
   const mutation = useMutation({
     mutationFn: () =>
       allocatePayment(
         receiptEntry.id,
-        Object.entries(amounts)
-          .filter(([, value]) => Number(value) > 0)
-          .map(([accounts_receivable_id, value]) => ({ accounts_receivable_id, amount: Number(value) })),
+        outstanding
+          .filter((ar) => selected[ar.id] && Number(amounts[ar.id]) > 0)
+          .map((ar) => ({ accounts_receivable_id: ar.id, amount: Number(amounts[ar.id]) })),
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receipt-entries'] })
@@ -84,6 +94,10 @@ export function PaymentAllocationDrawer({ open, onOpenChange, receiptEntry }: Pa
           <SheetDescription>
             {receiptEntry.document_number} — unallocated balance: {formatCurrency(unallocated)}
           </SheetDescription>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Amount to Allocate</span>
+            <span className="font-medium">{formatCurrency(enteredTotal)}</span>
+          </div>
         </SheetHeader>
 
         <div className="flex flex-col gap-4 overflow-y-auto px-4">
@@ -100,9 +114,16 @@ export function PaymentAllocationDrawer({ open, onOpenChange, receiptEntry }: Pa
 
               return (
                 <div key={ar.id} className="flex flex-col gap-1.5 rounded-md border p-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{ar.invoice?.document_number ?? ar.reference_number}</span>
-                    <span className="text-muted-foreground">{formatDate(ar.invoice?.invoice_date)}</span>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      id={`select-${ar.id}`}
+                      checked={!!selected[ar.id]}
+                      onCheckedChange={(checked) => setSelected((prev) => ({ ...prev, [ar.id]: checked === true }))}
+                    />
+                    <Label htmlFor={`select-${ar.id}`} className="flex flex-1 items-center justify-between font-medium">
+                      <span>{ar.invoice?.document_number ?? ar.reference_number}</span>
+                      <span className="text-muted-foreground">{formatDate(ar.invoice?.invoice_date)}</span>
+                    </Label>
                   </div>
                   <p className="text-xs text-muted-foreground">Outstanding: {formatCurrency(ar.outstanding_amount)}</p>
                   <Label htmlFor={`allocation-${ar.id}`} className="sr-only">
