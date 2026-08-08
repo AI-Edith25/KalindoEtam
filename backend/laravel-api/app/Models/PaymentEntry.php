@@ -31,6 +31,7 @@ class PaymentEntry extends Model
         'payment_date',
         'payment_method',
         'cash_account_id',
+        'branch_id',
         'reference_number',
         'remarks',
         'total_amount',
@@ -64,6 +65,11 @@ class PaymentEntry extends Model
     public function cashAccount(): BelongsTo
     {
         return $this->belongsTo(ChartOfAccount::class, 'cash_account_id');
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function items(): HasMany

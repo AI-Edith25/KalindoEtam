@@ -15,7 +15,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { fetchSuppliersLookup, fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchSuppliersLookup, fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
 import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymentEntry, type PaymentEntryPayload } from '../api/paymentEntryApi'
 import { OutstandingPayableSelect } from '../components/OutstandingPayableSelect'
 import { paymentEntryFormSchema, type PaymentEntryEditorValues } from '../lib/paymentEntryFormSchema'
@@ -31,6 +31,7 @@ const emptyValues: PaymentEntryEditorValues = {
   amount: '',
   payment_date: '',
   cash_account_id: '',
+  branch_id: '',
   reference_number: '',
   remarks: '',
 }
@@ -53,6 +54,7 @@ export function OutgoingPaymentEditorPage() {
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
   const expenseAccountOptions = chartOfAccounts.data?.filter((account) => account.account_type === 'expense') ?? []
   const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank) ?? []
+  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
 
   const form = useForm<PaymentEntryEditorValues>({
     resolver: zodResolver(paymentEntryFormSchema),
@@ -81,6 +83,7 @@ export function OutgoingPaymentEditorPage() {
       amount: payment.payment_type === 'general_expense' ? String(payment.total_amount) : line ? String(line.paid_amount) : '',
       payment_date: payment.payment_date,
       cash_account_id: payment.cash_account_id ?? '',
+      branch_id: payment.branch_id ?? '',
       reference_number: payment.reference_number ?? '',
       remarks: payment.remarks ?? '',
     })
@@ -98,6 +101,7 @@ export function OutgoingPaymentEditorPage() {
               amount: Number(values.amount),
               payment_date: values.payment_date,
               cash_account_id: values.cash_account_id,
+              branch_id: values.branch_id || null,
               reference_number: values.reference_number || null,
               remarks: values.remarks || null,
             }
@@ -107,6 +111,7 @@ export function OutgoingPaymentEditorPage() {
               items: [{ accounts_payable_id: values.accounts_payable_id, paid_amount: Number(values.amount) }],
               payment_date: values.payment_date,
               cash_account_id: values.cash_account_id,
+              branch_id: values.branch_id || null,
               reference_number: values.reference_number || null,
               remarks: values.remarks || null,
             }
@@ -323,6 +328,30 @@ export function OutgoingPaymentEditorPage() {
                         {cashAccountOptions.map((account) => (
                           <SelectItem key={account.id} value={account.id}>
                             {account.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="branch_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Branch</FormLabel>
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Optional'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {branches.data?.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

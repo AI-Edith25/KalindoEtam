@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\ItemController;
 use App\Http\Controllers\Api\V1\ItemGroupController;
 use App\Http\Controllers\Api\V1\JournalEntryController;
+use App\Http\Controllers\Api\V1\JournalListController;
 use App\Http\Controllers\Api\V1\NamingSeriesController;
 use App\Http\Controllers\Api\V1\PaymentAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryController;
@@ -239,6 +240,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Its own distinct Accounting Reports page — no longer shares journal_entries' permission.
     Route::get('general-ledger/accounts', [GeneralLedgerController::class, 'accounts'])->middleware('permission:accounting.general_ledger.view');
     Route::get('general-ledger/accounts/{chartOfAccount}', [GeneralLedgerController::class, 'ledger'])->middleware('permission:accounting.general_ledger.view');
+
+    // Journal List: cash/bank journal lines grouped by transaction type (Petty Cash/Cash Book x
+    // Receipt/Payment), with a subtotal per group and a Branch filter resolved via the source
+    // Receipt/Payment Entry's own branch_id (journal_entry_lines.branch_id stays unpopulated,
+    // same as General Ledger's — this report deliberately doesn't touch it or General Ledger).
+    Route::get('journal-list', [JournalListController::class, 'index'])->middleware('permission:accounting.journal_list.view');
 
     // Trial Balance (Sprint 16A): a presentation layer over GeneralLedgerService::listAccounts()
     // — no new balance calculation, no new accounting table. See docs/TRIAL_BALANCE_DESIGN.md.

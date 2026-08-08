@@ -15,12 +15,15 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { createChartOfAccount, updateChartOfAccount } from '../api/chartOfAccountApi'
 import type { ChartOfAccount } from '../types'
 
+const UNCLASSIFIED = '__unclassified__'
+
 const chartOfAccountFormSchema = z.object({
   code: z.string().min(1, 'Code is required').max(20),
   name: z.string().min(1, 'Name is required').max(255),
   account_type: z.enum(['asset', 'liability', 'equity', 'revenue', 'expense']),
   is_active: z.boolean(),
   is_cash_bank: z.boolean(),
+  cash_bank_category: z.enum(['petty_cash', 'cash_book']).nullable(),
 })
 
 type ChartOfAccountFormValues = z.infer<typeof chartOfAccountFormSchema>
@@ -31,6 +34,7 @@ const emptyValues: ChartOfAccountFormValues = {
   account_type: 'asset',
   is_active: true,
   is_cash_bank: false,
+  cash_bank_category: null,
 }
 
 interface ChartOfAccountFormDrawerProps {
@@ -59,6 +63,7 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
             account_type: chartOfAccount.account_type,
             is_active: chartOfAccount.is_active,
             is_cash_bank: chartOfAccount.is_cash_bank,
+            cash_bank_category: chartOfAccount.cash_bank_category,
           }
         : emptyValues,
     )
@@ -167,6 +172,33 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
                   </FormItem>
                 )}
               />
+              {form.watch('is_cash_bank') && (
+                <FormField
+                  control={form.control}
+                  name="cash_bank_category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cash/Bank Category</FormLabel>
+                      <Select
+                        value={field.value ?? UNCLASSIFIED}
+                        onValueChange={(value) => field.onChange(value === UNCLASSIFIED ? null : value)}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Unclassified" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={UNCLASSIFIED}>Unclassified</SelectItem>
+                          <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                          <SelectItem value="cash_book">Cash Book</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <SheetFooter>

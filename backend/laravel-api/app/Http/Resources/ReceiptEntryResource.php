@@ -19,6 +19,8 @@ class ReceiptEntryResource extends JsonResource
             'receipt_date' => $this->receipt_date?->format('Y-m-d'),
             'cash_account_id' => $this->cash_account_id,
             'cash_account' => new ChartOfAccountResource($this->whenLoaded('cashAccount')),
+            'branch_id' => $this->branch_id,
+            'branch' => new BranchResource($this->whenLoaded('branch')),
             'reference_number' => $this->reference_number,
             'remarks' => $this->remarks,
             'total_amount' => $this->total_amount,

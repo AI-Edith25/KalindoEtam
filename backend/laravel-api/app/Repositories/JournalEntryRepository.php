@@ -45,7 +45,14 @@ class JournalEntryRepository extends BaseRepository
         return $this->model->query()->with(self::EAGER)->findOrFail($id);
     }
 
-    /** Used by AccountingService::reverseForDocument() — the still-active posted entry for a given source document, if any. */
+    /**
+     * Used by AccountingService::reverseForDocument() — the still-active posted entry for a given
+     * source document, if any. `whereNull('reverses_id')` excludes reversal entries themselves: a
+     * reversal is posted under the same reference_type/reference_id as the original but never gets
+     * its own reversed_by_id set, so without this filter a second reverse+repost cycle on the same
+     * reference (e.g. a second Invoice Rate correction) could match the leftover reversal entry
+     * instead of the live one and reverse the wrong side of the ledger.
+     */
     public function findActivePostedByReference(string $referenceType, string $referenceId): ?JournalEntry
     {
         return $this->model->query()
@@ -53,6 +60,7 @@ class JournalEntryRepository extends BaseRepository
             ->where('reference_id', $referenceId)
             ->where('status', DocumentStatus::SUBMITTED)
             ->whereNull('reversed_by_id')
+            ->whereNull('reverses_id')
             ->first();
     }
 

@@ -27,6 +27,7 @@ export interface PaymentEntryPayload {
   amount?: number
   payment_date: string
   cash_account_id: string
+  branch_id?: string | null
   reference_number: string | null
   remarks: string | null
 }

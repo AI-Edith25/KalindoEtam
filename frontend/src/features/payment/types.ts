@@ -1,4 +1,4 @@
-import type { ChartOfAccount, Customer, Supplier } from '@/features/master/types'
+import type { Branch, ChartOfAccount, Customer, Supplier } from '@/features/master/types'
 
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 export type SettlementStatus = 'unpaid' | 'partially_paid' | 'paid'
@@ -40,6 +40,8 @@ export interface PaymentEntry {
   payment_date: string
   cash_account_id: string | null
   cash_account: ChartOfAccount | null
+  branch_id: string | null
+  branch: Branch | null
   reference_number: string | null
   remarks: string | null
   total_amount: string | number
@@ -93,6 +95,8 @@ export interface ReceiptEntry {
   receipt_date: string
   cash_account_id: string | null
   cash_account: ChartOfAccount | null
+  branch_id: string | null
+  branch: Branch | null
   reference_number: string | null
   remarks: string | null
   total_amount: string | number

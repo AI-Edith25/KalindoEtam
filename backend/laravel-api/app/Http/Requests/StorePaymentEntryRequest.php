@@ -23,6 +23,7 @@ class StorePaymentEntryRequest extends FormRequest
             'amount' => ['required_if:payment_type,general_expense', 'nullable', 'numeric', 'gt:0'],
             'payment_date' => ['required', 'date'],
             'cash_account_id' => ['required', 'uuid', Rule::exists('chart_of_accounts', 'id')->where('is_cash_bank', true)],
+            'branch_id' => ['nullable', 'uuid', 'exists:branches,id'],
             'reference_number' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
             'items' => ['required_if:payment_type,supplier', 'nullable', 'array', 'min:1'],

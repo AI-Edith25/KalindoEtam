@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchChartOfAccountsLookup, fetchCustomersLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchChartOfAccountsLookup, fetchCustomersLookup } from '@/features/master/api/lookupsApi'
 import { createReceiptEntry, fetchReceiptEntry, submitReceiptEntry, updateReceiptEntry } from '../api/receiptEntryApi'
 import { fetchAccountsReceivables } from '../api/accountsReceivableApi'
 import { allocatePayment } from '../api/paymentAllocationApi'
@@ -27,6 +27,7 @@ const emptyValues: ReceiptEntryEditorValues = {
   total_amount: '',
   receipt_date: '',
   cash_account_id: '',
+  branch_id: '',
   reference_number: '',
   remarks: '',
 }
@@ -46,6 +47,7 @@ export function IncomingPaymentEditorPage() {
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
   const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank) ?? []
+  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
 
   const form = useForm<ReceiptEntryEditorValues>({
     resolver: zodResolver(receiptEntryFormSchema),
@@ -94,6 +96,7 @@ export function IncomingPaymentEditorPage() {
       total_amount: String(receipt.total_amount),
       receipt_date: receipt.receipt_date,
       cash_account_id: receipt.cash_account_id ?? '',
+      branch_id: receipt.branch_id ?? '',
       reference_number: receipt.reference_number ?? '',
       remarks: receipt.remarks ?? '',
     })
@@ -111,6 +114,7 @@ export function IncomingPaymentEditorPage() {
         customer_id: values.customer_id,
         receipt_date: values.receipt_date,
         cash_account_id: values.cash_account_id,
+        branch_id: values.branch_id || null,
         reference_number: values.reference_number || null,
         remarks: values.remarks || null,
         total_amount: Number(values.total_amount),
@@ -253,6 +257,30 @@ export function IncomingPaymentEditorPage() {
                         {cashAccountOptions.map((account) => (
                           <SelectItem key={account.id} value={account.id}>
                             {account.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="branch_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Branch</FormLabel>
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Optional'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {branches.data?.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

@@ -35,6 +35,7 @@ class ReceiptEntryService
                 'customer_id' => $data['customer_id'],
                 'receipt_date' => $data['receipt_date'],
                 'cash_account_id' => $data['cash_account_id'],
+                'branch_id' => $data['branch_id'] ?? null,
                 'reference_number' => $data['reference_number'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'total_amount' => $data['total_amount'],
@@ -54,7 +55,7 @@ class ReceiptEntryService
 
             $this->receiptEntryRepository->update($receiptEntry, $data);
 
-            $receiptEntry = $receiptEntry->fresh(['customer']);
+            $receiptEntry = $receiptEntry->fresh(['customer', 'branch']);
             $this->auditLogService->record('updated', 'receipt_entry', "Updated Receipt Entry \"{$receiptEntry->document_number}\".");
 
             return $receiptEntry;

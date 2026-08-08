@@ -1,5 +1,7 @@
 export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense'
 
+export type CashBankCategory = 'petty_cash' | 'cash_book'
+
 export interface ChartOfAccount {
   id: string
   code: string
@@ -7,6 +9,7 @@ export interface ChartOfAccount {
   account_type: AccountType
   is_active: boolean
   is_cash_bank: boolean
+  cash_bank_category: CashBankCategory | null
   created_at: string
   updated_at: string
 }
@@ -17,6 +20,7 @@ export interface ChartOfAccountFormValues {
   account_type: AccountType
   is_active?: boolean
   is_cash_bank?: boolean
+  cash_bank_category?: CashBankCategory | null
 }
 
 export type TaxType = 'vat' | 'zero_rated' | 'exempt'

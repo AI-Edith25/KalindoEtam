@@ -128,6 +128,38 @@ export interface TrialBalanceData {
   is_balanced: boolean
 }
 
+/**
+ * Journal List — cash/bank journal lines grouped by transaction type (e.g.
+ * "Petty Cash-Receipt", "Cash Book-Payment"), a presentation layer over
+ * journal_entries/journal_entry_lines like every other Accounting Report.
+ */
+export interface JournalListLine {
+  transaction: string | null
+  date: string | null
+  ref_no: string | null
+  particulars: string
+  debit: string | number
+  credit: string | number
+}
+
+export interface JournalListGroup {
+  key: string
+  label: string
+  rows: JournalListLine[]
+  subtotal: { debit: string | number; credit: string | number }
+}
+
+export interface JournalListData {
+  groups: JournalListGroup[]
+  grand_total: { debit: string | number; credit: string | number }
+}
+
+export interface JournalListFilterValues {
+  branchId: string | null
+  dateFrom: string
+  dateTo: string
+}
+
 export type TrialBalancePeriodPreset = 'this_month' | 'this_quarter' | 'this_fiscal_year' | 'custom'
 export type ProfitLossPeriodPreset = TrialBalancePeriodPreset
 

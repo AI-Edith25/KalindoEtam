@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AccountType;
+use App\Enums\CashBankCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -18,12 +19,14 @@ class ChartOfAccount extends Model
         'account_type',
         'is_active',
         'is_cash_bank',
+        'cash_bank_category',
     ];
 
     protected $casts = [
         'account_type' => AccountType::class,
         'is_active' => 'boolean',
         'is_cash_bank' => 'boolean',
+        'cash_bank_category' => CashBankCategory::class,
     ];
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\AccountType;
+use App\Enums\CashBankCategory;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,6 +22,7 @@ class UpdateChartOfAccountRequest extends FormRequest
             'account_type' => ['sometimes', 'required', Rule::enum(AccountType::class)],
             'is_active' => ['sometimes', 'boolean'],
             'is_cash_bank' => ['sometimes', 'boolean'],
+            'cash_bank_category' => ['nullable', Rule::enum(CashBankCategory::class)],
         ];
     }
 }

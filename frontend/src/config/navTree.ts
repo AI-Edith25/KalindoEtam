@@ -107,6 +107,7 @@ export const navTree: NavGroup[] = [
     icon: BookOpen,
     pages: [
       { key: 'journal_entries', label: 'Journal Entries', path: '/accounting/journal-entries', actions: ['view', 'create', 'update', 'delete', 'approve'] },
+      { key: 'journal_list', label: 'Journal List', path: '/accounting/journal-list', actions: ['view'] },
       { key: 'general_ledger', label: 'General Ledger', path: '/accounting/general-ledger', actions: ['view'] },
       { key: 'trial_balance', label: 'Trial Balance', path: '/accounting/trial-balance', actions: ['view'] },
       { key: 'profit_loss', label: 'Profit & Loss', path: '/accounting/profit-loss', actions: ['view'] },

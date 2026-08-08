@@ -27,6 +27,7 @@ class UpdatePaymentEntryRequest extends FormRequest
             'amount' => ['sometimes', 'nullable', 'numeric', 'gt:0'],
             'payment_date' => ['sometimes', 'required', 'date'],
             'cash_account_id' => ['sometimes', 'required', 'uuid', Rule::exists('chart_of_accounts', 'id')->where('is_cash_bank', true)],
+            'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
             'reference_number' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array', 'min:1'],
