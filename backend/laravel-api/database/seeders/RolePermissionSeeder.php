@@ -89,7 +89,19 @@ class RolePermissionSeeder extends Seeder
         }
 
         foreach ($permissionNames as $name) {
-            Permission::query()->firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+            // Permission has SoftDeletes, and the (name, guard_name) unique index doesn't
+            // exempt trashed rows — a plain firstOrCreate() can't see a soft-deleted row
+            // (Eloquent's default scope excludes it) but the INSERT it then attempts still
+            // collides with it, throwing a duplicate-key error instead of finding it. Any
+            // permission previously soft-deleted (e.g. by a rename migration later reverted)
+            // must be looked up including trashed and restored, not blindly re-created.
+            $permission = Permission::withTrashed()->firstOrNew(['name' => $name, 'guard_name' => 'web']);
+
+            if ($permission->trashed()) {
+                $permission->restore();
+            } elseif (! $permission->exists) {
+                $permission->save();
+            }
         }
 
         $adminRole = Role::query()->firstOrCreate(['name' => 'Admin', 'guard_name' => 'web']);
