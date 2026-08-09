@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Download, Eye, Plus, RotateCw, Send, Upload } from 'lucide-react'
@@ -22,16 +22,9 @@ import type { JournalEntry, JournalEntryFilterValues } from '../types'
 /** Journal Search + Journal Filters (the ticket's terms) are this page's search box + filter bar, not separate routes — matching every other module's convention. */
 export function JournalEntryListPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const queryClient = useQueryClient()
-  // Reused unchanged at /finance/journal — a second navigation entry point onto the same
-  // pages, with its own independent finance.journal permission (see navTree.ts). Approval
-  // stays out of scope here entirely (List has no approve-related UI).
-  const isFinance = location.pathname.startsWith('/finance/journal')
-  const basePath = isFinance ? '/finance/journal' : '/accounting/journal-entries'
-  const permissionPrefix = isFinance ? 'finance.journal' : 'accounting.journal_entries'
-  const canCreate = useHasPermission(`${permissionPrefix}.create`)
-  const canUpdate = useHasPermission(`${permissionPrefix}.update`)
+  const canCreate = useHasPermission('accounting.journal_entries.create')
+  const canUpdate = useHasPermission('accounting.journal_entries.update')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -64,7 +57,7 @@ export function JournalEntryListPage() {
   const rows = listQuery.data?.data ?? []
 
   const actionsFor = (entry: JournalEntry): RowAction[] => {
-    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`${basePath}/${entry.id}`) }]
+    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/accounting/journal-entries/${entry.id}`) }]
 
     if (entry.status === 'draft' && canUpdate) {
       actions.push({ label: 'Post', icon: Send, onClick: () => postMutation.mutate(entry.id) })
@@ -93,7 +86,7 @@ export function JournalEntryListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav group={isFinance ? 'finance' : 'accounting'} />
+      <SectionNav group="accounting" />
 
       <PageHeader
         title="Journal Entries"
@@ -106,7 +99,7 @@ export function JournalEntryListPage() {
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: true },
             ]}
-            primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate(`${basePath}/new`) } : undefined}
+            primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate('/accounting/journal-entries/new') } : undefined}
           />
         }
       />
@@ -137,7 +130,7 @@ export function JournalEntryListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No journal entries match your search or filters.' : 'No journal entries yet.'}
-        onRowClick={(row) => navigate(`${basePath}/${row.id}`)}
+        onRowClick={(row) => navigate(`/accounting/journal-entries/${row.id}`)}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}

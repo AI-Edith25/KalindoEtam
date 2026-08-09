@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -27,11 +27,7 @@ export function JournalEntryEditorPage() {
   const { id } = useParams<{ id: string }>()
   const isEdit = !!id
   const navigate = useNavigate()
-  const location = useLocation()
   const queryClient = useQueryClient()
-  // Reused unchanged at /finance/journal/... — only navigation targets change; ApprovalPanel's
-  // module stays hardcoded to accounting.journal_entries regardless (see navTree.ts's comment).
-  const basePath = location.pathname.startsWith('/finance/journal') ? '/finance/journal' : '/accounting/journal-entries'
 
   const entryQuery = useQuery({
     queryKey: ['journal-entries', id],
@@ -50,7 +46,7 @@ export function JournalEntryEditorPage() {
 
     if (entry.status !== 'draft') {
       toast.error('Only draft Journal Entries can be edited.')
-      navigate(`${basePath}/${entry.id}`, { replace: true })
+      navigate(`/accounting/journal-entries/${entry.id}`, { replace: true })
       return
     }
 
@@ -87,7 +83,7 @@ export function JournalEntryEditorPage() {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success(isEdit ? 'Journal Entry updated.' : 'Journal Entry saved as draft.')
       if (!isEdit) {
-        navigate(`${basePath}/${entry.id}/edit`, { replace: true })
+        navigate(`/accounting/journal-entries/${entry.id}/edit`, { replace: true })
       }
     },
     onError: (error) => toastApiError(error),
@@ -98,7 +94,7 @@ export function JournalEntryEditorPage() {
     onSuccess: (entry) => {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success('Journal Entry posted.')
-      navigate(`${basePath}/${entry.id}`)
+      navigate(`/accounting/journal-entries/${entry.id}`)
     },
     onError: (error) => toastApiError(error),
   })
@@ -206,7 +202,7 @@ export function JournalEntryEditorPage() {
           )}
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => navigate(basePath)}>
+            <Button type="button" variant="outline" onClick={() => navigate('/accounting/journal-entries')}>
               Cancel
             </Button>
             <Button type="submit" variant="outline" disabled={saveMutation.isPending || !isBalanced}>

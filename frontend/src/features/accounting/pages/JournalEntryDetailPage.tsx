@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ExternalLink, Loader2, Pencil, RotateCcw, Send, Trash2 } from 'lucide-react'
@@ -30,12 +30,8 @@ const lineColumns: DataTableColumn<JournalEntryLine>[] = [
 export function JournalEntryDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const location = useLocation()
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  // Reused unchanged at /finance/journal/... — only navigation targets change; ApprovalPanel's
-  // module stays hardcoded to accounting.journal_entries regardless (see navTree.ts's comment).
-  const basePath = location.pathname.startsWith('/finance/journal') ? '/finance/journal' : '/accounting/journal-entries'
 
   const entryQuery = useQuery({
     queryKey: ['journal-entries', id],
@@ -58,7 +54,7 @@ export function JournalEntryDetailPage() {
     onSuccess: (reversal) => {
       invalidate()
       toast.success('Journal Entry reversed.')
-      navigate(`${basePath}/${reversal.id}`)
+      navigate(`/accounting/journal-entries/${reversal.id}`)
     },
     onError: (error) => toastApiError(error),
   })
@@ -68,7 +64,7 @@ export function JournalEntryDetailPage() {
     onSuccess: () => {
       invalidate()
       toast.success('Journal Entry deleted.')
-      navigate(basePath)
+      navigate('/accounting/journal-entries')
     },
     onError: (error) => toastApiError(error),
   })
@@ -96,7 +92,7 @@ export function JournalEntryDetailPage() {
           <div className="flex items-center gap-2">
             {entry.status === 'draft' && (
               <>
-                <Button variant="outline" onClick={() => navigate(`${basePath}/${entry.id}/edit`)}>
+                <Button variant="outline" onClick={() => navigate(`/accounting/journal-entries/${entry.id}/edit`)}>
                   <Pencil className="size-4" />
                   Edit
                 </Button>
@@ -156,7 +152,7 @@ export function JournalEntryDetailPage() {
               <DetailField
                 label="Reverses"
                 value={
-                  <Button variant="link" className="h-auto p-0" onClick={() => navigate(`${basePath}/${entry.reverses_id}`)}>
+                  <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/accounting/journal-entries/${entry.reverses_id}`)}>
                     {entry.reverses_document_number ?? '—'}
                     <ExternalLink className="size-3.5" />
                   </Button>
@@ -170,7 +166,7 @@ export function JournalEntryDetailPage() {
                   <Button
                     variant="link"
                     className="h-auto p-0"
-                    onClick={() => navigate(`${basePath}/${entry.reversed_by_id}`)}
+                    onClick={() => navigate(`/accounting/journal-entries/${entry.reversed_by_id}`)}
                   >
                     {entry.reversed_by_document_number ?? '—'}
                     <ExternalLink className="size-3.5" />
