@@ -33,7 +33,7 @@ class ApprovalService
     protected const MODULES = [
         SalesOrder::class => 'sales.orders',
         PurchaseOrder::class => 'purchase.orders',
-        JournalEntry::class => 'accounting.journal_entries',
+        JournalEntry::class => 'finance.journal_entries',
     ];
 
     public function __construct(

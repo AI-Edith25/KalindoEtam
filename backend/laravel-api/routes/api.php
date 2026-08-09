@@ -222,10 +222,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
 
     // Accounting Engine (Sprint 11): Invoice/Receipt Entry -> Accounting Service -> Journal Entry -> General Ledger.
     $withPagePermissions(Route::apiResource('chart-of-accounts', ChartOfAccountController::class), 'master.chart_of_accounts');
-    $withPagePermissions(Route::apiResource('journal-entries', JournalEntryController::class), 'accounting.journal_entries');
-    Route::post('journal-entries/{journalEntry}/post', [JournalEntryController::class, 'post'])->middleware('permission:accounting.journal_entries.update');
-    Route::post('journal-entries/{journalEntry}/reverse', [JournalEntryController::class, 'reverse'])->middleware('permission:accounting.journal_entries.update');
-    Route::post('journal-entries/{journalEntry}/request-approval', [JournalEntryController::class, 'requestApproval'])->middleware('permission:accounting.journal_entries.update');
+    $withPagePermissions(Route::apiResource('journal-entries', JournalEntryController::class), 'finance.journal_entries');
+    Route::post('journal-entries/{journalEntry}/post', [JournalEntryController::class, 'post'])->middleware('permission:finance.journal_entries.update');
+    Route::post('journal-entries/{journalEntry}/reverse', [JournalEntryController::class, 'reverse'])->middleware('permission:finance.journal_entries.update');
+    Route::post('journal-entries/{journalEntry}/request-approval', [JournalEntryController::class, 'requestApproval'])->middleware('permission:finance.journal_entries.update');
 
     // Approval Workflow (Sprint 24B) — one shared engine for Sales Order, Purchase Order, and
     // manual Journal Entry (docs/APPROVAL_WORKFLOW_DESIGN.md §1). approve()/reject() serve all
@@ -295,7 +295,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
         // Sprint 23B (docs/DASHBOARD_DESIGN.md §4) — each new widget endpoint gated
         // behind the same existing page permission that already gates that
         // page's own section, not a new generic "dashboard" permission.
-        Route::get('financial-summary', [DashboardController::class, 'financialSummary'])->middleware('permission:accounting.journal_entries.view');
+        Route::get('financial-summary', [DashboardController::class, 'financialSummary'])->middleware('permission:finance.journal_entries.view');
         Route::get('sales-trend', [DashboardController::class, 'salesTrend'])->middleware('permission:sales.orders.view');
         Route::get('purchase-trend', [DashboardController::class, 'purchaseTrend'])->middleware('permission:purchase.orders.view');
         Route::get('inventory-movement', [DashboardController::class, 'inventoryMovement'])->middleware('permission:master.items.view');

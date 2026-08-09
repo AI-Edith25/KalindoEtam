@@ -23,8 +23,8 @@ import type { JournalEntry, JournalEntryFilterValues } from '../types'
 export function JournalEntryListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canCreate = useHasPermission('accounting.journal_entries.create')
-  const canUpdate = useHasPermission('accounting.journal_entries.update')
+  const canCreate = useHasPermission('finance.journal_entries.create')
+  const canUpdate = useHasPermission('finance.journal_entries.update')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -57,7 +57,7 @@ export function JournalEntryListPage() {
   const rows = listQuery.data?.data ?? []
 
   const actionsFor = (entry: JournalEntry): RowAction[] => {
-    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/accounting/journal-entries/${entry.id}`) }]
+    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/finance/journal/${entry.id}`) }]
 
     if (entry.status === 'draft' && canUpdate) {
       actions.push({ label: 'Post', icon: Send, onClick: () => postMutation.mutate(entry.id) })
@@ -86,7 +86,7 @@ export function JournalEntryListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav group="accounting" />
+      <SectionNav group="finance" />
 
       <PageHeader
         title="Journal Entries"
@@ -99,7 +99,7 @@ export function JournalEntryListPage() {
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: true },
             ]}
-            primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate('/accounting/journal-entries/new') } : undefined}
+            primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate('/finance/journal/new') } : undefined}
           />
         }
       />
@@ -130,7 +130,7 @@ export function JournalEntryListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No journal entries match your search or filters.' : 'No journal entries yet.'}
-        onRowClick={(row) => navigate(`/accounting/journal-entries/${row.id}`)}
+        onRowClick={(row) => navigate(`/finance/journal/${row.id}`)}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}

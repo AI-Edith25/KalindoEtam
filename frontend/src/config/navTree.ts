@@ -99,6 +99,7 @@ export const navTree: NavGroup[] = [
     pages: [
       { key: 'outgoing_payment', label: 'Outgoing Payment', path: '/finance/outgoing', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'incoming_payment', label: 'Incoming Payment', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'journal_entries', label: 'General Journal', path: '/finance/journal', actions: ['view', 'create', 'update', 'delete', 'approve'] },
     ],
   },
   {
@@ -106,7 +107,6 @@ export const navTree: NavGroup[] = [
     label: 'Accounting Reports',
     icon: BookOpen,
     pages: [
-      { key: 'journal_entries', label: 'Journal Entries', path: '/accounting/journal-entries', actions: ['view', 'create', 'update', 'delete', 'approve'] },
       { key: 'journal_list', label: 'Journal List', path: '/accounting/journal-list', actions: ['view'] },
       { key: 'general_ledger', label: 'General Ledger', path: '/accounting/general-ledger', actions: ['view'] },
       { key: 'trial_balance', label: 'Trial Balance', path: '/accounting/trial-balance', actions: ['view'] },
