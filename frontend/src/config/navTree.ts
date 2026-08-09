@@ -99,6 +99,12 @@ export const navTree: NavGroup[] = [
     pages: [
       { key: 'outgoing_payment', label: 'Outgoing Payment', path: '/finance/outgoing', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'incoming_payment', label: 'Incoming Payment', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete'] },
+      // Reuses the same JournalEntry* page components as accounting.journal_entries (a second
+      // navigation entry point for daily Finance use, not a second feature) — deliberately its
+      // own independent permission, no 'approve' action: ApprovalService.php hardcodes the
+      // approval-module mapping per model class on the backend, so Journal Entry approval must
+      // stay solely gated by accounting.journal_entries.approve regardless of entry point.
+      { key: 'journal', label: 'General Journal', path: '/finance/journal', actions: ['view', 'create', 'update', 'delete'] },
     ],
   },
   {

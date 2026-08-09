@@ -52,6 +52,11 @@ class RolePermissionSeeder extends Seeder
         'finance.accounts_payable' => ['view'],
         'finance.accounts_receivable' => ['view'],
         'finance.payment_allocation' => ['create', 'update'],
+        // Second navigation entry point onto the same Journal Entry pages as
+        // accounting.journal_entries (daily Finance-menu access), deliberately independent and
+        // with no 'approve' — see navTree.ts's own comment on this page for why. Not granted to
+        // any role by this seeder; existing roles must be given it explicitly via Role Management.
+        'finance.journal' => ['view', 'create', 'update', 'delete'],
         'accounting.journal_entries' => ['view', 'create', 'update', 'delete', 'approve'],
         'accounting.journal_list' => ['view'],
         'accounting.general_ledger' => ['view'],
