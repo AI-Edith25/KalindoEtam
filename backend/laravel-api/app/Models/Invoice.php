@@ -10,6 +10,7 @@ use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -70,14 +71,28 @@ class Invoice extends Model
         };
     }
 
+    /** The anchor/primary Delivery (earliest delivery_date among the sources) — kept for backward compatibility. See deliveries() for the full source history. */
     public function delivery(): BelongsTo
     {
         return $this->belongsTo(Delivery::class);
     }
 
+    /** Authoritative full source history — every Delivery this Invoice was created from, one or many. */
+    public function deliveries(): BelongsToMany
+    {
+        return $this->belongsToMany(Delivery::class, 'invoice_deliveries');
+    }
+
+    /** The anchor/primary Sales Order (of the anchor Delivery) — kept for backward compatibility. See salesOrders() for the full source history. */
     public function salesOrder(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class);
+    }
+
+    /** Authoritative full source history — every Sales Order behind the source Deliveries, one or many. */
+    public function salesOrders(): BelongsToMany
+    {
+        return $this->belongsToMany(SalesOrder::class, 'invoice_sales_orders');
     }
 
     public function customer(): BelongsTo

@@ -174,7 +174,7 @@ class TaxEngineTest extends TestCase
         $tax = $this->makeTax();
         $delivery = $this->submittedDelivery(qty: 5, rate: 20000);
         $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_id' => $tax->id,
@@ -211,7 +211,7 @@ class TaxEngineTest extends TestCase
     {
         $tax = $this->makeTax(['is_active' => false]);
 
-        $validator = validator(['delivery_id' => (string) Str::uuid(), 'invoice_date' => now()->toDateString(), 'due_date' => now()->toDateString(), 'tax_id' => $tax->id], (new StoreInvoiceRequest())->rules());
+        $validator = validator(['delivery_ids' => [(string) Str::uuid()], 'invoice_date' => now()->toDateString(), 'due_date' => now()->toDateString(), 'tax_id' => $tax->id], (new StoreInvoiceRequest())->rules());
 
         $this->assertTrue($validator->fails());
         $this->assertArrayHasKey('tax_id', $validator->errors()->toArray());
@@ -225,7 +225,7 @@ class TaxEngineTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 5, rate: 20000); // subtotal 100000
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_id' => $tax->id,
@@ -241,7 +241,7 @@ class TaxEngineTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 5, rate: 20000);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_amount' => 7500,
@@ -258,7 +258,7 @@ class TaxEngineTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 5, rate: 20000); // subtotal 100000
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_id' => $taxA->id,
@@ -280,7 +280,7 @@ class TaxEngineTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 5, rate: 20000);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_id' => $tax->id,

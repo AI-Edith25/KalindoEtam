@@ -107,7 +107,7 @@ class InvoiceChangeRequestTest extends TestCase
         $this->deliveryService->submit($delivery);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_type' => $type->value,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
@@ -151,7 +151,7 @@ class InvoiceChangeRequestTest extends TestCase
         ]);
         $this->deliveryService->submit($delivery);
         $draftInvoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_type' => InvoiceType::TRANSPORTATION->value,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),

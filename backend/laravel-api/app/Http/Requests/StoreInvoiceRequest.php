@@ -18,7 +18,10 @@ class StoreInvoiceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'delivery_id' => ['required', 'uuid', 'exists:deliveries,id'],
+            // All selected Deliveries must share the same Customer and be delivered/not-yet-invoiced —
+            // enforced in InvoiceService::create() (business logic, not request shape).
+            'delivery_ids' => ['required', 'array', 'min:1'],
+            'delivery_ids.*' => ['uuid', 'distinct', 'exists:deliveries,id'],
             // Drives which Naming Series generates document_number — see Invoice::documentType().
             'invoice_type' => ['required', Rule::enum(InvoiceType::class)],
             'invoice_date' => ['required', 'date'],

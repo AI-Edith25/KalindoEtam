@@ -101,7 +101,7 @@ class AccountsReceivableDetailReportTest extends TestCase
         $this->deliveryService->submit($delivery);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => $dueDate,
         ]);

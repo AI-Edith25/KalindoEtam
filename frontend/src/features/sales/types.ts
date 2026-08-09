@@ -160,7 +160,9 @@ export interface Invoice {
   revision: number
   delivery_id: string
   delivery: { id: string; document_number: string | null } | null
+  deliveries: { id: string; document_number: string | null }[]
   sales_order_id: string
+  sales_orders: { id: string; document_number: string | null }[]
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; phone: string | null; address: string | null } | null
   invoice_date: string
@@ -191,7 +193,7 @@ export interface Invoice {
 }
 
 export interface InvoiceFormValues {
-  delivery_id: string
+  delivery_ids: string[]
   invoice_type?: InvoiceType
   invoice_date: string
   due_date: string

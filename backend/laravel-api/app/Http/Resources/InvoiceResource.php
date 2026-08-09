@@ -28,7 +28,15 @@ class InvoiceResource extends JsonResource
                 'id' => $this->delivery->id,
                 'document_number' => $this->delivery->document_number,
             ]),
+            'deliveries' => $this->whenLoaded('deliveries', fn () => $this->deliveries->map(fn ($delivery) => [
+                'id' => $delivery->id,
+                'document_number' => $delivery->document_number,
+            ])),
             'sales_order_id' => $this->sales_order_id,
+            'sales_orders' => $this->whenLoaded('salesOrders', fn () => $this->salesOrders->map(fn ($salesOrder) => [
+                'id' => $salesOrder->id,
+                'document_number' => $salesOrder->document_number,
+            ])),
             'customer_id' => $this->customer_id,
             'customer' => new CustomerResource($this->whenLoaded('customer')),
             'invoice_date' => $this->invoice_date?->format('Y-m-d'),

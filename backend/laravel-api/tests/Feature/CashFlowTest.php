@@ -123,7 +123,7 @@ class CashFlowTest extends TestCase
         $this->deliveryService->submit($delivery);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => $invoiceDate ?? now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_amount' => $taxAmount,

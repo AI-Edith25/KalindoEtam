@@ -110,7 +110,7 @@ class AccountingEngineTest extends TestCase
         $delivery = $this->submittedDelivery($qty, $rate);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_amount' => $taxAmount,
@@ -239,7 +239,7 @@ class AccountingEngineTest extends TestCase
 
         $delivery = $this->submittedDelivery(qty: 3, rate: 15000);
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);

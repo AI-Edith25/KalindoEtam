@@ -25,7 +25,7 @@ class DeliveryResource extends JsonResource
             'terms_of_payment' => new TermsOfPaymentResource($this->whenLoaded('termsOfPayment')),
             'remarks' => $this->remarks,
             'items' => DeliveryItemResource::collection($this->whenLoaded('items')),
-            'is_invoiced' => $this->whenLoaded('invoice', fn () => $this->invoice !== null),
+            'is_invoiced' => $this->whenLoaded('invoices', fn () => $this->invoices->isNotEmpty()),
             'submitted_at' => $this->submitted_at,
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,

@@ -104,7 +104,7 @@ class InvoiceWorkflowTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_amount' => 11000,
@@ -121,7 +121,7 @@ class InvoiceWorkflowTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'discount_type' => 'amount',
@@ -140,7 +140,7 @@ class InvoiceWorkflowTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'discount_type' => 'percentage',
@@ -161,7 +161,7 @@ class InvoiceWorkflowTest extends TestCase
         $this->expectException(BusinessException::class);
 
         $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'discount_type' => 'amount',
@@ -174,7 +174,7 @@ class InvoiceWorkflowTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 1, rate: 10000);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'discount_amount' => 1000,
@@ -190,7 +190,7 @@ class InvoiceWorkflowTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -211,7 +211,7 @@ class InvoiceWorkflowTest extends TestCase
         $delivery = $this->submittedDelivery();
 
         $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -219,10 +219,144 @@ class InvoiceWorkflowTest extends TestCase
         $this->expectException(BusinessException::class);
 
         $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
+    }
+
+    public function test_invoice_can_be_created_from_multiple_deliveries_of_the_same_customer(): void
+    {
+        $deliveryA = $this->submittedDelivery(qty: 10, rate: 10000);
+        $deliveryB = $this->submittedDelivery(qty: 5, rate: 20000);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_ids' => [$deliveryA->id, $deliveryB->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertEquals(200000, (float) $invoice->subtotal);
+        $this->assertCount(2, $invoice->items);
+        $this->assertCount(2, $invoice->deliveries);
+        $this->assertEqualsCanonicalizing([$deliveryA->id, $deliveryB->id], $invoice->deliveries->pluck('id')->all());
+    }
+
+    public function test_merging_deliveries_from_different_customers_is_rejected(): void
+    {
+        $deliveryA = $this->submittedDelivery();
+
+        $otherCustomer = Customer::query()->create(['customer_code' => 'C002', 'customer_name' => 'Wayne Inc']);
+        $salesOrder = $this->salesOrderService->create([
+            'customer_id' => $otherCustomer->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 10000]],
+        ]);
+        $this->approveDocument($salesOrder);
+        $this->salesOrderService->submit($salesOrder);
+        $deliveryB = $this->deliveryService->create([
+            'sales_order_id' => $salesOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'delivery_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => 5]],
+        ]);
+        $deliveryB = $this->deliveryService->submit($deliveryB);
+
+        $this->expectException(BusinessException::class);
+
+        $this->invoiceService->create([
+            'delivery_ids' => [$deliveryA->id, $deliveryB->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+    }
+
+    /**
+     * The critical regression this redesign exists to prevent: eligibility
+     * must be checked against the full invoice_deliveries pivot, not just
+     * the anchor invoices.delivery_id column — otherwise the Delivery that
+     * *isn't* the anchor of a merged Invoice would still look "not yet
+     * invoiced" and could be invoiced again elsewhere.
+     */
+    public function test_a_non_anchor_delivery_from_a_merged_invoice_cannot_be_invoiced_again(): void
+    {
+        $deliveryA = $this->submittedDelivery(qty: 10, rate: 10000);
+        $deliveryB = $this->submittedDelivery(qty: 5, rate: 20000);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_ids' => [$deliveryA->id, $deliveryB->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $nonAnchorId = $invoice->delivery_id === $deliveryA->id ? $deliveryB->id : $deliveryA->id;
+
+        $this->expectException(BusinessException::class);
+
+        $this->invoiceService->create([
+            'delivery_ids' => [$nonAnchorId],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+    }
+
+    public function test_a_merged_invoice_tracks_every_source_sales_order(): void
+    {
+        $deliveryA = $this->submittedDelivery(qty: 10, rate: 10000);
+        $deliveryB = $this->submittedDelivery(qty: 5, rate: 20000);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_ids' => [$deliveryA->id, $deliveryB->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertCount(2, $invoice->salesOrders);
+        $this->assertEqualsCanonicalizing(
+            [$deliveryA->sales_order_id, $deliveryB->sales_order_id],
+            $invoice->salesOrders->pluck('id')->all()
+        );
+        $this->assertContains($invoice->sales_order_id, [$deliveryA->sales_order_id, $deliveryB->sales_order_id]);
+    }
+
+    public function test_merging_two_deliveries_from_the_same_sales_order_does_not_duplicate_the_sales_order_link(): void
+    {
+        $salesOrder = $this->salesOrderService->create([
+            'customer_id' => $this->customer->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 10, 'rate' => 10000]],
+        ]);
+        $this->approveDocument($salesOrder);
+        $this->salesOrderService->submit($salesOrder);
+        $soItem = $salesOrder->items->first();
+
+        $deliveryA = $this->deliveryService->create([
+            'sales_order_id' => $salesOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'delivery_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['sales_order_item_id' => $soItem->id, 'qty' => 5]],
+        ]);
+        $deliveryA = $this->deliveryService->submit($deliveryA);
+
+        $deliveryB = $this->deliveryService->create([
+            'sales_order_id' => $salesOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'delivery_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['sales_order_item_id' => $soItem->id, 'qty' => 5]],
+        ]);
+        $deliveryB = $this->deliveryService->submit($deliveryB);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_ids' => [$deliveryA->id, $deliveryB->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertCount(1, $invoice->salesOrders);
+        $this->assertSame($salesOrder->id, $invoice->salesOrders->first()->id);
     }
 
     public function test_submitting_an_invoice_creates_the_accounts_receivable_record_not_the_delivery(): void
@@ -232,7 +366,7 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertDatabaseCount('accounts_receivables', 0);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -252,7 +386,7 @@ class InvoiceWorkflowTest extends TestCase
         $delivery = $this->submittedDelivery(qty: 2, rate: 50000);
 
         $invoice = $this->invoiceService->create([
-            'delivery_id' => $delivery->id,
+            'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);

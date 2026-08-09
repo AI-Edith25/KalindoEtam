@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class InvoiceRepository extends BaseRepository
 {
-    protected const EAGER = ['customer', 'salesOrder', 'delivery', 'items', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount'];
+    protected const EAGER = ['customer', 'salesOrder', 'salesOrders', 'delivery', 'deliveries', 'items', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount'];
 
     public function __construct(Invoice $model)
     {
@@ -28,6 +28,7 @@ class InvoiceRepository extends BaseRepository
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['invoice_type'] ?? null, fn ($query, $invoiceType) => $query->where('invoice_type', $invoiceType))
             ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
+            // Anchor-only: matches the primary Delivery, not every source Delivery on a merged Invoice.
             ->when($filters['delivery_id'] ?? null, fn ($query, $deliveryId) => $query->where('delivery_id', $deliveryId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '<=', $date))

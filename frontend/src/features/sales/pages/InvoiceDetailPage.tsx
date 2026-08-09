@@ -30,6 +30,48 @@ const lineColumns: DataTableColumn<InvoiceItem>[] = [
   { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
 ]
 
+function buildDeliveryColumns(navigate: (path: string) => void): DataTableColumn<{ id: string; document_number: string | null }>[] {
+  return [
+    {
+      header: 'Delivery No',
+      accessor: (row) => (
+        <Button
+          variant="link"
+          className="h-auto p-0"
+          onClick={(event) => {
+            event.stopPropagation()
+            navigate(`/sales/deliveries/${row.id}`)
+          }}
+        >
+          {row.document_number ?? '—'}
+          <ExternalLink className="size-3.5" />
+        </Button>
+      ),
+    },
+  ]
+}
+
+function buildSalesOrderColumns(navigate: (path: string) => void): DataTableColumn<{ id: string; document_number: string | null }>[] {
+  return [
+    {
+      header: 'Sales Order No',
+      accessor: (row) => (
+        <Button
+          variant="link"
+          className="h-auto p-0"
+          onClick={(event) => {
+            event.stopPropagation()
+            navigate(`/sales/orders/${row.id}`)
+          }}
+        >
+          {row.document_number ?? '—'}
+          <ExternalLink className="size-3.5" />
+        </Button>
+      ),
+    },
+  ]
+}
+
 function buildPaymentColumns(navigate: (path: string) => void): DataTableColumn<InvoicePaymentHistoryLine>[] {
   return [
     {
@@ -262,19 +304,16 @@ export function InvoiceDetailPage() {
           <CardTitle>Delivery Information</CardTitle>
         </CardHeader>
         <CardContent>
-          <DetailField
-            label="Delivery"
-            value={
-              invoice.delivery ? (
-                <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/sales/deliveries/${invoice.delivery_id}`)}>
-                  {invoice.delivery.document_number ?? '—'}
-                  <ExternalLink className="size-3.5" />
-                </Button>
-              ) : (
-                '—'
-              )
-            }
-          />
+          <DataTable columns={buildDeliveryColumns(navigate)} data={invoice.deliveries} rowKey={(row) => row.id} emptyMessage="No deliveries linked." />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Sales Order Information</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DataTable columns={buildSalesOrderColumns(navigate)} data={invoice.sales_orders} rowKey={(row) => row.id} emptyMessage="No sales orders linked." />
         </CardContent>
       </Card>
 

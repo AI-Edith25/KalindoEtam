@@ -13,6 +13,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -71,8 +73,17 @@ export function InvoiceEditorPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null)
+  const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<Set<string>>(new Set())
   const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType | null>(null)
+
+  const toggleDelivery = (deliveryId: string, checked: boolean) => {
+    setSelectedDeliveryIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(deliveryId)
+      else next.delete(deliveryId)
+      return next
+    })
+  }
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -80,14 +91,19 @@ export function InvoiceEditorPage() {
     enabled: isEdit,
   })
 
-  // Eligible = submitted and not yet invoiced. Fetched only in create mode, before a Delivery is picked.
+  // Eligible = submitted and not yet invoiced. Fetched only in create mode, before any Delivery is picked.
   const eligibleDeliveriesQuery = useQuery({
     queryKey: ['deliveries-eligible-for-invoice'],
     queryFn: () => fetchDeliveries({ page: 1, per_page: 100, status: 'submitted' }),
     enabled: !isEdit,
   })
   const eligibleDeliveries = (eligibleDeliveriesQuery.data?.data ?? []).filter((delivery) => !delivery.is_invoiced)
-  const selectedDelivery = eligibleDeliveries.find((delivery) => delivery.id === selectedDeliveryId) ?? null
+  const selectedDeliveries = eligibleDeliveries.filter((delivery) => selectedDeliveryIds.has(delivery.id))
+  // Once ≥1 Delivery is checked, only Deliveries from the same Customer remain selectable.
+  const selectedCustomerId = selectedDeliveries[0]?.customer_id ?? null
+  const selectableDeliveries = selectedCustomerId
+    ? eligibleDeliveries.filter((delivery) => delivery.customer_id === selectedCustomerId)
+    : eligibleDeliveries
 
   useEffect(() => {
     const invoice = invoiceQuery.data
@@ -109,11 +125,13 @@ export function InvoiceEditorPage() {
   }
 
   // Step 1 (create mode only): pick the Invoice Type (which Naming Series numbers it) and
-  // the Delivery this invoice originates from — both fixed for the invoice's lifetime.
-  if (!isEdit && (!selectedDeliveryId || !selectedInvoiceType)) {
+  // one or more Deliveries this invoice originates from — both fixed for the invoice's lifetime.
+  if (!isEdit && (selectedDeliveryIds.size === 0 || !selectedInvoiceType)) {
+    const allSelectableChecked = selectableDeliveries.length > 0 && selectableDeliveries.every((delivery) => selectedDeliveryIds.has(delivery.id))
+
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="New Invoice" description="Every Invoice originates from exactly one delivered, not-yet-invoiced Delivery." />
+        <PageHeader title="New Invoice" description="An Invoice can combine one or more delivered, not-yet-invoiced Deliveries from the same Customer." />
         <Card>
           <CardHeader>
             <CardTitle>Select Invoice Type &amp; Delivery</CardTitle>
@@ -137,27 +155,57 @@ export function InvoiceEditorPage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Delivery</label>
-              <Select value={selectedDeliveryId ?? ''} onValueChange={setSelectedDeliveryId} disabled={eligibleDeliveriesQuery.isLoading}>
-                <SelectTrigger className="w-full sm:w-96">
-                  <SelectValue
-                    placeholder={
-                      eligibleDeliveriesQuery.isLoading
-                        ? 'Loading…'
-                        : eligibleDeliveries.length === 0
-                          ? 'No deliveries available to invoice'
-                          : 'Select delivery'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {eligibleDeliveries.map((delivery) => (
-                    <SelectItem key={delivery.id} value={delivery.id}>
-                      {delivery.document_number} — {delivery.customer?.customer_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">Only delivered orders that have not already been invoiced are shown.</p>
+              {eligibleDeliveriesQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : selectableDeliveries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No deliveries available to invoice.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={allSelectableChecked}
+                            onCheckedChange={(checked) => selectableDeliveries.forEach((delivery) => toggleDelivery(delivery.id, checked === true))}
+                            aria-label="Select all eligible deliveries"
+                          />
+                        </TableHead>
+                        <TableHead>Document Number</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Delivery Date</TableHead>
+                        <TableHead className="text-right">Items</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectableDeliveries.map((delivery) => {
+                        const checked = selectedDeliveryIds.has(delivery.id)
+                        return (
+                          <TableRow key={delivery.id} data-state={checked ? 'selected' : undefined}>
+                            <TableCell>
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(value) => toggleDelivery(delivery.id, value === true)}
+                                aria-label={`Select ${delivery.document_number}`}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{delivery.document_number}</TableCell>
+                            <TableCell>{delivery.customer?.customer_name}</TableCell>
+                            <TableCell>{delivery.delivery_date}</TableCell>
+                            <TableCell className="text-right">{delivery.items.length}</TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Only delivered orders that have not already been invoiced are shown — once you select one, only Deliveries from the same Customer remain
+                selectable.
+              </p>
             </div>
             <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/sales/invoices')}>
               Cancel
@@ -180,17 +228,23 @@ export function InvoiceEditorPage() {
 
   return (
     <InvoiceForm
-      key={isEdit ? id : selectedDeliveryId}
+      key={isEdit ? id : Array.from(selectedDeliveryIds).sort().join(',')}
       isEdit={isEdit}
       id={id}
       invoice={invoiceQuery.data}
-      selectedDelivery={selectedDelivery}
-      selectedDeliveryId={selectedDeliveryId}
+      selectedDeliveries={selectedDeliveries}
       selectedInvoiceType={selectedInvoiceType}
       navigate={navigate}
       queryClient={queryClient}
     />
   )
+}
+
+/** Same fallback tier the single-Delivery flow already used (Delivery's own TOP, then the Customer's default when unusable) — extended so "the selected Deliveries disagree on Terms of Payment" also falls through to the Customer's default, rather than silently picking one Delivery's value. */
+function resolveTermsOfPaymentDefault(deliveries: Delivery[]): string {
+  const uniqueTop = new Set(deliveries.map((delivery) => delivery.terms_of_payment_id ?? null))
+  const sharedTop = uniqueTop.size === 1 ? [...uniqueTop][0] : null
+  return sharedTop ?? deliveries[0]?.customer?.terms_of_payment_id ?? ''
 }
 
 /**
@@ -206,8 +260,7 @@ function InvoiceForm({
   isEdit,
   id,
   invoice,
-  selectedDelivery,
-  selectedDeliveryId,
+  selectedDeliveries,
   selectedInvoiceType,
   navigate,
   queryClient,
@@ -215,8 +268,7 @@ function InvoiceForm({
   isEdit: boolean
   id: string | undefined
   invoice: Invoice | undefined
-  selectedDelivery: Delivery | null
-  selectedDeliveryId: string | null
+  selectedDeliveries: Delivery[]
   selectedInvoiceType: InvoiceType | null
   navigate: NavigateFunction
   queryClient: QueryClient
@@ -245,11 +297,11 @@ function InvoiceForm({
         }
       : {
           ...emptyInvoiceEditorValues,
-          // Inherits whatever Terms of Payment was actually used on the source Delivery
-          // (a deliberate override, not just the Customer's default re-derived again),
-          // falling back to the Customer's own default only if the Delivery had none.
-          // Still freely changeable — this is only the starting value.
-          terms_of_payment_id: selectedDelivery?.terms_of_payment_id ?? selectedDelivery?.customer?.terms_of_payment_id ?? '',
+          // Inherits whatever Terms of Payment the selected Deliveries agree on (a deliberate
+          // override, not just the Customer's default re-derived again), falling back to the
+          // Customer's own default when they disagree or have none. Still freely changeable —
+          // this is only the starting value. See resolveTermsOfPaymentDefault().
+          terms_of_payment_id: resolveTermsOfPaymentDefault(selectedDeliveries),
         },
   })
 
@@ -277,7 +329,7 @@ function InvoiceForm({
   }, [watchedTopId, watchedInvoiceDate, termsOfPayment.data])
 
   const toPayload = (values: InvoiceEditorValues): InvoiceFormValues => ({
-    delivery_id: selectedDeliveryId ?? '',
+    delivery_ids: selectedDeliveries.map((delivery) => delivery.id),
     // Immutable once created (see invoiceFormSchema.ts) — only sent on create; UpdateInvoiceRequest
     // doesn't accept it, so omitting it here on edit is what the backend already expects.
     ...(isEdit ? {} : { invoice_type: selectedInvoiceType ?? undefined }),
@@ -328,7 +380,9 @@ function InvoiceForm({
   const watchedTaxId = form.watch('tax_id')
   const selectedTax = taxOptions.find((tax) => tax.id === watchedTaxId) ?? null
 
-  const previewLines: PreviewLine[] = isEdit ? (invoice?.items ?? []).map((line) => ({ ...line })) : (selectedDelivery?.items ?? []).map((line) => ({ ...line }))
+  const previewLines: PreviewLine[] = isEdit
+    ? (invoice?.items ?? []).map((line) => ({ ...line }))
+    : selectedDeliveries.flatMap((delivery) => delivery.items.map((line) => ({ ...line })))
   const subtotal = previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
   // Preview only — InvoiceService::resolveDiscount() on the backend is the authoritative
   // computation on save; this mirrors that same formula purely for instant visual feedback.
@@ -355,15 +409,17 @@ function InvoiceForm({
     saveMutation.mutate(values)
   })
 
-  const delivery = isEdit ? invoice?.delivery : selectedDelivery
-  const customerName = isEdit ? invoice?.customer?.customer_name : selectedDelivery?.customer?.customer_name
+  const deliveryLabel = isEdit
+    ? invoice?.deliveries?.map((d) => d.document_number).join(', ')
+    : selectedDeliveries.map((delivery) => delivery.document_number).join(', ')
+  const customerName = isEdit ? invoice?.customer?.customer_name : selectedDeliveries[0]?.customer?.customer_name
   const invoiceType = isEdit ? invoice?.invoice_type : selectedInvoiceType
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${invoice?.document_number ?? 'Invoice'}` : 'New Invoice'}
-        description={`Invoicing ${delivery?.document_number ?? ''} — ${customerName ?? ''}.`}
+        description={`Invoicing ${deliveryLabel ?? ''} — ${customerName ?? ''}.`}
       />
 
       <Form {...form}>
@@ -377,7 +433,7 @@ function InvoiceForm({
               <div className="flex flex-col gap-0.5 sm:col-span-2">
                 <span className="text-xs text-muted-foreground">Delivery</span>
                 <span className="text-sm font-medium">
-                  {delivery?.document_number} — {customerName}
+                  {deliveryLabel} — {customerName}
                 </span>
               </div>
               <div className="flex flex-col gap-0.5">

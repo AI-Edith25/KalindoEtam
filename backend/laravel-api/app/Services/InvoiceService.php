@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesOrder', 'delivery', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
+    protected const EAGER = ['customer', 'salesOrder', 'salesOrders', 'delivery', 'deliveries', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
@@ -39,24 +39,41 @@ class InvoiceService
 
     /**
      * Invoice items are never entered by the user — they are copied from
-     * the Delivery's own items, so Invoice content can never drift from
-     * what was actually delivered. Invoice cannot exist without exactly
-     * one source Delivery.
+     * the selected Deliveries' own items, so Invoice content can never
+     * drift from what was actually delivered. One or more Deliveries may
+     * be combined into a single Invoice as long as they share the same
+     * Customer. invoices.delivery_id/sales_order_id keep pointing at the
+     * anchor Delivery/Sales Order (earliest delivery_date, tie-broken by
+     * id — deterministic regardless of selection order) purely for
+     * backward compatibility with existing readers (including the frozen
+     * AccountsReceivableService); deliveries()/salesOrders() are the
+     * authoritative full source history.
      */
     public function create(array $data): Invoice
     {
         return DB::transaction(function () use ($data) {
-            $delivery = $this->deliveryRepository->findOrFail($data['delivery_id']);
+            $deliveries = collect($data['delivery_ids'])
+                ->map(fn (string $id) => $this->deliveryRepository->findOrFail($id))
+                ->sortBy(fn ($delivery) => [$delivery->delivery_date, $delivery->id])
+                ->values();
 
-            if ($delivery->status !== DocumentStatus::SUBMITTED) {
-                throw new BusinessException('Delivery must be delivered before it can be invoiced.');
+            foreach ($deliveries as $delivery) {
+                if ($delivery->status !== DocumentStatus::SUBMITTED) {
+                    throw new BusinessException("Delivery {$delivery->document_number} must be delivered before it can be invoiced.");
+                }
+
+                if ($delivery->invoices->isNotEmpty()) {
+                    throw new BusinessException("Delivery {$delivery->document_number} has already been invoiced.");
+                }
             }
 
-            if ($delivery->invoice !== null) {
-                throw new BusinessException('This Delivery has already been invoiced.');
+            if ($deliveries->pluck('customer_id')->unique()->count() > 1) {
+                throw new BusinessException('All selected Deliveries must belong to the same Customer.');
             }
 
-            $subtotal = $delivery->items->sum('amount');
+            $anchor = $deliveries->first();
+
+            $subtotal = $deliveries->sum(fn ($delivery) => (float) $delivery->items->sum('amount'));
             [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
             [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
             $grandTotal = $subtotal - $discountAmount + $taxAmount;
@@ -66,9 +83,9 @@ class InvoiceService
             }
 
             $invoice = $this->invoiceRepository->create([
-                'delivery_id' => $delivery->id,
-                'sales_order_id' => $delivery->sales_order_id,
-                'customer_id' => $delivery->customer_id,
+                'delivery_id' => $anchor->id,
+                'sales_order_id' => $anchor->sales_order_id,
+                'customer_id' => $anchor->customer_id,
                 // Defaults to Goods — every caller that predates Sprint 2 (Invoice Numbering),
                 // including existing tests, never passes this and means Goods either way.
                 'invoice_type' => $data['invoice_type'] ?? InvoiceType::GOODS->value,
@@ -85,19 +102,24 @@ class InvoiceService
                 'remarks' => $data['remarks'] ?? null,
             ]);
 
-            foreach ($delivery->items as $line) {
-                $this->invoiceItemRepository->create([
-                    'invoice_id' => $invoice->id,
-                    'delivery_item_id' => $line->id,
-                    'item_id' => $line->item_id,
-                    'item_code' => $line->item_code,
-                    'item_name' => $line->item_name,
-                    'uom' => $line->uom,
-                    'rate' => $line->rate,
-                    'qty' => $line->qty,
-                    'amount' => $line->amount,
-                ]);
+            foreach ($deliveries as $delivery) {
+                foreach ($delivery->items as $line) {
+                    $this->invoiceItemRepository->create([
+                        'invoice_id' => $invoice->id,
+                        'delivery_item_id' => $line->id,
+                        'item_id' => $line->item_id,
+                        'item_code' => $line->item_code,
+                        'item_name' => $line->item_name,
+                        'uom' => $line->uom,
+                        'rate' => $line->rate,
+                        'qty' => $line->qty,
+                        'amount' => $line->amount,
+                    ]);
+                }
             }
+
+            $invoice->deliveries()->sync($deliveries->pluck('id')->all());
+            $invoice->salesOrders()->sync($deliveries->pluck('sales_order_id')->unique()->all());
 
             $invoice = $invoice->fresh(self::EAGER);
             $this->auditLogService->record('created', 'invoice', "Created Invoice \"{$invoice->document_number}\".");

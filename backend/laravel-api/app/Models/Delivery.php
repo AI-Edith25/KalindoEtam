@@ -9,8 +9,8 @@ use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Delivery extends Model
@@ -71,14 +71,16 @@ class Delivery extends Model
     }
 
     /**
-     * Derived "has this Delivery been invoiced" check — enforced for real
-     * by the unique constraint on invoices.delivery_id, not by a status
-     * flag on this model (Delivery's own status is the shared
+     * "Has this Delivery been invoiced" is derived from this relation being
+     * non-empty — enforced for real by the unique constraint on
+     * invoice_deliveries.delivery_id (a Delivery can belong to at most one
+     * Invoice, but that Invoice may combine several Deliveries), not by a
+     * status flag on this model (Delivery's own status is the shared
      * DocumentStatus enum that Documentable's submit()/cancel() guard on).
      */
-    public function invoice(): HasOne
+    public function invoices(): BelongsToMany
     {
-        return $this->hasOne(Invoice::class);
+        return $this->belongsToMany(Invoice::class, 'invoice_deliveries');
     }
 
     /**
