@@ -38,6 +38,17 @@ return new class extends Migration
      * unique-index drop is skipped if already gone. The backfill uses
      * insertOrIgnore so re-running it never duplicates or errors on rows a
      * prior attempt already inserted.
+     *
+     * Second recovery detail, confirmed against a real production run:
+     * invoices.delivery_id's existing foreign key (to deliveries) currently
+     * relies on the UNIQUE index as its only supporting index — MySQL/InnoDB
+     * requires every foreign-keyed column to have *some* supporting index at
+     * all times, so dropping the unique one outright fails with "Cannot drop
+     * index 'invoices_delivery_id_unique': needed in a foreign key
+     * constraint" (error 1553). A plain, non-unique index is created first
+     * (only if one doesn't already exist) so the FK always has a supporting
+     * index to fall back on the moment the unique one goes away — the
+     * foreign key itself is never touched, only which index backs it.
      */
     public function up(): void
     {
@@ -59,10 +70,18 @@ return new class extends Migration
             });
         });
 
-        $stillHasUniqueIndex = collect(Schema::getIndexes('invoices'))
-            ->contains(fn (array $index) => $index['name'] === 'invoices_delivery_id_unique');
+        $invoiceIndexes = collect(Schema::getIndexes('invoices'));
+        $hasUniqueIndex = $invoiceIndexes->contains(fn (array $index) => $index['name'] === 'invoices_delivery_id_unique');
 
-        if ($stillHasUniqueIndex) {
+        if ($hasUniqueIndex) {
+            $hasPlainIndex = $invoiceIndexes->contains(fn (array $index) => $index['name'] === 'invoices_delivery_id_index');
+
+            if (! $hasPlainIndex) {
+                Schema::table('invoices', function (Blueprint $table) {
+                    $table->index('delivery_id');
+                });
+            }
+
             Schema::table('invoices', function (Blueprint $table) {
                 $table->dropUnique(['delivery_id']);
             });
@@ -95,6 +114,12 @@ return new class extends Migration
         Schema::table('invoices', function (Blueprint $table) {
             $table->unique('delivery_id');
         });
+
+        if (collect(Schema::getIndexes('invoices'))->contains(fn (array $index) => $index['name'] === 'invoices_delivery_id_index')) {
+            Schema::table('invoices', function (Blueprint $table) {
+                $table->dropIndex(['delivery_id']);
+            });
+        }
 
         Schema::dropIfExists('invoice_sales_orders');
         Schema::dropIfExists('invoice_deliveries');
