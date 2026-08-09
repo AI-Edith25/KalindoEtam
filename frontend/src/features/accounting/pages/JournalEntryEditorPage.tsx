@@ -46,7 +46,7 @@ export function JournalEntryEditorPage() {
 
     if (entry.status !== 'draft') {
       toast.error('Only draft Journal Entries can be edited.')
-      navigate(`/finance/journal/${entry.id}`, { replace: true })
+      navigate(`/accounting/journal-entries/${entry.id}`, { replace: true })
       return
     }
 
@@ -83,7 +83,7 @@ export function JournalEntryEditorPage() {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success(isEdit ? 'Journal Entry updated.' : 'Journal Entry saved as draft.')
       if (!isEdit) {
-        navigate(`/finance/journal/${entry.id}/edit`, { replace: true })
+        navigate(`/accounting/journal-entries/${entry.id}/edit`, { replace: true })
       }
     },
     onError: (error) => toastApiError(error),
@@ -94,7 +94,7 @@ export function JournalEntryEditorPage() {
     onSuccess: (entry) => {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success('Journal Entry posted.')
-      navigate(`/finance/journal/${entry.id}`)
+      navigate(`/accounting/journal-entries/${entry.id}`)
     },
     onError: (error) => toastApiError(error),
   })
@@ -194,7 +194,7 @@ export function JournalEntryEditorPage() {
             <ApprovalPanel
               approvableType={APPROVABLE_TYPE}
               approvableId={id!}
-              module="finance.journal_entries"
+              module="accounting.journal_entries"
               documentStatus={entryQuery.data.status}
               documentLabel={entryQuery.data.document_number ?? 'this Journal Entry'}
               onChanged={invalidate}
@@ -202,7 +202,7 @@ export function JournalEntryEditorPage() {
           )}
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => navigate('/finance/journal')}>
+            <Button type="button" variant="outline" onClick={() => navigate('/accounting/journal-entries')}>
               Cancel
             </Button>
             <Button type="submit" variant="outline" disabled={saveMutation.isPending || !isBalanced}>

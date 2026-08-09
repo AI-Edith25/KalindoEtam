@@ -6,7 +6,7 @@ import type { ApprovableModule, ApprovalFlow } from '../types'
 const REQUEST_APPROVAL_PATHS: Record<ApprovableModule, (id: string) => string> = {
   'sales.orders': (id) => `/sales-orders/${id}/request-approval`,
   'purchase.orders': (id) => `/purchase-orders/${id}/request-approval`,
-  'finance.journal_entries': (id) => `/journal-entries/${id}/request-approval`,
+  'accounting.journal_entries': (id) => `/journal-entries/${id}/request-approval`,
 }
 
 export async function requestApproval(module: ApprovableModule, documentId: string): Promise<ApprovalFlow> {

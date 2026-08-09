@@ -153,7 +153,7 @@ Body: a `DataTable`, one row per `journal_entry_line`:
 | Date | Journal No | Reference | Description | Debit | Credit | Running Balance |
 |---|---|---|---|---|---|---|
 
-- **Journal No** links to `/finance/journal/:id` (existing page, unchanged).
+- **Journal No** links to `/accounting/journal-entries/:id` (existing page, unchanged).
 - **Reference** reuses `resolveJournalReferenceLink()` (existing, unchanged — already resolves `Invoice`/`Credit Note`/`Debit Note`/`Receipt Entry` labels to their detail pages) so a ledger line for a Debit Note is one click from its own DBN-00001 detail page, same as today's Journal Entry Detail page.
 - Filter row above the table: Date Range, Reference Type, Reference Number, Document Status, Branch (Company omitted here — a single account's ledger is already branch/company-scoped by definition once that data exists; Company stays a Ledger-List-only filter).
 

@@ -54,7 +54,7 @@ export function JournalEntryDetailPage() {
     onSuccess: (reversal) => {
       invalidate()
       toast.success('Journal Entry reversed.')
-      navigate(`/finance/journal/${reversal.id}`)
+      navigate(`/accounting/journal-entries/${reversal.id}`)
     },
     onError: (error) => toastApiError(error),
   })
@@ -64,7 +64,7 @@ export function JournalEntryDetailPage() {
     onSuccess: () => {
       invalidate()
       toast.success('Journal Entry deleted.')
-      navigate('/finance/journal')
+      navigate('/accounting/journal-entries')
     },
     onError: (error) => toastApiError(error),
   })
@@ -92,7 +92,7 @@ export function JournalEntryDetailPage() {
           <div className="flex items-center gap-2">
             {entry.status === 'draft' && (
               <>
-                <Button variant="outline" onClick={() => navigate(`/finance/journal/${entry.id}/edit`)}>
+                <Button variant="outline" onClick={() => navigate(`/accounting/journal-entries/${entry.id}/edit`)}>
                   <Pencil className="size-4" />
                   Edit
                 </Button>
@@ -152,7 +152,7 @@ export function JournalEntryDetailPage() {
               <DetailField
                 label="Reverses"
                 value={
-                  <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/finance/journal/${entry.reverses_id}`)}>
+                  <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/accounting/journal-entries/${entry.reverses_id}`)}>
                     {entry.reverses_document_number ?? '—'}
                     <ExternalLink className="size-3.5" />
                   </Button>
@@ -166,7 +166,7 @@ export function JournalEntryDetailPage() {
                   <Button
                     variant="link"
                     className="h-auto p-0"
-                    onClick={() => navigate(`/finance/journal/${entry.reversed_by_id}`)}
+                    onClick={() => navigate(`/accounting/journal-entries/${entry.reversed_by_id}`)}
                   >
                     {entry.reversed_by_document_number ?? '—'}
                     <ExternalLink className="size-3.5" />
@@ -205,7 +205,7 @@ export function JournalEntryDetailPage() {
         <ApprovalPanel
           approvableType={APPROVABLE_TYPE}
           approvableId={entry.id}
-          module="finance.journal_entries"
+          module="accounting.journal_entries"
           documentStatus={entry.status}
           documentLabel={entry.document_number ?? 'this Journal Entry'}
           onChanged={invalidate}

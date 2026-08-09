@@ -19,7 +19,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils'
  */
 export function DashboardPage() {
   const canViewInventory = useHasPermission('master.items.view')
-  const canViewFinancials = useHasPermission('finance.journal_entries.view')
+  const canViewFinancials = useHasPermission('accounting.journal_entries.view')
   const canViewPayable = useHasPermission('finance.accounts_payable.view')
   const canViewReceivable = useHasPermission('finance.accounts_receivable.view')
   const canViewDashboard = useHasPermission('dashboard.view')

@@ -158,10 +158,10 @@ export function AppRouter() {
         <Route path="/finance/outgoing/:id/edit" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentDetailPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id/print" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentPrintPage /></ProtectedRoute>} />
-        <Route path="/finance/journal" element={<ProtectedRoute permission="finance.journal_entries.view"><JournalEntryListPage /></ProtectedRoute>} />
-        <Route path="/finance/journal/new" element={<ProtectedRoute permission="finance.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
-        <Route path="/finance/journal/:id/edit" element={<ProtectedRoute permission="finance.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
-        <Route path="/finance/journal/:id" element={<ProtectedRoute permission="finance.journal_entries.view"><JournalEntryDetailPage /></ProtectedRoute>} />
+        <Route path="/accounting/journal-entries" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryListPage /></ProtectedRoute>} />
+        <Route path="/accounting/journal-entries/new" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
+        <Route path="/accounting/journal-entries/:id/edit" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
+        <Route path="/accounting/journal-entries/:id" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryDetailPage /></ProtectedRoute>} />
         <Route path="/accounting/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListListPage /></ProtectedRoute>} />
         <Route path="/accounting/journal-list/print" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListPrintPage /></ProtectedRoute>} />
         <Route path="/accounting/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />

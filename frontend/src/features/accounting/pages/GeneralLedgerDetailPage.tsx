@@ -66,7 +66,7 @@ export function GeneralLedgerDetailPage() {
           className="h-auto p-0"
           onClick={(event) => {
             event.stopPropagation()
-            navigate(`/finance/journal/${row.journal_entry_id}`)
+            navigate(`/accounting/journal-entries/${row.journal_entry_id}`)
           }}
         >
           {row.journal_number ?? '—'}
