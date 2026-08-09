@@ -24,10 +24,10 @@ class InvoiceResource extends JsonResource
             'display_status' => $this->resolveDisplayStatus(),
             'revision' => $this->revision,
             'delivery_id' => $this->delivery_id,
-            'delivery' => $this->whenLoaded('delivery', fn () => [
+            'delivery' => $this->whenLoaded('delivery', fn () => $this->delivery ? [
                 'id' => $this->delivery->id,
                 'document_number' => $this->delivery->document_number,
-            ]),
+            ] : null),
             'deliveries' => $this->whenLoaded('deliveries', fn () => $this->deliveries->map(fn ($delivery) => [
                 'id' => $delivery->id,
                 'document_number' => $delivery->document_number,

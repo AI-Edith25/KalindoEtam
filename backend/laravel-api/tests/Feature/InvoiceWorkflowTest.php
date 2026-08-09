@@ -3,25 +3,31 @@
 namespace Tests\Feature;
 
 use App\Enums\AccountsReceivableStatus;
+use App\Enums\CreditNoteReason;
+use App\Enums\InvoiceType;
 use App\Enums\PaymentMethod;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Enums\WarehouseType;
 use App\Exceptions\BusinessException;
+use App\Http\Requests\StoreInvoiceRequest;
 use App\Models\AccountsReceivable;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\JournalEntry;
 use App\Models\UnitOfMeasurement;
 use App\Models\Warehouse;
 use App\Models\ReceiptEntry;
 use App\Services\AccountsReceivableService;
+use App\Services\CreditNoteService;
 use App\Services\DeliveryService;
 use App\Services\InvoiceService;
 use App\Services\PaymentAllocationService;
 use App\Services\SalesOrderService;
+use Illuminate\Database\QueryException;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -357,6 +363,123 @@ class InvoiceWorkflowTest extends TestCase
 
         $this->assertCount(1, $invoice->salesOrders);
         $this->assertSame($salesOrder->id, $invoice->salesOrders->first()->id);
+    }
+
+    public function test_a_transportation_invoice_can_be_created_with_a_customer_and_manual_items_without_any_delivery(): void
+    {
+        $invoice = $this->invoiceService->create([
+            'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'customer_id' => $this->customer->id,
+            'items' => [
+                ['description' => 'Ongkos Angkut Semen 50kg - Rute A', 'qty' => 3, 'rate' => 25000],
+                ['description' => 'Ongkos Angkut Semen 50kg - Rute B', 'qty' => 2, 'rate' => 30000],
+            ],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertNull($invoice->delivery_id);
+        $this->assertNull($invoice->sales_order_id);
+        $this->assertSame($this->customer->id, $invoice->customer_id);
+        $this->assertEquals(135000, (float) $invoice->subtotal); // (3*25000) + (2*30000)
+        $this->assertCount(2, $invoice->items);
+
+        $line = $invoice->items->first();
+        $this->assertNull($line->delivery_item_id);
+        $this->assertNull($line->item_id);
+        $this->assertSame('Ongkos Angkut Semen 50kg - Rute A', $line->item_name);
+    }
+
+    public function test_submitting_a_transportation_invoice_creates_the_accounts_receivable_and_posts_the_journal(): void
+    {
+        $invoice = $this->invoiceService->create([
+            'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'customer_id' => $this->customer->id,
+            'items' => [
+                ['description' => 'Ongkos Angkut Semen', 'qty' => 1, 'rate' => 500000],
+            ],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertDatabaseCount('accounts_receivables', 0);
+
+        $invoice = $this->invoiceService->submit($invoice);
+
+        $this->assertDatabaseCount('accounts_receivables', 1);
+        $accountsReceivable = $invoice->accountsReceivable()->firstOrFail();
+        $this->assertSame($invoice->id, $accountsReceivable->invoice_id);
+        $this->assertNull($accountsReceivable->delivery_id);
+        $this->assertNull($accountsReceivable->sales_order_id);
+        $this->assertEquals(500000, (float) $accountsReceivable->amount);
+
+        $journalEntry = JournalEntry::query()->where('reference_type', 'invoice')->where('reference_id', $invoice->id)->firstOrFail();
+        $this->assertEquals(500000, (float) $journalEntry->total_debit);
+        $this->assertEquals(500000, (float) $journalEntry->total_credit);
+    }
+
+    public function test_a_transportation_invoice_requires_a_customer_and_at_least_one_item(): void
+    {
+        $this->expectException(QueryException::class);
+
+        $this->invoiceService->create([
+            'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'customer_id' => null,
+            'items' => [],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+    }
+
+    public function test_store_invoice_request_requires_customer_and_items_for_transportation_but_not_delivery_ids(): void
+    {
+        $validator = validator([
+            'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ], (new StoreInvoiceRequest())->rules());
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('customer_id', $validator->errors()->toArray());
+        $this->assertArrayHasKey('items', $validator->errors()->toArray());
+        $this->assertArrayNotHasKey('delivery_ids', $validator->errors()->toArray());
+    }
+
+    public function test_store_invoice_request_requires_delivery_ids_for_goods_but_not_customer_or_items(): void
+    {
+        $validator = validator([
+            'invoice_type' => InvoiceType::GOODS->value,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ], (new StoreInvoiceRequest())->rules());
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('delivery_ids', $validator->errors()->toArray());
+        $this->assertArrayNotHasKey('customer_id', $validator->errors()->toArray());
+        $this->assertArrayNotHasKey('items', $validator->errors()->toArray());
+    }
+
+    public function test_a_credit_note_cannot_be_raised_against_a_transportation_invoice(): void
+    {
+        $invoice = $this->invoiceService->create([
+            'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'customer_id' => $this->customer->id,
+            'items' => [
+                ['description' => 'Ongkos Angkut Semen', 'qty' => 1, 'rate' => 500000],
+            ],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $invoice = $this->invoiceService->submit($invoice);
+
+        $this->expectException(BusinessException::class);
+
+        app(CreditNoteService::class)->create([
+            'invoice_id' => $invoice->id,
+            'credit_note_date' => now()->toDateString(),
+            'reason' => CreditNoteReason::SERVICE_REFUND->value,
+            'items' => [],
+        ]);
     }
 
     public function test_submitting_an_invoice_creates_the_accounts_receivable_record_not_the_delivery(): void

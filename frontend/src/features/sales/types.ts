@@ -128,11 +128,11 @@ export type InvoiceDisplayStatus = 'draft' | 'submitted' | 'partially_paid' | 'p
 
 export interface InvoiceItem {
   id: string
-  delivery_item_id: string
-  item_id: string
-  item_code: string
+  delivery_item_id: string | null
+  item_id: string | null
+  item_code: string | null
   item_name: string
-  uom: string
+  uom: string | null
   qty: number
   rate: string | number
   amount: string | number
@@ -158,10 +158,10 @@ export interface Invoice {
   status: DocumentStatus
   display_status: InvoiceDisplayStatus
   revision: number
-  delivery_id: string
+  delivery_id: string | null
   delivery: { id: string; document_number: string | null } | null
   deliveries: { id: string; document_number: string | null }[]
-  sales_order_id: string
+  sales_order_id: string | null
   sales_orders: { id: string; document_number: string | null }[]
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; phone: string | null; address: string | null } | null
@@ -193,7 +193,12 @@ export interface Invoice {
 }
 
 export interface InvoiceFormValues {
-  delivery_ids: string[]
+  // Goods only.
+  delivery_ids?: string[]
+  // Transportation only — picked directly instead of derived from a Delivery, with
+  // manual freestanding line items (no Item/inventory link).
+  customer_id?: string
+  items?: { description: string; qty: number; rate: number }[]
   invoice_type?: InvoiceType
   invoice_date: string
   due_date: string

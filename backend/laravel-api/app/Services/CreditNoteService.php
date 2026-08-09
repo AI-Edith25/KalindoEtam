@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\CreditNoteReason;
 use App\Enums\DocumentStatus;
+use App\Enums\InvoiceType;
 use App\Exceptions\BusinessException;
 use App\Models\CreditNote;
 use App\Models\Invoice;
@@ -199,6 +200,12 @@ class CreditNoteService
     {
         if ($invoice->status !== DocumentStatus::SUBMITTED) {
             throw new BusinessException('Credit Notes can only be raised against a submitted Invoice.');
+        }
+
+        // Transportation invoice items are freestanding (no linked Item) — credit_note_items
+        // requires a real item_id/item_code/uom, unlike debit_note_items' own nullable variant.
+        if ($invoice->invoice_type === InvoiceType::TRANSPORTATION) {
+            throw new BusinessException('Credit Notes are not supported for Transportation invoices.');
         }
 
         $accountsReceivable = $invoice->accountsReceivable;

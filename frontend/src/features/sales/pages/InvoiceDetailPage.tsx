@@ -247,7 +247,7 @@ export function InvoiceDetailPage() {
                 </Button>
               </>
             )}
-            {invoice.status === 'submitted' && Number(invoice.creditable_amount) > 0 && (
+            {invoice.status === 'submitted' && invoice.invoice_type !== 'transportation' && Number(invoice.creditable_amount) > 0 && (
               <Button variant="outline" onClick={() => navigate(`/sales/credit-notes/new?invoice_id=${invoice.id}`)}>
                 <FilePlus2 className="size-4" />
                 Create Credit Note
@@ -299,23 +299,27 @@ export function InvoiceDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Delivery Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DataTable columns={buildDeliveryColumns(navigate)} data={invoice.deliveries} rowKey={(row) => row.id} emptyMessage="No deliveries linked." />
-        </CardContent>
-      </Card>
+      {invoice.invoice_type === 'goods' && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Delivery Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DataTable columns={buildDeliveryColumns(navigate)} data={invoice.deliveries} rowKey={(row) => row.id} emptyMessage="No deliveries linked." />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Sales Order Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DataTable columns={buildSalesOrderColumns(navigate)} data={invoice.sales_orders} rowKey={(row) => row.id} emptyMessage="No sales orders linked." />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales Order Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DataTable columns={buildSalesOrderColumns(navigate)} data={invoice.sales_orders} rowKey={(row) => row.id} emptyMessage="No sales orders linked." />
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       <Card>
         <CardHeader>

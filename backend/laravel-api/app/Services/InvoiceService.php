@@ -51,6 +51,15 @@ class InvoiceService
      */
     public function create(array $data): Invoice
     {
+        if (($data['invoice_type'] ?? InvoiceType::GOODS->value) === InvoiceType::TRANSPORTATION->value) {
+            return $this->createTransportation($data);
+        }
+
+        return $this->createGoods($data);
+    }
+
+    protected function createGoods(array $data): Invoice
+    {
         return DB::transaction(function () use ($data) {
             $deliveries = collect($data['delivery_ids'])
                 ->map(fn (string $id) => $this->deliveryRepository->findOrFail($id))
@@ -120,6 +129,73 @@ class InvoiceService
 
             $invoice->deliveries()->sync($deliveries->pluck('id')->all());
             $invoice->salesOrders()->sync($deliveries->pluck('sales_order_id')->unique()->all());
+
+            $invoice = $invoice->fresh(self::EAGER);
+            $this->auditLogService->record('created', 'invoice', "Created Invoice \"{$invoice->document_number}\".");
+
+            return $invoice;
+        });
+    }
+
+    /**
+     * Transportation invoices carry no Sales Order/Delivery at all — a
+     * transport service was never delivered via one. Customer is picked
+     * directly, items are freestanding (delivery_item_id/item_id null,
+     * item_name holds the typed description — the same column Goods uses
+     * for a real Item's name), and no Delivery pivot rows are synced since
+     * there's nothing to attach. Never touches stock, same as Goods —
+     * Invoice creation has never called any stock/inventory service.
+     */
+    protected function createTransportation(array $data): Invoice
+    {
+        return DB::transaction(function () use ($data) {
+            $subtotal = array_sum(array_map(
+                fn (array $line) => (float) $line['qty'] * (float) $line['rate'],
+                $data['items']
+            ));
+
+            [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
+            [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
+            $grandTotal = $subtotal - $discountAmount + $taxAmount;
+
+            if ($grandTotal < 0) {
+                throw new BusinessException('Grand total cannot be negative.');
+            }
+
+            $invoice = $this->invoiceRepository->create([
+                'delivery_id' => null,
+                'sales_order_id' => null,
+                'customer_id' => $data['customer_id'],
+                'invoice_type' => InvoiceType::TRANSPORTATION->value,
+                'invoice_date' => $data['invoice_date'],
+                'due_date' => $data['due_date'],
+                'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
+                'subtotal' => $subtotal,
+                'discount_amount' => $discountAmount,
+                'discount_type' => $discountType->value,
+                'discount_percentage' => $discountPercentage,
+                'tax_id' => $taxId,
+                'tax_amount' => $taxAmount,
+                'grand_total' => $grandTotal,
+                'remarks' => $data['remarks'] ?? null,
+            ]);
+
+            foreach ($data['items'] as $line) {
+                $qty = (float) $line['qty'];
+                $rate = (float) $line['rate'];
+
+                $this->invoiceItemRepository->create([
+                    'invoice_id' => $invoice->id,
+                    'delivery_item_id' => null,
+                    'item_id' => null,
+                    'item_code' => null,
+                    'item_name' => $line['description'],
+                    'uom' => null,
+                    'rate' => $rate,
+                    'qty' => $qty,
+                    'amount' => $qty * $rate,
+                ]);
+            }
 
             $invoice = $invoice->fresh(self::EAGER);
             $this->auditLogService->record('created', 'invoice', "Created Invoice \"{$invoice->document_number}\".");

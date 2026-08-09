@@ -23,12 +23,10 @@ use App\Models\UnitOfMeasurement;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AccountsReceivableService;
-use App\Services\CreditNoteService;
 use App\Services\DeliveryService;
 use App\Services\InvoiceChangeRequestService;
 use App\Services\InvoiceService;
 use App\Services\SalesOrderService;
-use App\Enums\CreditNoteReason;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -43,7 +41,6 @@ class InvoiceChangeRequestTest extends TestCase
     protected DeliveryService $deliveryService;
     protected InvoiceService $invoiceService;
     protected InvoiceChangeRequestService $changeRequestService;
-    protected CreditNoteService $creditNoteService;
     protected Customer $customer;
     protected Warehouse $warehouse;
     protected Item $item;
@@ -59,7 +56,6 @@ class InvoiceChangeRequestTest extends TestCase
         $this->deliveryService = app(DeliveryService::class);
         $this->invoiceService = app(InvoiceService::class);
         $this->changeRequestService = app(InvoiceChangeRequestService::class);
-        $this->creditNoteService = app(CreditNoteService::class);
 
         $company = Company::query()->create(['name' => 'Test Co', 'code' => 'TC', 'fiscal_year_start' => now()->startOfYear()->toDateString()]);
         $branch = Branch::query()->create(['company_id' => $company->id, 'name' => 'Main', 'code' => 'HQ']);
@@ -87,8 +83,21 @@ class InvoiceChangeRequestTest extends TestCase
         );
     }
 
+    /** Transportation invoices no longer go through a Sales Order/Delivery at all — only the Goods regression check (test_request_blocked_for_non_transportation_invoice) still needs that path. */
     protected function submittedInvoice(int $qty = 10, float $rate = 20000, InvoiceType $type = InvoiceType::TRANSPORTATION): Invoice
     {
+        if ($type === InvoiceType::TRANSPORTATION) {
+            $invoice = $this->invoiceService->create([
+                'invoice_type' => InvoiceType::TRANSPORTATION->value,
+                'customer_id' => $this->customer->id,
+                'items' => [['description' => 'Ongkos Angkut', 'qty' => $qty, 'rate' => $rate]],
+                'invoice_date' => now()->toDateString(),
+                'due_date' => now()->addDays(30)->toDateString(),
+            ]);
+
+            return $this->invoiceService->submit($invoice);
+        }
+
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
@@ -135,24 +144,10 @@ class InvoiceChangeRequestTest extends TestCase
 
     public function test_request_blocked_for_non_submitted_invoice(): void
     {
-        $salesOrder = $this->salesOrderService->create([
-            'customer_id' => $this->customer->id,
-            'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 20000]],
-        ]);
-        $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
-        $delivery = $this->deliveryService->create([
-            'sales_order_id' => $salesOrder->id,
-            'warehouse_id' => $this->warehouse->id,
-            'delivery_date' => now()->toDateString(),
-            'due_date' => now()->addDays(30)->toDateString(),
-            'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => 5]],
-        ]);
-        $this->deliveryService->submit($delivery);
         $draftInvoice = $this->invoiceService->create([
-            'delivery_ids' => [$delivery->id],
             'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'customer_id' => $this->customer->id,
+            'items' => [['description' => 'Ongkos Angkut', 'qty' => 5, 'rate' => 20000]],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -176,14 +171,13 @@ class InvoiceChangeRequestTest extends TestCase
     public function test_request_blocked_once_invoice_has_a_credit_note_applied(): void
     {
         $invoice = $this->submittedInvoice(); // grand_total 200000
-        $invoiceItem = $invoice->items->first();
-        $creditNote = $this->creditNoteService->create([
-            'invoice_id' => $invoice->id,
-            'credit_note_date' => now()->toDateString(),
-            'reason' => CreditNoteReason::PRICE_ADJUSTMENT->value,
-            'items' => [['invoice_item_id' => $invoiceItem->id, 'amount' => 20000]],
-        ]);
-        $this->creditNoteService->submit($creditNote);
+        // Transportation invoices can no longer take a Credit Note at all (CreditNoteService
+        // now rejects them), so this guard — which only ever checks accounts_receivable.
+        // credited_amount, not the CreditNote relation itself — is exercised directly via
+        // AccountsReceivableService::writeDown(), the same method CreditNoteService itself
+        // calls internally on submit.
+        $accountsReceivable = $invoice->accountsReceivable()->firstOrFail();
+        app(AccountsReceivableService::class)->writeDown($accountsReceivable, 20000);
 
         $this->actingAsRequester();
         $this->expectException(BusinessException::class);

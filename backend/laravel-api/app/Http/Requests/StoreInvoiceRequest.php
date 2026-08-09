@@ -18,10 +18,18 @@ class StoreInvoiceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // All selected Deliveries must share the same Customer and be delivered/not-yet-invoiced —
+            // Goods only — Transportation carries no Sales Order/Delivery at all. All selected
+            // Deliveries must share the same Customer and be delivered/not-yet-invoiced —
             // enforced in InvoiceService::create() (business logic, not request shape).
-            'delivery_ids' => ['required', 'array', 'min:1'],
+            'delivery_ids' => ['required_if:invoice_type,goods', 'nullable', 'array', 'min:1'],
             'delivery_ids.*' => ['uuid', 'distinct', 'exists:deliveries,id'],
+            // Transportation only — picked directly instead of being derived from a Delivery.
+            'customer_id' => ['required_if:invoice_type,transportation', 'nullable', 'uuid', 'exists:customers,id'],
+            // Transportation only — manual, freestanding lines (no Item/inventory link).
+            'items' => ['required_if:invoice_type,transportation', 'nullable', 'array', 'min:1'],
+            'items.*.description' => ['required', 'string'],
+            'items.*.qty' => ['required', 'integer', 'min:1'],
+            'items.*.rate' => ['required', 'numeric', 'min:0'],
             // Drives which Naming Series generates document_number — see Invoice::documentType().
             'invoice_type' => ['required', Rule::enum(InvoiceType::class)],
             'invoice_date' => ['required', 'date'],

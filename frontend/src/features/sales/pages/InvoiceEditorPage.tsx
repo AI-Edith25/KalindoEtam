@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Loader2, Save, Send } from 'lucide-react'
+import { Loader2, Plus, Save, Send, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,8 +20,9 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
+import { fetchCustomersLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
 import { addDays } from '@/shared/lib/dateMath'
+import { computeSubtotal, lineAmount } from '@/shared/lib/documentTotals'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
@@ -51,13 +52,25 @@ const NO_TOP = '__none__'
 
 interface PreviewLine {
   id: string
-  item_code: string
+  item_code: string | null
   item_name: string
-  uom: string
+  uom: string | null
   qty: number
   rate: string | number
   amount: string | number
 }
+
+/** Transportation-only manual line — no Item/inventory link, matching Debit Note's own freestanding-line pattern (a plain useState array, not RHF/zod). */
+interface TransportLine {
+  key: string
+  description: string
+  qty: string
+  rate: string
+}
+
+let transportLineCounter = 0
+const nextTransportLineKey = () => `transport-${++transportLineCounter}`
+const emptyTransportLine = (): TransportLine => ({ key: nextTransportLineKey(), description: '', qty: '1', rate: '0' })
 
 const lineColumns: DataTableColumn<PreviewLine>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
@@ -132,13 +145,21 @@ export function InvoiceEditorPage() {
   // one or more Deliveries this invoice originates from — both fixed for the invoice's lifetime.
   if (!isEdit && !selectionConfirmed) {
     const allSelectableChecked = selectableDeliveries.length > 0 && selectableDeliveries.every((delivery) => selectedDeliveryIds.has(delivery.id))
+    const isTransportation = selectedInvoiceType === 'transportation'
 
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="New Invoice" description="An Invoice can combine one or more delivered, not-yet-invoiced Deliveries from the same Customer." />
+        <PageHeader
+          title="New Invoice"
+          description={
+            isTransportation
+              ? 'Transportation Invoices are billed directly to a Customer — no Sales Order or Delivery required.'
+              : 'An Invoice can combine one or more delivered, not-yet-invoiced Deliveries from the same Customer.'
+          }
+        />
         <Card>
           <CardHeader>
-            <CardTitle>Select Invoice Type &amp; Delivery</CardTitle>
+            <CardTitle>{isTransportation ? 'Select Invoice Type' : 'Select Invoice Type & Delivery'}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
@@ -157,65 +178,71 @@ export function InvoiceEditorPage() {
               </Select>
               <p className="text-sm text-muted-foreground">Determines which Naming Series generates the document number — cannot be changed afterward.</p>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Delivery</label>
-              {eligibleDeliveriesQuery.isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : selectableDeliveries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No deliveries available to invoice.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10">
-                          <Checkbox
-                            checked={allSelectableChecked}
-                            onCheckedChange={(checked) => selectableDeliveries.forEach((delivery) => toggleDelivery(delivery.id, checked === true))}
-                            aria-label="Select all eligible deliveries"
-                          />
-                        </TableHead>
-                        <TableHead>Document Number</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Delivery Date</TableHead>
-                        <TableHead className="text-right">Items</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectableDeliveries.map((delivery) => {
-                        const checked = selectedDeliveryIds.has(delivery.id)
-                        return (
-                          <TableRow key={delivery.id} data-state={checked ? 'selected' : undefined}>
-                            <TableCell>
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(value) => toggleDelivery(delivery.id, value === true)}
-                                aria-label={`Select ${delivery.document_number}`}
-                              />
-                            </TableCell>
-                            <TableCell className="font-medium">{delivery.document_number}</TableCell>
-                            <TableCell>{delivery.customer?.customer_name}</TableCell>
-                            <TableCell>{delivery.delivery_date}</TableCell>
-                            <TableCell className="text-right">{delivery.items.length}</TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Only delivered orders that have not already been invoiced are shown — once you select one, only Deliveries from the same Customer remain
-                selectable.
-              </p>
-            </div>
+            {!isTransportation && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Delivery</label>
+                {eligibleDeliveriesQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : selectableDeliveries.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No deliveries available to invoice.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">
+                            <Checkbox
+                              checked={allSelectableChecked}
+                              onCheckedChange={(checked) => selectableDeliveries.forEach((delivery) => toggleDelivery(delivery.id, checked === true))}
+                              aria-label="Select all eligible deliveries"
+                            />
+                          </TableHead>
+                          <TableHead>Document Number</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Delivery Date</TableHead>
+                          <TableHead className="text-right">Items</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectableDeliveries.map((delivery) => {
+                          const checked = selectedDeliveryIds.has(delivery.id)
+                          return (
+                            <TableRow key={delivery.id} data-state={checked ? 'selected' : undefined}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(value) => toggleDelivery(delivery.id, value === true)}
+                                  aria-label={`Select ${delivery.document_number}`}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">{delivery.document_number}</TableCell>
+                              <TableCell>{delivery.customer?.customer_name}</TableCell>
+                              <TableCell>{delivery.delivery_date}</TableCell>
+                              <TableCell className="text-right">{delivery.items.length}</TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  Only delivered orders that have not already been invoiced are shown — once you select one, only Deliveries from the same Customer remain
+                  selectable.
+                </p>
+              </div>
+            )}
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => navigate('/sales/invoices')}>
                 Cancel
               </Button>
-              <Button type="button" disabled={selectedDeliveryIds.size === 0 || !selectedInvoiceType} onClick={() => setSelectionConfirmed(true)}>
+              <Button
+                type="button"
+                disabled={isTransportation ? !selectedInvoiceType : selectedDeliveryIds.size === 0 || !selectedInvoiceType}
+                onClick={() => setSelectionConfirmed(true)}
+              >
                 Continue
               </Button>
             </div>
@@ -282,6 +309,17 @@ function InvoiceForm({
   navigate: NavigateFunction
   queryClient: QueryClient
 }) {
+  const isTransportation = (isEdit ? invoice?.invoice_type : selectedInvoiceType) === 'transportation'
+
+  // Transportation only — picked directly here instead of being derived from a Delivery.
+  const customersQuery = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup, enabled: !isEdit && isTransportation })
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [transportLines, setTransportLines] = useState<TransportLine[]>(() => [emptyTransportLine()])
+  const addTransportLine = () => setTransportLines((prev) => [...prev, emptyTransportLine()])
+  const removeTransportLine = (key: string) => setTransportLines((prev) => prev.filter((line) => line.key !== key))
+  const setTransportLine = (key: string, patch: Partial<TransportLine>) =>
+    setTransportLines((prev) => prev.map((line) => (line.key === key ? { ...line, ...patch } : line)))
+
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   // Only Active taxes may be selected for a new/changed assignment (docs/TAX_ENGINE_DESIGN.md §9)
@@ -338,7 +376,17 @@ function InvoiceForm({
   }, [watchedTopId, watchedInvoiceDate, termsOfPayment.data])
 
   const toPayload = (values: InvoiceEditorValues): InvoiceFormValues => ({
-    delivery_ids: selectedDeliveries.map((delivery) => delivery.id),
+    // Goods sends delivery_ids; Transportation sends customer_id + items instead — delivery_ids
+    // must be omitted entirely for Transportation (not []), since StoreInvoiceRequest's array/
+    // min:1 sub-rules only skip on null/absent, not on an empty array.
+    ...(isTransportation
+      ? {
+          customer_id: selectedCustomerId,
+          items: transportLines
+            .filter((line) => line.description.trim() !== '')
+            .map((line) => ({ description: line.description.trim(), qty: Number(line.qty) || 0, rate: Number(line.rate) || 0 })),
+        }
+      : { delivery_ids: selectedDeliveries.map((delivery) => delivery.id) }),
     // Immutable once created (see invoiceFormSchema.ts) — only sent on create; UpdateInvoiceRequest
     // doesn't accept it, so omitting it here on edit is what the backend already expects.
     ...(isEdit ? {} : { invoice_type: selectedInvoiceType ?? undefined }),
@@ -392,7 +440,7 @@ function InvoiceForm({
   const previewLines: PreviewLine[] = isEdit
     ? (invoice?.items ?? []).map((line) => ({ ...line }))
     : selectedDeliveries.flatMap((delivery) => delivery.items.map((line) => ({ ...line })))
-  const subtotal = previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
+  const subtotal = !isEdit && isTransportation ? computeSubtotal(transportLines) : previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
   // Preview only — InvoiceService::resolveDiscount() on the backend is the authoritative
   // computation on save; this mirrors that same formula purely for instant visual feedback.
   const discountAmount =
@@ -407,6 +455,23 @@ function InvoiceForm({
   const grandTotal = subtotal - discountAmount + watchedTax
 
   const onSubmit = form.handleSubmit((values) => {
+    if (!isEdit && isTransportation) {
+      if (!selectedCustomerId) {
+        toast.error('Select a Customer.')
+        return
+      }
+
+      const validLines = transportLines.filter((line) => line.description.trim() !== '')
+      if (validLines.length === 0) {
+        toast.error('Add at least one line item.')
+        return
+      }
+      if (validLines.some((line) => Number(line.qty) <= 0 || Number(line.rate) < 0)) {
+        toast.error('Each line needs a qty greater than 0 and a rate of 0 or more.')
+        return
+      }
+    }
+
     if (values.discount_type === 'amount' && Number(values.discount_amount || 0) > subtotal) {
       form.setError('discount_amount', { message: 'Cannot exceed subtotal' })
       return
@@ -421,14 +486,18 @@ function InvoiceForm({
   const deliveryLabel = isEdit
     ? invoice?.deliveries?.map((d) => d.document_number).join(', ')
     : selectedDeliveries.map((delivery) => delivery.document_number).join(', ')
-  const customerName = isEdit ? invoice?.customer?.customer_name : selectedDeliveries[0]?.customer?.customer_name
+  const customerName = isEdit
+    ? invoice?.customer?.customer_name
+    : isTransportation
+      ? customersQuery.data?.find((customer) => customer.id === selectedCustomerId)?.customer_name
+      : selectedDeliveries[0]?.customer?.customer_name
   const invoiceType = isEdit ? invoice?.invoice_type : selectedInvoiceType
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${invoice?.document_number ?? 'Invoice'}` : 'New Invoice'}
-        description={`Invoicing ${deliveryLabel ?? ''} — ${customerName ?? ''}.`}
+        description={isTransportation ? `Invoicing ${customerName ?? ''}.` : `Invoicing ${deliveryLabel ?? ''} — ${customerName ?? ''}.`}
       />
 
       <Form {...form}>
@@ -439,12 +508,34 @@ function InvoiceForm({
               <StatusBadge status={isEdit ? (invoice?.display_status ?? 'draft') : 'draft'} />
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-0.5 sm:col-span-2">
-                <span className="text-xs text-muted-foreground">Delivery</span>
-                <span className="text-sm font-medium">
-                  {deliveryLabel} — {customerName}
-                </span>
-              </div>
+              {isTransportation ? (
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <label className="text-sm font-medium">Customer</label>
+                  {isEdit ? (
+                    <span className="text-sm font-medium">{customerName ?? '—'}</span>
+                  ) : (
+                    <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                      <SelectTrigger className="w-full sm:w-96">
+                        <SelectValue placeholder={customersQuery.isLoading ? 'Loading…' : 'Select customer'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customersQuery.data?.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.customer_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-0.5 sm:col-span-2">
+                  <span className="text-xs text-muted-foreground">Delivery</span>
+                  <span className="text-sm font-medium">
+                    {deliveryLabel} — {customerName}
+                  </span>
+                </div>
+              )}
               <div className="flex flex-col gap-0.5">
                 <span className="text-xs text-muted-foreground">Invoice Type</span>
                 <span className="text-sm font-medium">{invoiceType ? INVOICE_TYPE_LABELS[invoiceType] : '—'}</span>
@@ -595,19 +686,91 @@ function InvoiceForm({
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Line Items</CardTitle>
+              {!isEdit && isTransportation && (
+                <Button type="button" variant="outline" size="sm" onClick={addTransportLine}>
+                  <Plus className="size-4" />
+                  Add Row
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
-              <DataTable
-                columns={lineColumns}
-                data={previewLines}
-                rowKey={(row) => row.id}
-                emptyMessage="No line items."
-              />
-              <p className="mt-2 text-sm text-muted-foreground">
-                Items are copied from the Delivery and cannot be changed here — cancel and re-invoice if the Delivery was wrong.
-              </p>
+              {!isEdit && isTransportation ? (
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="w-32 text-right">Qty</TableHead>
+                        <TableHead className="w-40 text-right">Rate</TableHead>
+                        <TableHead className="w-40 text-right">Amount</TableHead>
+                        <TableHead className="w-12" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transportLines.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                            No line items yet.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {transportLines.map((line) => (
+                        <TableRow key={line.key}>
+                          <TableCell>
+                            <Input
+                              placeholder="e.g. Ongkos Angkut Semen 50kg"
+                              value={line.description}
+                              onChange={(event) => setTransportLine(line.key, { description: event.target.value })}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min={1}
+                              step="1"
+                              className="text-right"
+                              value={line.qty}
+                              onChange={(event) => setTransportLine(line.key, { qty: event.target.value })}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="text-right"
+                              value={line.rate}
+                              onChange={(event) => setTransportLine(line.key, { rate: event.target.value })}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(lineAmount(line))}</TableCell>
+                          <TableCell>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removeTransportLine(line.key)}>
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <>
+                  <DataTable
+                    columns={lineColumns}
+                    data={previewLines}
+                    rowKey={(row) => row.id}
+                    emptyMessage="No line items."
+                  />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {invoiceType === 'transportation'
+                      ? 'Items cannot be changed after the invoice is created.'
+                      : 'Items are copied from the Delivery and cannot be changed here — cancel and re-invoice if the Delivery was wrong.'}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
