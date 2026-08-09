@@ -53,9 +53,11 @@ import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/page
 import { IncomingPaymentListPage } from '@/features/payment/pages/IncomingPaymentListPage'
 import { IncomingPaymentEditorPage } from '@/features/payment/pages/IncomingPaymentEditorPage'
 import { IncomingPaymentDetailPage } from '@/features/payment/pages/IncomingPaymentDetailPage'
+import { IncomingPaymentPrintPage } from '@/features/payment/pages/IncomingPaymentPrintPage'
 import { OutgoingPaymentListPage } from '@/features/payment/pages/OutgoingPaymentListPage'
 import { OutgoingPaymentEditorPage } from '@/features/payment/pages/OutgoingPaymentEditorPage'
 import { OutgoingPaymentDetailPage } from '@/features/payment/pages/OutgoingPaymentDetailPage'
+import { OutgoingPaymentPrintPage } from '@/features/payment/pages/OutgoingPaymentPrintPage'
 import { JournalEntryListPage } from '@/features/accounting/pages/JournalEntryListPage'
 import { JournalEntryEditorPage } from '@/features/accounting/pages/JournalEntryEditorPage'
 import { JournalEntryDetailPage } from '@/features/accounting/pages/JournalEntryDetailPage'
@@ -150,10 +152,12 @@ export function AppRouter() {
         <Route path="/finance/incoming/new" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/:id/edit" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/:id" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentDetailPage /></ProtectedRoute>} />
+        <Route path="/finance/incoming/:id/print" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentPrintPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentListPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/new" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id/edit" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentDetailPage /></ProtectedRoute>} />
+        <Route path="/finance/outgoing/:id/print" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentPrintPage /></ProtectedRoute>} />
         <Route path="/accounting/journal-entries" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryListPage /></ProtectedRoute>} />
         <Route path="/accounting/journal-entries/new" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
         <Route path="/accounting/journal-entries/:id/edit" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />

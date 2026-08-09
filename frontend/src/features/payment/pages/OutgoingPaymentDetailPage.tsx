@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ExternalLink, Loader2, Pencil, Send, Trash2 } from 'lucide-react'
+import { ExternalLink, Loader2, Pencil, Printer, Send, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -82,7 +82,12 @@ export function OutgoingPaymentDetailPage() {
                 Delete
               </Button>
             </div>
-          ) : undefined
+          ) : (
+            <Button variant="outline" onClick={() => navigate(`/finance/outgoing/${payment.id}/print`)}>
+              <Printer className="size-4" />
+              Print
+            </Button>
+          )
         }
       />
 
