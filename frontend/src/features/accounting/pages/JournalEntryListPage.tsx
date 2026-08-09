@@ -89,8 +89,8 @@ export function JournalEntryListPage() {
       <SectionNav group="accounting" />
 
       <PageHeader
-        title="Journal Entries"
-        description="The General Ledger — every posted debit/credit, system-generated or manually posted."
+        title="General Journal"
+        description="Every posted debit/credit, system-generated or manually posted."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} entries` : undefined}
         actions={
           <ActionBar
