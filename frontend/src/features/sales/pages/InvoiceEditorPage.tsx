@@ -75,6 +75,10 @@ export function InvoiceEditorPage() {
 
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<Set<string>>(new Set())
   const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType | null>(null)
+  // Checking boxes must not auto-advance past the selection screen — with multi-select, the
+  // user needs to be able to tick a second/third Delivery before moving on. An explicit
+  // Continue click is what commits the selection and mounts InvoiceForm.
+  const [selectionConfirmed, setSelectionConfirmed] = useState(false)
 
   const toggleDelivery = (deliveryId: string, checked: boolean) => {
     setSelectedDeliveryIds((prev) => {
@@ -126,7 +130,7 @@ export function InvoiceEditorPage() {
 
   // Step 1 (create mode only): pick the Invoice Type (which Naming Series numbers it) and
   // one or more Deliveries this invoice originates from — both fixed for the invoice's lifetime.
-  if (!isEdit && (selectedDeliveryIds.size === 0 || !selectedInvoiceType)) {
+  if (!isEdit && !selectionConfirmed) {
     const allSelectableChecked = selectableDeliveries.length > 0 && selectableDeliveries.every((delivery) => selectedDeliveryIds.has(delivery.id))
 
     return (
@@ -207,9 +211,14 @@ export function InvoiceEditorPage() {
                 selectable.
               </p>
             </div>
-            <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/sales/invoices')}>
-              Cancel
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => navigate('/sales/invoices')}>
+                Cancel
+              </Button>
+              <Button type="button" disabled={selectedDeliveryIds.size === 0 || !selectedInvoiceType} onClick={() => setSelectionConfirmed(true)}>
+                Continue
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
