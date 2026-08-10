@@ -1,34 +1,35 @@
 import { Loader2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { computeWaterfallAllocations } from '../lib/paymentAllocationWaterfall'
 import type { AccountsReceivable } from '../types'
 
 interface OutstandingInvoicesTableProps {
   receivables: AccountsReceivable[]
   isLoading: boolean
-  selectedIds: Set<string>
+  allocations: Map<string, number>
   onToggle: (id: string, checked: boolean) => void
-  paymentAmount: number
+  onAllocationChange: (id: string, amount: number) => void
 }
 
 /**
  * Sprint 1 (Invoice Allocation): shown once a Customer is picked on the
  * Incoming Payment form, listing every Unpaid/Partially Paid invoice for
- * them. Checking rows previews how computeWaterfallAllocations() would
- * split the entered payment amount across them — the actual allocation
- * only happens server-side, via the existing allocateBatch() call, once
- * the payment is confirmed.
+ * them. Checking a row defaults its "To Allocate" to that invoice's full
+ * outstanding balance, editable from there — "Amount Received" above is
+ * derived as the sum of these rows, not the other way around. The actual
+ * allocation only happens server-side, via the existing allocateBatch()
+ * call, once the payment is confirmed.
  */
 export function OutstandingInvoicesTable({
   receivables,
   isLoading,
-  selectedIds,
+  allocations,
   onToggle,
-  paymentAmount,
+  onAllocationChange,
 }: OutstandingInvoicesTableProps) {
   if (isLoading) {
     return (
@@ -42,10 +43,8 @@ export function OutstandingInvoicesTable({
     return <EmptyState message="No outstanding invoices" description="This customer has no unpaid or partially paid invoices." />
   }
 
-  const allocations = computeWaterfallAllocations(receivables, selectedIds, paymentAmount)
-  const allocatedById = new Map(allocations.map((line) => [line.accounts_receivable_id, line.amount]))
-  const totalAllocated = allocations.reduce((sum, line) => sum + line.amount, 0)
-  const allChecked = receivables.length > 0 && receivables.every((ar) => selectedIds.has(ar.id))
+  const totalAllocated = Array.from(allocations.values()).reduce((sum, amt) => sum + amt, 0)
+  const allChecked = receivables.length > 0 && receivables.every((ar) => allocations.has(ar.id))
 
   return (
     <div className="flex flex-col gap-2">
@@ -71,8 +70,9 @@ export function OutstandingInvoicesTable({
           </TableHeader>
           <TableBody>
             {receivables.map((ar) => {
-              const checked = selectedIds.has(ar.id)
-              const toAllocate = allocatedById.get(ar.id) ?? 0
+              const checked = allocations.has(ar.id)
+              const amount = allocations.get(ar.id) ?? 0
+              const outstanding = Number(ar.outstanding_amount)
 
               return (
                 <TableRow key={ar.id} data-state={checked ? 'selected' : undefined}>
@@ -91,7 +91,29 @@ export function OutstandingInvoicesTable({
                   <TableCell>
                     <StatusBadge status={ar.status} />
                   </TableCell>
-                  <TableCell className="text-right">{checked ? formatCurrency(toAllocate) : '—'}</TableCell>
+                  <TableCell className="text-right">
+                    {checked ? (
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        max={outstanding}
+                        value={amount}
+                        className="ml-auto w-32 text-right"
+                        aria-label={`To allocate for ${ar.invoice?.document_number ?? ar.reference_number}`}
+                        onChange={(e) => {
+                          const raw = e.target.value === '' ? 0 : Number(e.target.value)
+                          // ponytail: hard-clamp on every keystroke instead of a separate over-limit
+                          // error state, mirrors backend assertWithinOutstanding so the invariant can
+                          // never be violated even mid-edit. Soften to type-freely+clamp-on-blur only
+                          // if users complain the hard clamp fights their typing.
+                          onAllocationChange(ar.id, Math.min(Math.max(raw, 0), outstanding))
+                        }}
+                      />
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
                 </TableRow>
               )
             })}
@@ -99,17 +121,10 @@ export function OutstandingInvoicesTable({
         </Table>
       </div>
 
-      {selectedIds.size > 0 && (
+      {allocations.size > 0 && (
         <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm">
           <span className="text-muted-foreground">Total to allocate</span>
-          <span className="font-medium">
-            {formatCurrency(totalAllocated)}
-            {paymentAmount > totalAllocated && (
-              <span className="ml-2 text-xs text-muted-foreground">
-                ({formatCurrency(paymentAmount - totalAllocated)} left unallocated)
-              </span>
-            )}
-          </span>
+          <span className="font-medium">{formatCurrency(totalAllocated)}</span>
         </div>
       )}
     </div>

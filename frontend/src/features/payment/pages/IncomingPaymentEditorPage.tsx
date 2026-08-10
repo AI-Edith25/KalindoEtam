@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -19,7 +19,6 @@ import { createReceiptEntry, fetchReceiptEntry, submitReceiptEntry, updateReceip
 import { fetchAccountsReceivables } from '../api/accountsReceivableApi'
 import { allocatePayment } from '../api/paymentAllocationApi'
 import { OutstandingInvoicesTable } from '../components/OutstandingInvoicesTable'
-import { computeWaterfallAllocations } from '../lib/paymentAllocationWaterfall'
 import { receiptEntryFormSchema, type ReceiptEntryEditorValues } from '../lib/receiptEntryFormSchema'
 
 const emptyValues: ReceiptEntryEditorValues = {
@@ -55,11 +54,11 @@ export function IncomingPaymentEditorPage() {
   })
 
   const customerId = form.watch('customer_id')
-  const totalAmount = Number(form.watch('total_amount')) || 0
 
-  // Sprint 1 (Invoice Allocation): which of the customer's outstanding invoices
-  // the user checked, to allocate this payment against once it's confirmed.
-  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
+  // Sprint 1 (Invoice Allocation): accounts_receivable_id -> user-entered "To
+  // Allocate" amount. Checked and "has an entry in this map" are the same
+  // fact — Amount Received above is derived as the sum of these, not typed.
+  const [allocations, setAllocations] = useState<Map<string, number>>(new Map())
 
   const outstandingQuery = useQuery({
     queryKey: ['accounts-receivables', customerId],
@@ -72,13 +71,28 @@ export function IncomingPaymentEditorPage() {
     [outstandingQuery.data],
   )
 
+  function commitAllocations(next: Map<string, number>) {
+    setAllocations(next)
+    const total = Array.from(next.values()).reduce((sum, amt) => sum + amt, 0)
+    const rounded = Math.round(total * 100) / 100 // avoid float drift (0.1 + 0.2 etc.)
+    form.setValue('total_amount', rounded > 0 ? String(rounded) : '', { shouldValidate: form.formState.isSubmitted })
+  }
+
   const toggleInvoice = (accountsReceivableId: string, checked: boolean) => {
-    setSelectedInvoiceIds((prev) => {
-      const next = new Set(prev)
-      if (checked) next.add(accountsReceivableId)
-      else next.delete(accountsReceivableId)
-      return next
-    })
+    const next = new Map(allocations)
+    if (checked) {
+      const ar = outstandingInvoices.find((row) => row.id === accountsReceivableId)
+      next.set(accountsReceivableId, ar ? Number(ar.outstanding_amount) : 0)
+    } else {
+      next.delete(accountsReceivableId)
+    }
+    commitAllocations(next)
+  }
+
+  const updateAllocation = (accountsReceivableId: string, amount: number) => {
+    const next = new Map(allocations)
+    next.set(accountsReceivableId, amount)
+    commitAllocations(next)
   }
 
   useEffect(() => {
@@ -102,11 +116,6 @@ export function IncomingPaymentEditorPage() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiptQuery.data])
-
-  // A customer switch invalidates any invoice selection made for the previous one.
-  useEffect(() => {
-    setSelectedInvoiceIds(new Set())
-  }, [customerId])
 
   const saveMutation = useMutation({
     mutationFn: (values: ReceiptEntryEditorValues) => {
@@ -134,7 +143,9 @@ export function IncomingPaymentEditorPage() {
     mutationFn: async () => {
       const receipt = await submitReceiptEntry(id!)
 
-      const lines = computeWaterfallAllocations(outstandingInvoices, selectedInvoiceIds, totalAmount)
+      const lines = Array.from(allocations.entries())
+        .filter(([, amount]) => amount > 0)
+        .map(([accounts_receivable_id, amount]) => ({ accounts_receivable_id, amount }))
       if (lines.length === 0) {
         return { receipt, allocationError: null as unknown }
       }
@@ -157,7 +168,7 @@ export function IncomingPaymentEditorPage() {
       if (allocationError) {
         toast.success('Payment received.')
         toastApiError(allocationError)
-      } else if (selectedInvoiceIds.size > 0) {
+      } else if (allocations.size > 0) {
         toast.success('Payment received and allocated to the selected invoice(s).')
       } else {
         toast.success('Payment received. Allocate it to an invoice from the detail page.')
@@ -197,7 +208,17 @@ export function IncomingPaymentEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Customer</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value)
+                        // A customer switch invalidates any invoice selection made for the
+                        // previous one. Scoped to this handler (not a customerId-watching
+                        // effect) so it never fires from form.reset() restoring an existing
+                        // draft's customer_id/total_amount on edit-mode load.
+                        commitAllocations(new Map())
+                      }}
+                    >
                       <FormControl>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder={customers.isLoading ? 'Loading…' : 'Select customer'} />
@@ -222,8 +243,13 @@ export function IncomingPaymentEditorPage() {
                   <FormItem>
                     <FormLabel>Amount Received</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="0" {...field} />
+                      <Input type="number" step="0.01" placeholder="0" disabled={allocations.size > 0} {...field} />
                     </FormControl>
+                    <FormDescription>
+                      {allocations.size > 0
+                        ? 'Calculated automatically from the invoices checked below.'
+                        : 'Type an amount to record an unapplied payment, or check an invoice below to allocate directly.'}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -327,9 +353,9 @@ export function IncomingPaymentEditorPage() {
                 <OutstandingInvoicesTable
                   receivables={outstandingInvoices}
                   isLoading={outstandingQuery.isLoading}
-                  selectedIds={selectedInvoiceIds}
+                  allocations={allocations}
                   onToggle={toggleInvoice}
-                  paymentAmount={totalAmount}
+                  onAllocationChange={updateAllocation}
                 />
               </CardContent>
             </Card>
@@ -337,7 +363,7 @@ export function IncomingPaymentEditorPage() {
 
           <p className="text-right text-sm text-muted-foreground">
             {isEdit && receiptQuery.data?.status === 'draft'
-              ? selectedInvoiceIds.size > 0
+              ? allocations.size > 0
                 ? 'Confirming marks the money as received and allocates it to the invoices checked above.'
                 : 'Saving records the payment. Confirming marks the money as received — allocate it to an invoice afterward.'
               : 'Saving records the payment as a draft — nothing is received until you confirm it.'}
