@@ -200,8 +200,12 @@ export function InvoicePrintPage() {
           </div>
         )}
 
-        <div className="border-t-2 border-foreground/80 p-3 pt-10">
-          <div className="w-48 text-center">
+        <div className="grid grid-cols-2 gap-8 border-t-2 border-foreground/80 p-3 pt-10">
+          <div className="text-center">
+            <p className="font-semibold">{invoice.customer?.customer_name ?? '—'}</p>
+            <div className="mt-10 border-t border-foreground/80 pt-1">(AUTHORISED SIGNATURE)</div>
+          </div>
+          <div className="text-center">
             <p className="font-semibold">{brandingQuery.data?.name ?? 'PT. KALINDO ETAM'}</p>
             <div className="mt-10 border-t border-foreground/80 pt-1">(AUTHORISED SIGNATURE)</div>
           </div>
