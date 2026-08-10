@@ -50,6 +50,26 @@ class CompanyController extends Controller
         ]);
     }
 
+    /**
+     * Unguarded (auth:sanctum only, no company.view) — invoice/document print
+     * headers need company identity (address/phone/email/npwp) for every
+     * authenticated user who can view+print an invoice, not just those who
+     * can manage Company records. Hand-built payload, same reasoning as
+     * branding() above — never CompanyResource.
+     */
+    public function printHeader(): JsonResponse
+    {
+        $company = $this->companyRepository->defaultOrById(null);
+
+        return $this->success([
+            'name' => $company?->name,
+            'address' => $company?->address,
+            'phone' => $company?->phone,
+            'email' => $company?->email,
+            'npwp' => $company?->npwp,
+        ]);
+    }
+
     /** Streams the current company's logo, same mechanism as the gated attachment download, reachable without document_attachment.view. */
     public function brandingLogo(): StreamedResponse
     {

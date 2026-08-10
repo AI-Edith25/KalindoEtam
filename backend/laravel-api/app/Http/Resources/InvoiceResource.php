@@ -37,6 +37,7 @@ class InvoiceResource extends JsonResource
                 'id' => $salesOrder->id,
                 'document_number' => $salesOrder->document_number,
             ])),
+            'sales_order' => new SalesOrderResource($this->whenLoaded('salesOrder')),
             'customer_id' => $this->customer_id,
             'customer' => new CustomerResource($this->whenLoaded('customer')),
             'invoice_date' => $this->invoice_date?->format('Y-m-d'),
@@ -69,6 +70,7 @@ class InvoiceResource extends JsonResource
                     'receipt_entry_document_number' => $line->receiptEntry->document_number,
                     'receipt_date' => $line->receiptEntry->receipt_date?->format('Y-m-d'),
                     'cash_account_name' => $line->receiptEntry->cashAccount?->name,
+                    'payment_method' => $line->receiptEntry->payment_method,
                 ])
                 : [],
             'credit_note_history' => $this->relationLoaded('creditNotes')

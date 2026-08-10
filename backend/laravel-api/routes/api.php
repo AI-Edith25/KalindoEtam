@@ -93,6 +93,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // administration.company.view, see docs/ADMINISTRATION_DESIGN.md. Deliberately outside $withPagePermissions.
     Route::get('company/branding', [CompanyController::class, 'branding']);
     Route::get('company/branding/logo', [CompanyController::class, 'brandingLogo']);
+    // Print-header identity (address/phone/email/npwp) for document print pages — every
+    // authenticated user who can view an invoice needs this, not just administration.company.view.
+    Route::get('company/print-header', [CompanyController::class, 'printHeader']);
     $withPagePermissions(Route::apiResource('branches', BranchController::class), 'administration.branch');
     $withPagePermissions(Route::apiResource('warehouses', WarehouseController::class), 'master.warehouses');
 

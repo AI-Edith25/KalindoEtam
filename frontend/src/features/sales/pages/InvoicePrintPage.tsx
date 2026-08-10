@@ -15,10 +15,19 @@ import {
   savePaperTypePreference,
   type PrintOptions,
 } from '@/shared/lib/printOptions'
-import { useCompanyBranding } from '@/features/administration/hooks/useCompany'
+import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchInvoice } from '../api/invoiceApi'
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
 import { discountLabel } from '../lib/discount'
+import type { InvoicePaymentHistoryLine } from '../types'
+
+const PAYMENT_METHOD_LABELS: Record<InvoicePaymentHistoryLine['payment_method'], string> = {
+  cash: 'Cash',
+  bank_transfer: 'Bank Transfer',
+  cheque: 'Cheque',
+  qris: 'QRIS',
+  credit_card: 'Credit Card',
+}
 
 /**
  * Full-bordered "cetak" style matching the legacy system's dot-matrix
@@ -49,6 +58,7 @@ export function InvoicePrintPage() {
     queryFn: () => fetchInvoice(id!),
   })
   const brandingQuery = useCompanyBranding()
+  const printHeaderQuery = useCompanyPrintHeader()
 
   if (invoiceQuery.isLoading) {
     return (
@@ -88,6 +98,11 @@ export function InvoicePrintPage() {
         <div className={`flex items-start justify-between border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
           <div>
             <p className="font-semibold">{brandingQuery.data?.name ?? '—'}</p>
+            {printHeaderQuery.data?.address && <p className="text-xs">{printHeaderQuery.data.address}</p>}
+            {(printHeaderQuery.data?.phone || printHeaderQuery.data?.email) && (
+              <p className="text-xs">{[printHeaderQuery.data?.phone, printHeaderQuery.data?.email].filter(Boolean).join(' · ')}</p>
+            )}
+            {printHeaderQuery.data?.npwp && <p className="text-xs">NPWP: {printHeaderQuery.data.npwp}</p>}
             <h2 className={compact ? 'text-base font-bold' : 'text-lg font-bold'}>INVOICE</h2>
             <p>{invoice.document_number}</p>
             <p>{INVOICE_TYPE_LABELS[invoice.invoice_type]} Invoice</p>
@@ -95,6 +110,8 @@ export function InvoicePrintPage() {
           <div className="text-right">
             <p>Invoice Date: {formatDate(invoice.invoice_date)}</p>
             <p>Due Date: {formatDate(invoice.due_date)}</p>
+            {invoice.sales_order?.sales_person && <p>Sales Person: {invoice.sales_order.sales_person.name}</p>}
+            {invoice.sales_order?.branch && <p>Branch: {invoice.sales_order.branch.name}</p>}
           </div>
         </div>
 
@@ -108,6 +125,7 @@ export function InvoicePrintPage() {
           <div className="text-right">
             <p className="font-medium">Delivery Reference</p>
             <p>{invoice.delivery?.document_number ?? '—'}</p>
+            {invoice.terms_of_payment && <p>Terms: {invoice.terms_of_payment.name}</p>}
           </div>
         </div>
 
@@ -164,6 +182,18 @@ export function InvoicePrintPage() {
           </div>
         </div>
 
+        {invoice.payment_history.length > 0 && (
+          <div className="border-t-2 border-foreground/80 p-3">
+            <p className="font-medium">Payment</p>
+            <p>
+              {PAYMENT_METHOD_LABELS[invoice.payment_history[invoice.payment_history.length - 1].payment_method]}
+              {invoice.payment_history[invoice.payment_history.length - 1].cash_account_name
+                ? ` — ${invoice.payment_history[invoice.payment_history.length - 1].cash_account_name}`
+                : ''}
+            </p>
+          </div>
+        )}
+
         {invoice.remarks && (
           <div className="border-t-2 border-foreground/80 p-3">
             <p className="font-medium">Notes</p>
@@ -173,10 +203,12 @@ export function InvoicePrintPage() {
 
         <div className="grid grid-cols-2 gap-8 border-t-2 border-foreground/80 p-3 pt-10">
           <div className="text-center">
-            <div className="border-t border-foreground/80 pt-1">Prepared By</div>
+            <p className="font-semibold">{brandingQuery.data?.name ?? 'PT. KALINDO ETAM'}</p>
+            <div className="mt-10 border-t border-foreground/80 pt-1">(AUTHORISED SIGNATURE)</div>
           </div>
           <div className="text-center">
-            <div className="border-t border-foreground/80 pt-1">Received By</div>
+            <p className="font-semibold">{brandingQuery.data?.name ?? 'PT. KALINDO ETAM'}</p>
+            <div className="mt-10 border-t border-foreground/80 pt-1">(AUTHORISED SIGNATURE)</div>
           </div>
         </div>
       </div>

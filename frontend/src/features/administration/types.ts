@@ -25,6 +25,15 @@ export interface CompanyBranding {
   logo_url: string | null
 }
 
+/** Unguarded (no company.view needed) — address/phone/email/npwp for invoice/document print headers. Never call /companies for this. */
+export interface CompanyPrintHeader {
+  name: string | null
+  address: string | null
+  phone: string | null
+  email: string | null
+  npwp: string | null
+}
+
 export interface CompanyFormValues {
   name: string
   code: string

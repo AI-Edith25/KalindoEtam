@@ -149,6 +149,7 @@ export interface InvoicePaymentHistoryLine {
   receipt_entry_document_number: string | null
   receipt_date: string | null
   cash_account_name: string | null
+  payment_method: 'cash' | 'bank_transfer' | 'cheque' | 'qris' | 'credit_card'
 }
 
 export interface Invoice {
@@ -163,6 +164,12 @@ export interface Invoice {
   deliveries: { id: string; document_number: string | null }[]
   sales_order_id: string | null
   sales_orders: { id: string; document_number: string | null }[]
+  sales_order: {
+    id: string
+    document_number: string | null
+    sales_person: { id: string; code: string; name: string } | null
+    branch: { id: string; name: string; code: string } | null
+  } | null
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; phone: string | null; address: string | null } | null
   invoice_date: string

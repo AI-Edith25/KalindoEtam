@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { Company, CompanyBranding, CompanyFormValues, DocumentAttachment } from '../types'
+import type { Company, CompanyBranding, CompanyFormValues, CompanyPrintHeader, DocumentAttachment } from '../types'
 
 const COMPANY_ATTACHABLE_TYPE = 'App\\Models\\Company'
 
@@ -13,6 +13,12 @@ export async function fetchCurrentCompany(): Promise<Company | null> {
 /** Unguarded (no company.view needed) — name/logo only, for Header/Sidebar. Never call /companies for this. */
 export async function fetchCompanyBranding(): Promise<CompanyBranding> {
   const { data } = await apiClient.get<ApiResponse<CompanyBranding>>('/company/branding')
+  return data.data
+}
+
+/** Unguarded (no company.view needed) — address/phone/email/npwp for invoice/document print headers. Never call /companies for this. */
+export async function fetchCompanyPrintHeader(): Promise<CompanyPrintHeader> {
+  const { data } = await apiClient.get<ApiResponse<CompanyPrintHeader>>('/company/print-header')
   return data.data
 }
 
