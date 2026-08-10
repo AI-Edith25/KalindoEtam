@@ -149,7 +149,7 @@ export interface InvoicePaymentHistoryLine {
   receipt_entry_document_number: string | null
   receipt_date: string | null
   cash_account_name: string | null
-  payment_method: 'cash' | 'bank_transfer' | 'cheque' | 'qris' | 'credit_card'
+  payment_method: 'cash' | 'bank_transfer' | 'cheque' | 'qris' | 'credit_card' | null
 }
 
 export interface Invoice {

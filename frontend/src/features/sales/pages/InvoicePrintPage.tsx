@@ -21,7 +21,7 @@ import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
 import { discountLabel } from '../lib/discount'
 import type { InvoicePaymentHistoryLine } from '../types'
 
-const PAYMENT_METHOD_LABELS: Record<InvoicePaymentHistoryLine['payment_method'], string> = {
+const PAYMENT_METHOD_LABELS: Record<NonNullable<InvoicePaymentHistoryLine['payment_method']>, string> = {
   cash: 'Cash',
   bank_transfer: 'Bank Transfer',
   cheque: 'Cheque',
@@ -73,6 +73,10 @@ export function InvoicePrintPage() {
 
   const compact = printOptions.paperType === 'continuous'
   const pageCss = PRINT_PAPER_PAGE_CSS[printOptions.paperType]
+  const lastPayment = invoice.payment_history[invoice.payment_history.length - 1]
+  const lastPaymentLabel = lastPayment
+    ? [lastPayment.payment_method ? PAYMENT_METHOD_LABELS[lastPayment.payment_method] : null, lastPayment.cash_account_name].filter(Boolean).join(' — ')
+    : ''
 
   return (
     <div
@@ -182,15 +186,10 @@ export function InvoicePrintPage() {
           </div>
         </div>
 
-        {invoice.payment_history.length > 0 && (
+        {lastPaymentLabel && (
           <div className="border-t-2 border-foreground/80 p-3">
             <p className="font-medium">Payment</p>
-            <p>
-              {PAYMENT_METHOD_LABELS[invoice.payment_history[invoice.payment_history.length - 1].payment_method]}
-              {invoice.payment_history[invoice.payment_history.length - 1].cash_account_name
-                ? ` — ${invoice.payment_history[invoice.payment_history.length - 1].cash_account_name}`
-                : ''}
-            </p>
+            <p>{lastPaymentLabel}</p>
           </div>
         )}
 
