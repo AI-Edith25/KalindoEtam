@@ -46,7 +46,7 @@ export function JournalEntryEditorPage() {
 
     if (entry.status !== 'draft') {
       toast.error('Only draft Journal Entries can be edited.')
-      navigate(`/accounting/journal-entries/${entry.id}`, { replace: true })
+      navigate(`/finance/general-journal/journal-entries/${entry.id}`, { replace: true })
       return
     }
 
@@ -83,7 +83,7 @@ export function JournalEntryEditorPage() {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success(isEdit ? 'Journal Entry updated.' : 'Journal Entry saved as draft.')
       if (!isEdit) {
-        navigate(`/accounting/journal-entries/${entry.id}/edit`, { replace: true })
+        navigate(`/finance/general-journal/journal-entries/${entry.id}/edit`, { replace: true })
       }
     },
     onError: (error) => toastApiError(error),
@@ -94,7 +94,7 @@ export function JournalEntryEditorPage() {
     onSuccess: (entry) => {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success('Journal Entry posted.')
-      navigate(`/accounting/journal-entries/${entry.id}`)
+      navigate(`/finance/general-journal/journal-entries/${entry.id}`)
     },
     onError: (error) => toastApiError(error),
   })
@@ -202,7 +202,7 @@ export function JournalEntryEditorPage() {
           )}
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => navigate('/accounting/journal-entries')}>
+            <Button type="button" variant="outline" onClick={() => navigate('/finance/general-journal/journal-entries')}>
               Cancel
             </Button>
             <Button type="submit" variant="outline" disabled={saveMutation.isPending || !isBalanced}>

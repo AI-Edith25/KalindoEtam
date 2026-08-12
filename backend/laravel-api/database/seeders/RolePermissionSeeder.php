@@ -49,6 +49,7 @@ class RolePermissionSeeder extends Seeder
         'sales.debit_notes' => ['view', 'create', 'update', 'delete'],
         'finance.outgoing_payment' => ['view', 'create', 'update', 'delete'],
         'finance.incoming_payment' => ['view', 'create', 'update', 'delete'],
+        'finance.general_journal' => ['view'],
         'finance.accounts_payable' => ['view'],
         'finance.accounts_receivable' => ['view'],
         'finance.payment_allocation' => ['create', 'update'],
@@ -115,5 +116,21 @@ class RolePermissionSeeder extends Seeder
         if (! $admin->hasRole('Admin')) {
             $admin->assignRole($adminRole);
         }
+
+        // finance.general_journal.view is the new entry point into the same 8 report pages
+        // Accounting Reports already gated individually — any role that could already reach
+        // at least one of them keeps that access, additive only, nothing else on the role changes.
+        $accountingViewPermissions = collect($this->pages)
+            ->keys()
+            ->filter(fn (string $page) => str_starts_with($page, 'accounting.'))
+            ->map(fn (string $page) => "{$page}.view");
+
+        Role::query()->where('name', '!=', 'Admin')->with('permissions')->each(function (Role $role) use ($accountingViewPermissions) {
+            $hasAccountingAccess = $role->permissions->pluck('name')->intersect($accountingViewPermissions)->isNotEmpty();
+
+            if ($hasAccountingAccess && ! $role->hasPermissionTo('finance.general_journal.view')) {
+                $role->givePermissionTo('finance.general_journal.view');
+            }
+        });
     }
 }

@@ -74,7 +74,7 @@ export function GeneralLedgerListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage="No account activity matches these filters."
-        onRowClick={(row) => navigate(`/accounting/general-ledger/${row.id}`)}
+        onRowClick={(row) => navigate(`/finance/general-journal/general-ledger/${row.id}`)}
       />
     </div>
   )

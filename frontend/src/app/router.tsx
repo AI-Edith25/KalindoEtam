@@ -58,6 +58,7 @@ import { OutgoingPaymentListPage } from '@/features/payment/pages/OutgoingPaymen
 import { OutgoingPaymentEditorPage } from '@/features/payment/pages/OutgoingPaymentEditorPage'
 import { OutgoingPaymentDetailPage } from '@/features/payment/pages/OutgoingPaymentDetailPage'
 import { OutgoingPaymentPrintPage } from '@/features/payment/pages/OutgoingPaymentPrintPage'
+import { GeneralJournalMenuPage } from '@/features/accounting/pages/GeneralJournalMenuPage'
 import { JournalEntryListPage } from '@/features/accounting/pages/JournalEntryListPage'
 import { JournalEntryEditorPage } from '@/features/accounting/pages/JournalEntryEditorPage'
 import { JournalEntryDetailPage } from '@/features/accounting/pages/JournalEntryDetailPage'
@@ -158,19 +159,20 @@ export function AppRouter() {
         <Route path="/finance/outgoing/:id/edit" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentDetailPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id/print" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentPrintPage /></ProtectedRoute>} />
-        <Route path="/accounting/journal-entries" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryListPage /></ProtectedRoute>} />
-        <Route path="/accounting/journal-entries/new" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
-        <Route path="/accounting/journal-entries/:id/edit" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
-        <Route path="/accounting/journal-entries/:id" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryDetailPage /></ProtectedRoute>} />
-        <Route path="/accounting/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListListPage /></ProtectedRoute>} />
-        <Route path="/accounting/journal-list/print" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListPrintPage /></ProtectedRoute>} />
-        <Route path="/accounting/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />
-        <Route path="/accounting/general-ledger/:accountId" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerDetailPage /></ProtectedRoute>} />
-        <Route path="/accounting/trial-balance" element={<ProtectedRoute permission="accounting.trial_balance.view"><TrialBalanceListPage /></ProtectedRoute>} />
-        <Route path="/accounting/profit-loss" element={<ProtectedRoute permission="accounting.profit_loss.view"><ProfitLossListPage /></ProtectedRoute>} />
-        <Route path="/accounting/balance-sheet" element={<ProtectedRoute permission="accounting.balance_sheet.view"><BalanceSheetListPage /></ProtectedRoute>} />
-        <Route path="/accounting/cash-flow" element={<ProtectedRoute permission="accounting.cash_flow.view"><CashFlowListPage /></ProtectedRoute>} />
-        <Route path="/accounting/period-closing" element={<ProtectedRoute permission="accounting.period_closing.view"><PeriodManagementPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal" element={<ProtectedRoute permission="finance.general_journal.view"><GeneralJournalMenuPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/journal-entries" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryListPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/journal-entries/new" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/journal-entries/:id/edit" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/journal-entries/:id" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryDetailPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListListPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/journal-list/print" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListPrintPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/general-ledger/:accountId" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerDetailPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/trial-balance" element={<ProtectedRoute permission="accounting.trial_balance.view"><TrialBalanceListPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/profit-loss" element={<ProtectedRoute permission="accounting.profit_loss.view"><ProfitLossListPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/balance-sheet" element={<ProtectedRoute permission="accounting.balance_sheet.view"><BalanceSheetListPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/cash-flow" element={<ProtectedRoute permission="accounting.cash_flow.view"><CashFlowListPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/period-closing" element={<ProtectedRoute permission="accounting.period_closing.view"><PeriodManagementPage /></ProtectedRoute>} />
         <Route path="/administration/company" element={<ProtectedRoute permission="administration.company.view"><CompanyPage /></ProtectedRoute>} />
         <Route path="/administration/branches" element={<ProtectedRoute permission="administration.branch.view"><BranchListPage /></ProtectedRoute>} />
         <Route path="/administration/users" element={<ProtectedRoute permission="administration.users.view"><UserListPage /></ProtectedRoute>} />

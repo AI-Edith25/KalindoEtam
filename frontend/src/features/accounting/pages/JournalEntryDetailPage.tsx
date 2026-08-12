@@ -54,7 +54,7 @@ export function JournalEntryDetailPage() {
     onSuccess: (reversal) => {
       invalidate()
       toast.success('Journal Entry reversed.')
-      navigate(`/accounting/journal-entries/${reversal.id}`)
+      navigate(`/finance/general-journal/journal-entries/${reversal.id}`)
     },
     onError: (error) => toastApiError(error),
   })
@@ -64,7 +64,7 @@ export function JournalEntryDetailPage() {
     onSuccess: () => {
       invalidate()
       toast.success('Journal Entry deleted.')
-      navigate('/accounting/journal-entries')
+      navigate('/finance/general-journal/journal-entries')
     },
     onError: (error) => toastApiError(error),
   })
@@ -92,7 +92,7 @@ export function JournalEntryDetailPage() {
           <div className="flex items-center gap-2">
             {entry.status === 'draft' && (
               <>
-                <Button variant="outline" onClick={() => navigate(`/accounting/journal-entries/${entry.id}/edit`)}>
+                <Button variant="outline" onClick={() => navigate(`/finance/general-journal/journal-entries/${entry.id}/edit`)}>
                   <Pencil className="size-4" />
                   Edit
                 </Button>
@@ -152,7 +152,7 @@ export function JournalEntryDetailPage() {
               <DetailField
                 label="Reverses"
                 value={
-                  <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/accounting/journal-entries/${entry.reverses_id}`)}>
+                  <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/finance/general-journal/journal-entries/${entry.reverses_id}`)}>
                     {entry.reverses_document_number ?? '—'}
                     <ExternalLink className="size-3.5" />
                   </Button>
@@ -166,7 +166,7 @@ export function JournalEntryDetailPage() {
                   <Button
                     variant="link"
                     className="h-auto p-0"
-                    onClick={() => navigate(`/accounting/journal-entries/${entry.reversed_by_id}`)}
+                    onClick={() => navigate(`/finance/general-journal/journal-entries/${entry.reversed_by_id}`)}
                   >
                     {entry.reversed_by_document_number ?? '—'}
                     <ExternalLink className="size-3.5" />

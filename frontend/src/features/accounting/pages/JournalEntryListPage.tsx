@@ -57,7 +57,7 @@ export function JournalEntryListPage() {
   const rows = listQuery.data?.data ?? []
 
   const actionsFor = (entry: JournalEntry): RowAction[] => {
-    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/accounting/journal-entries/${entry.id}`) }]
+    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/finance/general-journal/journal-entries/${entry.id}`) }]
 
     if (entry.status === 'draft' && canUpdate) {
       actions.push({ label: 'Post', icon: Send, onClick: () => postMutation.mutate(entry.id) })
@@ -99,7 +99,7 @@ export function JournalEntryListPage() {
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: true },
             ]}
-            primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate('/accounting/journal-entries/new') } : undefined}
+            primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate('/finance/general-journal/journal-entries/new') } : undefined}
           />
         }
       />
@@ -130,7 +130,7 @@ export function JournalEntryListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No journal entries match your search or filters.' : 'No journal entries yet.'}
-        onRowClick={(row) => navigate(`/accounting/journal-entries/${row.id}`)}
+        onRowClick={(row) => navigate(`/finance/general-journal/journal-entries/${row.id}`)}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}

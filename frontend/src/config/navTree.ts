@@ -27,6 +27,8 @@ export interface NavGroup {
   label: string
   icon: LucideIcon
   pages: NavPage[]
+  /** Excluded from SidebarNav's level-1 items — group still fully resolvable via findGroup() for SectionNav/PermissionMatrixDrawer/route guards. */
+  hideFromSidebar?: boolean
 }
 
 /**
@@ -99,21 +101,26 @@ export const navTree: NavGroup[] = [
     pages: [
       { key: 'outgoing_payment', label: 'Outgoing Payment', path: '/finance/outgoing', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'incoming_payment', label: 'Incoming Payment', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'general_journal', label: 'General Journal', path: '/finance/general-journal', actions: ['view'] },
     ],
   },
   {
     key: 'accounting',
     label: 'Accounting Reports',
     icon: BookOpen,
+    // Not a level-1 sidebar section anymore — reached via Finance's "General Journal" tab
+    // and its chooser page. Group/page keys and permission strings stay untouched (see
+    // 2026-08-09/10 revert history) — only these pages' `path` values moved under Finance.
+    hideFromSidebar: true,
     pages: [
-      { key: 'journal_entries', label: 'General Journal', path: '/accounting/journal-entries', actions: ['view', 'create', 'update', 'delete', 'approve'] },
-      { key: 'journal_list', label: 'Journal List', path: '/accounting/journal-list', actions: ['view'] },
-      { key: 'general_ledger', label: 'General Ledger', path: '/accounting/general-ledger', actions: ['view'] },
-      { key: 'trial_balance', label: 'Trial Balance', path: '/accounting/trial-balance', actions: ['view'] },
-      { key: 'profit_loss', label: 'Profit & Loss', path: '/accounting/profit-loss', actions: ['view'] },
-      { key: 'balance_sheet', label: 'Balance Sheet', path: '/accounting/balance-sheet', actions: ['view'] },
-      { key: 'cash_flow', label: 'Cash Flow', path: '/accounting/cash-flow', actions: ['view'] },
-      { key: 'period_closing', label: 'Period Closing', path: '/accounting/period-closing', actions: ['view', 'create', 'update'] },
+      { key: 'journal_entries', label: 'General Journal', path: '/finance/general-journal/journal-entries', actions: ['view', 'create', 'update', 'delete', 'approve'] },
+      { key: 'journal_list', label: 'Journal List', path: '/finance/general-journal/journal-list', actions: ['view'] },
+      { key: 'general_ledger', label: 'General Ledger', path: '/finance/general-journal/general-ledger', actions: ['view'] },
+      { key: 'trial_balance', label: 'Trial Balance', path: '/finance/general-journal/trial-balance', actions: ['view'] },
+      { key: 'profit_loss', label: 'Profit & Loss', path: '/finance/general-journal/profit-loss', actions: ['view'] },
+      { key: 'balance_sheet', label: 'Balance Sheet', path: '/finance/general-journal/balance-sheet', actions: ['view'] },
+      { key: 'cash_flow', label: 'Cash Flow', path: '/finance/general-journal/cash-flow', actions: ['view'] },
+      { key: 'period_closing', label: 'Period Closing', path: '/finance/general-journal/period-closing', actions: ['view', 'create', 'update'] },
     ],
   },
   {

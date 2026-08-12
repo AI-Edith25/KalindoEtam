@@ -15,6 +15,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const items = [
     { label: DASHBOARD_NAV.label, path: DASHBOARD_NAV.path, icon: DASHBOARD_NAV.icon },
     ...navTree
+      .filter((group) => !group.hideFromSidebar)
       .map((group) => ({ group, path: targetPathFor(group, permissions) }))
       .filter((entry): entry is { group: NavGroup; path: string } => entry.path !== null)
       .map(({ group, path }) => ({ label: group.label, path, icon: group.icon })),

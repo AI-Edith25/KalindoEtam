@@ -40,7 +40,7 @@ export function RevenueExpenseChart() {
   const hasAnyData = data.some((row) => row.revenue !== 0 || row.expense !== 0)
 
   return (
-    <Card className="cursor-pointer transition-colors hover:bg-accent/50" onClick={() => navigate('/accounting/profit-loss')}>
+    <Card className="cursor-pointer transition-colors hover:bg-accent/50" onClick={() => navigate('/finance/general-journal/profit-loss')}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <DollarSign className="size-4 text-primary" />
@@ -54,7 +54,7 @@ export function RevenueExpenseChart() {
           <EmptyState message="No posted revenue or expense yet." />
         ) : (
           <ResponsiveContainer width="100%" height={256}>
-            <BarChart data={data} onClick={(event) => event && navigate('/accounting/profit-loss')}>
+            <BarChart data={data} onClick={(event) => event && navigate('/finance/general-journal/profit-loss')}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="label" fontSize={12} />
               <YAxis tickFormatter={(value: number) => formatCurrency(value)} width={90} fontSize={12} />

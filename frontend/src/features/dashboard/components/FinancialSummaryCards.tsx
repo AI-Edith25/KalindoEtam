@@ -21,7 +21,7 @@ export function FinancialSummaryCards() {
         description="Month to date"
         icon={TrendingUp}
         isLoading={isLoading}
-        to="/accounting/profit-loss"
+        to="/finance/general-journal/profit-loss"
       />
       <SummaryCard
         title="Net Profit (MTD)"
@@ -29,7 +29,7 @@ export function FinancialSummaryCards() {
         description="Month to date"
         icon={DollarSign}
         isLoading={isLoading}
-        to="/accounting/profit-loss"
+        to="/finance/general-journal/profit-loss"
       />
     </>
   )

@@ -10,7 +10,7 @@ import { fetchPendingTasks } from '../api/dashboardApi'
 const MODULE_LINKS: Record<string, string> = {
   purchase_order: '/purchase/orders',
   sales_order: '/sales/orders',
-  journal_entry: '/accounting/journal-entries',
+  journal_entry: '/finance/general-journal/journal-entries',
 }
 
 /** Draft/unposted counts across modules — each count reuses that module's own repository (docs/DASHBOARD_DESIGN.md §3); this widget only lists them. */
