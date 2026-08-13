@@ -8,16 +8,19 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { fetchJournalList } from '../api/journalListApi'
+import { exportJournalListXlsx, fetchJournalList } from '../api/journalListApi'
 import { JournalListFiltersBar } from '../components/JournalListFiltersBar'
 import { emptyJournalListFilters } from '../lib/journalListFilters'
 import { buildJournalListCsv, downloadCsv } from '../lib/journalListCsv'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { toastApiError } from '@/shared/services/errorHandler'
 import type { JournalListFilterValues } from '../types'
 
 /** A read model, like every other Accounting Report — no create/edit/delete anywhere on this page. */
 export function JournalListListPage() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState<JournalListFilterValues>(emptyJournalListFilters)
+  const [isExportingXlsx, setIsExportingXlsx] = useState(false)
 
   const listQuery = useQuery({
     queryKey: ['journal-list', filters.branchId, filters.dateFrom, filters.dateTo],
@@ -38,6 +41,22 @@ export function JournalListListPage() {
 
   const report = listQuery.data
 
+  const exportXlsx = async () => {
+    setIsExportingXlsx(true)
+    try {
+      const blob = await exportJournalListXlsx({
+        ...(filters.branchId ? { branch_id: filters.branchId } : {}),
+        ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+        ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+      })
+      downloadBlob('journal-list.xlsx', blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExportingXlsx(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="accounting" />
@@ -50,7 +69,8 @@ export function JournalListListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Print', icon: Printer, onClick: () => navigate(`/finance/general-journal/journal-list/print${printParams ? `?${printParams}` : ''}`) },
-              { label: 'Export', icon: Download, disabled: !report, onClick: () => report && downloadCsv('journal-list.csv', buildJournalListCsv(report)) },
+              { label: 'Export CSV', icon: Download, disabled: !report, onClick: () => report && downloadCsv('journal-list.csv', buildJournalListCsv(report)) },
+              { label: 'Export XLSX', icon: Download, disabled: isExportingXlsx, onClick: exportXlsx },
             ]}
           />
         }

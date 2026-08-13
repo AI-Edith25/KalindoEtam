@@ -173,6 +173,19 @@ class JournalListTest extends TestCase
         $this->assertEquals(1, $totalRows);
     }
 
+    /** E2 (UAT review 2026-08-12) — the paying customer/toko must show up in the Receipt row's Particulars. */
+    public function test_receipt_particulars_include_the_paying_customer_name(): void
+    {
+        $this->bankAccount->update(['cash_bank_category' => CashBankCategory::CASH_BOOK]);
+        $this->submittedReceipt(50000);
+
+        $result = $this->journalListService->summarize([]);
+
+        $group = collect($result['groups'])->firstWhere('key', 'Cash Book-Receipt');
+        $this->assertStringContainsString('Acme', $group['rows'][0]['particulars']);
+        $this->assertStringContainsString($this->bankAccount->name, $group['rows'][0]['particulars']);
+    }
+
     public function test_transfer_between_two_cash_bank_accounts_produces_two_separate_group_rows_not_a_double_count(): void
     {
         $this->bankAccount->update(['cash_bank_category' => CashBankCategory::CASH_BOOK]);

@@ -13,3 +13,9 @@ export async function fetchJournalList(params: JournalListParams): Promise<Journ
   const { data } = await apiClient.get<ApiResponse<JournalListData>>('/journal-list', { params })
   return data.data
 }
+
+/** E1 (UAT review 2026-08-12) — XLSX export, same filters/grouping as fetchJournalList(). Blob response (Bearer auth, not a cookie). */
+export async function exportJournalListXlsx(params: JournalListParams): Promise<Blob> {
+  const { data } = await apiClient.get('/journal-list/export', { params, responseType: 'blob' })
+  return data as Blob
+}

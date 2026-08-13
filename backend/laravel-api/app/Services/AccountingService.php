@@ -93,6 +93,7 @@ class AccountingService
                 'chart_of_account_id' => $account->id,
                 'debit' => $line['type'] === 'debit' ? $line['amount'] : 0,
                 'credit' => $line['type'] === 'credit' ? $line['amount'] : 0,
+                'description' => $line['description'] ?? null,
             ];
         }, $lines);
     }

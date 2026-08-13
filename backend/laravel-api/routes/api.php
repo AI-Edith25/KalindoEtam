@@ -251,6 +251,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Receipt/Payment Entry's own branch_id (journal_entry_lines.branch_id stays unpopulated,
     // same as General Ledger's — this report deliberately doesn't touch it or General Ledger).
     Route::get('journal-list', [JournalListController::class, 'index'])->middleware('permission:accounting.journal_list.view');
+    Route::get('journal-list/export', [JournalListController::class, 'exportXlsx'])->middleware('permission:accounting.journal_list.view');
 
     // Trial Balance (Sprint 16A): a presentation layer over GeneralLedgerService::listAccounts()
     // — no new balance calculation, no new accounting table. See docs/TRIAL_BALANCE_DESIGN.md.

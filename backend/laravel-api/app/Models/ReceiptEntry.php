@@ -89,12 +89,22 @@ class ReceiptEntry extends Model
      * never Accounts Receivable directly — receiving money and applying it
      * to a specific invoice are separate operations; see
      * PaymentAllocation::journalLines() for the second leg.
+     *
+     * The 1150 leg's description (E2, UAT review 2026-08-12) is what makes
+     * the paying customer/toko show up in Journal List's Particulars column
+     * for this transaction's cash-line row: JournalListService::buildRow()
+     * only ever reads a *sibling* line's description, never the row's own —
+     * 1150 is this cash line's one sibling, so that's the leg it has to sit
+     * on, not the cash line itself.
      */
     public function journalLines(): array
     {
         return [
             ['account' => $this->cashAccount->code, 'type' => 'debit', 'amount' => (float) $this->total_amount],
-            ['account' => '1150', 'type' => 'credit', 'amount' => (float) $this->total_amount], // Unapplied Customer Payments
+            [
+                'account' => '1150', 'type' => 'credit', 'amount' => (float) $this->total_amount,
+                'description' => "{$this->customer->customer_name}; {$this->cashAccount->name}",
+            ], // Unapplied Customer Payments
         ];
     }
 
