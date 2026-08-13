@@ -16,6 +16,8 @@ import { deleteReceiptEntry, fetchReceiptEntry, submitReceiptEntry } from '../ap
 import { reverseAllocation } from '../api/paymentAllocationApi'
 import { PaymentAllocationDrawer } from '../components/PaymentAllocationDrawer'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
+import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
+import { ReceiptEntryAttachments } from '../components/ReceiptEntryAttachments'
 
 /** Read-only, section-grouped — mirrors OutgoingPaymentDetailPage exactly. */
 export function IncomingPaymentDetailPage() {
@@ -122,12 +124,24 @@ export function IncomingPaymentDetailPage() {
             <DetailField label="Payment No" value={receipt.document_number ?? '—'} />
             <DetailField label="Customer" value={receipt.customer?.customer_name ?? '—'} />
             <DetailField label="Payment Date" value={formatDate(receipt.receipt_date)} />
-            <DetailField label="Payment Method" value={receipt.cash_account?.name ?? '—'} />
+            <DetailField label="Cash/Bank Account" value={receipt.cash_account?.name ?? '—'} />
+            <DetailField label="Payment Method" value={receipt.payment_method ? PAYMENT_METHOD_LABELS[receipt.payment_method] : '—'} />
+            {(receipt.payment_method === 'giro' || receipt.payment_method === 'cheque') && (
+              <>
+                <DetailField label={receipt.payment_method === 'giro' ? 'Giro Number' : 'Cek Number'} value={receipt.giro_number || '—'} />
+                <DetailField
+                  label={receipt.payment_method === 'giro' ? 'Giro Due Date' : 'Cek Due Date'}
+                  value={receipt.giro_due_date ? formatDate(receipt.giro_due_date) : '—'}
+                />
+              </>
+            )}
             <DetailField label="Reference Number" value={receipt.reference_number || '—'} />
             <DetailField label="Notes" value={receipt.remarks || '—'} />
           </DetailSection>
         </CardContent>
       </Card>
+
+      <ReceiptEntryAttachments receiptEntryId={receipt.id} />
 
       {receipt.status === 'submitted' && (
         <Card>

@@ -16,6 +16,8 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchBranches, fetchChartOfAccountsLookup, fetchCustomersLookup } from '@/features/master/api/lookupsApi'
 import { createReceiptEntry, fetchReceiptEntry, submitReceiptEntry, updateReceiptEntry } from '../api/receiptEntryApi'
+import { PAYMENT_METHOD_OPTIONS } from '../lib/paymentMethodLabels'
+import { ReceiptEntryAttachments } from '../components/ReceiptEntryAttachments'
 import { fetchAccountsReceivables } from '../api/accountsReceivableApi'
 import { allocatePayment } from '../api/paymentAllocationApi'
 import { OutstandingInvoicesTable } from '../components/OutstandingInvoicesTable'
@@ -29,7 +31,11 @@ const emptyValues: ReceiptEntryEditorValues = {
   branch_id: '',
   reference_number: '',
   remarks: '',
+  payment_method: '',
+  giro_number: '',
+  giro_due_date: '',
 }
+
 
 export function IncomingPaymentEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -54,6 +60,7 @@ export function IncomingPaymentEditorPage() {
   })
 
   const customerId = form.watch('customer_id')
+  const watchedPaymentMethod = form.watch('payment_method')
 
   // Sprint 1 (Invoice Allocation): accounts_receivable_id -> user-entered "To
   // Allocate" amount. Checked and "has an entry in this map" are the same
@@ -113,6 +120,9 @@ export function IncomingPaymentEditorPage() {
       branch_id: receipt.branch_id ?? '',
       reference_number: receipt.reference_number ?? '',
       remarks: receipt.remarks ?? '',
+      payment_method: receipt.payment_method ?? '',
+      giro_number: receipt.giro_number ?? '',
+      giro_due_date: receipt.giro_due_date ?? '',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiptQuery.data])
@@ -127,6 +137,9 @@ export function IncomingPaymentEditorPage() {
         reference_number: values.reference_number || null,
         remarks: values.remarks || null,
         total_amount: Number(values.total_amount),
+        payment_method: values.payment_method,
+        giro_number: values.payment_method === 'giro' || values.payment_method === 'cheque' ? values.giro_number || null : null,
+        giro_due_date: values.payment_method === 'giro' || values.payment_method === 'cheque' ? values.giro_due_date || null : null,
       }
 
       return isEdit ? updateReceiptEntry(id!, payload) : createReceiptEntry(payload)
@@ -272,7 +285,7 @@ export function IncomingPaymentEditorPage() {
                 name="cash_account_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Method</FormLabel>
+                    <FormLabel>Cash/Bank Account</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger className="w-full">
@@ -291,6 +304,60 @@ export function IncomingPaymentEditorPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="payment_method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Method</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select payment method" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {PAYMENT_METHOD_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {(watchedPaymentMethod === 'giro' || watchedPaymentMethod === 'cheque') && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="giro_number"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{watchedPaymentMethod === 'giro' ? 'Giro' : 'Cek'} Number</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="giro_due_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{watchedPaymentMethod === 'giro' ? 'Giro' : 'Cek'} Due Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
               <FormField
                 control={form.control}
                 name="branch_id"
@@ -343,6 +410,8 @@ export function IncomingPaymentEditorPage() {
               />
             </CardContent>
           </Card>
+
+          {isEdit && <ReceiptEntryAttachments receiptEntryId={id!} showUpload />}
 
           {customerId && (
             <Card>

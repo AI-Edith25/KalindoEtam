@@ -26,6 +26,8 @@ class ReceiptEntry extends Model
         'customer_id',
         'receipt_date',
         'payment_method',
+        'giro_number',
+        'giro_due_date',
         'cash_account_id',
         'branch_id',
         'reference_number',
@@ -37,6 +39,7 @@ class ReceiptEntry extends Model
     protected $casts = [
         'status' => DocumentStatus::class,
         'payment_method' => PaymentMethod::class,
+        'giro_due_date' => 'date',
         'receipt_date' => 'date',
         'total_amount' => 'decimal:2',
         'allocated_amount' => 'decimal:2',

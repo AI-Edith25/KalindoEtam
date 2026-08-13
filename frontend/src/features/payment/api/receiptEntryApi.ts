@@ -20,6 +20,9 @@ export interface ReceiptEntryPayload {
   reference_number: string | null
   remarks: string | null
   total_amount: number
+  payment_method: string
+  giro_number: string | null
+  giro_due_date: string | null
 }
 
 /** Server-side paginated + filtered — mirrors paymentEntryApi.ts. No cancelReceiptEntry — the backend has no route. */

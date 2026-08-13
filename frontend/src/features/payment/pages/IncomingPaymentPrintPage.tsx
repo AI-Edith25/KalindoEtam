@@ -16,6 +16,7 @@ import {
 } from '@/shared/lib/printOptions'
 import { useCompanyBranding } from '@/features/administration/hooks/useCompany'
 import { fetchReceiptEntry } from '../api/receiptEntryApi'
+import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 
 /**
  * Same bordered "cetak" shell and pre-print options as InvoicePrintPage —
@@ -98,8 +99,15 @@ export function IncomingPaymentPrintPage() {
             <p className="font-semibold">{receipt.customer?.customer_name ?? '—'}</p>
           </div>
           <div className="text-right">
-            <p className="font-medium">Payment Method</p>
+            <p className="font-medium">Cash/Bank Account</p>
             <p>{receipt.cash_account?.name ?? '—'}</p>
+            <p className="font-medium">Payment Method</p>
+            <p>
+              {receipt.payment_method ? PAYMENT_METHOD_LABELS[receipt.payment_method] : '—'}
+              {(receipt.payment_method === 'giro' || receipt.payment_method === 'cheque') && receipt.giro_number
+                ? ` — ${receipt.giro_number}${receipt.giro_due_date ? ` (due ${formatDate(receipt.giro_due_date)})` : ''}`
+                : ''}
+            </p>
           </div>
         </div>
 

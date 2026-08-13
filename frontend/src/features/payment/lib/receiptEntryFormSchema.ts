@@ -15,12 +15,24 @@ export const receiptEntryFormSchema = z
     branch_id: z.string().optional().or(z.literal('')),
     reference_number: z.string().optional().or(z.literal('')),
     remarks: z.string().optional().or(z.literal('')),
+    payment_method: z.string().min(1, 'Payment Method is required'),
+    giro_number: z.string().optional().or(z.literal('')),
+    giro_due_date: z.string().optional().or(z.literal('')),
   })
   .superRefine((values, ctx) => {
     const amount = Number(values.total_amount)
 
     if (values.total_amount.trim() === '' || Number.isNaN(amount) || amount <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be greater than zero', path: ['total_amount'] })
+    }
+
+    if (values.payment_method === 'giro' || values.payment_method === 'cheque') {
+      if (!values.giro_number?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Number is required for Giro/Cek', path: ['giro_number'] })
+      }
+      if (!values.giro_due_date?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Due date is required for Giro/Cek', path: ['giro_due_date'] })
+      }
     }
   })
 

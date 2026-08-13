@@ -40,6 +40,9 @@ class ReceiptEntryService
                 'remarks' => $data['remarks'] ?? null,
                 'total_amount' => $data['total_amount'],
                 'allocated_amount' => 0,
+                'payment_method' => $data['payment_method'] ?? null,
+                'giro_number' => $data['giro_number'] ?? null,
+                'giro_due_date' => $data['giro_due_date'] ?? null,
             ]);
 
             $this->auditLogService->record('created', 'receipt_entry', "Created Receipt Entry \"{$receiptEntry->document_number}\".");

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,6 +23,9 @@ class UpdateReceiptEntryRequest extends FormRequest
             'reference_number' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
             'total_amount' => ['sometimes', 'required', 'numeric', 'gt:0'],
+            'payment_method' => ['sometimes', 'required', Rule::enum(PaymentMethod::class)],
+            'giro_number' => ['required_if:payment_method,giro,cheque', 'nullable', 'string', 'max:255'],
+            'giro_due_date' => ['required_if:payment_method,giro,cheque', 'nullable', 'date'],
         ];
     }
 }

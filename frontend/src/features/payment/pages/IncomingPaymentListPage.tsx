@@ -91,7 +91,7 @@ export function IncomingPaymentListPage() {
   const columns: DataTableColumn<ReceiptEntry>[] = [
     { header: 'Payment No', accessor: (row) => row.document_number ?? '—' },
     { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
-    { header: 'Payment Method', accessor: (row) => row.cash_account?.name ?? '—' },
+    { header: 'Cash/Bank Account', accessor: (row) => row.cash_account?.name ?? '—' },
     { header: 'Payment Date', accessor: (row) => formatDate(row.receipt_date) },
     { header: 'Amount', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right' },
     {

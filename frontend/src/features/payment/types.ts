@@ -3,6 +3,8 @@ import type { Branch, ChartOfAccount, Customer, Supplier } from '@/features/mast
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 export type SettlementStatus = 'unpaid' | 'partially_paid' | 'paid'
 export type PaymentEntryType = 'supplier' | 'general_expense'
+/** Distinct from cash_account_id (the Chart-of-Accounts picker, labeled "Cash/Bank Account") — this is the actual "Payment Method" field (D2, UAT review 2026-08-12). */
+export type PaymentEntryMethod = 'cash' | 'bank_transfer' | 'cheque' | 'giro' | 'qris' | 'credit_card'
 
 export interface AccountsPayable {
   id: string
@@ -98,6 +100,9 @@ export interface ReceiptEntry {
   receipt_date: string
   cash_account_id: string | null
   cash_account: ChartOfAccount | null
+  payment_method: PaymentEntryMethod | null
+  giro_number: string | null
+  giro_due_date: string | null
   branch_id: string | null
   branch: Branch | null
   reference_number: string | null
