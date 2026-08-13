@@ -48,6 +48,9 @@ class StoreInvoiceRequest extends FormRequest
             // the same behavior this field already had before the Tax Engine existed.
             'tax_amount' => ['nullable', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string'],
+            'sales_person_id' => ['nullable', 'uuid', 'exists:sales_persons,id'],
+            'reference_1' => ['nullable', 'string', 'max:255'],
+            'reference_2' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

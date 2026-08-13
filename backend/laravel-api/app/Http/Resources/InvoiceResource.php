@@ -40,6 +40,8 @@ class InvoiceResource extends JsonResource
             'sales_order' => new SalesOrderResource($this->whenLoaded('salesOrder')),
             'customer_id' => $this->customer_id,
             'customer' => new CustomerResource($this->whenLoaded('customer')),
+            'sales_person_id' => $this->sales_person_id,
+            'sales_person' => $this->whenLoaded('salesPerson', fn () => $this->salesPerson ? new SalesPersonResource($this->salesPerson) : null),
             'invoice_date' => $this->invoice_date?->format('Y-m-d'),
             'due_date' => $this->due_date?->format('Y-m-d'),
             'terms_of_payment_id' => $this->terms_of_payment_id,
@@ -61,6 +63,8 @@ class InvoiceResource extends JsonResource
             // See docs/DEBIT_NOTE_DESIGN.md §7 "Interaction with Credit Notes".
             'creditable_amount' => (float) $this->grand_total - $creditedAmount + $debitedAmount,
             'remarks' => $this->remarks,
+            'reference_1' => $this->reference_1,
+            'reference_2' => $this->reference_2,
             'items' => InvoiceItemResource::collection($this->whenLoaded('items')),
             'payment_history' => $accountsReceivable
                 ? $accountsReceivable->receiptEntryItems->map(fn ($line) => [

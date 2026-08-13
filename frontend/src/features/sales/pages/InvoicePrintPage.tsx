@@ -114,8 +114,10 @@ export function InvoicePrintPage() {
           <div className="text-right">
             <p>Invoice Date: {formatDate(invoice.invoice_date)}</p>
             <p>Due Date: {formatDate(invoice.due_date)}</p>
-            {invoice.sales_order?.sales_person && <p>Sales Person: {invoice.sales_order.sales_person.name}</p>}
+            {invoice.sales_person && <p>Sales Person: {invoice.sales_person.name}</p>}
             {invoice.sales_order?.branch && <p>Branch: {invoice.sales_order.branch.name}</p>}
+            {invoice.reference_1 && <p>Reference 1: {invoice.reference_1}</p>}
+            {invoice.reference_2 && <p>Reference 2: {invoice.reference_2}</p>}
           </div>
         </div>
 

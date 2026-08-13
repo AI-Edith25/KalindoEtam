@@ -25,6 +25,9 @@ export const invoiceFormSchema = z.object({
     .refine((value) => value === '' || (!Number.isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100), 'Must be between 0 and 100'),
   tax_id: z.string(),
   remarks: z.string().optional().or(z.literal('')),
+  sales_person_id: z.string().optional().or(z.literal('')),
+  reference_1: z.string().optional().or(z.literal('')),
+  reference_2: z.string().optional().or(z.literal('')),
 })
 
 export type InvoiceEditorValues = z.infer<typeof invoiceFormSchema>
@@ -38,4 +41,7 @@ export const emptyInvoiceEditorValues: InvoiceEditorValues = {
   discount_percentage: '',
   tax_id: '',
   remarks: '',
+  sales_person_id: '',
+  reference_1: '',
+  reference_2: '',
 }

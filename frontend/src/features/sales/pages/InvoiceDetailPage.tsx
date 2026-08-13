@@ -281,6 +281,9 @@ export function InvoiceDetailPage() {
             <DetailField label="Invoice Date" value={formatDate(invoice.invoice_date)} />
             <DetailField label="Due Date" value={formatDate(invoice.due_date)} />
             <DetailField label="Terms of Payment" value={invoice.terms_of_payment ? `${invoice.terms_of_payment.name} (${invoice.terms_of_payment.code})` : '—'} />
+            <DetailField label="Sales Person" value={invoice.sales_person?.name || '—'} />
+            <DetailField label="Reference 1" value={invoice.reference_1 || '—'} />
+            <DetailField label="Reference 2" value={invoice.reference_2 || '—'} />
             <DetailField label="Notes" value={invoice.remarks || '—'} />
           </DetailSection>
         </CardContent>

@@ -29,6 +29,7 @@ class Invoice extends Model
         'delivery_id',
         'sales_order_id',
         'customer_id',
+        'sales_person_id',
         'invoice_date',
         'due_date',
         'terms_of_payment_id',
@@ -40,6 +41,8 @@ class Invoice extends Model
         'tax_amount',
         'grand_total',
         'remarks',
+        'reference_1',
+        'reference_2',
     ];
 
     protected $casts = [
@@ -98,6 +101,11 @@ class Invoice extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function salesPerson(): BelongsTo
+    {
+        return $this->belongsTo(SalesPerson::class);
     }
 
     /** The Tax this invoice's tax_amount was calculated from, if any (docs/TAX_ENGINE_DESIGN.md §5) — never null when tax_amount > 0 and a Tax was actually selected, but tax_amount can still be a legacy raw value with no tax_id. */

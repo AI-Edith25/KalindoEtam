@@ -20,7 +20,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { fetchCustomersLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
+import { fetchCustomersLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { computeSubtotal, lineAmount } from '@/shared/lib/documentTotals'
 import { fetchDeliveries } from '../api/deliveryApi'
@@ -49,6 +49,7 @@ function RupiahInput({ value, onChange }: { value: string; onChange: (value: str
 
 const NO_TAX = '__none__'
 const NO_TOP = '__none__'
+const NO_SALES_PERSON = '__none__'
 
 interface PreviewLine {
   id: string
@@ -322,6 +323,7 @@ function InvoiceForm({
 
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+  const salesPersonsQuery = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   // Only Active taxes may be selected for a new/changed assignment (docs/TAX_ENGINE_DESIGN.md §9)
   // — but an invoice already referencing a since-deactivated tax must keep showing it correctly.
   const existingTax = isEdit ? invoice?.tax : null
@@ -341,6 +343,9 @@ function InvoiceForm({
           discount_percentage: invoice.discount_percentage != null ? String(invoice.discount_percentage) : '',
           tax_id: invoice.tax_id ?? '',
           remarks: invoice.remarks ?? '',
+          sales_person_id: invoice.sales_person_id ?? '',
+          reference_1: invoice.reference_1 ?? '',
+          reference_2: invoice.reference_2 ?? '',
         }
       : {
           ...emptyInvoiceEditorValues,
@@ -349,6 +354,9 @@ function InvoiceForm({
           // Customer's own default when they disagree or have none. Still freely changeable —
           // this is only the starting value. See resolveTermsOfPaymentDefault().
           terms_of_payment_id: resolveTermsOfPaymentDefault(selectedDeliveries),
+          // Sales Person and Reference 1 (Goods) are auto-filled server-side from the Sales
+          // Order at save time (InvoiceService::createGoods()) - same "assigned when saved"
+          // treatment as the invoice number, editable here once the invoice exists.
         },
   })
 
@@ -403,6 +411,9 @@ function InvoiceForm({
     tax_id: values.tax_id || null,
     tax_amount: null,
     remarks: values.remarks || null,
+    sales_person_id: values.sales_person_id || null,
+    reference_1: values.reference_1 || null,
+    reference_2: values.reference_2 || null,
   })
 
   const saveMutation = useMutation({
@@ -537,6 +548,10 @@ function InvoiceForm({
                 </div>
               )}
               <div className="flex flex-col gap-0.5">
+                <span className="text-xs text-muted-foreground">Invoice Number</span>
+                <span className="text-sm font-medium">{isEdit ? (invoice?.document_number ?? '—') : 'Assigned when saved'}</span>
+              </div>
+              <div className="flex flex-col gap-0.5">
                 <span className="text-xs text-muted-foreground">Invoice Type</span>
                 <span className="text-sm font-medium">{invoiceType ? INVOICE_TYPE_LABELS[invoiceType] : '—'}</span>
               </div>
@@ -587,6 +602,57 @@ function InvoiceForm({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sales_person_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sales Person</FormLabel>
+                    <Select value={field.value || NO_SALES_PERSON} onValueChange={(value) => field.onChange(value === NO_SALES_PERSON ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={salesPersonsQuery.isLoading ? 'Loading…' : 'None'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_SALES_PERSON}>None</SelectItem>
+                        {salesPersonsQuery.data?.map((salesPerson) => (
+                          <SelectItem key={salesPerson.id} value={salesPerson.id}>
+                            {salesPerson.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reference_1"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference 1</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reference_2"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference 2</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

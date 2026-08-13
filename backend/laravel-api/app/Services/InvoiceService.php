@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesOrder', 'salesOrders', 'delivery', 'deliveries', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
+    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'delivery', 'deliveries', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
@@ -95,6 +95,7 @@ class InvoiceService
                 'delivery_id' => $anchor->id,
                 'sales_order_id' => $anchor->sales_order_id,
                 'customer_id' => $anchor->customer_id,
+                'sales_person_id' => $data['sales_person_id'] ?? $anchor->salesOrder?->sales_person_id,
                 // Defaults to Goods — every caller that predates Sprint 2 (Invoice Numbering),
                 // including existing tests, never passes this and means Goods either way.
                 'invoice_type' => $data['invoice_type'] ?? InvoiceType::GOODS->value,
@@ -109,6 +110,10 @@ class InvoiceService
                 'tax_amount' => $taxAmount,
                 'grand_total' => $grandTotal,
                 'remarks' => $data['remarks'] ?? null,
+                // Auto-prefilled from the anchor Sales Order's number for Goods invoices
+                // (still overridable via $data['reference_1']) — UAT review 2026-08-12.
+                'reference_1' => $data['reference_1'] ?? $anchor->salesOrder?->document_number,
+                'reference_2' => $data['reference_2'] ?? null,
             ]);
 
             foreach ($deliveries as $delivery) {
@@ -166,6 +171,7 @@ class InvoiceService
                 'delivery_id' => null,
                 'sales_order_id' => null,
                 'customer_id' => $data['customer_id'],
+                'sales_person_id' => $data['sales_person_id'] ?? null,
                 'invoice_type' => InvoiceType::TRANSPORTATION->value,
                 'invoice_date' => $data['invoice_date'],
                 'due_date' => $data['due_date'],
@@ -178,6 +184,9 @@ class InvoiceService
                 'tax_amount' => $taxAmount,
                 'grand_total' => $grandTotal,
                 'remarks' => $data['remarks'] ?? null,
+                // No Sales Order to derive from — manual entry only (e.g. the related SI number).
+                'reference_1' => $data['reference_1'] ?? null,
+                'reference_2' => $data['reference_2'] ?? null,
             ]);
 
             foreach ($data['items'] as $line) {
@@ -246,6 +255,9 @@ class InvoiceService
                 'tax_amount' => $taxAmount,
                 'grand_total' => $grandTotal,
                 'remarks' => $data['remarks'] ?? $invoice->remarks,
+                'sales_person_id' => array_key_exists('sales_person_id', $data) ? $data['sales_person_id'] : $invoice->sales_person_id,
+                'reference_1' => array_key_exists('reference_1', $data) ? $data['reference_1'] : $invoice->reference_1,
+                'reference_2' => array_key_exists('reference_2', $data) ? $data['reference_2'] : $invoice->reference_2,
             ]);
 
             $invoice = $invoice->fresh(self::EAGER);

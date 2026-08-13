@@ -21,8 +21,11 @@ class DocumentEngineSeeder extends Seeder
             ['module' => 'sales', 'document_type' => 'sales', 'prefix' => 'SO-'],
             ['module' => 'sales', 'document_type' => 'delivery', 'prefix' => 'DN-'],
             // Sprint 2 (Invoice Numbering): Goods and Transportation invoices number independently.
-            ['module' => 'invoice', 'document_type' => 'invoice_goods', 'prefix' => 'INV-'],
-            ['module' => 'invoice', 'document_type' => 'invoice_transportation', 'prefix' => 'ANG-'],
+            // UAT review (2026-08-12): format moved to SI/KE/#####/MM/YYYY (Goods) and
+            // TR/KE/#####/MM/YYYY (Transportation) — {MM}/{YYYY} tag the generation date only,
+            // never a reset boundary (see DocumentNumberGeneratorService::interpolate()).
+            ['module' => 'invoice', 'document_type' => 'invoice_goods', 'prefix' => 'SI/KE/', 'suffix' => '/{MM}/{YYYY}'],
+            ['module' => 'invoice', 'document_type' => 'invoice_transportation', 'prefix' => 'TR/KE/', 'suffix' => '/{MM}/{YYYY}'],
             ['module' => 'invoice', 'document_type' => 'credit_note', 'prefix' => 'CN-'],
             // 'DN-' is already Delivery's prefix — 'DBN-' avoids the collision.
             ['module' => 'invoice', 'document_type' => 'debit_note', 'prefix' => 'DBN-'],
@@ -38,6 +41,7 @@ class DocumentEngineSeeder extends Seeder
                 [
                     'module' => $row['module'],
                     'prefix' => $row['prefix'],
+                    'suffix' => $row['suffix'] ?? null,
                     'digit_length' => 5,
                     'current_number' => 0,
                     'is_active' => true,

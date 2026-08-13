@@ -172,6 +172,8 @@ export interface Invoice {
   } | null
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; phone: string | null; address: string | null } | null
+  sales_person_id: string | null
+  sales_person: { id: string; code: string; name: string } | null
   invoice_date: string
   due_date: string
   terms_of_payment_id: string | null
@@ -190,6 +192,8 @@ export interface Invoice {
   debited_amount: string | number
   creditable_amount: string | number
   remarks: string | null
+  reference_1: string | null
+  reference_2: string | null
   items: InvoiceItem[]
   payment_history: InvoicePaymentHistoryLine[]
   credit_note_history: InvoiceCreditNoteHistoryLine[]
@@ -216,6 +220,9 @@ export interface InvoiceFormValues {
   tax_id: string | null
   tax_amount: number | null
   remarks: string | null
+  sales_person_id?: string | null
+  reference_1?: string | null
+  reference_2?: string | null
 }
 
 export interface InvoiceFilterValues {

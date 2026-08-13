@@ -27,6 +27,9 @@ class UpdateInvoiceRequest extends FormRequest
             'tax_mode' => ['sometimes', 'nullable', Rule::enum(TaxCalculationMode::class)],
             'tax_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string'],
+            'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
+            'reference_1' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'reference_2' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
     }
 }

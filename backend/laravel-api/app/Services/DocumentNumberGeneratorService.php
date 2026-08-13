@@ -26,9 +26,24 @@ class DocumentNumberGeneratorService implements DocumentNumberGeneratorInterface
             $nextNumber = $series->current_number + 1;
             $series->update(['current_number' => $nextNumber]);
 
-            return $series->prefix
+            return $this->interpolate($series->prefix)
                 .str_pad((string) $nextNumber, $series->digit_length, '0', STR_PAD_LEFT)
-                .$series->suffix;
+                .$this->interpolate($series->suffix);
         });
+    }
+
+    /**
+     * {MM}/{YYYY} tokens, resolved to the generation date — opt-in only, a
+     * prefix/suffix with no token is returned unchanged (every series but
+     * Invoice's today). Not a reset boundary: current_number keeps counting
+     * up regardless of month/year, the tokens are a display tag only.
+     */
+    protected function interpolate(?string $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        return str_replace(['{MM}', '{YYYY}'], [now()->format('m'), now()->format('Y')], $value);
     }
 }
