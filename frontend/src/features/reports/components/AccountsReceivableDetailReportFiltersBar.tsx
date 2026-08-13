@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchCustomersLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchCustomersLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
 import type { SettlementStatus } from '@/features/payment/types'
 import { emptyArDetailReportFilters, hasActiveArDetailReportFilters } from '../lib/reportFilters'
 import type { AgingBucketValue, ArDetailReportFilterValues } from '../types'
@@ -17,6 +17,8 @@ interface AccountsReceivableDetailReportFiltersBarProps {
 /** Own filter set for this report — deliberately not a shared generic filter engine, matching every other report's FiltersBar in this codebase. */
 export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: AccountsReceivableDetailReportFiltersBarProps) {
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
+  const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
+  const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
 
   return (
     <FilterPanel onClear={() => onChange(emptyArDetailReportFilters)} hasActiveFilters={hasActiveArDetailReportFilters(value)}>
@@ -34,6 +36,44 @@ export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: Ac
             {customers.data?.map((customer) => (
               <SelectItem key={customer.id} value={customer.id}>
                 {customer.customer_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Branch</span>
+        <Select
+          value={value.branch_id || ALL}
+          onValueChange={(next) => onChange({ ...value, branch_id: next === ALL ? '' : next })}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'All branches'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All branches</SelectItem>
+            {branches.data?.map((branch) => (
+              <SelectItem key={branch.id} value={branch.id}>
+                {branch.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Salesman</span>
+        <Select
+          value={value.sales_person_id || ALL}
+          onValueChange={(next) => onChange({ ...value, sales_person_id: next === ALL ? '' : next })}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder={salesPersons.isLoading ? 'Loading…' : 'All sales persons'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All sales persons</SelectItem>
+            {salesPersons.data?.map((salesPerson) => (
+              <SelectItem key={salesPerson.id} value={salesPerson.id}>
+                {salesPerson.name}
               </SelectItem>
             ))}
           </SelectContent>

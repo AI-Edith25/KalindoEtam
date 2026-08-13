@@ -21,6 +21,12 @@ class AccountsReceivableService
         return $this->accountsReceivableRepository->search($filters, $perPage);
     }
 
+    /** Unpaginated, same filters as list() — for AR Detail's Export (C2). */
+    public function listAll(array $filters): Collection
+    {
+        return $this->accountsReceivableRepository->searchAll($filters);
+    }
+
     /**
      * Called only by InvoiceService::submit() — Accounts Receivable is a
      * system-generated side effect, never created directly by a user.
@@ -215,6 +221,62 @@ class AccountsReceivableService
     public function overdueInvoicesFor(string $customerId): Collection
     {
         return $this->accountsReceivableRepository->overdueForCustomer($customerId);
+    }
+
+    /**
+     * C3 (UAT review 2026-08-12) — "Perincian Piutang": the same filtered row
+     * set as list()/listAll(), grouped Sales Person -> Customer, with a
+     * subtotal at each level plus a grand total. Overdue Days/Amount are
+     * computed here (PHP-side, not whereRaw/DATEDIFF) rather than in SQL —
+     * same portability rule as AccountsReceivableResource::age_in_days and
+     * this repository's aging_bucket filter.
+     */
+    public function groupedDetail(array $filters): array
+    {
+        $rows = $this->accountsReceivableRepository->searchAll($filters);
+        $today = now()->startOfDay();
+
+        $detailRows = $rows->map(function (AccountsReceivable $row) use ($today) {
+            $dueDate = $row->due_date?->copy()->startOfDay();
+            $isOverdue = $dueDate && $dueDate->lt($today);
+            $outstanding = (float) $row->amount - (float) $row->paid_amount;
+
+            return [
+                'sales_person_name' => $row->salesOrder?->salesPerson?->name ?? 'Unassigned',
+                'customer_name' => $row->customer?->customer_name ?? '—',
+                'document_no' => $row->invoice?->document_number,
+                'date' => $row->invoice?->invoice_date?->format('Y-m-d'),
+                'due_date' => $row->due_date?->format('Y-m-d'),
+                'total_outstanding' => $outstanding,
+                'overdue_days' => $isOverdue ? (int) $dueDate->diffInDays($today, true) : 0,
+                'overdue_amount' => $isOverdue ? $outstanding : 0.0,
+            ];
+        });
+
+        $groups = $detailRows
+            ->groupBy('sales_person_name')
+            ->map(function ($salesPersonRows, $salesPersonName) {
+                $customers = $salesPersonRows
+                    ->groupBy('customer_name')
+                    ->map(fn ($customerRows, $customerName) => [
+                        'customer_name' => $customerName,
+                        'rows' => $customerRows->values()->all(),
+                        'customer_subtotal' => $customerRows->sum('total_outstanding'),
+                    ])
+                    ->values();
+
+                return [
+                    'sales_person_name' => $salesPersonName,
+                    'customers' => $customers,
+                    'sales_person_subtotal' => $salesPersonRows->sum('total_outstanding'),
+                ];
+            })
+            ->values();
+
+        return [
+            'groups' => $groups,
+            'grand_total' => $detailRows->sum('total_outstanding'),
+        ];
     }
 
     /**

@@ -46,6 +46,33 @@ export interface DeliveryReportFilterValues {
 /** Ceiling filter ("overdue up to N days"), deliberately overlapping — 60 is a superset of 30, not a discrete bucket. over_180 is the one floor (unbounded above). */
 export type AgingBucketValue = '30' | '45' | '60' | '90' | 'over_180'
 
+/** C3 (UAT review 2026-08-12) — "Perincian Piutang": AR Detail rows grouped Sales Person -> Customer, with a subtotal at each level. */
+export interface ArDetailGroupedRow {
+  document_no: string | null
+  date: string | null
+  due_date: string | null
+  total_outstanding: number
+  overdue_days: number
+  overdue_amount: number
+}
+
+export interface ArDetailGroupedCustomer {
+  customer_name: string
+  rows: ArDetailGroupedRow[]
+  customer_subtotal: number
+}
+
+export interface ArDetailGroupedSalesPerson {
+  sales_person_name: string
+  customers: ArDetailGroupedCustomer[]
+  sales_person_subtotal: number
+}
+
+export interface ArDetailGroupedDetail {
+  groups: ArDetailGroupedSalesPerson[]
+  grand_total: number
+}
+
 export interface ArDetailReportFilterValues {
   customer_id: string
   status: SettlementStatus | null
@@ -55,4 +82,6 @@ export interface ArDetailReportFilterValues {
   dateTo: string
   invoiceDateFrom: string
   invoiceDateTo: string
+  branch_id: string
+  sales_person_id: string
 }

@@ -71,6 +71,8 @@ export const emptyArDetailReportFilters: ArDetailReportFilterValues = {
   dateTo: '',
   invoiceDateFrom: '',
   invoiceDateTo: '',
+  branch_id: '',
+  sales_person_id: '',
 }
 
 export function hasActiveArDetailReportFilters(filters: ArDetailReportFilterValues): boolean {
@@ -81,6 +83,8 @@ export function hasActiveArDetailReportFilters(filters: ArDetailReportFilterValu
     filters.dateFrom !== '' ||
     filters.dateTo !== '' ||
     filters.invoiceDateFrom !== '' ||
-    filters.invoiceDateTo !== ''
+    filters.invoiceDateTo !== '' ||
+    filters.branch_id !== '' ||
+    filters.sales_person_id !== ''
   )
 }

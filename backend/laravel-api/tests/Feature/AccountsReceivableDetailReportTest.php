@@ -71,7 +71,7 @@ class AccountsReceivableDetailReportTest extends TestCase
         );
     }
 
-    protected function submittedInvoice(string $dueDate): Invoice
+    protected function submittedInvoice(string $dueDate, ?string $salesPersonId = null, ?string $branchId = null): Invoice
     {
         // This helper deliberately creates several back-dated (already-overdue) invoices
         // for the same customer to exercise aging buckets — the 2nd+ call trips the real
@@ -81,6 +81,8 @@ class AccountsReceivableDetailReportTest extends TestCase
 
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
+            'sales_person_id' => $salesPersonId,
+            'branch_id' => $branchId,
             'order_date' => now()->toDateString(),
             'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 20000]],
             'override_credit_block' => true,
@@ -177,6 +179,25 @@ class AccountsReceivableDetailReportTest extends TestCase
 
         $this->assertCount(0, $this->accountsReceivableRepository->search(['aging_bucket' => '30'])->items());
         $this->assertCount(1, $this->accountsReceivableRepository->search([])->items());
+    }
+
+    /** C1 (UAT review 2026-08-12) — Branch and Salesman filter through AccountsReceivable -> salesOrder, since neither column lives directly on accounts_receivables. */
+    public function test_branch_and_sales_person_filters_narrow_by_the_underlying_sales_order(): void
+    {
+        $salesPerson = \App\Models\SalesPerson::query()->create(['code' => 'SP1', 'name' => 'Budi']);
+        $otherSalesPerson = \App\Models\SalesPerson::query()->create(['code' => 'SP2', 'name' => 'Ani']);
+        $branch = Branch::query()->first();
+        $otherBranch = Branch::query()->create(['company_id' => $branch->company_id, 'name' => 'Branch 2', 'code' => 'BR2']);
+
+        $this->submittedInvoice(now()->addDays(10)->toDateString(), salesPersonId: $salesPerson->id, branchId: $branch->id);
+        $this->submittedInvoice(now()->addDays(10)->toDateString(), salesPersonId: $otherSalesPerson->id, branchId: $otherBranch->id);
+
+        $bySalesPerson = $this->accountsReceivableRepository->search(['sales_person_id' => $salesPerson->id]);
+        $byBranch = $this->accountsReceivableRepository->search(['branch_id' => $otherBranch->id]);
+
+        $this->assertCount(1, $bySalesPerson->items());
+        $this->assertCount(1, $byBranch->items());
+        $this->assertNotSame($bySalesPerson->items()[0]->id, $byBranch->items()[0]->id);
     }
 
     public function test_outstanding_total_sums_the_same_filtered_set_as_search(): void

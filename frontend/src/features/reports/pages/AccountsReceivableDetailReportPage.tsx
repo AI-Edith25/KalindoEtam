@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Printer, RotateCw, Upload } from 'lucide-react'
@@ -10,12 +10,19 @@ import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { fetchAccountsReceivables } from '@/features/payment/api/accountsReceivableApi'
+import { exportAccountsReceivables, fetchAccountsReceivables } from '@/features/payment/api/accountsReceivableApi'
 import type { AccountsReceivable } from '@/features/payment/types'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { toastApiError } from '@/shared/services/errorHandler'
 import { AccountsReceivableDetailReportFiltersBar } from '../components/AccountsReceivableDetailReportFiltersBar'
+import { fetchAccountsReceivableGroupedDetail } from '../api/accountsReceivableGroupedDetailApi'
 import { emptyArDetailReportFilters } from '../lib/reportFilters'
 import type { ArDetailReportFilterValues } from '../types'
+
+type ViewMode = 'aging' | 'grouped'
 
 /** Read-only report over Accounts Receivable — reuses fetchAccountsReceivables() as-is, no new endpoint. */
 export function AccountsReceivableDetailReportPage() {
@@ -24,6 +31,7 @@ export function AccountsReceivableDetailReportPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<ArDetailReportFilterValues>(emptyArDetailReportFilters)
+  const [viewMode, setViewMode] = useState<ViewMode>('aging')
 
   const listQuery = useQuery({
     queryKey: [
@@ -36,6 +44,8 @@ export function AccountsReceivableDetailReportPage() {
       filters.dateTo,
       filters.invoiceDateFrom,
       filters.invoiceDateTo,
+      filters.branch_id,
+      filters.sales_person_id,
     ],
     queryFn: () =>
       fetchAccountsReceivables({
@@ -47,6 +57,8 @@ export function AccountsReceivableDetailReportPage() {
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
         ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
         ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
+        ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+        ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
       }),
     placeholderData: (previous) => previous,
   })
@@ -87,10 +99,12 @@ export function AccountsReceivableDetailReportPage() {
     filters.dateFrom ||
     filters.dateTo ||
     filters.invoiceDateFrom ||
-    filters.invoiceDateTo
+    filters.invoiceDateTo ||
+    filters.branch_id ||
+    filters.sales_person_id
   )
 
-  const printParams = new URLSearchParams({
+  const activeFilterParams = {
     ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.agingBucket ? { aging_bucket: filters.agingBucket } : {}),
@@ -98,7 +112,31 @@ export function AccountsReceivableDetailReportPage() {
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
     ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
     ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
-  }).toString()
+    ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+    ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
+  }
+
+  const printParams = new URLSearchParams(activeFilterParams).toString()
+
+  const groupedQuery = useQuery({
+    queryKey: ['ar-detail-grouped', activeFilterParams],
+    queryFn: () => fetchAccountsReceivableGroupedDetail(activeFilterParams),
+    enabled: viewMode === 'grouped',
+    placeholderData: (previous) => previous,
+  })
+
+  const [isExporting, setIsExporting] = useState(false)
+  const exportReport = async (format: 'xlsx' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const blob = await exportAccountsReceivables(activeFilterParams, format)
+      downloadBlob(`ar-detail.${format}`, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -117,7 +155,8 @@ export function AccountsReceivableDetailReportPage() {
                 icon: Printer,
                 onClick: () => navigate(`/reports/ar-detail/print${printParams ? `?${printParams}` : ''}`),
               },
-              { label: 'Export', icon: Download, disabled: true },
+              { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },
+              { label: 'Export CSV', icon: Download, onClick: () => exportReport('csv'), disabled: isExporting },
               { label: 'Import', icon: Upload, disabled: true },
             ]}
           />
@@ -125,6 +164,14 @@ export function AccountsReceivableDetailReportPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1 rounded-md border p-1">
+          <Button size="sm" variant={viewMode === 'aging' ? 'default' : 'ghost'} onClick={() => setViewMode('aging')}>
+            Aging List
+          </Button>
+          <Button size="sm" variant={viewMode === 'grouped' ? 'default' : 'ghost'} onClick={() => setViewMode('grouped')}>
+            Perincian Piutang
+          </Button>
+        </div>
         <SearchBox
           value={search}
           onChange={(value) => {
@@ -142,25 +189,102 @@ export function AccountsReceivableDetailReportPage() {
         />
       </div>
 
-      <DataTable
-        columns={columns}
-        data={rows}
-        rowKey={(row) => row.id}
-        isLoading={listQuery.isLoading}
-        isError={listQuery.isError}
-        onRetry={() => listQuery.refetch()}
-        emptyMessage={hasFilters ? 'No receivables match your search or filters.' : 'No receivables yet.'}
-      />
+      {viewMode === 'aging' ? (
+        <>
+          <DataTable
+            columns={columns}
+            data={rows}
+            rowKey={(row) => row.id}
+            isLoading={listQuery.isLoading}
+            isError={listQuery.isError}
+            onRetry={() => listQuery.refetch()}
+            emptyMessage={hasFilters ? 'No receivables match your search or filters.' : 'No receivables yet.'}
+          />
 
-      {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
+          {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
 
-      {listQuery.data?.meta && (
+          {listQuery.data?.meta && (
+            <Card>
+              <CardContent className="flex items-center justify-end gap-2 py-4 text-base">
+                <span className="text-muted-foreground">Total Outstanding</span>
+                <span className="font-semibold">{formatCurrency(listQuery.data.meta.total_outstanding)}</span>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : !groupedQuery.data || groupedQuery.data.groups.length === 0 ? (
         <Card>
-          <CardContent className="flex items-center justify-end gap-2 py-4 text-base">
-            <span className="text-muted-foreground">Total Outstanding</span>
-            <span className="font-semibold">{formatCurrency(listQuery.data.meta.total_outstanding)}</span>
+          <CardContent className="py-10 text-center text-muted-foreground">
+            {groupedQuery.isLoading ? 'Loading…' : 'No receivables match your filters.'}
           </CardContent>
         </Card>
+      ) : (
+        <>
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableBody>
+                {groupedQuery.data.groups.map((salesPersonGroup) => (
+                  <Fragment key={salesPersonGroup.sales_person_name}>
+                    <TableRow className="bg-muted/50">
+                      <TableCell colSpan={5} className="font-semibold">
+                        Sales Person: {salesPersonGroup.sales_person_name}
+                      </TableCell>
+                    </TableRow>
+                    {salesPersonGroup.customers.map((customerGroup) => (
+                      <Fragment key={customerGroup.customer_name}>
+                        <TableRow className="bg-muted/20">
+                          <TableCell colSpan={5} className="font-medium">
+                            {customerGroup.customer_name}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Document No</TableCell>
+                          <TableCell>Date</TableCell>
+                          <TableCell>Due Date</TableCell>
+                          <TableCell className="text-right">Overdue Days</TableCell>
+                          <TableCell className="text-right">Total Outstanding / Overdue Amount</TableCell>
+                        </TableRow>
+                        {customerGroup.rows.map((row, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{row.document_no ?? '—'}</TableCell>
+                            <TableCell>{row.date ? formatDate(row.date) : '—'}</TableCell>
+                            <TableCell>{row.due_date ? formatDate(row.due_date) : '—'}</TableCell>
+                            <TableCell className="text-right">{row.overdue_days > 0 ? row.overdue_days : '—'}</TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(row.total_outstanding)}
+                              {row.overdue_amount > 0 && (
+                                <span className="ml-2 text-destructive">({formatCurrency(row.overdue_amount)})</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-right font-medium">
+                            Subtotal — {customerGroup.customer_name}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(customerGroup.customer_subtotal)}</TableCell>
+                        </TableRow>
+                      </Fragment>
+                    ))}
+                    <TableRow className="bg-muted/30">
+                      <TableCell colSpan={4} className="text-right font-semibold">
+                        Subtotal — Sales Person: {salesPersonGroup.sales_person_name}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(salesPersonGroup.sales_person_subtotal)}</TableCell>
+                    </TableRow>
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <Card>
+            <CardContent className="flex items-center justify-end gap-2 py-4 text-base">
+              <span className="text-muted-foreground">Grand Total</span>
+              <span className="font-semibold">{formatCurrency(groupedQuery.data.grand_total)}</span>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )

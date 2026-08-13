@@ -69,6 +69,8 @@ class AccountsReceivableRepository extends BaseRepository
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
             ->when($filters['invoice_date_from'] ?? null, fn ($query, $date) => $query->whereHas('invoice', fn ($invoiceQuery) => $invoiceQuery->whereDate('invoice_date', '>=', $date)))
             ->when($filters['invoice_date_to'] ?? null, fn ($query, $date) => $query->whereHas('invoice', fn ($invoiceQuery) => $invoiceQuery->whereDate('invoice_date', '<=', $date)))
+            ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('branch_id', $branchId)))
+            ->when($filters['sales_person_id'] ?? null, fn ($query, $salesPersonId) => $query->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('sales_person_id', $salesPersonId)))
             ->when($filters['aging_bucket'] ?? null, fn ($query, $bucket) => match ($bucket) {
                 '30' => $query->whereDate('due_date', '>=', now()->subDays(30))->whereDate('due_date', '<=', now()->subDay()),
                 '45' => $query->whereDate('due_date', '>=', now()->subDays(45))->whereDate('due_date', '<=', now()->subDay()),
@@ -85,6 +87,15 @@ class AccountsReceivableRepository extends BaseRepository
             ->with(['customer', 'invoice.termsOfPayment', 'salesOrder.salesPerson', 'delivery'])
             ->latest('due_date')
             ->paginate($perPage);
+    }
+
+    /** Same filters/eager-loads as search() but unpaginated — for Export (C2), which must cover every filtered row, not just one page's worth. */
+    public function searchAll(array $filters): Collection
+    {
+        return $this->filteredQuery($filters)
+            ->with(['customer', 'invoice.termsOfPayment', 'salesOrder.salesPerson', 'delivery'])
+            ->latest('due_date')
+            ->get();
     }
 
     /** AR Detail Report's "Total Outstanding" footer — same filters as search(), never a second definition. */

@@ -10,6 +10,8 @@ export interface AccountsReceivableListParams {
   date_to?: string
   invoice_date_from?: string
   invoice_date_to?: string
+  branch_id?: string
+  sales_person_id?: string
   page?: number
   per_page?: number
 }
@@ -23,4 +25,13 @@ export interface AccountsReceivableListResponse extends ApiListResponse<Accounts
 export async function fetchAccountsReceivables(params: AccountsReceivableListParams): Promise<AccountsReceivableListResponse> {
   const { data } = await apiClient.get<AccountsReceivableListResponse>('/accounts-receivables', { params })
   return data
+}
+
+/** AR Detail's Export (C2) — same filters as fetchAccountsReceivables(), unpaginated, XLSX or CSV. Blob response (auth is a Bearer header, not a cookie, so a plain window.open link can't carry it). */
+export async function exportAccountsReceivables(
+  params: Omit<AccountsReceivableListParams, 'page' | 'per_page'>,
+  format: 'xlsx' | 'csv',
+): Promise<Blob> {
+  const { data } = await apiClient.get('/accounts-receivables/export', { params: { ...params, format }, responseType: 'blob' })
+  return data as Blob
 }
