@@ -19,6 +19,8 @@ class AccountsReceivableResource extends JsonResource
                 'document_number' => $this->invoice->document_number,
                 'invoice_date' => $this->invoice->invoice_date?->format('Y-m-d'),
                 'status' => $this->invoice->status,
+                'reference_1' => $this->invoice->reference_1,
+                'reference_2' => $this->invoice->reference_2,
             ] : null),
             'sales_order_id' => $this->sales_order_id,
             'delivery_id' => $this->delivery_id,

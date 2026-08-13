@@ -50,6 +50,10 @@ import { InventoryMovementReportPage } from '@/features/reports/pages/InventoryM
 import { InventoryBalanceReportPage } from '@/features/reports/pages/InventoryBalanceReportPage'
 import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/AccountsReceivableDetailReportPage'
 import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/pages/AccountsReceivableDetailReportPrintPage'
+import { TandaTerimaInvoicePage } from '@/features/reports/pages/TandaTerimaInvoicePage'
+import { TandaTerimaInvoicePrintPage } from '@/features/reports/pages/TandaTerimaInvoicePrintPage'
+import { LaporanPenagihanHarianPage } from '@/features/reports/pages/LaporanPenagihanHarianPage'
+import { LaporanPenagihanHarianPrintPage } from '@/features/reports/pages/LaporanPenagihanHarianPrintPage'
 import { IncomingPaymentListPage } from '@/features/payment/pages/IncomingPaymentListPage'
 import { IncomingPaymentEditorPage } from '@/features/payment/pages/IncomingPaymentEditorPage'
 import { IncomingPaymentDetailPage } from '@/features/payment/pages/IncomingPaymentDetailPage'
@@ -149,6 +153,10 @@ export function AppRouter() {
         <Route path="/reports/inventory-balance" element={<ProtectedRoute permission="reports.inventory_balance.view"><InventoryBalanceReportPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/tanda-terima-invoice" element={<ProtectedRoute permission="reports.tanda_terima_invoice.view"><TandaTerimaInvoicePage /></ProtectedRoute>} />
+        <Route path="/reports/tanda-terima-invoice/print" element={<ProtectedRoute permission="reports.tanda_terima_invoice.view"><TandaTerimaInvoicePrintPage /></ProtectedRoute>} />
+        <Route path="/reports/penagihan-harian" element={<ProtectedRoute permission="reports.penagihan_harian.view"><LaporanPenagihanHarianPage /></ProtectedRoute>} />
+        <Route path="/reports/penagihan-harian/print" element={<ProtectedRoute permission="reports.penagihan_harian.view"><LaporanPenagihanHarianPrintPage /></ProtectedRoute>} />
         <Route path="/finance/incoming" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentListPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/new" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/:id/edit" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />

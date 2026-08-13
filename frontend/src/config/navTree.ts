@@ -135,6 +135,8 @@ export const navTree: NavGroup[] = [
       { key: 'inventory_movement', label: 'Inventory Movement', path: '/reports/inventory-movement', actions: ['view'] },
       { key: 'inventory_balance', label: 'Inventory Balance', path: '/reports/inventory-balance', actions: ['view'] },
       { key: 'ar_detail', label: 'AR Detail', path: '/reports/ar-detail', actions: ['view'] },
+      { key: 'tanda_terima_invoice', label: 'Tanda Terima Invoice', path: '/reports/tanda-terima-invoice', actions: ['view'] },
+      { key: 'penagihan_harian', label: 'Laporan Penagihan Harian', path: '/reports/penagihan-harian', actions: ['view'] },
     ],
   },
   {

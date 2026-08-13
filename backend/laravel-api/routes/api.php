@@ -206,6 +206,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('accounts-receivables', [AccountsReceivableController::class, 'index'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/export', [AccountsReceivableController::class, 'export'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/detail-grouped', [AccountsReceivableController::class, 'detailGrouped'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
+    Route::get('accounts-receivables/list-all', [AccountsReceivableController::class, 'listAll'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view|reports.tanda_terima_invoice.view');
+    Route::get('accounts-receivables/grouped-by-customer', [AccountsReceivableController::class, 'groupedByCustomer'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view|reports.penagihan_harian.view');
     Route::get('accounts-receivables/{accountsReceivable}', [AccountsReceivableController::class, 'show'])->middleware('permission:finance.accounts_receivable.view');
 
     // Inventory Module (Phase 2G): physical count reconciliation -> Stock Ledger(+/-). No cancel route,
