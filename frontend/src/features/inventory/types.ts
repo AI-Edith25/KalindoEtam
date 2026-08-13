@@ -2,7 +2,7 @@ export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 
 export type MovementType = 'in' | 'out' | 'adjustment'
 
-export type VoucherType = 'stock_in' | 'goods_receipt' | 'delivery' | 'stock_adjustment'
+export type VoucherType = 'stock_in' | 'goods_receipt' | 'delivery' | 'stock_adjustment' | 'stock_transfer'
 
 export interface StockLedgerEntry {
   id: string
@@ -83,6 +83,47 @@ export interface StockAdjustmentFormValues {
 
 export interface StockAdjustmentFilterValues {
   status: DocumentStatus | null
+  dateFrom: string
+  dateTo: string
+}
+
+export interface StockTransferItem {
+  id: string
+  item_id: string
+  item_code: string
+  item_name: string
+  uom: string
+  qty: number
+}
+
+export interface StockTransfer {
+  id: string
+  document_number: string | null
+  status: DocumentStatus
+  revision: number
+  source_warehouse_id: string
+  source_warehouse: { id: string; name: string; code: string } | null
+  destination_warehouse_id: string
+  destination_warehouse: { id: string; name: string; code: string } | null
+  transfer_date: string
+  remarks: string | null
+  items: StockTransferItem[]
+  submitted_at: string | null
+  cancelled_at: string | null
+  created_at: string
+}
+
+export interface StockTransferFormValues {
+  source_warehouse_id: string
+  destination_warehouse_id: string
+  transfer_date: string
+  remarks: string | null
+  items: { item_id: string; qty: number }[]
+}
+
+export interface StockTransferFilterValues {
+  status: DocumentStatus | null
+  warehouse_id: string
   dateFrom: string
   dateTo: string
 }

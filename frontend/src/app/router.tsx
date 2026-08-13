@@ -40,6 +40,9 @@ import { StockLedgerListPage } from '@/features/inventory/pages/StockLedgerListP
 import { StockAdjustmentListPage } from '@/features/inventory/pages/StockAdjustmentListPage'
 import { StockAdjustmentEditorPage } from '@/features/inventory/pages/StockAdjustmentEditorPage'
 import { StockAdjustmentDetailPage } from '@/features/inventory/pages/StockAdjustmentDetailPage'
+import { StockTransferListPage } from '@/features/inventory/pages/StockTransferListPage'
+import { StockTransferEditorPage } from '@/features/inventory/pages/StockTransferEditorPage'
+import { StockTransferDetailPage } from '@/features/inventory/pages/StockTransferDetailPage'
 import { PurchaseReportPage } from '@/features/reports/pages/PurchaseReportPage'
 import { GoodsReceiptReportPage } from '@/features/reports/pages/GoodsReceiptReportPage'
 import { SalesReportPage } from '@/features/reports/pages/SalesReportPage'
@@ -143,6 +146,10 @@ export function AppRouter() {
         <Route path="/inventory/adjustments/new" element={<ProtectedRoute permission="inventory.adjustments.view"><StockAdjustmentEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/adjustments/:id/edit" element={<ProtectedRoute permission="inventory.adjustments.view"><StockAdjustmentEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/adjustments/:id" element={<ProtectedRoute permission="inventory.adjustments.view"><StockAdjustmentDetailPage /></ProtectedRoute>} />
+        <Route path="/inventory/transfers" element={<ProtectedRoute permission="inventory.transfers.view"><StockTransferListPage /></ProtectedRoute>} />
+        <Route path="/inventory/transfers/new" element={<ProtectedRoute permission="inventory.transfers.view"><StockTransferEditorPage /></ProtectedRoute>} />
+        <Route path="/inventory/transfers/:id/edit" element={<ProtectedRoute permission="inventory.transfers.view"><StockTransferEditorPage /></ProtectedRoute>} />
+        <Route path="/inventory/transfers/:id" element={<ProtectedRoute permission="inventory.transfers.view"><StockTransferDetailPage /></ProtectedRoute>} />
         <Route path="/reports/purchase" element={<ProtectedRoute permission="reports.purchase.view"><PurchaseReportPage /></ProtectedRoute>} />
         <Route path="/reports/goods-receipts" element={<ProtectedRoute permission="reports.goods_receipts.view"><GoodsReceiptReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPage /></ProtectedRoute>} />

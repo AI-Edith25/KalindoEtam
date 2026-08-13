@@ -71,6 +71,7 @@ export const navTree: NavGroup[] = [
       { key: 'stock_balance', label: 'Stock Balance', path: '/inventory/stock-balance', actions: ['view'] },
       { key: 'stock_ledger', label: 'Stock Ledger', path: '/inventory/stock-ledger', actions: ['view', 'create'] },
       { key: 'adjustments', label: 'Adjustments', path: '/inventory/adjustments', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'transfers', label: 'Transfer Stock', path: '/inventory/transfers', actions: ['view', 'create', 'update', 'delete'] },
     ],
   },
   {

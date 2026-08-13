@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
 use App\Http\Controllers\Api\V1\SalesPersonController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
+use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StockInController;
 use App\Http\Controllers\Api\V1\StockLedgerController;
 use App\Http\Controllers\Api\V1\SupplierController;
@@ -214,6 +215,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // deliberately — see StockAdjustment::cancel(). No Report counterpart exists, no OR needed.
     $withPagePermissions(Route::apiResource('stock-adjustments', StockAdjustmentController::class), 'inventory.adjustments');
     Route::post('stock-adjustments/{stockAdjustment}/submit', [StockAdjustmentController::class, 'submit'])->middleware('permission:inventory.adjustments.update');
+
+    // Stock Transfer: direct-effect warehouse-to-warehouse move (submit -> stock ledger OUT+IN in one step,
+    // no in-transit status). No cancel route, same precedent as StockAdjustment::cancel(). No journal entry
+    // posted — single global Inventory account (1300), confirmed with user before building this.
+    $withPagePermissions(Route::apiResource('stock-transfers', StockTransferController::class), 'inventory.transfers');
+    Route::post('stock-transfers/{stockTransfer}/submit', [StockTransferController::class, 'submit'])->middleware('permission:inventory.transfers.update');
 
     // Financial Settlement (Sprint 6): AP -> Payment Entry -> paid_amount/status; AR -> Receipt Entry -> paid_amount/status.
     $withPagePermissions(Route::apiResource('payment-entries', PaymentEntryController::class), 'finance.outgoing_payment');

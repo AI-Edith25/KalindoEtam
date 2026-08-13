@@ -15,6 +15,8 @@ export function resolveVoucherLink(voucherType: VoucherType, voucherId: string):
       return `/sales/deliveries/${voucherId}`
     case 'stock_adjustment':
       return `/inventory/adjustments/${voucherId}`
+    case 'stock_transfer':
+      return `/inventory/transfers/${voucherId}`
     case 'stock_in':
       return null
   }

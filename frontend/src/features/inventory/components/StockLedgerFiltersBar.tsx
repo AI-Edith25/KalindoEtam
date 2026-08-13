@@ -71,6 +71,7 @@ export function StockLedgerFiltersBar({ value, onChange }: StockLedgerFiltersBar
             <SelectItem value="goods_receipt">Goods Receipt</SelectItem>
             <SelectItem value="delivery">Delivery</SelectItem>
             <SelectItem value="stock_adjustment">Stock Adjustment</SelectItem>
+            <SelectItem value="stock_transfer">Stock Transfer</SelectItem>
           </SelectContent>
         </Select>
       </div>

@@ -8,4 +8,5 @@ enum StockVoucherType: string
     case GOODS_RECEIPT = 'goods_receipt';
     case DELIVERY = 'delivery';
     case STOCK_ADJUSTMENT = 'stock_adjustment';
+    case STOCK_TRANSFER = 'stock_transfer';
 }
