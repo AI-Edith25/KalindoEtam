@@ -190,7 +190,7 @@ function DeliveryForm({
       delivery_date: delivery?.delivery_date ?? '',
       due_date: delivery?.due_date ?? '',
       terms_of_payment_id: isEdit ? (delivery?.terms_of_payment_id ?? '') : (salesOrder.customer?.terms_of_payment_id ?? ''),
-      remarks: delivery?.remarks ?? '',
+      remarks: isEdit ? (delivery?.remarks ?? '') : (salesOrder.remarks ?? ''),
       items: salesOrder.items.map((soItem) => ({
         sales_order_item_id: soItem.id,
         item_id: soItem.item_id,
