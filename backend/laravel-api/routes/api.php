@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\StockInController;
 use App\Http\Controllers\Api\V1\StockLedgerController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TaxController;
+use App\Http\Controllers\Api\V1\MiscellaneousItemController;
 use App\Http\Controllers\Api\V1\TermsOfPaymentController;
 use App\Http\Controllers\Api\V1\UomController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -123,6 +124,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('uoms', UomController::class), 'master.uoms');
     $withPagePermissions(Route::apiResource('currencies', CurrencyController::class), 'master.currencies');
     $withPagePermissions(Route::apiResource('taxes', TaxController::class), 'master.taxes');
+    $withPagePermissions(Route::apiResource('miscellaneous-items', MiscellaneousItemController::class), 'master.miscellaneous');
     $withPagePermissions(Route::apiResource('customers', CustomerController::class), 'master.customers');
     $withPagePermissions(Route::apiResource('suppliers', SupplierController::class), 'master.suppliers');
     $withPagePermissions(Route::apiResource('sales-persons', SalesPersonController::class), 'master.sales_persons');

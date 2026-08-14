@@ -65,7 +65,7 @@ export function ChartOfAccountsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav group="master" />
+      <SectionNav group="finance" />
 
       <PageHeader
         title="Chart of Accounts"

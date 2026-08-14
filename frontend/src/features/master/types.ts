@@ -98,6 +98,36 @@ export interface UomFormValues {
   symbol: string | null
 }
 
+export type MiscellaneousChargeType = 'addition' | 'deduction' | 'addition_percent' | 'deduction_percent'
+
+export interface MiscellaneousItem {
+  id: string
+  misc_code: string
+  description: string
+  rate: string | number
+  uom_id: string | null
+  uom: Uom | null
+  charge_type: MiscellaneousChargeType
+  unit_cost: string | number
+  sales_account_id: string
+  sales_account: ChartOfAccount | null
+  purchase_account_id: string
+  purchase_account: ChartOfAccount | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MiscellaneousItemFormValues {
+  misc_code: string
+  description: string
+  rate: number
+  uom_id: string | null
+  charge_type: MiscellaneousChargeType
+  unit_cost: number
+  sales_account_id: string
+  purchase_account_id: string
+}
+
 export interface Supplier {
   id: string
   supplier_code: string

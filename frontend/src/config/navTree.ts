@@ -20,6 +20,11 @@ export interface NavPage {
   path: string
   /** Which actions this page actually has permissions for — drives the Role Management UI's columns per page. */
   actions: Action[]
+  /** Permission-name group override — set when a page is displayed under a different nav group
+   *  than the one whose permission prefix it must keep (e.g. Chart of Accounts moved into Finance
+   *  but stays master.chart_of_accounts.* to avoid a permission migration/role reassignment).
+   *  Falls back to the owning group's own key when absent. */
+  permissionGroup?: string
 }
 
 export interface NavGroup {
@@ -48,18 +53,18 @@ export interface NavGroup {
 export const navTree: NavGroup[] = [
   {
     key: 'master',
-    label: 'Master Data',
+    label: 'Maintenance',
     icon: Database,
     pages: [
       { key: 'items', label: 'Items', path: '/master/items', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'miscellaneous', label: 'Miscellaneous', path: '/master/miscellaneous', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'suppliers', label: 'Suppliers', path: '/master/suppliers', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'customers', label: 'Customers', path: '/master/customers', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'sales_persons', label: 'Sales Persons', path: '/master/sales-persons', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'terms_of_payment', label: 'Terms of Payment', path: '/master/terms-of-payment', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'warehouses', label: 'Warehouses', path: '/master/warehouses', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'warehouses', label: 'Area', path: '/master/warehouses', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'item_groups', label: 'Item Groups', path: '/master/item-groups', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'uoms', label: 'UOMs', path: '/master/uoms', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'chart_of_accounts', label: 'Chart of Accounts', path: '/master/chart-of-accounts', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'taxes', label: 'Taxes', path: '/master/taxes', actions: ['view', 'create', 'update', 'delete'] },
     ],
   },
@@ -103,6 +108,7 @@ export const navTree: NavGroup[] = [
       { key: 'outgoing_payment', label: 'Outgoing Payment', path: '/finance/outgoing', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'incoming_payment', label: 'Incoming Payment', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'general_journal', label: 'General Journal', path: '/finance/general-journal', actions: ['view'] },
+      { key: 'chart_of_accounts', label: 'Chart of Accounts', path: '/finance/chart-of-accounts', actions: ['view', 'create', 'update', 'delete'], permissionGroup: 'master' },
     ],
   },
   {

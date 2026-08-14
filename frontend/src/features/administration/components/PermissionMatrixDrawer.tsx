@@ -98,7 +98,7 @@ export function PermissionMatrixDrawer({ open, onOpenChange, role }: PermissionM
           ) : (
             <div className="flex flex-col gap-2">
               {navTree.map((group) => {
-                const groupNames = group.pages.flatMap((page) => page.actions.map((action) => permissionName(group.key, page.key, action)))
+                const groupNames = group.pages.flatMap((page) => page.actions.map((action) => permissionName(page.permissionGroup ?? group.key, page.key, action)))
                 const isExpanded = expanded.has(group.key)
 
                 return (
@@ -134,7 +134,7 @@ export function PermissionMatrixDrawer({ open, onOpenChange, role }: PermissionM
                         </thead>
                         <tbody>
                           {group.pages.map((page) => {
-                            const pageNames = page.actions.map((action) => permissionName(group.key, page.key, action))
+                            const pageNames = page.actions.map((action) => permissionName(page.permissionGroup ?? group.key, page.key, action))
 
                             return (
                               <tr key={page.key} className="border-t">
@@ -148,7 +148,7 @@ export function PermissionMatrixDrawer({ open, onOpenChange, role }: PermissionM
                                   </label>
                                 </td>
                                 {ALL_ACTIONS.map((action) => {
-                                  const name = permissionName(group.key, page.key, action)
+                                  const name = permissionName(page.permissionGroup ?? group.key, page.key, action)
                                   if (!page.actions.includes(action) || !existingNames.has(name)) {
                                     return (
                                       <td key={action} className="py-2 text-center text-muted-foreground/30">

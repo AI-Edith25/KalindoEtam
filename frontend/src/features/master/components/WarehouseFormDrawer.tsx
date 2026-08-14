@@ -15,8 +15,8 @@ import { createWarehouse, updateWarehouse } from '../api/warehouseApi'
 import type { Warehouse } from '../types'
 
 const warehouseFormSchema = z.object({
-  name: z.string().min(1, 'Warehouse Name is required').max(255),
-  code: z.string().min(1, 'Warehouse Code is required').max(255),
+  name: z.string().min(1, 'Area Name is required').max(255),
+  code: z.string().min(1, 'Area Code is required').max(255),
   warehouse_type: z.enum(['main', 'transit', 'return']),
 })
 
@@ -62,7 +62,7 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
       isEdit ? updateWarehouse(warehouse.id, values) : createWarehouse(values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['warehouses'] })
-      toast.success(isEdit ? 'Warehouse updated.' : 'Warehouse created.')
+      toast.success(isEdit ? 'Area updated.' : 'Area created.')
       onOpenChange(false)
     },
     onError: (error) => toastApiError(error),
@@ -74,9 +74,9 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>{isEdit ? 'Edit Warehouse' : 'New Warehouse'}</SheetTitle>
+          <SheetTitle>{isEdit ? 'Edit Area' : 'New Area'}</SheetTitle>
           <SheetDescription>
-            {isEdit ? `Update details for ${warehouse.code}.` : 'Add a new warehouse.'}
+            {isEdit ? `Update details for ${warehouse.code}.` : 'Add a new area.'}
           </SheetDescription>
         </SheetHeader>
 
@@ -88,7 +88,7 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
                 name="code"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Warehouse Code</FormLabel>
+                    <FormLabel>Area Code</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g. WH001" autoComplete="off" {...field} />
                     </FormControl>
@@ -101,9 +101,9 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Warehouse Name</FormLabel>
+                    <FormLabel>Area Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Main Warehouse" autoComplete="off" {...field} />
+                      <Input placeholder="e.g. Main Area" autoComplete="off" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -136,7 +136,7 @@ export function WarehouseFormDrawer({ open, onOpenChange, warehouse }: Warehouse
             <SheetFooter>
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
-                {isEdit ? 'Save Changes' : 'Create Warehouse'}
+                {isEdit ? 'Save Changes' : 'Create Area'}
               </Button>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
                 Cancel

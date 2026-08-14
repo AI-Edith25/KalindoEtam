@@ -22,11 +22,11 @@ export function WarehouseDetailDrawer({ open, onOpenChange, warehouse, onEdit }:
       title={warehouse.name}
       subtitle={warehouse.code}
       badge={<StatusBadge status={warehouse.warehouse_type} />}
-      primaryAction={{ label: 'Edit Warehouse', icon: Pencil, onClick: () => onEdit(warehouse) }}
+      primaryAction={{ label: 'Edit Area', icon: Pencil, onClick: () => onEdit(warehouse) }}
     >
       <DetailSection>
-        <DetailField label="Warehouse Code" value={warehouse.code} />
-        <DetailField label="Warehouse Name" value={warehouse.name} />
+        <DetailField label="Area Code" value={warehouse.code} />
+        <DetailField label="Area Name" value={warehouse.name} />
         <DetailField label="Type" value={<StatusBadge status={warehouse.warehouse_type} />} />
       </DetailSection>
 

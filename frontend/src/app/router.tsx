@@ -12,6 +12,7 @@ import { ItemGroupListPage } from '@/features/master/pages/ItemGroupListPage'
 import { UomListPage } from '@/features/master/pages/UomListPage'
 import { ChartOfAccountsPage } from '@/features/master/pages/ChartOfAccountsPage'
 import { TaxListPage } from '@/features/master/pages/TaxListPage'
+import { MiscellaneousItemListPage } from '@/features/master/pages/MiscellaneousItemListPage'
 import { PurchaseOrderListPage } from '@/features/purchase/pages/PurchaseOrderListPage'
 import { PurchaseOrderEditorPage } from '@/features/purchase/pages/PurchaseOrderEditorPage'
 import { PurchaseOrderDetailPage } from '@/features/purchase/pages/PurchaseOrderDetailPage'
@@ -108,8 +109,9 @@ export function AppRouter() {
         <Route path="/master/warehouses" element={<ProtectedRoute permission="master.warehouses.view"><WarehouseListPage /></ProtectedRoute>} />
         <Route path="/master/item-groups" element={<ProtectedRoute permission="master.item_groups.view"><ItemGroupListPage /></ProtectedRoute>} />
         <Route path="/master/uoms" element={<ProtectedRoute permission="master.uoms.view"><UomListPage /></ProtectedRoute>} />
-        <Route path="/master/chart-of-accounts" element={<ProtectedRoute permission="master.chart_of_accounts.view"><ChartOfAccountsPage /></ProtectedRoute>} />
         <Route path="/master/taxes" element={<ProtectedRoute permission="master.taxes.view"><TaxListPage /></ProtectedRoute>} />
+        <Route path="/master/miscellaneous" element={<ProtectedRoute permission="master.miscellaneous.view"><MiscellaneousItemListPage /></ProtectedRoute>} />
+        <Route path="/master/chart-of-accounts" element={<Navigate to="/finance/chart-of-accounts" replace />} />
         <Route path="/purchase/orders" element={<ProtectedRoute permission="purchase.orders.view"><PurchaseOrderListPage /></ProtectedRoute>} />
         <Route path="/purchase/orders/new" element={<ProtectedRoute permission="purchase.orders.view"><PurchaseOrderEditorPage /></ProtectedRoute>} />
         <Route path="/purchase/orders/:id/edit" element={<ProtectedRoute permission="purchase.orders.view"><PurchaseOrderEditorPage /></ProtectedRoute>} />
@@ -174,6 +176,7 @@ export function AppRouter() {
         <Route path="/finance/outgoing/:id/edit" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentDetailPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id/print" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentPrintPage /></ProtectedRoute>} />
+        <Route path="/finance/chart-of-accounts" element={<ProtectedRoute permission="master.chart_of_accounts.view"><ChartOfAccountsPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal" element={<ProtectedRoute permission="finance.general_journal.view"><GeneralJournalMenuPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal/journal-entries" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryListPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal/journal-entries/new" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />

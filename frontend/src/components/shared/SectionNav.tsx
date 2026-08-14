@@ -5,7 +5,7 @@ import { findGroup, permissionName } from '@/config/navTree'
 
 /**
  * Horizontal sub-navigation between sibling pages within one sidebar
- * section (e.g. Master Data's eight entities). Real routes, not
+ * section (e.g. Maintenance's ten entities). Real routes, not
  * client-only tab state — each item is a NavLink, so the URL and
  * breadcrumb stay correct and the page is bookmarkable/refreshable.
  * `group` is a navTree group key — its pages (and each page's view
@@ -17,7 +17,7 @@ export function SectionNav({ group }: { group: string }) {
   const items = (navGroup?.pages ?? []).map((page) => ({
     label: page.label,
     path: page.path,
-    permission: permissionName(group, page.key, 'view'),
+    permission: permissionName(page.permissionGroup ?? group, page.key, 'view'),
   }))
   const visibleItems = items.filter((item) => user?.permissions.includes(item.permission))
 
