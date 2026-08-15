@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class SalesOrderRepository extends BaseRepository
 {
-    protected const EAGER = ['customer', 'salesPerson', 'branch', 'items.item'];
+    protected const EAGER = ['customer', 'salesPerson', 'branch', 'termsOfPayment', 'items.item'];
 
     public function __construct(SalesOrder $model)
     {

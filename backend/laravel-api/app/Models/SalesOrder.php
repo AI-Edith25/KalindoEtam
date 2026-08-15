@@ -28,6 +28,11 @@ class SalesOrder extends Model
         'expected_delivery_date',
         'total_amount',
         'remarks',
+        'attention',
+        'tel',
+        'fax',
+        'reference',
+        'terms_of_payment_id',
     ];
 
     protected $casts = [
@@ -63,6 +68,11 @@ class SalesOrder extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function termsOfPayment(): BelongsTo
+    {
+        return $this->belongsTo(TermsOfPayment::class);
     }
 
     public function items(): HasMany

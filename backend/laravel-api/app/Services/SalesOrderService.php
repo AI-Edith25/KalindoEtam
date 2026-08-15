@@ -43,12 +43,17 @@ class SalesOrderService
                 'order_date' => $data['order_date'],
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
+                'attention' => $data['attention'] ?? null,
+                'tel' => $data['tel'] ?? null,
+                'fax' => $data['fax'] ?? null,
+                'reference' => $data['reference'] ?? null,
+                'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
                 'total_amount' => $this->sumLines($data['items']),
             ]);
 
             $this->replaceItems($salesOrder, $data['items']);
 
-            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'items.item']);
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'items.item']);
             $this->auditLogService->record('created', 'sales_order', "Created Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;
@@ -69,7 +74,7 @@ class SalesOrderService
 
             $this->salesOrderRepository->update($salesOrder, $headerData);
 
-            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'items.item']);
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'items.item']);
             $this->auditLogService->record('updated', 'sales_order', "Updated Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;

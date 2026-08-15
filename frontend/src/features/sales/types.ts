@@ -35,6 +35,12 @@ export interface SalesOrder {
   expected_delivery_date: string | null
   total_amount: string | number
   remarks: string | null
+  attention: string | null
+  tel: string | null
+  fax: string | null
+  reference: string | null
+  terms_of_payment_id: string | null
+  terms_of_payment: { id: string; code: string; name: string; days: number } | null
   items: SalesOrderItem[]
   is_fully_delivered: boolean | null
   submitted_at: string | null
@@ -51,6 +57,11 @@ export interface SalesOrderFormValues {
   order_date: string
   expected_delivery_date: string | null
   remarks: string | null
+  attention?: string | null
+  tel?: string | null
+  fax?: string | null
+  reference?: string | null
+  terms_of_payment_id?: string | null
   items: { item_id: string; qty: number; rate: number }[]
   override_credit_block?: boolean
   override_reason?: string | null

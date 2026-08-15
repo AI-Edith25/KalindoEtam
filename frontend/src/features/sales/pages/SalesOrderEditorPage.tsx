@@ -18,7 +18,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeGrandTotal, computeSubtotal, computeTax } from '@/shared/lib/documentTotals'
-import { fetchBranches, fetchCustomersLookup, fetchItemsLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchCustomersLookup, fetchItemsLookup, fetchSalesPersonsLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { createSalesOrder, fetchSalesOrder, submitSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
 import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
@@ -46,6 +46,7 @@ export function SalesOrderEditorPage() {
   const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
+  const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
 
   const form = useForm<SalesOrderEditorValues>({
     resolver: zodResolver(salesOrderFormSchema),
@@ -69,6 +70,11 @@ export function SalesOrderEditorPage() {
       order_date: order.order_date,
       expected_delivery_date: order.expected_delivery_date ?? '',
       remarks: order.remarks ?? '',
+      attention: order.attention ?? '',
+      tel: order.tel ?? '',
+      fax: order.fax ?? '',
+      reference: order.reference ?? '',
+      terms_of_payment_id: order.terms_of_payment_id ?? '',
       items: order.items.map((line) => ({
         item_id: line.item_id,
         qty: String(line.qty),
@@ -89,6 +95,18 @@ export function SalesOrderEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branches.data, isEdit])
 
+  // Prefills Tel from the selected customer's master phone — only Customer.phone exists on the
+  // master (no attn/fax there), so those two stay plain manual input. Only fills an empty Tel, so
+  // it never stomps a value the user already typed or loaded from a saved order.
+  const customerIdForPrefill = form.watch('customer_id')
+  useEffect(() => {
+    if (!customerIdForPrefill || form.getValues('tel')) return
+
+    const customer = customers.data?.find((c) => c.id === customerIdForPrefill)
+    if (customer?.phone) form.setValue('tel', customer.phone)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerIdForPrefill, customers.data])
+
   const toPayload = (values: SalesOrderEditorValues): SalesOrderFormValues => ({
     customer_id: values.customer_id,
     sales_person_id: values.sales_person_id || null,
@@ -96,6 +114,11 @@ export function SalesOrderEditorPage() {
     order_date: values.order_date,
     expected_delivery_date: values.expected_delivery_date || null,
     remarks: values.remarks || null,
+    attention: values.attention || null,
+    tel: values.tel || null,
+    fax: values.fax || null,
+    reference: values.reference || null,
+    terms_of_payment_id: values.terms_of_payment_id || null,
     items: values.items.map((line) => ({
       item_id: line.item_id,
       qty: Number(line.qty),
@@ -200,6 +223,12 @@ export function SalesOrderEditorPage() {
                   </FormItem>
                 )}
               />
+              <FormItem>
+                <FormLabel>Customer Code</FormLabel>
+                <FormControl>
+                  <Input value={customers.data?.find((c) => c.id === customerIdForPrefill)?.customer_code ?? ''} disabled readOnly />
+                </FormControl>
+              </FormItem>
               {creditBlocked && (
                 <div className="flex flex-col gap-3 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm sm:col-span-2">
                   <div className="flex items-start gap-2 text-destructive">
@@ -280,6 +309,83 @@ export function SalesOrderEditorPage() {
                         {branches.data?.map((branch) => (
                           <SelectItem key={branch.id} value={branch.id}>
                             {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="attention"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Attn</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="tel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tel</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="fax"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fax</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reference"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="terms_of_payment_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Terms</FormLabel>
+                    <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={termsOfPayment.isLoading ? 'Loading…' : 'None'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NONE}>None</SelectItem>
+                        {termsOfPayment.data?.map((top) => (
+                          <SelectItem key={top.id} value={top.id}>
+                            {top.name} ({top.code})
                           </SelectItem>
                         ))}
                       </SelectContent>

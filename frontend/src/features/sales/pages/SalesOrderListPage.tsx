@@ -17,7 +17,6 @@ import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelSalesOrder, deleteSalesOrder, fetchSalesOrders, submitSalesOrder } from '../api/salesOrderApi'
 import { SalesOrderFiltersBar } from '../components/SalesOrderFiltersBar'
-import { DeliveryProgress } from '../components/DeliveryProgress'
 import { emptySalesOrderFilters } from '../lib/salesOrderFilters'
 import type { SalesOrder, SalesOrderFilterValues } from '../types'
 
@@ -126,17 +125,16 @@ export function SalesOrderListPage() {
   }
 
   const columns: DataTableColumn<SalesOrder>[] = [
-    { header: 'Document Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
-    { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
-    { header: 'Order Date', accessor: (row) => formatDate(row.order_date), sortKey: 'order_date' },
-    { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
-    { header: 'Delivery Progress', accessor: (row) => <DeliveryProgress order={row} /> },
+    { header: 'Date', accessor: (row) => formatDate(row.order_date), sortKey: 'order_date' },
+    { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
     {
-      header: 'Total Amount',
+      header: 'Amount',
       accessor: (row) => formatCurrency(row.total_amount),
       className: 'text-right',
       sortKey: 'total_amount',
     },
+    { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
     {
       header: '',
       className: 'text-right',
