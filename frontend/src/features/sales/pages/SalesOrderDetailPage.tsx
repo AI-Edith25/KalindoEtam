@@ -15,7 +15,6 @@ import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { computeTax } from '@/shared/lib/documentTotals'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { cancelSalesOrder, deleteSalesOrder, fetchSalesOrder, submitSalesOrder } from '../api/salesOrderApi'
 import { fetchDeliveries } from '../api/deliveryApi'
@@ -133,7 +132,7 @@ export function SalesOrderDetailPage() {
   if (!order) return null
 
   const subtotal = Number(order.total_amount)
-  const tax = computeTax()
+  const tax = Number(order.tax_amount)
   const blockedByApproval = order.requires_approval && order.latest_approval?.status !== 'approved'
 
   return (
@@ -238,6 +237,7 @@ export function SalesOrderDetailPage() {
               label="Payment Terms"
               value={order.terms_of_payment ? `${order.terms_of_payment.name} (${order.terms_of_payment.code})` : '—'}
             />
+            <DetailField label="Tax" value={order.tax ? `${order.tax.name} (${order.tax.code})` : '—'} />
             <DetailField label="Notes" value={order.remarks || '—'} />
           </DetailSection>
         </CardContent>
@@ -282,7 +282,7 @@ export function SalesOrderDetailPage() {
           <Separator className="w-full max-w-64" />
           <div className="flex w-full max-w-64 justify-between text-base font-semibold">
             <span>Grand Total</span>
-            <span>{formatCurrency(subtotal + tax)}</span>
+            <span>{formatCurrency(order.grand_total)}</span>
           </div>
         </CardContent>
       </Card>

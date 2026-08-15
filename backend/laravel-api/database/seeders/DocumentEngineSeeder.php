@@ -18,8 +18,10 @@ class DocumentEngineSeeder extends Seeder
         $series = [
             ['module' => 'purchase', 'document_type' => 'purchase', 'prefix' => 'PO-'],
             ['module' => 'purchase', 'document_type' => 'goods_receipt', 'prefix' => 'GR-'],
-            ['module' => 'sales', 'document_type' => 'sales', 'prefix' => 'SO-'],
-            ['module' => 'sales', 'document_type' => 'delivery', 'prefix' => 'DN-'],
+            // UAT follow-up (2026-08-15): format moved to SO/KE/#####/MM/YYYY and DO/KE/#####/MM/YYYY,
+            // matching invoice_goods/invoice_transportation below.
+            ['module' => 'sales', 'document_type' => 'sales', 'prefix' => 'SO/KE/', 'suffix' => '/{MM}/{YYYY}'],
+            ['module' => 'sales', 'document_type' => 'delivery', 'prefix' => 'DO/KE/', 'suffix' => '/{MM}/{YYYY}'],
             // Sprint 2 (Invoice Numbering): Goods and Transportation invoices number independently.
             // UAT review (2026-08-12): format moved to SI/KE/#####/MM/YYYY (Goods) and
             // TR/KE/#####/MM/YYYY (Transportation) — {MM}/{YYYY} tag the generation date only,

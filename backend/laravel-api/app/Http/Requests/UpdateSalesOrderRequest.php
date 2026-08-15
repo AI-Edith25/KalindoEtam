@@ -25,6 +25,7 @@ class UpdateSalesOrderRequest extends FormRequest
             'fax' => ['nullable', 'string', 'max:50'],
             'reference' => ['nullable', 'string', 'max:255'],
             'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
+            'tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required_with:items', 'integer', 'min:1'],

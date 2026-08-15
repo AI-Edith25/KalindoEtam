@@ -27,6 +27,9 @@ class SalesOrder extends Model
         'order_date',
         'expected_delivery_date',
         'total_amount',
+        'tax_id',
+        'tax_amount',
+        'grand_total',
         'remarks',
         'attention',
         'tel',
@@ -40,6 +43,8 @@ class SalesOrder extends Model
         'order_date' => 'date',
         'expected_delivery_date' => 'date',
         'total_amount' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
+        'grand_total' => 'decimal:2',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
@@ -73,6 +78,12 @@ class SalesOrder extends Model
     public function termsOfPayment(): BelongsTo
     {
         return $this->belongsTo(TermsOfPayment::class);
+    }
+
+    /** Same tax_id/tax_amount pattern as PurchaseOrder/Invoice, reusing TaxService. */
+    public function tax(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class);
     }
 
     public function items(): HasMany

@@ -34,6 +34,10 @@ export interface SalesOrder {
   order_date: string
   expected_delivery_date: string | null
   total_amount: string | number
+  tax_id: string | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+  tax_amount: string | number
+  grand_total: string | number
   remarks: string | null
   attention: string | null
   tel: string | null
@@ -62,6 +66,7 @@ export interface SalesOrderFormValues {
   fax?: string | null
   reference?: string | null
   terms_of_payment_id?: string | null
+  tax_id?: string | null
   items: { item_id: string; qty: number; rate: number }[]
   override_credit_block?: boolean
   override_reason?: string | null

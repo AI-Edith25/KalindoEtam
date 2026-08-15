@@ -17,8 +17,15 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { computeGrandTotal, computeSubtotal, computeTax } from '@/shared/lib/documentTotals'
-import { fetchBranches, fetchCustomersLookup, fetchItemsLookup, fetchSalesPersonsLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
+import { computeSubtotal } from '@/shared/lib/documentTotals'
+import {
+  fetchBranches,
+  fetchCustomersLookup,
+  fetchItemsLookup,
+  fetchSalesPersonsLookup,
+  fetchTaxesLookup,
+  fetchTermsOfPaymentLookup,
+} from '@/features/master/api/lookupsApi'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { createSalesOrder, fetchSalesOrder, submitSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
 import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
@@ -47,6 +54,7 @@ export function SalesOrderEditorPage() {
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
 
   const form = useForm<SalesOrderEditorValues>({
     resolver: zodResolver(salesOrderFormSchema),
@@ -75,6 +83,7 @@ export function SalesOrderEditorPage() {
       fax: order.fax ?? '',
       reference: order.reference ?? '',
       terms_of_payment_id: order.terms_of_payment_id ?? '',
+      tax_id: order.tax_id ?? '',
       items: order.items.map((line) => ({
         item_id: line.item_id,
         qty: String(line.qty),
@@ -119,6 +128,7 @@ export function SalesOrderEditorPage() {
     fax: values.fax || null,
     reference: values.reference || null,
     terms_of_payment_id: values.terms_of_payment_id || null,
+    tax_id: values.tax_id || null,
     items: values.items.map((line) => ({
       item_id: line.item_id,
       qty: Number(line.qty),
@@ -164,8 +174,18 @@ export function SalesOrderEditorPage() {
 
   const watchedItems = form.watch('items')
   const subtotal = computeSubtotal(watchedItems ?? [])
-  const tax = computeTax()
-  const grandTotal = computeGrandTotal(watchedItems ?? [])
+
+  // Same Tax select pattern as PurchaseOrderEditorPage — preview only, TaxService::calculate()
+  // on the backend always computes and returns the authoritative tax_amount/grand_total on save.
+  const existingTax = isEdit ? orderQuery.data?.tax : null
+  const activeTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active)
+  const taxOptions =
+    existingTax && !activeTaxOptions.some((t) => t.id === existingTax.id) ? [...activeTaxOptions, existingTax] : activeTaxOptions
+
+  const watchedTaxId = form.watch('tax_id')
+  const selectedTax = taxOptions.find((t) => t.id === watchedTaxId) ?? null
+  const tax = selectedTax && selectedTax.type === 'vat' ? Math.round(subtotal * (Number(selectedTax.rate) / 100) * 100) / 100 : 0
+  const grandTotal = subtotal + tax
 
   // Customer Credit block — see CustomerCreditService on the backend. Live-rechecked against
   // grandTotal on every line-item change with no extra network call (see useCustomerCreditCheck).
@@ -386,6 +406,31 @@ export function SalesOrderEditorPage() {
                         {termsOfPayment.data?.map((top) => (
                           <SelectItem key={top.id} value={top.id}>
                             {top.name} ({top.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="tax_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tax</FormLabel>
+                    <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NONE}>No tax</SelectItem>
+                        {taxOptions.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name} ({t.code}){t.type === 'vat' ? ` — ${t.rate}%` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>

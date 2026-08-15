@@ -25,6 +25,7 @@ class StoreSalesOrderRequest extends FormRequest
             'fax' => ['nullable', 'string', 'max:50'],
             'reference' => ['nullable', 'string', 'max:255'],
             'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
+            'tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
             'override_credit_block' => ['sometimes', 'boolean'],
             'override_reason' => ['nullable', 'string', 'max:500'],
             'items' => ['required', 'array', 'min:1'],
