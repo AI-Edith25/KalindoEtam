@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, ExternalLink, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
+import { Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
@@ -10,14 +10,11 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
-import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
-import { Button } from '@/components/ui/button'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { formatDate, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deleteDelivery, fetchDeliveries, submitDelivery } from '../api/deliveryApi'
-import { fetchSalesOrders } from '../api/salesOrderApi'
 import { DeliveryFiltersBar } from '../components/DeliveryFiltersBar'
 import { emptyDeliveryFilters } from '../lib/deliveryFilters'
 import type { Delivery, DeliveryFilterValues } from '../types'
@@ -52,14 +49,6 @@ export function DeliveryListPage() {
       }),
     placeholderData: (previous) => previous,
   })
-
-  // DeliveryResource doesn't nest its sales_order — resolved client-side, same pattern as Purchase Order's document_number in GoodsReceiptListPage.
-  const salesOrdersLookup = useQuery({
-    queryKey: ['sales-orders-lookup'],
-    queryFn: () => fetchSalesOrders({ page: 1, per_page: 100 }),
-  })
-  const salesOrderNumber = (salesOrderId: string) =>
-    salesOrdersLookup.data?.data.find((so) => so.id === salesOrderId)?.document_number ?? '—'
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['deliveries'] })
 
@@ -124,32 +113,11 @@ export function DeliveryListPage() {
   }
 
   const columns: DataTableColumn<Delivery>[] = [
-    { header: 'Delivery Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
-    {
-      header: 'Sales Order',
-      accessor: (row) => (
-        <Button
-          variant="link"
-          className="h-auto p-0"
-          onClick={(event) => {
-            event.stopPropagation()
-            navigate(`/sales/orders/${row.sales_order_id}`)
-          }}
-        >
-          {salesOrderNumber(row.sales_order_id)}
-          <ExternalLink className="size-3.5" />
-        </Button>
-      ),
-    },
-    { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
-    { header: 'Delivery Date', accessor: (row) => formatDate(row.delivery_date), sortKey: 'delivery_date' },
-    { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
-    {
-      header: 'Qty Delivered',
-      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + line.qty, 0)),
-      className: 'text-right',
-    },
-    { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
+    { header: 'Date', accessor: (row) => formatDate(row.delivery_date), sortKey: 'delivery_date' },
+    { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    { header: 'Reference', accessor: (row) => row.sales_order?.document_number ?? '—' },
+    { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
+    { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
     {
       header: '',
       className: 'text-right',

@@ -103,6 +103,15 @@ export interface Delivery {
   status: DocumentStatus
   revision: number
   sales_order_id: string
+  sales_order: {
+    id: string
+    document_number: string | null
+    attention: string | null
+    tel: string | null
+    fax: string | null
+    reference: string | null
+    sales_person: { id: string; code: string; name: string } | null
+  } | null
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
   warehouse_id: string
@@ -113,6 +122,7 @@ export interface Delivery {
   terms_of_payment: { id: string; code: string; name: string; days: number } | null
   remarks: string | null
   items: DeliveryItem[]
+  amount: string | number
   is_invoiced: boolean | null
   submitted_at: string | null
   cancelled_at: string | null
@@ -171,13 +181,16 @@ export interface Invoice {
   display_status: InvoiceDisplayStatus
   revision: number
   delivery_id: string | null
-  delivery: { id: string; document_number: string | null } | null
+  delivery: { id: string; document_number: string | null; warehouse: { id: string; name: string; code: string } | null } | null
   deliveries: { id: string; document_number: string | null }[]
   sales_order_id: string | null
   sales_orders: { id: string; document_number: string | null }[]
   sales_order: {
     id: string
     document_number: string | null
+    attention: string | null
+    tel: string | null
+    fax: string | null
     sales_person: { id: string; code: string; name: string } | null
     branch: { id: string; name: string; code: string } | null
   } | null

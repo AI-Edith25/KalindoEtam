@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'delivery', 'deliveries', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
+    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'delivery.warehouse', 'deliveries', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,

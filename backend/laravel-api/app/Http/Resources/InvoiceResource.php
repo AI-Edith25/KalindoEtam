@@ -27,6 +27,7 @@ class InvoiceResource extends JsonResource
             'delivery' => $this->whenLoaded('delivery', fn () => $this->delivery ? [
                 'id' => $this->delivery->id,
                 'document_number' => $this->delivery->document_number,
+                'warehouse' => $this->delivery->relationLoaded('warehouse') ? new WarehouseResource($this->delivery->warehouse) : null,
             ] : null),
             'deliveries' => $this->whenLoaded('deliveries', fn () => $this->deliveries->map(fn ($delivery) => [
                 'id' => $delivery->id,

@@ -282,6 +282,10 @@ export function InvoiceDetailPage() {
             <DetailField label="Due Date" value={formatDate(invoice.due_date)} />
             <DetailField label="Terms of Payment" value={invoice.terms_of_payment ? `${invoice.terms_of_payment.name} (${invoice.terms_of_payment.code})` : '—'} />
             <DetailField label="Sales Person" value={invoice.sales_person?.name || '—'} />
+            <DetailField label="Location" value={invoice.delivery?.warehouse?.name || '—'} />
+            <DetailField label="Attention" value={invoice.sales_order?.attention || '—'} />
+            <DetailField label="Tel" value={invoice.sales_order?.tel || '—'} />
+            <DetailField label="Fax" value={invoice.sales_order?.fax || '—'} />
             <DetailField label="Reference 1" value={invoice.reference_1 || '—'} />
             <DetailField label="Reference 2" value={invoice.reference_2 || '—'} />
             <DetailField label="Notes" value={invoice.remarks || '—'} />

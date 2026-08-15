@@ -10,7 +10,6 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
-import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
@@ -18,14 +17,12 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../api/invoiceApi'
 import { SalesOrderFiltersBar } from '../components/SalesOrderFiltersBar'
 import { emptyInvoiceFilters } from '../lib/invoiceFilters'
-import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
 import type { Invoice, InvoiceFilterValues } from '../types'
 
 const SORTERS: Record<string, (invoice: Invoice) => string | number> = {
   document_number: (invoice) => invoice.document_number ?? '',
   invoice_date: (invoice) => invoice.invoice_date,
   grand_total: (invoice) => Number(invoice.grand_total),
-  outstanding_amount: (invoice) => Number(invoice.outstanding_amount),
 }
 
 export function InvoiceListPage() {
@@ -128,19 +125,21 @@ export function InvoiceListPage() {
   }
 
   const columns: DataTableColumn<Invoice>[] = [
-    { header: 'Invoice Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
-    { header: 'Type', accessor: (row) => INVOICE_TYPE_LABELS[row.invoice_type] },
-    { header: 'Invoice Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
-    { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
-    { header: 'Delivery', accessor: (row) => row.delivery?.document_number ?? '—' },
-    { header: 'Grand Total', accessor: (row) => formatCurrency(row.grand_total), className: 'text-right', sortKey: 'grand_total' },
+    { header: 'Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
+    { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
     {
-      header: 'Outstanding',
-      accessor: (row) => formatCurrency(row.outstanding_amount),
-      className: 'text-right',
-      sortKey: 'outstanding_amount',
+      header: 'Reference',
+      accessor: (row) =>
+        (row.deliveries ?? [])
+          .map((delivery) => delivery.document_number)
+          .filter(Boolean)
+          .join(', ') || '—',
     },
-    { header: 'Status', accessor: (row) => <StatusBadge status={row.display_status} /> },
+    { header: 'Attention', accessor: (row) => row.sales_order?.attention ?? '—' },
+    { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
+    { header: 'Gross Amount', accessor: (row) => formatCurrency(row.subtotal), className: 'text-right' },
+    { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
+    { header: 'Amount', accessor: (row) => formatCurrency(row.grand_total), className: 'text-right', sortKey: 'grand_total' },
     {
       header: '',
       className: 'text-right',

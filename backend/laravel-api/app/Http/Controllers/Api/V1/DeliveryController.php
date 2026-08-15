@@ -37,7 +37,7 @@ class DeliveryController extends Controller
 
     public function show(Delivery $delivery): JsonResponse
     {
-        return $this->success(new DeliveryResource($delivery->load(['customer', 'warehouse', 'salesOrder', 'items', 'invoices', 'termsOfPayment'])));
+        return $this->success(new DeliveryResource($delivery->load(['customer', 'warehouse', 'salesOrder.salesPerson', 'items', 'invoices', 'termsOfPayment'])));
     }
 
     public function update(UpdateDeliveryRequest $request, Delivery $delivery): JsonResponse
