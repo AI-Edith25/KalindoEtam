@@ -77,7 +77,7 @@ class GoodsOutReportTest extends TestCase
             'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => 10000]],
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
 
         return $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,

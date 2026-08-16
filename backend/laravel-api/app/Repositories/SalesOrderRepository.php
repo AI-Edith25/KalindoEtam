@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Enums\DocumentStatus;
+use App\Enums\SalesOrderStatus;
 use App\Models\SalesOrder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -60,10 +60,10 @@ class SalesOrderRepository extends BaseRepository
         return $this->model->query()->latest('created_at')->limit($limit)->get();
     }
 
-    /** Pending Tasks widget (docs/DASHBOARD_DESIGN.md §3) — same DRAFT status every list page's own Status filter already reads. */
+    /** Pending Tasks widget (docs/DASHBOARD_DESIGN.md §3) — Sales Orders awaiting Approval, same status every list page's own Status filter already reads. */
     public function countDraft(): int
     {
-        return $this->model->query()->where('status', DocumentStatus::DRAFT)->count();
+        return $this->model->query()->where('status', SalesOrderStatus::SUBMITTED)->count();
     }
 
     /** Daily totals over a period — the Sales Trend chart's only data source (docs/DASHBOARD_DESIGN.md §5). Same date column (order_date) totalForDate() already uses, just grouped instead of pinned to one day. */

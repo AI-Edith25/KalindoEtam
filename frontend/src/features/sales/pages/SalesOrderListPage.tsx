@@ -15,7 +15,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { cancelSalesOrder, deleteSalesOrder, fetchSalesOrders, submitSalesOrder } from '../api/salesOrderApi'
+import { approveSalesOrder, cancelSalesOrder, deleteSalesOrder, fetchSalesOrders } from '../api/salesOrderApi'
 import { SalesOrderFiltersBar } from '../components/SalesOrderFiltersBar'
 import { emptySalesOrderFilters } from '../lib/salesOrderFilters'
 import type { SalesOrder, SalesOrderFilterValues } from '../types'
@@ -32,6 +32,7 @@ export function SalesOrderListPage() {
   const canCreate = useHasPermission('sales.orders.create')
   const canUpdate = useHasPermission('sales.orders.update')
   const canDelete = useHasPermission('sales.orders.delete')
+  const canApprove = useHasPermission('sales.orders.approve')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -54,14 +55,14 @@ export function SalesOrderListPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
 
-  const submitMutation = useMutation({
-    // Row-action quick submit — no room here for the Editor/Detail pages' pre-emptive credit
+  const approveMutation = useMutation({
+    // Row-action quick approve — no room here for the Editor/Detail pages' pre-emptive credit
     // banner, but the backend gate still applies; a block surfaces as a clear toast error
     // (see CustomerCreditService's message) rather than a silent failure.
-    mutationFn: (id: string) => submitSalesOrder(id),
+    mutationFn: (id: string) => approveSalesOrder(id),
     onSuccess: () => {
       invalidate()
-      toast.success('Sales Order submitted.')
+      toast.success('Sales Order approved.')
     },
     onError: (error) => toastApiError(error),
   })
@@ -107,17 +108,18 @@ export function SalesOrderListPage() {
   const actionsFor = (order: SalesOrder): RowAction[] => {
     const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/sales/orders/${order.id}`) }]
 
-    if (order.status === 'draft') {
+    if (order.status === 'submitted') {
       if (canUpdate) {
-        actions.push(
-          { label: 'Edit', icon: Pencil, onClick: () => navigate(`/sales/orders/${order.id}/edit`) },
-          { label: 'Submit', icon: Send, onClick: () => submitMutation.mutate(order.id) },
-        )
+        actions.push({ label: 'Edit', icon: Pencil, onClick: () => navigate(`/sales/orders/${order.id}/edit`) })
+      }
+      if (canApprove) {
+        actions.push({ label: 'Approve', icon: Send, onClick: () => approveMutation.mutate(order.id) })
       }
       if (canDelete) {
         actions.push({ label: 'Delete', icon: Trash2, variant: 'destructive', onClick: () => setDeletingOrder(order) })
       }
-    } else if (order.status === 'submitted' && canUpdate) {
+    }
+    if ((order.status === 'submitted' || order.status === 'approved') && canUpdate) {
       actions.push({ label: 'Cancel', icon: Ban, variant: 'destructive', onClick: () => cancelMutation.mutate(order.id) })
     }
 

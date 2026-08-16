@@ -8,6 +8,7 @@ use App\Enums\InvoiceType;
 use App\Enums\PaymentMethod;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
+use App\Enums\TaxType;
 use App\Enums\WarehouseType;
 use App\Exceptions\BusinessException;
 use App\Http\Requests\StoreInvoiceRequest;
@@ -18,6 +19,7 @@ use App\Models\Customer;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\JournalEntry;
+use App\Models\Tax;
 use App\Models\UnitOfMeasurement;
 use App\Models\Warehouse;
 use App\Models\ReceiptEntry;
@@ -84,15 +86,16 @@ class InvoiceWorkflowTest extends TestCase
         );
     }
 
-    protected function submittedDelivery(int $qty = 10, float $rate = 10000): \App\Models\Delivery
+    protected function submittedDelivery(int $qty = 10, float $rate = 10000, ?string $taxId = null): \App\Models\Delivery
     {
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
             'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
+            'tax_id' => $taxId,
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -102,18 +105,21 @@ class InvoiceWorkflowTest extends TestCase
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => $qty]],
         ]);
 
-        return $this->deliveryService->submit($delivery);
+        return $this->deliveryService->complete($delivery);
     }
 
     public function test_invoice_can_be_created_from_a_submitted_delivery(): void
     {
-        $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
+        // Goods invoices inherit tax from their Sales Order (B1/B2 of the workflow spec) —
+        // a raw tax_amount in the request is no longer honored, so the Sales Order carries
+        // an 11% Tax instead to reach the same 111000 grand total.
+        $tax = Tax::query()->create(['code' => 'PPN11', 'name' => 'PPN 11%', 'type' => TaxType::VAT, 'rate' => 11, 'is_active' => true]);
+        $delivery = $this->submittedDelivery(qty: 10, rate: 10000, taxId: $tax->id);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'tax_amount' => 11000,
         ]);
 
         $this->assertSame($delivery->id, $invoice->delivery_id);
@@ -259,7 +265,7 @@ class InvoiceWorkflowTest extends TestCase
             'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 10000]],
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
         $deliveryB = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
             'warehouse_id' => $this->warehouse->id,
@@ -267,7 +273,7 @@ class InvoiceWorkflowTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => 5]],
         ]);
-        $deliveryB = $this->deliveryService->submit($deliveryB);
+        $deliveryB = $this->deliveryService->complete($deliveryB);
 
         $this->expectException(BusinessException::class);
 
@@ -334,7 +340,7 @@ class InvoiceWorkflowTest extends TestCase
             'items' => [['item_id' => $this->item->id, 'qty' => 10, 'rate' => 10000]],
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
         $soItem = $salesOrder->items->first();
 
         $deliveryA = $this->deliveryService->create([
@@ -344,7 +350,7 @@ class InvoiceWorkflowTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [['sales_order_item_id' => $soItem->id, 'qty' => 5]],
         ]);
-        $deliveryA = $this->deliveryService->submit($deliveryA);
+        $deliveryA = $this->deliveryService->complete($deliveryA);
 
         $deliveryB = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -353,7 +359,7 @@ class InvoiceWorkflowTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [['sales_order_item_id' => $soItem->id, 'qty' => 5]],
         ]);
-        $deliveryB = $this->deliveryService->submit($deliveryB);
+        $deliveryB = $this->deliveryService->complete($deliveryB);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$deliveryA->id, $deliveryB->id],

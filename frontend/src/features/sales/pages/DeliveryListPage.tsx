@@ -14,7 +14,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { deleteDelivery, fetchDeliveries, submitDelivery } from '../api/deliveryApi'
+import { completeDelivery, deleteDelivery, fetchDeliveries } from '../api/deliveryApi'
 import { DeliveryFiltersBar } from '../components/DeliveryFiltersBar'
 import { emptyDeliveryFilters } from '../lib/deliveryFilters'
 import type { Delivery, DeliveryFilterValues } from '../types'
@@ -52,8 +52,8 @@ export function DeliveryListPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['deliveries'] })
 
-  const submitMutation = useMutation({
-    mutationFn: submitDelivery,
+  const completeMutation = useMutation({
+    mutationFn: completeDelivery,
     onSuccess: () => {
       invalidate()
       toast.success('Delivery confirmed — stock updated.')
@@ -96,18 +96,18 @@ export function DeliveryListPage() {
       { label: 'Print', icon: Printer, onClick: () => navigate(`/sales/deliveries/${delivery.id}/print`) },
     ]
 
-    if (delivery.status === 'draft') {
+    if (delivery.status === 'pending') {
       if (canUpdate) {
         actions.push(
           { label: 'Edit', icon: Pencil, onClick: () => navigate(`/sales/deliveries/${delivery.id}/edit`) },
-          { label: 'Confirm Delivery', icon: Send, onClick: () => submitMutation.mutate(delivery.id) },
+          { label: 'Confirm Delivery', icon: Send, onClick: () => completeMutation.mutate(delivery.id) },
         )
       }
       if (canDelete) {
         actions.push({ label: 'Delete', icon: Trash2, variant: 'destructive', onClick: () => setDeletingDelivery(delivery) })
       }
     }
-    // submitted is terminal — Delivery has no cancel action (see deliveryApi.ts).
+    // complete is terminal — Delivery has no cancel action (see deliveryApi.ts).
 
     return actions
   }
@@ -133,7 +133,7 @@ export function DeliveryListPage() {
 
       <PageHeader
         title="Deliveries"
-        description="Deliver ordered goods from a warehouse against a submitted Sales Order."
+        description="Deliver ordered goods from a warehouse against an approved Sales Order."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} deliveries` : undefined}
         actions={
           <ActionBar

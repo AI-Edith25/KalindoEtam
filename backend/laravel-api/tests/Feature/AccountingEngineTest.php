@@ -15,7 +15,9 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Enums\TaxType;
 use App\Models\JournalEntry;
+use App\Models\Tax;
 use App\Models\UnitOfMeasurement;
 use App\Models\Warehouse;
 use App\Services\AccountsReceivableService;
@@ -84,15 +86,16 @@ class AccountingEngineTest extends TestCase
         );
     }
 
-    protected function submittedDelivery(int $qty = 10, float $rate = 10000): \App\Models\Delivery
+    protected function submittedDelivery(int $qty = 10, float $rate = 10000, ?string $taxId = null): \App\Models\Delivery
     {
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
             'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
+            'tax_id' => $taxId,
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -102,18 +105,32 @@ class AccountingEngineTest extends TestCase
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => $qty]],
         ]);
 
-        return $this->deliveryService->submit($delivery);
+        return $this->deliveryService->complete($delivery);
     }
 
     protected function submittedInvoice(int $qty = 10, float $rate = 10000, float $taxAmount = 0): Invoice
     {
-        $delivery = $this->submittedDelivery($qty, $rate);
+        // Goods invoices inherit tax_id/tax_amount from their Sales Order (B1/B2 of the
+        // workflow spec) — a Tax record with the rate that yields $taxAmount on this
+        // subtotal is attached to the Sales Order instead of passed to the Invoice directly.
+        $taxId = null;
+        if ($taxAmount > 0) {
+            $subtotal = $qty * $rate;
+            $taxId = Tax::query()->create([
+                'code' => 'TEST-'.Str::random(6),
+                'name' => 'Test Tax',
+                'type' => TaxType::VAT,
+                'rate' => $taxAmount / $subtotal * 100,
+                'is_active' => true,
+            ])->id;
+        }
+
+        $delivery = $this->submittedDelivery($qty, $rate, $taxId);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'tax_amount' => $taxAmount,
         ]);
 
         return $this->invoiceService->submit($invoice);

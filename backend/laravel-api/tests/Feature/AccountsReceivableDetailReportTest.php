@@ -91,7 +91,7 @@ class AccountsReceivableDetailReportTest extends TestCase
         $this->approveDocument($salesOrder);
 
         $this->actingAsCreditOverride();
-        $this->salesOrderService->submit($salesOrder, true, 'Test fixture: intentional back-dated invoice for AR aging report coverage.');
+        $this->salesOrderService->approve($salesOrder, true, 'Test fixture: intentional back-dated invoice for AR aging report coverage.');
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -100,7 +100,7 @@ class AccountsReceivableDetailReportTest extends TestCase
             'due_date' => $dueDate,
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => 5]],
         ]);
-        $this->deliveryService->submit($delivery);
+        $this->deliveryService->complete($delivery);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],

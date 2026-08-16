@@ -16,7 +16,7 @@ import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayo
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { cancelSalesOrder, deleteSalesOrder, fetchSalesOrder, submitSalesOrder } from '../api/salesOrderApi'
+import { approveSalesOrder, cancelSalesOrder, deleteSalesOrder, fetchSalesOrder } from '../api/salesOrderApi'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
 import { DeliveryProgress } from '../components/DeliveryProgress'
@@ -79,24 +79,25 @@ export function SalesOrderDetailPage() {
     Number(orderQuery.data?.total_amount ?? 0),
   )
   const canOverrideCredit = useHasPermission('sales.orders.override_credit_check')
+  const canApprove = useHasPermission('sales.orders.approve')
   const creditBlockActive = creditBlocked && !(overrideCreditBlock && overrideReason.trim())
 
-  // Only a submitted SO can ever have Deliveries against it (draft has none yet; cancel() is blocked once any exist) — no point fetching otherwise.
+  // Only an approved SO can ever have Deliveries against it (unapproved has none yet) — no point fetching otherwise.
   const relatedDeliveriesQuery = useQuery({
     queryKey: ['deliveries-for-sales-order', id],
     queryFn: () => fetchDeliveries({ page: 1, per_page: 100 }),
-    enabled: orderQuery.data?.status === 'submitted',
+    enabled: orderQuery.data?.status === 'approved',
   })
   const relatedDeliveries = (relatedDeliveriesQuery.data?.data ?? []).filter((delivery) => delivery.sales_order_id === id)
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
 
-  const submitMutation = useMutation({
+  const approveMutation = useMutation({
     mutationFn: () =>
-      submitSalesOrder(id!, overrideCreditBlock ? { override_credit_block: true, override_reason: overrideReason || null } : undefined),
+      approveSalesOrder(id!, overrideCreditBlock ? { override_credit_block: true, override_reason: overrideReason || null } : undefined),
     onSuccess: () => {
       invalidate()
-      toast.success('Sales Order submitted.')
+      toast.success('Sales Order approved.')
     },
     onError: (error) => toastApiError(error),
   })
@@ -142,33 +143,35 @@ export function SalesOrderDetailPage() {
         description="Sales order details."
         actions={
           <div className="flex items-center gap-2">
-            {order.status === 'draft' && (
+            {order.status === 'submitted' && (
               <>
                 <Button variant="outline" onClick={() => navigate(`/sales/orders/${order.id}/edit`)}>
                   <Pencil className="size-4" />
                   Edit
                 </Button>
-                <Button
-                  onClick={() => submitMutation.mutate()}
-                  disabled={submitMutation.isPending || blockedByApproval || creditBlockActive}
-                  title={
-                    creditBlockActive
-                      ? creditMessage
-                      : blockedByApproval
-                        ? 'This order needs an approved request before it can be submitted.'
-                        : undefined
-                  }
-                >
-                  {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                  Submit
-                </Button>
+                {canApprove && (
+                  <Button
+                    onClick={() => approveMutation.mutate()}
+                    disabled={approveMutation.isPending || blockedByApproval || creditBlockActive}
+                    title={
+                      creditBlockActive
+                        ? creditMessage
+                        : blockedByApproval
+                          ? 'This order needs an approved request before it can be approved.'
+                          : undefined
+                    }
+                  >
+                    {approveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                    Approve
+                  </Button>
+                )}
                 <Button variant="destructive" onClick={() => setConfirmingDelete(true)}>
                   <Trash2 className="size-4" />
                   Delete
                 </Button>
               </>
             )}
-            {order.status === 'submitted' && (
+            {(order.status === 'submitted' || order.status === 'approved') && (
               <Button variant="destructive" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
                 {cancelMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Ban className="size-4" />}
                 Cancel
@@ -178,7 +181,7 @@ export function SalesOrderDetailPage() {
         }
       />
 
-      {order.status === 'draft' && creditBlocked && (
+      {order.status === 'submitted' && creditBlocked && (
         <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="flex flex-col gap-3 py-4 text-sm">
             <div className="flex items-start gap-2 text-destructive">
@@ -252,7 +255,7 @@ export function SalesOrderDetailPage() {
         </CardContent>
       </Card>
 
-      {order.status === 'submitted' && (
+      {order.status === 'approved' && (
         <Card>
           <CardHeader>
             <CardTitle>Deliveries</CardTitle>

@@ -106,7 +106,12 @@ class InvoiceResource extends JsonResource
         ];
     }
 
-    /** Draft/Submitted/Partially Paid/Paid/Cancelled, derived — never stored. */
+    /**
+     * Draft/Cancelled are document-lifecycle states (whether AR/GL exist for
+     * this Invoice yet), not payment states — kept as-is. Once submitted,
+     * the payment status is HANYA Unpaid/Partial/Paid (A3 of the workflow
+     * spec), derived from AccountsReceivable, never stored/manually set.
+     */
     protected function resolveDisplayStatus(): string
     {
         if ($this->status === DocumentStatus::CANCELLED) {
@@ -120,9 +125,9 @@ class InvoiceResource extends JsonResource
         $arStatus = $this->relationLoaded('accountsReceivable') ? $this->accountsReceivable?->status : null;
 
         return match ($arStatus) {
-            AccountsReceivableStatus::PARTIALLY_PAID => 'partially_paid',
+            AccountsReceivableStatus::PARTIALLY_PAID => 'partial',
             AccountsReceivableStatus::PAID => 'paid',
-            default => 'submitted',
+            default => 'unpaid',
         };
     }
 }

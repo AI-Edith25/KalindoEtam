@@ -2,6 +2,12 @@ import type { ApprovalFlow } from '../approval/types'
 
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 
+/** Sales Order's own lifecycle — Submitted (awaiting approval) -> Approved (locked, deliverable) -> Cancelled. */
+export type SalesOrderStatus = 'submitted' | 'approved' | 'cancelled'
+
+/** Delivery's own lifecycle — Pending (created, stock not yet moved) -> Complete (stock moved). No Cancel/Void. */
+export type DeliveryStatus = 'pending' | 'complete'
+
 /** Drives which Naming Series generates an Invoice's document_number — see Invoice::documentType() on the backend. */
 export type InvoiceType = 'goods' | 'transportation'
 
@@ -23,7 +29,7 @@ export interface SalesOrderItem {
 export interface SalesOrder {
   id: string
   document_number: string | null
-  status: DocumentStatus
+  status: SalesOrderStatus
   revision: number
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
@@ -85,7 +91,7 @@ export interface CustomerCreditStatus {
 }
 
 export interface SalesOrderFilterValues {
-  status: DocumentStatus | null
+  status: SalesOrderStatus | null
   dateFrom: string
   dateTo: string
 }
@@ -105,7 +111,7 @@ export interface DeliveryItem {
 export interface Delivery {
   id: string
   document_number: string | null
-  status: DocumentStatus
+  status: DeliveryStatus
   revision: number
   sales_order_id: string
   sales_order: {
@@ -116,6 +122,8 @@ export interface Delivery {
     fax: string | null
     reference: string | null
     sales_person: { id: string; code: string; name: string } | null
+    tax_id: string | null
+    tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
   } | null
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
@@ -128,6 +136,10 @@ export interface Delivery {
   remarks: string | null
   items: DeliveryItem[]
   amount: string | number
+  // Read-only, inherited from the Sales Order's tax (B1 of the workflow spec) — see DeliveryResource.
+  tax_id: string | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+  tax_amount: string | number
   is_invoiced: boolean | null
   submitted_at: string | null
   cancelled_at: string | null
@@ -145,12 +157,12 @@ export interface DeliveryFormValues {
 }
 
 export interface DeliveryFilterValues {
-  status: DocumentStatus | null
+  status: DeliveryStatus | null
   dateFrom: string
   dateTo: string
 }
 
-export type InvoiceDisplayStatus = 'draft' | 'submitted' | 'partially_paid' | 'paid' | 'cancelled'
+export type InvoiceDisplayStatus = 'draft' | 'unpaid' | 'partial' | 'paid' | 'cancelled'
 
 export interface InvoiceItem {
   id: string
@@ -246,7 +258,8 @@ export interface InvoiceFormValues {
   discount_type: DiscountType
   discount_amount: number | null
   discount_percentage: number | null
-  tax_id: string | null
+  // Goods invoices omit this entirely — the backend always inherits it from the Sales Order.
+  tax_id?: string | null
   tax_amount: number | null
   remarks: string | null
   sales_person_id?: string | null

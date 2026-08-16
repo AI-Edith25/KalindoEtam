@@ -109,10 +109,10 @@ export function InvoiceEditorPage() {
     enabled: isEdit,
   })
 
-  // Eligible = submitted and not yet invoiced. Fetched only in create mode, before any Delivery is picked.
+  // Eligible = complete and not yet invoiced. Fetched only in create mode, before any Delivery is picked.
   const eligibleDeliveriesQuery = useQuery({
     queryKey: ['deliveries-eligible-for-invoice'],
-    queryFn: () => fetchDeliveries({ page: 1, per_page: 100, status: 'submitted' }),
+    queryFn: () => fetchDeliveries({ page: 1, per_page: 100, status: 'complete' }),
     enabled: !isEdit,
   })
   const eligibleDeliveries = (eligibleDeliveriesQuery.data?.data ?? []).filter((delivery) => !delivery.is_invoiced)
@@ -407,8 +407,9 @@ function InvoiceForm({
     discount_amount: values.discount_type === 'amount' ? (values.discount_amount === '' ? 0 : Number(values.discount_amount)) : null,
     discount_percentage: values.discount_type === 'percentage' ? (values.discount_percentage === '' ? 0 : Number(values.discount_percentage)) : null,
     // TaxService::calculate() computes tax_amount server-side from tax_id — never sent directly
-    // from here. See docs/TAX_ENGINE_DESIGN.md §6.
-    tax_id: values.tax_id || null,
+    // from here. See docs/TAX_ENGINE_DESIGN.md §6. Goods invoices never send tax_id at all —
+    // the backend always inherits it from the Sales Order, ignoring anything sent (B1/B3).
+    tax_id: isTransportation ? values.tax_id || null : undefined,
     tax_amount: null,
     remarks: values.remarks || null,
     sales_person_id: values.sales_person_id || null,
@@ -446,7 +447,12 @@ function InvoiceForm({
   const watchedDiscountAmount = form.watch('discount_amount')
   const watchedDiscountPercentage = form.watch('discount_percentage')
   const watchedTaxId = form.watch('tax_id')
-  const selectedTax = taxOptions.find((tax) => tax.id === watchedTaxId) ?? null
+  // Goods invoices never let the user pick a tax (B1/B3 of the workflow spec) — it's inherited
+  // read-only from the anchor Sales Order, either the already-saved invoice's own tax (edit
+  // mode) or the first selected Delivery's Sales Order (create mode preview). Transportation
+  // (no Sales Order) keeps the independent Select, driven by the RHF field as before.
+  const inheritedTax = isEdit ? (invoice?.tax ?? null) : (selectedDeliveries[0]?.sales_order?.tax ?? null)
+  const selectedTax = isTransportation ? (taxOptions.find((tax) => tax.id === watchedTaxId) ?? null) : inheritedTax
 
   const previewLines: PreviewLine[] = isEdit
     ? (invoice?.items ?? []).map((line) => ({ ...line }))
@@ -710,31 +716,41 @@ function InvoiceForm({
                   )}
                 />
               )}
-              <FormField
-                control={form.control}
-                name="tax_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tax</FormLabel>
-                    <Select value={field.value || NO_TAX} onValueChange={(next) => field.onChange(next === NO_TAX ? '' : next)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_TAX}>No tax</SelectItem>
-                        {taxOptions.map((tax) => (
-                          <SelectItem key={tax.id} value={tax.id}>
-                            {tax.name} ({tax.code}){tax.type === 'vat' ? ` — ${tax.rate}%` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {isTransportation ? (
+                <FormField
+                  control={form.control}
+                  name="tax_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tax</FormLabel>
+                      <Select value={field.value || NO_TAX} onValueChange={(next) => field.onChange(next === NO_TAX ? '' : next)}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={NO_TAX}>No tax</SelectItem>
+                          {taxOptions.map((tax) => (
+                            <SelectItem key={tax.id} value={tax.id}>
+                              {tax.name} ({tax.code}){tax.type === 'vat' ? ` — ${tax.rate}%` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium">Tax</span>
+                  <span className="text-sm text-muted-foreground">
+                    {inheritedTax ? `${inheritedTax.name} (${inheritedTax.code}) — ${inheritedTax.rate}%` : 'No tax'}
+                  </span>
+                  <p className="text-xs text-muted-foreground">Inherited from the Sales Order — cannot be changed here.</p>
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="remarks"

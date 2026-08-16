@@ -84,7 +84,7 @@ class SalesOrderCreditCheckTest extends TestCase
         $this->approveDocument($salesOrder);
 
         $this->actingAsCreditOverride();
-        $this->salesOrderService->submit($salesOrder, true, 'Fixture setup.');
+        $this->salesOrderService->approve($salesOrder, true, 'Fixture setup.');
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -93,7 +93,7 @@ class SalesOrderCreditCheckTest extends TestCase
             'due_date' => $dueDate,
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => 5]],
         ]);
-        $this->deliveryService->submit($delivery);
+        $this->deliveryService->complete($delivery);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],
@@ -192,6 +192,6 @@ class SalesOrderCreditCheckTest extends TestCase
         $this->expectException(BusinessException::class);
         $this->expectExceptionMessage('Limit kredit');
 
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
     }
 }

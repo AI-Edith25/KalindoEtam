@@ -13,7 +13,9 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Enums\TaxType;
 use App\Models\JournalEntry;
+use App\Models\Tax;
 use App\Models\UnitOfMeasurement;
 use App\Models\Warehouse;
 use App\Services\DeliveryService;
@@ -88,13 +90,29 @@ class GeneralLedgerTest extends TestCase
 
     protected function submittedInvoice(int $qty = 10, float $rate = 20000, float $taxAmount = 0, ?string $invoiceDate = null): Invoice
     {
+        // Goods invoices inherit tax_id/tax_amount from their Sales Order (B1/B2 of the
+        // workflow spec) — a Tax record with the rate that yields $taxAmount on this
+        // subtotal is attached to the Sales Order instead of passed to the Invoice directly.
+        $taxId = null;
+        if ($taxAmount > 0) {
+            $subtotal = $qty * $rate;
+            $taxId = Tax::query()->create([
+                'code' => 'TEST-'.Str::random(6),
+                'name' => 'Test Tax',
+                'type' => TaxType::VAT,
+                'rate' => $taxAmount / $subtotal * 100,
+                'is_active' => true,
+            ])->id;
+        }
+
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
             'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
+            'tax_id' => $taxId,
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -103,13 +121,12 @@ class GeneralLedgerTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => $qty]],
         ]);
-        $this->deliveryService->submit($delivery);
+        $this->deliveryService->complete($delivery);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],
             'invoice_date' => $invoiceDate ?? now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'tax_amount' => $taxAmount,
         ]);
 
         return $this->invoiceService->submit($invoice);
@@ -145,14 +162,17 @@ class GeneralLedgerTest extends TestCase
 
     public function test_opening_balance_sign_flips_for_a_credit_normal_account(): void
     {
+        // taxAmount is round-tripped through a Tax's rate (decimal(5,2)) now that it's inherited
+        // from the Sales Order rather than passed raw — 1800 (an exact 3% of 60000) instead of
+        // 2000, which needed a 3.33% rate that doesn't survive that rounding.
         $this->submittedInvoice(qty: 5, rate: 20000, taxAmount: 5000, invoiceDate: '2026-01-10');
-        $this->submittedInvoice(qty: 3, rate: 20000, taxAmount: 2000, invoiceDate: '2026-02-10');
+        $this->submittedInvoice(qty: 3, rate: 20000, taxAmount: 1800, invoiceDate: '2026-02-10');
 
         $result = $this->generalLedgerService->accountLedger($this->taxAccount, ['date_from' => '2026-02-01'], 15);
 
         // Tax Payable is credit-normal — opening balance is the credit total from before the range.
         $this->assertEquals(5000, $result['opening_balance']);
-        $this->assertEquals(7000, $result['ending_balance']);
+        $this->assertEquals(6800, $result['ending_balance']);
     }
 
     public function test_running_balance_is_deterministically_ordered_by_posting_date_then_document_number_then_id(): void

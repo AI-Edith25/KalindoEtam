@@ -26,6 +26,14 @@ abstract class TestCase extends BaseTestCase
      */
     protected function approveDocument(Model $document): void
     {
+        // SalesOrder no longer requires an ApprovalFlow before submit()/approve() (its own
+        // single-click Approve action replaced that two-step dance — see SalesOrder::
+        // requiresApproval()). Nothing to pre-approve; the caller's own submit()/approve()
+        // call that follows this is already the whole approval action.
+        if (! $document->requiresApproval()) {
+            return;
+        }
+
         $service = app(ApprovalService::class);
         $flow = $service->requestApproval($document);
 

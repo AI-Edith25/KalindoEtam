@@ -39,8 +39,8 @@ export async function deleteDelivery(id: string): Promise<void> {
   await apiClient.delete(`/deliveries/${id}`)
 }
 
-export async function submitDelivery(id: string): Promise<Delivery> {
-  const { data } = await apiClient.post<ApiResponse<Delivery>>(`/deliveries/${id}/submit`)
+export async function completeDelivery(id: string): Promise<Delivery> {
+  const { data } = await apiClient.post<ApiResponse<Delivery>>(`/deliveries/${id}/complete`)
   return data.data
 }
 

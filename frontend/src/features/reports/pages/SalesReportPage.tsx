@@ -13,7 +13,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchSalesOrders } from '@/features/sales/api/salesOrderApi'
-import type { DocumentStatus } from '@/features/sales/types'
+import type { SalesOrderStatus } from '@/features/sales/types'
 import { SalesReportFiltersBar } from '../components/SalesReportFiltersBar'
 import { emptySalesReportFilters } from '../lib/reportFilters'
 import type { SalesReportFilterValues } from '../types'
@@ -27,7 +27,7 @@ interface SalesReportRow {
   sales_person_name: string
   branch_name: string
   order_date: string
-  status: DocumentStatus
+  status: SalesOrderStatus
   item_code: string | null
   item_name: string | null
   qty: number

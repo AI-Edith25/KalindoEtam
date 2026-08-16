@@ -104,7 +104,7 @@ class InvoiceChangeRequestTest extends TestCase
             'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -113,7 +113,7 @@ class InvoiceChangeRequestTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => $qty]],
         ]);
-        $this->deliveryService->submit($delivery);
+        $this->deliveryService->complete($delivery);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],

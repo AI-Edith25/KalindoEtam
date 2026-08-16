@@ -15,7 +15,7 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../api/invoiceApi'
-import { SalesOrderFiltersBar } from '../components/SalesOrderFiltersBar'
+import { InvoiceFiltersBar } from '../components/InvoiceFiltersBar'
 import { emptyInvoiceFilters } from '../lib/invoiceFilters'
 import type { Invoice, InvoiceFilterValues } from '../types'
 
@@ -178,7 +178,7 @@ export function InvoiceListPage() {
           }}
           placeholder="Search invoice number or customer…"
         />
-        <SalesOrderFiltersBar
+        <InvoiceFiltersBar
           value={filters}
           onChange={(value) => {
             setFilters(value)

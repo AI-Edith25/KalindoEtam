@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\DocumentStatus;
+use App\Enums\SalesOrderStatus;
 use App\Models\Concerns\Documentable;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -39,7 +39,7 @@ class SalesOrder extends Model
     ];
 
     protected $casts = [
-        'status' => DocumentStatus::class,
+        'status' => SalesOrderStatus::class,
         'order_date' => 'date',
         'expected_delivery_date' => 'date',
         'total_amount' => 'decimal:2',
@@ -54,10 +54,40 @@ class SalesOrder extends Model
         return 'sales';
     }
 
-    /** Operational commitment to a customer before any Delivery/Receivable exists — see docs/APPROVAL_WORKFLOW_DESIGN.md §3. */
+    /**
+     * The old two-step ApprovalFlow dance (request approval, then a separate
+     * approver decides, then the user still had to click Submit) is
+     * superseded by the single "Approve" action below — SalesOrderStatus
+     * collapses that into one status transition, gated by route middleware
+     * (`sales.orders.approve`) instead of a pre-existing ApprovalFlow record.
+     * PurchaseOrder/JournalEntry are untouched and still use ApprovalFlow.
+     */
     public function requiresApproval(): bool
     {
-        return true;
+        return false;
+    }
+
+    /** Submitted = just created, still editable — the old "Draft" meaning, renamed. */
+    protected function initialStatus(): \BackedEnum
+    {
+        return SalesOrderStatus::SUBMITTED;
+    }
+
+    /** Approved = locked, can be delivered against — the old "Submitted" meaning, renamed. */
+    protected function submittedStatus(): \BackedEnum
+    {
+        return SalesOrderStatus::APPROVED;
+    }
+
+    protected function cancelledStatus(): \BackedEnum
+    {
+        return SalesOrderStatus::CANCELLED;
+    }
+
+    /** Cancel is allowed either before or after approval — a request can be withdrawn while still awaiting review, not only once it's locked in. */
+    protected function cancellableStatuses(): array
+    {
+        return [SalesOrderStatus::SUBMITTED, SalesOrderStatus::APPROVED];
     }
 
     public function customer(): BelongsTo

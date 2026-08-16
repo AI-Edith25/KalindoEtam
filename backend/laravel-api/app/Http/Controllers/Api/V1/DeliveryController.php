@@ -37,7 +37,7 @@ class DeliveryController extends Controller
 
     public function show(Delivery $delivery): JsonResponse
     {
-        return $this->success(new DeliveryResource($delivery->load(['customer', 'warehouse', 'salesOrder.salesPerson', 'items', 'invoices', 'termsOfPayment'])));
+        return $this->success(new DeliveryResource($delivery->load(['customer', 'warehouse', 'salesOrder.salesPerson', 'salesOrder.tax', 'items', 'invoices', 'termsOfPayment'])));
     }
 
     public function update(UpdateDeliveryRequest $request, Delivery $delivery): JsonResponse
@@ -57,10 +57,10 @@ class DeliveryController extends Controller
     /**
      * No cancel() action here, deliberately — see Delivery::cancel().
      */
-    public function submit(Delivery $delivery): JsonResponse
+    public function complete(Delivery $delivery): JsonResponse
     {
-        $delivery = $this->deliveryService->submit($delivery);
+        $delivery = $this->deliveryService->complete($delivery);
 
-        return $this->success(new DeliveryResource($delivery), 'Delivery submitted.');
+        return $this->success(new DeliveryResource($delivery), 'Delivery completed.');
     }
 }

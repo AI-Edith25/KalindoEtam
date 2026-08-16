@@ -1,5 +1,5 @@
 import type { DocumentStatus as PurchaseDocumentStatus } from '@/features/purchase/types'
-import type { DocumentStatus as SalesDocumentStatus } from '@/features/sales/types'
+import type { SalesOrderStatus } from '@/features/sales/types'
 import type { SettlementStatus } from '@/features/payment/types'
 
 /**
@@ -30,7 +30,7 @@ export interface SalesReportFilterValues {
   item_id: string
   sales_person_id: string
   branch_id: string
-  status: SalesDocumentStatus | null
+  status: SalesOrderStatus | null
   dateFrom: string
   dateTo: string
 }

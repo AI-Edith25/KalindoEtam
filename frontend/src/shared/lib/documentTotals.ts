@@ -12,11 +12,10 @@ export function computeSubtotal(lines: LineLike[]): number {
 }
 
 /**
- * Sales Order, Delivery, and Goods Receipt have no tax field on the
- * backend — Tax is fixed at 0 as a placeholder. Grand Total therefore
- * always equals Subtotal for these documents. Invoice and Purchase Order
- * compute their own tax preview locally instead (see their Editor pages)
- * since they do have a tax_id.
+ * Goods Receipt has no tax field on the backend — Tax is fixed at 0 as a
+ * placeholder, so Grand Total always equals Subtotal there. Sales Order,
+ * Delivery, Invoice, and Purchase Order all carry a real tax_id/tax and
+ * compute their own tax preview locally instead (see their Editor pages).
  */
 export function computeTax(): number {
   return 0

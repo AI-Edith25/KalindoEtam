@@ -40,11 +40,11 @@ export async function deleteSalesOrder(id: string): Promise<void> {
   await apiClient.delete(`/sales-orders/${id}`)
 }
 
-export async function submitSalesOrder(
+export async function approveSalesOrder(
   id: string,
   payload?: { override_credit_block?: boolean; override_reason?: string | null },
 ): Promise<SalesOrder> {
-  const { data } = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/submit`, payload)
+  const { data } = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/approve`, payload)
   return data.data
 }
 

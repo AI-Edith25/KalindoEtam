@@ -17,11 +17,11 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { computeGrandTotal, computeSubtotal, computeTax } from '@/shared/lib/documentTotals'
+import { computeGrandTotal, computeSubtotal } from '@/shared/lib/documentTotals'
 import { fetchWarehousesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
 import { fetchStockBalances } from '@/features/inventory/api/stockApi'
 import { addDays } from '@/shared/lib/dateMath'
-import { fetchDelivery, createDelivery, updateDelivery, submitDelivery } from '../api/deliveryApi'
+import { fetchDelivery, createDelivery, updateDelivery, completeDelivery } from '../api/deliveryApi'
 import { fetchSalesOrder, fetchSalesOrders } from '../api/salesOrderApi'
 import type { Delivery, SalesOrder } from '../types'
 import { DeliveryLineItemTable } from '../components/DeliveryLineItemTable'
@@ -45,10 +45,10 @@ export function DeliveryEditorPage() {
 
   const salesOrderId = isEdit ? deliveryQuery.data?.sales_order_id : (selectedSalesOrderId ?? undefined)
 
-  // Eligible = submitted and not fully delivered. Fetched only in create mode, before an SO is picked.
+  // Eligible = approved and not fully delivered. Fetched only in create mode, before an SO is picked.
   const eligibleOrdersQuery = useQuery({
     queryKey: ['sales-orders-eligible-for-delivery'],
-    queryFn: () => fetchSalesOrders({ page: 1, per_page: 100, status: 'submitted' }),
+    queryFn: () => fetchSalesOrders({ page: 1, per_page: 100, status: 'approved' }),
     enabled: !isEdit,
   })
   const eligibleOrders = (eligibleOrdersQuery.data?.data ?? []).filter((so) => !so.is_fully_delivered)
@@ -64,8 +64,8 @@ export function DeliveryEditorPage() {
     const delivery = deliveryQuery.data
     if (!delivery) return
 
-    if (delivery.status !== 'draft') {
-      toast.error('Only draft deliveries can be edited.')
+    if (delivery.status !== 'pending') {
+      toast.error('Only pending deliveries can be edited.')
       navigate(`/sales/deliveries/${delivery.id}`, { replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,7 +83,7 @@ export function DeliveryEditorPage() {
   if (!isEdit && !selectedSalesOrderId) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="New Delivery" description="Every Delivery starts from an existing, submitted Sales Order." />
+        <PageHeader title="New Delivery" description="Every Delivery starts from an existing, approved Sales Order." />
         <Card>
           <CardHeader>
             <CardTitle>Select Sales Order</CardTitle>
@@ -110,7 +110,7 @@ export function DeliveryEditorPage() {
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">
-              Only submitted sales orders with outstanding (not yet fully delivered) items are shown.
+              Only approved sales orders with outstanding (not yet fully delivered) items are shown.
             </p>
             <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/sales/deliveries')}>
               Cancel
@@ -291,13 +291,13 @@ function DeliveryForm({
     onError: (error) => toastApiError(error),
   })
 
-  const submitMutation = useMutation({
-    mutationFn: () => submitDelivery(id!),
-    onSuccess: (submittedDelivery) => {
+  const completeMutation = useMutation({
+    mutationFn: () => completeDelivery(id!),
+    onSuccess: (completedDelivery) => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success('Delivery confirmed — stock updated.')
-      navigate(`/sales/deliveries/${submittedDelivery.id}`)
+      navigate(`/sales/deliveries/${completedDelivery.id}`)
     },
     onError: (error) => toastApiError(error),
   })
@@ -305,8 +305,10 @@ function DeliveryForm({
   const watchedItems = form.watch('items')
   const deliveringNowLines = (watchedItems ?? []).map((line) => ({ qty: line.deliverNow, rate: line.rate }))
   const subtotal = computeSubtotal(deliveringNowLines)
-  const tax = computeTax()
-  const grandTotal = computeGrandTotal(deliveringNowLines)
+  // Read-only, inherited from the Sales Order's tax (B1/B2 of the workflow spec) — never an
+  // independent choice here. Preview only; DeliveryResource on the backend is authoritative.
+  const tax = salesOrder.tax && salesOrder.tax.type === 'vat' ? Math.round(subtotal * (Number(salesOrder.tax.rate) / 100) * 100) / 100 : 0
+  const grandTotal = computeGrandTotal(deliveringNowLines) + tax
 
   return (
     <div className="flex flex-col gap-4">
@@ -320,7 +322,7 @@ function DeliveryForm({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Delivery Details</CardTitle>
-              <StatusBadge status={isEdit ? (delivery?.status ?? 'draft') : 'draft'} />
+              <StatusBadge status={isEdit ? (delivery?.status ?? 'pending') : 'pending'} />
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-0.5 sm:col-span-2">
@@ -454,7 +456,7 @@ function DeliveryForm({
           </Card>
 
           <p className="text-right text-sm text-muted-foreground">
-            {isEdit && delivery?.status === 'draft'
+            {isEdit && delivery?.status === 'pending'
               ? 'Recording a Delivery captures what is about to leave the warehouse. Confirming updates stock levels and creates the receivable from your customer.'
               : 'Recording quantities here doesn’t move stock yet — you’ll confirm the delivery on the next screen.'}
           </p>
@@ -467,9 +469,9 @@ function DeliveryForm({
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Record Delivery
             </Button>
-            {isEdit && delivery?.status === 'draft' && (
-              <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
-                {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            {isEdit && delivery?.status === 'pending' && (
+              <Button type="button" onClick={() => completeMutation.mutate()} disabled={completeMutation.isPending}>
+                {completeMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 Confirm Delivery
               </Button>
             )}

@@ -7,10 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexSalesOrderRequest;
 use App\Http\Requests\StoreSalesOrderRequest;
 use App\Http\Requests\UpdateSalesOrderRequest;
-use App\Http\Resources\ApprovalFlowResource;
 use App\Http\Resources\SalesOrderResource;
 use App\Models\SalesOrder;
-use App\Services\ApprovalService;
 use App\Services\SalesOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +19,6 @@ class SalesOrderController extends Controller
 
     public function __construct(
         protected SalesOrderService $salesOrderService,
-        protected ApprovalService $approvalService,
     ) {}
 
     public function index(IndexSalesOrderRequest $request): JsonResponse
@@ -60,15 +57,15 @@ class SalesOrderController extends Controller
         return $this->success(null, 'Sales Order deleted.');
     }
 
-    public function submit(Request $request, SalesOrder $salesOrder): JsonResponse
+    public function approve(Request $request, SalesOrder $salesOrder): JsonResponse
     {
-        $salesOrder = $this->salesOrderService->submit(
+        $salesOrder = $this->salesOrderService->approve(
             $salesOrder,
             $request->boolean('override_credit_block'),
             $request->input('override_reason'),
         );
 
-        return $this->success(new SalesOrderResource($salesOrder), 'Sales Order submitted.');
+        return $this->success(new SalesOrderResource($salesOrder), 'Sales Order approved.');
     }
 
     public function cancel(SalesOrder $salesOrder): JsonResponse
@@ -76,12 +73,5 @@ class SalesOrderController extends Controller
         $salesOrder = $this->salesOrderService->cancel($salesOrder);
 
         return $this->success(new SalesOrderResource($salesOrder), 'Sales Order cancelled.');
-    }
-
-    public function requestApproval(SalesOrder $salesOrder): JsonResponse
-    {
-        $flow = $this->approvalService->requestApproval($salesOrder);
-
-        return $this->success(new ApprovalFlowResource($flow), 'Approval requested.', 201);
     }
 }

@@ -32,7 +32,7 @@ trait Documentable
             }
 
             if (empty($model->status)) {
-                $model->status = DocumentStatus::DRAFT;
+                $model->status = $model->initialStatus();
             }
 
             if (empty($model->revision)) {
@@ -53,6 +53,41 @@ trait Documentable
      */
     abstract public function documentType(): string;
 
+    /**
+     * The three status values this model's lifecycle uses — every consumer
+     * gets Draft/Submitted/Cancelled unless it overrides one or more of
+     * these. Override to plug in a model-specific status enum (e.g.
+     * SalesOrder's Submitted/Approved/Cancelled, Delivery's Pending/Complete)
+     * without touching this trait's shared plumbing (document_number
+     * generation, timeline, attachments, approvalFlows) or any other
+     * Documentable model's behavior.
+     */
+    protected function initialStatus(): \BackedEnum
+    {
+        return DocumentStatus::DRAFT;
+    }
+
+    protected function submittedStatus(): \BackedEnum
+    {
+        return DocumentStatus::SUBMITTED;
+    }
+
+    protected function cancelledStatus(): \BackedEnum
+    {
+        return DocumentStatus::CANCELLED;
+    }
+
+    /**
+     * Statuses cancel() may act from — defaults to just submittedStatus()
+     * for every existing consumer. Override when more than one status
+     * should be cancellable (e.g. SalesOrder: Submitted-awaiting-approval
+     * or Approved, both).
+     */
+    protected function cancellableStatuses(): array
+    {
+        return [$this->submittedStatus()];
+    }
+
     public function attachments(): MorphMany
     {
         return $this->morphMany(DocumentAttachment::class, 'attachable');
@@ -70,7 +105,7 @@ trait Documentable
 
     public function submit(): static
     {
-        abort_if($this->status !== DocumentStatus::DRAFT, 422, 'Only draft documents can be submitted.');
+        abort_if($this->status !== $this->initialStatus(), 422, 'Only draft documents can be submitted.');
 
         if ($this->requiresApproval()) {
             $latestApproval = $this->approvalFlows()->orderByDesc('step')->first();
@@ -81,7 +116,7 @@ trait Documentable
         }
 
         return DB::transaction(function () {
-            $this->update(['status' => DocumentStatus::SUBMITTED, 'submitted_at' => now()]);
+            $this->update(['status' => $this->submittedStatus(), 'submitted_at' => now()]);
             app(DocumentTimelineService::class)->record($this, 'submitted');
             $this->afterSubmit();
 
@@ -103,10 +138,10 @@ trait Documentable
 
     public function cancel(): static
     {
-        abort_if($this->status !== DocumentStatus::SUBMITTED, 422, 'Only submitted documents can be cancelled.');
+        abort_if(! in_array($this->status, $this->cancellableStatuses(), true), 422, 'Only submitted documents can be cancelled.');
 
         return DB::transaction(function () {
-            $this->update(['status' => DocumentStatus::CANCELLED, 'cancelled_at' => now()]);
+            $this->update(['status' => $this->cancelledStatus(), 'cancelled_at' => now()]);
             app(DocumentTimelineService::class)->record($this, 'cancelled');
             $this->afterCancel();
 

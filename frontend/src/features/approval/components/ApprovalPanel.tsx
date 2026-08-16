@@ -17,7 +17,9 @@ interface ApprovalPanelProps {
   approvableType: string
   approvableId: string
   module: ApprovableModule
-  documentStatus: 'draft' | 'submitted' | 'cancelled'
+  // Opaque beyond the 'draft' comparison below — PO/JE use DocumentStatus, SalesOrder its own
+  // SalesOrderStatus (though it never actually renders this panel, having requiresApproval()=false).
+  documentStatus: string
   documentLabel: string
   /** Invalidates the parent document's own query — its `latest_approval`/status may now be stale after a decision. */
   onChanged: () => void

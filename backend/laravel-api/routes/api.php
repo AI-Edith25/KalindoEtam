@@ -170,12 +170,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('sales-orders', SalesOrderController::class), 'sales.orders', 'reports.sales.view|reports.deliveries.view');
     // Credit/overdue block's customer-select-time check — lives under customers/ but is a Sales Order screen concern, so it's gated by the page that owns it (sales.orders.create), not master.customers.*.
     Route::get('customers/{customer}/credit-status', [CustomerController::class, 'creditStatus'])->middleware('permission:sales.orders.create');
-    Route::post('sales-orders/{salesOrder}/submit', [SalesOrderController::class, 'submit'])->middleware('permission:sales.orders.update');
+    Route::post('sales-orders/{salesOrder}/approve', [SalesOrderController::class, 'approve'])->middleware('permission:sales.orders.approve');
     Route::post('sales-orders/{salesOrder}/cancel', [SalesOrderController::class, 'cancel'])->middleware('permission:sales.orders.update');
-    Route::post('sales-orders/{salesOrder}/request-approval', [SalesOrderController::class, 'requestApproval'])->middleware('permission:sales.orders.update');
 
     $withPagePermissions(Route::apiResource('deliveries', DeliveryController::class), 'sales.deliveries', 'reports.deliveries.view');
-    Route::post('deliveries/{delivery}/submit', [DeliveryController::class, 'submit'])->middleware('permission:sales.deliveries.update');
+    Route::post('deliveries/{delivery}/complete', [DeliveryController::class, 'complete'])->middleware('permission:sales.deliveries.update');
 
     // Invoice Workflow (Sprint 10): Delivery -> Invoice -> Accounts Receivable -> Receipt Entry.
     $withPagePermissions(Route::apiResource('invoices', InvoiceController::class), 'sales.invoices');

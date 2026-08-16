@@ -3,7 +3,7 @@ import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { fetchBranches, fetchCustomersLookup, fetchItemsLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
-import type { DocumentStatus } from '@/features/sales/types'
+import type { SalesOrderStatus } from '@/features/sales/types'
 import { emptySalesReportFilters, hasActiveSalesReportFilters } from '../lib/reportFilters'
 import type { SalesReportFilterValues } from '../types'
 
@@ -102,15 +102,15 @@ export function SalesReportFiltersBar({ value, onChange }: SalesReportFiltersBar
         <span className="text-xs text-muted-foreground">Status</span>
         <Select
           value={value.status ?? ALL}
-          onValueChange={(next) => onChange({ ...value, status: next === ALL ? null : (next as DocumentStatus) })}
+          onValueChange={(next) => onChange({ ...value, status: next === ALL ? null : (next as SalesOrderStatus) })}
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="submitted">Submitted</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>

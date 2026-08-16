@@ -2,7 +2,8 @@
 
 namespace App\Services;
 
-use App\Enums\DocumentStatus;
+use App\Enums\DeliveryStatus;
+use App\Enums\SalesOrderStatus;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
@@ -36,8 +37,8 @@ class DeliveryService
         return DB::transaction(function () use ($data) {
             $salesOrder = $this->salesOrderRepository->findOrFail($data['sales_order_id']);
 
-            if ($salesOrder->status !== DocumentStatus::SUBMITTED) {
-                throw new BusinessException('Sales Order must be submitted before a Delivery can be created against it.');
+            if ($salesOrder->status !== SalesOrderStatus::APPROVED) {
+                throw new BusinessException('Sales Order must be approved before a Delivery can be created against it.');
             }
 
             $delivery = $this->deliveryRepository->create([
@@ -98,17 +99,18 @@ class DeliveryService
     /**
      * The workflow: validate SO, validate outstanding + physical stock,
      * move stock out (StockLedgerService only), advance the SO's
-     * delivered_qty, then flip status via Documentable. Accounts
-     * Receivable is no longer created here — it is created by
-     * InvoiceService::submit() once an Invoice exists for this Delivery.
+     * delivered_qty, then flip status via Documentable — Pending -> Complete
+     * is the one point stock actually moves. Accounts Receivable is no
+     * longer created here — it is created by InvoiceService::submit() once
+     * an Invoice exists for this Delivery.
      */
-    public function submit(Delivery $delivery): Delivery
+    public function complete(Delivery $delivery): Delivery
     {
         return DB::transaction(function () use ($delivery) {
             $delivery->load(['items.salesOrderItem', 'salesOrder']);
 
-            if ($delivery->salesOrder->status !== DocumentStatus::SUBMITTED) {
-                throw new BusinessException('Sales Order is no longer submitted; cannot deliver against it.');
+            if ($delivery->salesOrder->status !== SalesOrderStatus::APPROVED) {
+                throw new BusinessException('Sales Order is no longer approved; cannot deliver against it.');
             }
 
             foreach ($delivery->items as $line) {
@@ -135,7 +137,7 @@ class DeliveryService
             $delivery->submit();
 
             $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items', 'termsOfPayment']);
-            $this->auditLogService->record('submitted', 'delivery', "Submitted Delivery \"{$delivery->document_number}\".");
+            $this->auditLogService->record('completed', 'delivery', "Completed Delivery \"{$delivery->document_number}\".");
 
             return $delivery;
         });
@@ -192,8 +194,8 @@ class DeliveryService
 
     protected function assertDraft(Delivery $delivery, string $action): void
     {
-        if ($delivery->status !== DocumentStatus::DRAFT) {
-            throw new BusinessException("Only draft Deliveries can be {$action}.");
+        if ($delivery->status !== DeliveryStatus::PENDING) {
+            throw new BusinessException("Only pending Deliveries can be {$action}.");
         }
     }
 }

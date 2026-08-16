@@ -95,15 +95,16 @@ class TaxEngineTest extends TestCase
         ], $overrides));
     }
 
-    protected function submittedDelivery(int $qty = 10, float $rate = 10000): \App\Models\Delivery
+    protected function submittedDelivery(int $qty = 10, float $rate = 10000, ?string $taxId = null): \App\Models\Delivery
     {
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
             'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
+            'tax_id' => $taxId,
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -113,7 +114,7 @@ class TaxEngineTest extends TestCase
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => $qty]],
         ]);
 
-        return $this->deliveryService->submit($delivery);
+        return $this->deliveryService->complete($delivery);
     }
 
     // --- TaxService::calculate() — the single source of truth ---
@@ -172,12 +173,13 @@ class TaxEngineTest extends TestCase
     public function test_delete_is_blocked_when_the_tax_is_referenced_by_an_invoice(): void
     {
         $tax = $this->makeTax();
-        $delivery = $this->submittedDelivery(qty: 5, rate: 20000);
+        // Goods invoices inherit tax_id from their Sales Order (B1 of the workflow spec) —
+        // it's never passed to InvoiceService::create() directly.
+        $delivery = $this->submittedDelivery(qty: 5, rate: 20000, taxId: $tax->id);
         $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'tax_id' => $tax->id,
         ]);
 
         $this->expectException(BusinessException::class);
@@ -219,16 +221,17 @@ class TaxEngineTest extends TestCase
 
     // --- Invoice Integration ---
 
-    public function test_invoice_create_calculates_tax_amount_from_the_selected_tax(): void
+    public function test_invoice_create_inherits_the_tax_amount_from_the_sales_order(): void
     {
         $tax = $this->makeTax();
-        $delivery = $this->submittedDelivery(qty: 5, rate: 20000); // subtotal 100000
+        // Goods invoices inherit tax_id read-only from their Sales Order (B1/B2 of the
+        // workflow spec) — never chosen independently on the Invoice itself.
+        $delivery = $this->submittedDelivery(qty: 5, rate: 20000, taxId: $tax->id); // subtotal 100000
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'tax_id' => $tax->id,
         ]);
 
         $this->assertEquals($tax->id, $invoice->tax_id);
@@ -236,46 +239,10 @@ class TaxEngineTest extends TestCase
         $this->assertEquals(111000.0, (float) $invoice->grand_total);
     }
 
-    public function test_invoice_create_falls_back_to_a_raw_tax_amount_when_no_tax_is_selected(): void
+    public function test_invoice_create_ignores_a_client_supplied_tax_when_the_sales_order_has_none(): void
     {
-        $delivery = $this->submittedDelivery(qty: 5, rate: 20000);
-
-        $invoice = $this->invoiceService->create([
-            'delivery_ids' => [$delivery->id],
-            'invoice_date' => now()->toDateString(),
-            'due_date' => now()->addDays(30)->toDateString(),
-            'tax_amount' => 7500,
-        ]);
-
-        $this->assertNull($invoice->tax_id);
-        $this->assertEquals(7500.0, (float) $invoice->tax_amount);
-    }
-
-    public function test_invoice_update_recalculates_tax_amount_when_a_different_tax_is_selected(): void
-    {
-        $taxA = $this->makeTax(['code' => 'PPN11', 'rate' => 11]);
-        $taxB = $this->makeTax(['code' => 'PPN12', 'rate' => 12]);
-        $delivery = $this->submittedDelivery(qty: 5, rate: 20000); // subtotal 100000
-
-        $invoice = $this->invoiceService->create([
-            'delivery_ids' => [$delivery->id],
-            'invoice_date' => now()->toDateString(),
-            'due_date' => now()->addDays(30)->toDateString(),
-            'tax_id' => $taxA->id,
-        ]);
-        $this->assertEquals(11000.0, (float) $invoice->tax_amount);
-
-        $updated = $this->invoiceService->update($invoice, ['tax_id' => $taxB->id]);
-
-        $this->assertEquals($taxB->id, $updated->tax_id);
-        $this->assertEquals(12000.0, (float) $updated->tax_amount);
-        $this->assertEquals(112000.0, (float) $updated->grand_total);
-    }
-
-    public function test_journal_lines_route_the_calculated_tax_amount_unchanged(): void
-    {
-        // Proves Journal Integration is untouched — journalLines() still just reads tax_amount,
-        // whatever computed it. See docs/TAX_ENGINE_DESIGN.md §7.
+        // Even an explicit tax_id/tax_amount in the request is ignored for Goods invoices —
+        // the Sales Order (which has no tax here) is the only source (B1/B3).
         $tax = $this->makeTax();
         $delivery = $this->submittedDelivery(qty: 5, rate: 20000);
 
@@ -284,6 +251,46 @@ class TaxEngineTest extends TestCase
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_id' => $tax->id,
+            'tax_amount' => 7500,
+        ]);
+
+        $this->assertNull($invoice->tax_id);
+        $this->assertEquals(0.0, (float) $invoice->tax_amount);
+    }
+
+    public function test_invoice_update_never_changes_the_inherited_tax(): void
+    {
+        $taxA = $this->makeTax(['code' => 'PPN11', 'rate' => 11]);
+        $taxB = $this->makeTax(['code' => 'PPN12', 'rate' => 12]);
+        $delivery = $this->submittedDelivery(qty: 5, rate: 20000, taxId: $taxA->id); // subtotal 100000
+
+        $invoice = $this->invoiceService->create([
+            'delivery_ids' => [$delivery->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $this->assertEquals(11000.0, (float) $invoice->tax_amount);
+
+        // Even an explicit tax_id in the update payload is ignored for Goods (B1/B3) — the
+        // Invoice keeps whatever it inherited from the Sales Order at creation.
+        $updated = $this->invoiceService->update($invoice, ['tax_id' => $taxB->id]);
+
+        $this->assertEquals($taxA->id, $updated->tax_id);
+        $this->assertEquals(11000.0, (float) $updated->tax_amount);
+        $this->assertEquals(111000.0, (float) $updated->grand_total);
+    }
+
+    public function test_journal_lines_route_the_calculated_tax_amount_unchanged(): void
+    {
+        // Proves Journal Integration is untouched — journalLines() still just reads tax_amount,
+        // whatever computed it. See docs/TAX_ENGINE_DESIGN.md §7.
+        $tax = $this->makeTax();
+        $delivery = $this->submittedDelivery(qty: 5, rate: 20000, taxId: $tax->id);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_ids' => [$delivery->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
         ]);
 
         $taxLine = collect($invoice->journalLines())->firstWhere('account', '2100');

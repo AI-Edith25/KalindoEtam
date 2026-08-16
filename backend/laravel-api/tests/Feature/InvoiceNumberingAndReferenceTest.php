@@ -85,7 +85,7 @@ class InvoiceNumberingAndReferenceTest extends TestCase
             'items' => [['item_id' => $this->item->id, 'qty' => 10, 'rate' => 10000]],
         ]);
         $this->approveDocument($salesOrder);
-        $this->salesOrderService->submit($salesOrder);
+        $this->salesOrderService->approve($salesOrder);
 
         $delivery = $this->deliveryService->create([
             'sales_order_id' => $salesOrder->id,
@@ -95,7 +95,7 @@ class InvoiceNumberingAndReferenceTest extends TestCase
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => 10]],
         ]);
 
-        return $this->deliveryService->submit($delivery);
+        return $this->deliveryService->complete($delivery);
     }
 
     public function test_goods_invoice_gets_si_ke_number_and_prefills_sales_person_and_reference_1_from_sales_order(): void

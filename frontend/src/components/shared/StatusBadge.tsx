@@ -26,6 +26,7 @@ const STATUS_STYLES: Record<string, string> = {
   waiting: 'bg-blue-100 text-blue-700 border-transparent dark:bg-blue-950 dark:text-blue-300',
   partial: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
   completed: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
+  complete: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
   in: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
   out: 'bg-red-100 text-red-700 border-transparent dark:bg-red-950 dark:text-red-300',
   adjustment: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',

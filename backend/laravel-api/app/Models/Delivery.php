@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\DocumentStatus;
+use App\Enums\DeliveryStatus;
 use App\Exceptions\BusinessException;
 use App\Models\Concerns\Documentable;
 use App\Models\Concerns\HasAuditTrail;
@@ -33,7 +33,7 @@ class Delivery extends Model
     ];
 
     protected $casts = [
-        'status' => DocumentStatus::class,
+        'status' => DeliveryStatus::class,
         'delivery_date' => 'date',
         'due_date' => 'date',
         'submitted_at' => 'datetime',
@@ -43,6 +43,18 @@ class Delivery extends Model
     public function documentType(): string
     {
         return 'delivery';
+    }
+
+    /** Pending = created, goods not yet confirmed out. */
+    protected function initialStatus(): \BackedEnum
+    {
+        return DeliveryStatus::PENDING;
+    }
+
+    /** Complete = goods confirmed out — stock moves here (see DeliveryService::complete()). */
+    protected function submittedStatus(): \BackedEnum
+    {
+        return DeliveryStatus::COMPLETE;
     }
 
     public function salesOrder(): BelongsTo

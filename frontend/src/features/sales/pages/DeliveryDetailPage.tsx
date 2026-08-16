@@ -13,8 +13,8 @@ import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { computeTax, lineAmount } from '@/shared/lib/documentTotals'
-import { deleteDelivery, fetchDelivery, submitDelivery } from '../api/deliveryApi'
+import { lineAmount } from '@/shared/lib/documentTotals'
+import { completeDelivery, deleteDelivery, fetchDelivery } from '../api/deliveryApi'
 import type { DeliveryItem } from '../types'
 
 const lineColumns: DataTableColumn<DeliveryItem>[] = [
@@ -39,8 +39,8 @@ export function DeliveryDetailPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['deliveries'] })
 
-  const submitMutation = useMutation({
-    mutationFn: () => submitDelivery(id!),
+  const completeMutation = useMutation({
+    mutationFn: () => completeDelivery(id!),
     onSuccess: () => {
       invalidate()
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
@@ -71,7 +71,7 @@ export function DeliveryDetailPage() {
   if (!delivery) return null
 
   const subtotal = delivery.items.reduce((sum, line) => sum + lineAmount(line), 0)
-  const tax = computeTax()
+  const tax = Number(delivery.tax_amount) || 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -84,14 +84,14 @@ export function DeliveryDetailPage() {
               <Printer className="size-4" />
               Print
             </Button>
-            {delivery.status === 'draft' && (
+            {delivery.status === 'pending' && (
               <>
                 <Button variant="outline" onClick={() => navigate(`/sales/deliveries/${delivery.id}/edit`)}>
                   <Pencil className="size-4" />
                   Edit
                 </Button>
-                <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
-                  {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                <Button onClick={() => completeMutation.mutate()} disabled={completeMutation.isPending}>
+                  {completeMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                   Confirm Delivery
                 </Button>
                 <Button variant="destructive" onClick={() => setConfirmingDelete(true)}>
@@ -132,6 +132,7 @@ export function DeliveryDetailPage() {
             <DetailField label="Delivery Date" value={formatDate(delivery.delivery_date)} />
             <DetailField label="Due Date" value={formatDate(delivery.due_date)} />
             <DetailField label="Terms of Payment" value={delivery.terms_of_payment ? `${delivery.terms_of_payment.name} (${delivery.terms_of_payment.code})` : '—'} />
+            <DetailField label="Tax" value={delivery.tax ? `${delivery.tax.name} (${delivery.tax.code})` : '—'} />
             <DetailField label="Attn" value={delivery.sales_order?.attention || '—'} />
             <DetailField label="Tel" value={delivery.sales_order?.tel || '—'} />
             <DetailField label="Fax" value={delivery.sales_order?.fax || '—'} />

@@ -13,9 +13,9 @@ export function computeDeliveryTotals(order: SalesOrder): DeliveryTotals {
   return { ordered, delivered }
 }
 
-/** Mirrors computeReceivingStatus (Purchase Order) — draft/cancelled orders have nothing to deliver against yet, so they render a plain dash rather than a fabricated status. */
+/** Mirrors computeReceivingStatus (Purchase Order) — unapproved/cancelled orders have nothing to deliver against yet, so they render a plain dash rather than a fabricated status. */
 export function computeDeliveryStatus(order: SalesOrder): DeliveryProgressStatus | null {
-  if (order.status !== 'submitted') return null
+  if (order.status !== 'approved') return null
   const { delivered } = computeDeliveryTotals(order)
   if (delivered === 0) return 'waiting'
   if (order.is_fully_delivered) return 'completed'

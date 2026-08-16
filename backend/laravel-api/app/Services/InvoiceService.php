@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Enums\DiscountType;
+use App\Enums\DeliveryStatus;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
 use App\Enums\TaxCalculationMode;
 use App\Exceptions\BusinessException;
 use App\Models\Invoice;
+use App\Models\SalesOrder;
 use App\Repositories\AccountsReceivableRepository;
 use App\Repositories\DeliveryRepository;
 use App\Repositories\InvoiceItemRepository;
@@ -67,7 +69,7 @@ class InvoiceService
                 ->values();
 
             foreach ($deliveries as $delivery) {
-                if ($delivery->status !== DocumentStatus::SUBMITTED) {
+                if ($delivery->status !== DeliveryStatus::COMPLETE) {
                     throw new BusinessException("Delivery {$delivery->document_number} must be delivered before it can be invoiced.");
                 }
 
@@ -84,7 +86,7 @@ class InvoiceService
 
             $subtotal = $deliveries->sum(fn ($delivery) => (float) $delivery->items->sum('amount'));
             [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
-            [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
+            [$taxId, $taxAmount] = $this->resolveInheritedTax($anchor->salesOrder, $subtotal);
             $grandTotal = $subtotal - $discountAmount + $taxAmount;
 
             if ($grandTotal < 0) {
@@ -229,9 +231,12 @@ class InvoiceService
                 $discountPercentage = $invoice->discount_percentage;
             }
 
-            // Only re-resolve tax when the caller actually touched it — otherwise keep the
-            // invoice's existing tax_id/tax_amount exactly as they were.
-            if (array_key_exists('tax_id', $data) || array_key_exists('tax_amount', $data)) {
+            // Goods invoices never accept an independent tax choice (B1/B3 of the workflow
+            // spec) — tax_id/tax_amount always stay whatever they were inherited from the
+            // Sales Order at creation, regardless of what the request sends. Only
+            // Transportation (no Sales Order, Misc charge-type mechanism) re-resolves tax
+            // when the caller actually touches it.
+            if ($invoice->invoice_type === InvoiceType::TRANSPORTATION && (array_key_exists('tax_id', $data) || array_key_exists('tax_amount', $data))) {
                 [$taxId, $taxAmount] = $this->resolveTax($data, (float) $invoice->subtotal);
             } else {
                 $taxId = $invoice->tax_id;
@@ -320,6 +325,25 @@ class InvoiceService
         }
 
         return [null, (float) ($data['tax_amount'] ?? 0)];
+    }
+
+    /**
+     * Goods invoices — the tax code is inherited read-only from the anchor
+     * Sales Order (B1 of the workflow spec), never chosen independently.
+     * The rate is what's inherited; the amount is recomputed against this
+     * invoice's own subtotal (B2), so a partial invoice against a partially
+     * delivered order still comes out correct.
+     */
+    protected function resolveInheritedTax(?SalesOrder $salesOrder, float $subtotal): array
+    {
+        if (! $salesOrder || ! $salesOrder->tax_id) {
+            return [null, 0.0];
+        }
+
+        $tax = $this->taxRepository->findOrFail($salesOrder->tax_id);
+        $taxAmount = $this->taxService->calculate($subtotal, $tax, TaxCalculationMode::EXCLUSIVE)['tax_amount'];
+
+        return [$tax->id, $taxAmount];
     }
 
     public function delete(Invoice $invoice): void

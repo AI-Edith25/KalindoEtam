@@ -2,7 +2,7 @@ import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { emptySalesOrderFilters, hasActiveSalesOrderFilters } from '../lib/salesOrderFilters'
-import type { DocumentStatus, SalesOrderFilterValues } from '../types'
+import type { SalesOrderFilterValues, SalesOrderStatus } from '../types'
 
 const ALL = '__all__'
 
@@ -19,15 +19,15 @@ export function SalesOrderFiltersBar({ value, onChange }: SalesOrderFiltersBarPr
         <span className="text-xs text-muted-foreground">Status</span>
         <Select
           value={value.status ?? ALL}
-          onValueChange={(next) => onChange({ ...value, status: next === ALL ? null : (next as DocumentStatus) })}
+          onValueChange={(next) => onChange({ ...value, status: next === ALL ? null : (next as SalesOrderStatus) })}
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="submitted">Submitted</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>

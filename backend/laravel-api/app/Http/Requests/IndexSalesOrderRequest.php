@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\DocumentStatus;
+use App\Enums\SalesOrderStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,7 +17,7 @@ class IndexSalesOrderRequest extends FormRequest
     {
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
+            'status' => ['sometimes', 'nullable', Rule::enum(SalesOrderStatus::class)],
             'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
             'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],

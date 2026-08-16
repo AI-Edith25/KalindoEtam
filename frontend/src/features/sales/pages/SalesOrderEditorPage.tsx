@@ -27,7 +27,7 @@ import {
   fetchTermsOfPaymentLookup,
 } from '@/features/master/api/lookupsApi'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { createSalesOrder, fetchSalesOrder, submitSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
+import { approveSalesOrder, createSalesOrder, fetchSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
 import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
 import { SalesOrderLineItemTable } from '../components/SalesOrderLineItemTable'
 import { emptySalesOrderEditorValues, salesOrderFormSchema, type SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
@@ -65,8 +65,8 @@ export function SalesOrderEditorPage() {
     const order = orderQuery.data
     if (!order) return
 
-    if (order.status !== 'draft') {
-      toast.error('Only draft sales orders can be edited.')
+    if (order.status !== 'submitted') {
+      toast.error('Only sales orders awaiting approval can be edited.')
       navigate(`/sales/orders/${order.id}`, { replace: true })
       return
     }
@@ -144,7 +144,7 @@ export function SalesOrderEditorPage() {
     },
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
-      toast.success(isEdit ? 'Sales Order updated.' : 'Sales Order saved as draft.')
+      toast.success(isEdit ? 'Sales Order updated.' : 'Sales Order saved.')
       if (!isEdit) {
         navigate(`/sales/orders/${order.id}/edit`, { replace: true })
       }
@@ -152,15 +152,15 @@ export function SalesOrderEditorPage() {
     onError: (error) => toastApiError(error),
   })
 
-  const submitMutation = useMutation({
+  const approveMutation = useMutation({
     mutationFn: () =>
-      submitSalesOrder(
+      approveSalesOrder(
         id!,
         overrideChecked ? { override_credit_block: true, override_reason: form.getValues('override_reason') || null } : undefined,
       ),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
-      toast.success('Sales Order submitted.')
+      toast.success('Sales Order approved.')
       navigate(`/sales/orders/${order.id}`)
     },
     onError: (error) => toastApiError(error),
@@ -216,7 +216,7 @@ export function SalesOrderEditorPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Order Details</CardTitle>
-              <StatusBadge status={isEdit ? (orderQuery.data?.status ?? 'draft') : 'draft'} />
+              <StatusBadge status={isEdit ? (orderQuery.data?.status ?? 'submitted') : 'submitted'} />
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
@@ -511,7 +511,7 @@ export function SalesOrderEditorPage() {
             </CardContent>
           </Card>
 
-          {isEdit && orderQuery.data?.status === 'draft' && orderQuery.data?.requires_approval && (
+          {isEdit && orderQuery.data?.status === 'submitted' && orderQuery.data?.requires_approval && (
             <ApprovalPanel
               approvableType={APPROVABLE_TYPE}
               approvableId={id!}
@@ -533,23 +533,23 @@ export function SalesOrderEditorPage() {
               title={creditBlockActive ? creditMessage : undefined}
             >
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save Draft
+              Save
             </Button>
-            {isEdit && orderQuery.data?.status === 'draft' && (
+            {isEdit && orderQuery.data?.status === 'submitted' && (
               <Button
                 type="button"
-                onClick={() => submitMutation.mutate()}
-                disabled={submitMutation.isPending || blockedByApproval || creditBlockActive}
+                onClick={() => approveMutation.mutate()}
+                disabled={approveMutation.isPending || blockedByApproval || creditBlockActive}
                 title={
                   creditBlockActive
                     ? creditMessage
                     : blockedByApproval
-                      ? 'This order needs an approved request before it can be submitted.'
+                      ? 'This order needs an approved request before it can be approved.'
                       : undefined
                 }
               >
-                {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                Submit
+                {approveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                Approve
               </Button>
             )}
           </div>

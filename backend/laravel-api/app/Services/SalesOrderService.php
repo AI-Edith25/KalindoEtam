@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Enums\DocumentStatus;
+use App\Enums\SalesOrderStatus;
 use App\Exceptions\BusinessException;
 use App\Enums\TaxCalculationMode;
 use App\Models\SalesOrder;
@@ -135,11 +135,19 @@ class SalesOrderService
         });
     }
 
-    public function submit(SalesOrder $salesOrder, bool $overrideCreditBlock = false, ?string $overrideReason = null): SalesOrder
+    /**
+     * The single-click Approve action — Submitted -> Approved. Gated by the
+     * `sales.orders.approve` route middleware (SalesOrder::requiresApproval()
+     * is false, so no ApprovalFlow record is needed here, unlike Purchase
+     * Order/Journal Entry). Re-runs the credit check since a Draft-equivalent
+     * (Submitted) order saved while under-limit can drift over-limit by the
+     * time it's approved.
+     */
+    public function approve(SalesOrder $salesOrder, bool $overrideCreditBlock = false, ?string $overrideReason = null): SalesOrder
     {
         return DB::transaction(function () use ($salesOrder, $overrideCreditBlock, $overrideReason) {
             if ($salesOrder->items()->count() === 0) {
-                throw new BusinessException('Cannot submit a Sales Order without items.');
+                throw new BusinessException('Cannot approve a Sales Order without items.');
             }
 
             $this->enforceCreditCheck(
@@ -147,11 +155,11 @@ class SalesOrderService
                 (float) $salesOrder->total_amount,
                 $overrideCreditBlock,
                 $overrideReason,
-                "submitting Sales Order \"{$salesOrder->document_number}\"",
+                "approving Sales Order \"{$salesOrder->document_number}\"",
             );
 
             $salesOrder->submit();
-            $this->auditLogService->record('submitted', 'sales_order', "Submitted Sales Order \"{$salesOrder->document_number}\".");
+            $this->auditLogService->record('approved', 'sales_order', "Approved Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;
         });
@@ -202,8 +210,8 @@ class SalesOrderService
 
     protected function assertDraft(SalesOrder $salesOrder, string $action): void
     {
-        if ($salesOrder->status !== DocumentStatus::DRAFT) {
-            throw new BusinessException("Only draft Sales Orders can be {$action}.");
+        if ($salesOrder->status !== SalesOrderStatus::SUBMITTED) {
+            throw new BusinessException("Only Sales Orders awaiting approval can be {$action}.");
         }
     }
 

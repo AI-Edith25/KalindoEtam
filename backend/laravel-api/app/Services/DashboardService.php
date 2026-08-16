@@ -147,7 +147,7 @@ class DashboardService
     {
         return [
             ['module' => 'purchase_order', 'label' => 'Draft Purchase Orders', 'count' => $this->purchaseOrderRepository->countDraft()],
-            ['module' => 'sales_order', 'label' => 'Draft Sales Orders', 'count' => $this->salesOrderRepository->countDraft()],
+            ['module' => 'sales_order', 'label' => 'Sales Orders Awaiting Approval', 'count' => $this->salesOrderRepository->countDraft()],
             ['module' => 'journal_entry', 'label' => 'Unposted Journal Entries', 'count' => $this->journalEntryRepository->countDraftsBetween('1970-01-01', now()->toDateString())],
             // Sprint 24B (docs/APPROVAL_WORKFLOW_DESIGN.md §6) — one more row, identical shape,
             // delegating to ApprovalFlowRepository rather than recomputing anything here.
