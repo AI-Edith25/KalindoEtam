@@ -112,6 +112,7 @@ export function SalesOrderPrintPage() {
         </div>
 
         <p className="mt-2 text-center text-lg font-bold">SALES ORDER</p>
+        <hr className="mt-2 border-black" />
 
         <div className="mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2">
           <div>
