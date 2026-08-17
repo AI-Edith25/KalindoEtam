@@ -8,9 +8,6 @@ import { type PrintOptions } from '@/shared/lib/printOptions'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchDelivery } from '../api/deliveryApi'
 
-/** Same asset SalesOrderPrintPage.tsx uses — the actual PT Kalindo Etam mark, static. */
-const KALINDO_ETAM_LOGO_URL = '/kalindo-etam-logo.png'
-
 /** DO.pdf shows plain en-US grouping with no decimals for quantities ("150", not "150.00"). */
 function formatNum(value: number | string, decimals: number): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))
@@ -34,12 +31,15 @@ function MetaRow({ label, value, bold }: { label: string; value: ReactNode; bold
 }
 
 /**
- * Classic dot-matrix-era layout matching the legacy system's DO print exactly (DO.pdf) —
- * same plumbing/CSS as SalesOrderPrintPage.tsx (print:hidden toolbar, @page margin:0 +
- * print:p-[12mm] wrapper padding to suppress the browser's own print header/footer, Times New
- * Roman, absolutely-positioned logo so its width can't unbalance the centered company block).
- * No pricing/tax/terbilang at all — Delivery carries no pricing authority in this system, and
- * DO.pdf's table is quantities only.
+ * Classic dot-matrix-era layout matching the legacy system's DO print exactly (DO.pdf) — a
+ * genuinely different, plainer layout than SalesOrderPrintPage.tsx, not the same header
+ * reused: no logo, no Co.Reg.No/TEL/EMAIL, company name+address left-aligned and folded into
+ * the meta grid's left column rather than a separate centered block, "1 of 1" as a page
+ * indicator in the top-left corner rather than a meta row. Only the print plumbing/CSS is
+ * shared (print:hidden toolbar, @page margin:0 + print:p-[12mm] wrapper to suppress the
+ * browser's own print header/footer, Times New Roman) and the signature footer's general
+ * shape. No pricing/tax/terbilang at all — Delivery carries no pricing authority in this
+ * system, and DO.pdf's table is quantities only.
  */
 export function DeliveryPrintPage() {
   const { id } = useParams<{ id: string }>()
@@ -99,29 +99,21 @@ export function DeliveryPrintPage() {
           fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
         }}
       >
-        <div className="relative">
-          <img src={KALINDO_ETAM_LOGO_URL} alt="PT Kalindo Etam" className="absolute left-0 top-0 h-14 w-auto" />
-          <div className="text-center">
-            <p className="text-xl font-bold">{companyName}</p>
-            {printHeaderQuery.data?.npwp && (
-              <p>
-                <span className="font-bold">Co. Reg. No.</span> : {printHeaderQuery.data.npwp}
-              </p>
-            )}
-            {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
-            {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
-            {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
-          </div>
+        <div className="flex items-start justify-between">
+          <p className="text-xs">1 of 1</p>
+          <p className="flex-1 text-center text-lg font-bold">DELIVERY ORDER</p>
+          <div className="w-8 shrink-0" />
         </div>
-
-        <p className="mt-3 text-center text-lg font-bold">DELIVERY ORDER</p>
-        <hr className="mt-2 border-black" />
 
         <div className="mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2">
           <div className="flex flex-col gap-0.5">
-            <MetaRow label="Driver" value={delivery.driver ?? ''} />
-            <MetaRow label="Fleet" value={delivery.fleet ?? ''} />
-            <MetaRow label="Kepada Yth" value={delivery.customer?.customer_name ?? ''} />
+            <p className="text-base font-bold">{companyName}</p>
+            {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
+            <div className="mt-2 flex flex-col gap-0.5">
+              <MetaRow label="Driver" value={delivery.driver ?? ''} />
+              <MetaRow label="Fleet" value={delivery.fleet ?? ''} />
+              <MetaRow label="Kepada Yth" value={delivery.customer?.customer_name ?? ''} />
+            </div>
           </div>
           <div className="flex flex-col gap-0.5">
             <MetaRow label="NO" value={delivery.document_number ?? '—'} bold />
@@ -129,7 +121,6 @@ export function DeliveryPrintPage() {
             <MetaRow label="SO. No" value={delivery.sales_order?.document_number ?? ''} />
             <MetaRow label="Sales Person" value={delivery.sales_order?.sales_person?.name ?? ''} />
             <MetaRow label="Location" value={delivery.warehouse?.name ?? ''} />
-            <MetaRow label="Page" value="1 of 1" />
           </div>
         </div>
 
