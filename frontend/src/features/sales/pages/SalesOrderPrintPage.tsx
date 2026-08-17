@@ -76,8 +76,11 @@ export function SalesOrderPrintPage() {
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0">
-      <style>{'@page { size: A4; margin: 1cm; }'}</style>
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
+      {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
+          + date on top, URL + page number on bottom) — that's not part of the document, it's
+          browser UI. Document margins come from this wrapper's own print:p-[12mm] instead. */}
+      <style>{'@page { size: A4; margin: 0; }'}</style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Sales Order Print Preview</h1>
@@ -94,7 +97,7 @@ export function SalesOrderPrintPage() {
       </div>
 
       <div
-        className="flex min-h-[27.7cm] flex-col text-black"
+        className="flex min-h-[27.3cm] flex-col text-black"
         style={{
           fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
           fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
@@ -133,7 +136,7 @@ export function SalesOrderPrintPage() {
             <MetaRow label="Date" value={formatDdMmYyyy(salesOrder.order_date)} />
             <MetaRow label="Reference" value={salesOrder.reference ?? ''} />
             <MetaRow label="Payment Terms" value={salesOrder.terms_of_payment?.name ?? ''} />
-            <MetaRow label="Customer #" value={salesOrder.customer?.customer_code ?? ''} />
+            <MetaRow label="Customer" value={salesOrder.customer?.customer_code ?? ''} />
             <MetaRow label="Sales Person" value={salesOrder.sales_person?.name ?? ''} />
             <MetaRow label="Page" value="1 of 1" />
           </div>
@@ -172,6 +175,7 @@ export function SalesOrderPrintPage() {
         <div className="flex-1" />
 
         <p>RP : {terbilangUsd(salesOrder.grand_total)}</p>
+        <hr className="mt-2 border-black" />
 
         <div className="mt-2 grid grid-cols-2 gap-4">
           <div>
