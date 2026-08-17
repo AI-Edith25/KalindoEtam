@@ -49,6 +49,8 @@ class DeliveryService
                 'due_date' => $data['due_date'],
                 'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
+                'fleet' => $data['fleet'] ?? null,
+                'driver' => $data['driver'] ?? null,
             ]);
 
             foreach ($data['items'] as $line) {

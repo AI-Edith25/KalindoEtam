@@ -27,6 +27,8 @@ class DeliveryResource extends JsonResource
             'terms_of_payment_id' => $this->terms_of_payment_id,
             'terms_of_payment' => new TermsOfPaymentResource($this->whenLoaded('termsOfPayment')),
             'remarks' => $this->remarks,
+            'fleet' => $this->fleet,
+            'driver' => $this->driver,
             'items' => DeliveryItemResource::collection($this->whenLoaded('items')),
             'amount' => $this->whenLoaded('items', fn () => $this->items->sum('amount')),
             // Read-only, inherited from the Sales Order's tax code (never an independent

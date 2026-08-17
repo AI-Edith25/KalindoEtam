@@ -30,6 +30,8 @@ class Delivery extends Model
         'due_date',
         'terms_of_payment_id',
         'remarks',
+        'fleet',
+        'driver',
     ];
 
     protected $casts = [

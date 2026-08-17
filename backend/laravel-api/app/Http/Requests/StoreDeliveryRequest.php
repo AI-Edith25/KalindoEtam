@@ -20,6 +20,8 @@ class StoreDeliveryRequest extends FormRequest
             'due_date' => ['required', 'date', 'after_or_equal:delivery_date'],
             'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
             'remarks' => ['nullable', 'string'],
+            'fleet' => ['nullable', 'string', 'max:255'],
+            'driver' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.sales_order_item_id' => ['required', 'uuid', 'exists:sales_order_items,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'],

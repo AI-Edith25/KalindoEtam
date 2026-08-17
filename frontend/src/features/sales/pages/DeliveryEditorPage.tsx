@@ -191,6 +191,8 @@ function DeliveryForm({
       due_date: delivery?.due_date ?? '',
       terms_of_payment_id: isEdit ? (delivery?.terms_of_payment_id ?? '') : (salesOrder.customer?.terms_of_payment_id ?? ''),
       remarks: isEdit ? (delivery?.remarks ?? '') : (salesOrder.remarks ?? ''),
+      fleet: delivery?.fleet ?? '',
+      driver: delivery?.driver ?? '',
       items: salesOrder.items.map((soItem) => ({
         sales_order_item_id: soItem.id,
         item_id: soItem.item_id,
@@ -267,6 +269,8 @@ function DeliveryForm({
           due_date: values.due_date,
           terms_of_payment_id: values.terms_of_payment_id || null,
           remarks: values.remarks || null,
+          fleet: values.fleet || null,
+          driver: values.driver || null,
           items,
         })
       }
@@ -278,6 +282,8 @@ function DeliveryForm({
         due_date: values.due_date,
         terms_of_payment_id: values.terms_of_payment_id || null,
         remarks: values.remarks || null,
+        fleet: values.fleet || null,
+        driver: values.driver || null,
         items,
       })
     },
@@ -401,6 +407,32 @@ function DeliveryForm({
                     <FormLabel>Due Date</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="fleet"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fleet</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="driver"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Driver</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

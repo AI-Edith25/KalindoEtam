@@ -136,6 +136,8 @@ export function DeliveryDetailPage() {
             <DetailField label="Attn" value={delivery.sales_order?.attention || '—'} />
             <DetailField label="Tel" value={delivery.sales_order?.tel || '—'} />
             <DetailField label="Fax" value={delivery.sales_order?.fax || '—'} />
+            <DetailField label="Fleet" value={delivery.fleet || '—'} />
+            <DetailField label="Driver" value={delivery.driver || '—'} />
             <DetailField label="Notes" value={delivery.remarks || '—'} />
           </DetailSection>
         </CardContent>

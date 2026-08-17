@@ -125,6 +125,7 @@ export interface Delivery {
     sales_person: { id: string; code: string; name: string } | null
     tax_id: string | null
     tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+    branch: { id: string; code: string; name: string } | null
   } | null
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
@@ -135,6 +136,8 @@ export interface Delivery {
   terms_of_payment_id: string | null
   terms_of_payment: { id: string; code: string; name: string; days: number } | null
   remarks: string | null
+  fleet: string | null
+  driver: string | null
   items: DeliveryItem[]
   amount: string | number
   // Read-only, inherited from the Sales Order's tax (B1 of the workflow spec) — see DeliveryResource.
@@ -154,6 +157,8 @@ export interface DeliveryFormValues {
   due_date: string
   terms_of_payment_id: string | null
   remarks: string | null
+  fleet: string | null
+  driver: string | null
   items: { sales_order_item_id: string; qty: number }[]
 }
 

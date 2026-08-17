@@ -1,49 +1,63 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
-import { formatDate } from '@/lib/utils'
-import {
-  defaultPrintOptions,
-  formatQty,
-  loadPaperTypePreference,
-  PRINT_FONT_SIZE_PX,
-  PRINT_PAPER_PAGE_CSS,
-  savePaperTypePreference,
-  type PrintOptions,
-} from '@/shared/lib/printOptions'
-import { useCompanyBranding } from '@/features/administration/hooks/useCompany'
+import { type PrintOptions } from '@/shared/lib/printOptions'
+import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchDelivery } from '../api/deliveryApi'
 
+/** Same asset SalesOrderPrintPage.tsx uses — the actual PT Kalindo Etam mark, static. */
+const KALINDO_ETAM_LOGO_URL = '/kalindo-etam-logo.png'
+
+/** DO.pdf shows plain en-US grouping with no decimals for quantities ("150", not "150.00"). */
+function formatNum(value: number | string, decimals: number): string {
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))
+}
+
+/** delivery_date arrives as a plain YYYY-MM-DD string — split it directly rather than re-parsing through a Date object, which shifts the calendar date in any timezone ahead of UTC (same pitfall dateMath.ts's addDays() already documents). */
+function formatDdMmYyyy(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  const [year, month, day] = dateStr.split('-')
+  return `${day}/${month}/${year}`
+}
+
+function MetaRow({ label, value, bold }: { label: string; value: ReactNode; bold?: boolean }) {
+  return (
+    <div className="flex">
+      <span className="w-28 shrink-0">{label}</span>
+      <span className="shrink-0">:</span>
+      <span className={`pl-2 ${bold ? 'font-bold' : ''}`}>{value}</span>
+    </div>
+  )
+}
+
 /**
- * Packing-list style (quantities only, no pricing, since Delivery carries
- * no pricing authority in this system). Same bordered "cetak" look and
- * pre-print options as InvoicePrintPage — including Paper Type (A4 default,
- * unaffected; Continuous 9.5"x11" narrows the live preview and adds a
- * `<style>@page{...}</style>` so the real print output follows suit).
- * Only the Decimal Qty control applies here. Not a PDF — @media print CSS +
- * the browser's native print dialog (window.print()).
+ * Classic dot-matrix-era layout matching the legacy system's DO print exactly (DO.pdf) —
+ * same plumbing/CSS as SalesOrderPrintPage.tsx (print:hidden toolbar, @page margin:0 +
+ * print:p-[12mm] wrapper padding to suppress the browser's own print header/footer, Times New
+ * Roman, absolutely-positioned logo so its width can't unbalance the centered company block).
+ * No pricing/tax/terbilang at all — Delivery carries no pricing authority in this system, and
+ * DO.pdf's table is quantities only.
  */
 export function DeliveryPrintPage() {
   const { id } = useParams<{ id: string }>()
-  const [printOptions, setPrintOptions] = useState<PrintOptions>(() => ({
-    ...defaultPrintOptions,
-    paperType: loadPaperTypePreference(),
-  }))
+  const [printOptions, setPrintOptions] = useState<PrintOptions>({
+    fontSize: 'medium',
+    paperType: 'a4',
+    qtyDecimals: 0,
+    priceDecimals: 0,
+    amountDecimals: 0,
+  })
   const [optionsOpen, setOptionsOpen] = useState(false)
-
-  const handlePrintOptionsChange = (next: PrintOptions) => {
-    setPrintOptions(next)
-    savePaperTypePreference(next.paperType)
-  }
 
   const deliveryQuery = useQuery({
     queryKey: ['deliveries', id],
     queryFn: () => fetchDelivery(id!),
   })
   const brandingQuery = useCompanyBranding()
+  const printHeaderQuery = useCompanyPrintHeader()
 
   if (deliveryQuery.isLoading) {
     return (
@@ -56,17 +70,16 @@ export function DeliveryPrintPage() {
   const delivery = deliveryQuery.data
   if (!delivery) return null
 
-  const compact = printOptions.paperType === 'continuous'
-  const pageCss = PRINT_PAPER_PAGE_CSS[printOptions.paperType]
+  const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
+  const totalQty = delivery.items.reduce((sum, item) => sum + Number(item.qty), 0)
+  const uniformUom = delivery.items.length > 0 && delivery.items.every((item) => item.uom === delivery.items[0].uom) ? delivery.items[0].uom : ''
 
   return (
-    <div
-      className={`mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0 ${compact ? 'max-w-[9.5in]' : 'max-w-3xl'}`}
-    >
-      {pageCss && <style>{pageCss}</style>}
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
+      <style>{'@page { size: A4; margin: 0; }'}</style>
 
       <div className="flex items-start justify-between print:hidden">
-        <h1 className="text-xl font-semibold">Delivery Print Preview</h1>
+        <h1 className="text-xl font-semibold">Delivery Order Print Preview</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setOptionsOpen(true)}>
             <Settings2 className="size-4" />
@@ -79,78 +92,88 @@ export function DeliveryPrintPage() {
         </div>
       </div>
 
-      <div className="border-2 border-foreground/80" style={{ fontSize: PRINT_FONT_SIZE_PX[printOptions.fontSize] }}>
-        <div className={`flex items-start justify-between border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
-          <div>
-            <p className="font-semibold">{brandingQuery.data?.name ?? '—'}</p>
-            <h2 className={compact ? 'text-base font-bold' : 'text-lg font-bold'}>DELIVERY NOTE</h2>
-            <p>{delivery.document_number}</p>
-          </div>
-          <div className="text-right">
-            <p>Delivery Date: {formatDate(delivery.delivery_date)}</p>
-            <p>Due Date: {formatDate(delivery.due_date)}</p>
-          </div>
-        </div>
-
-        <div className={`grid grid-cols-2 gap-4 border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
-          <div>
-            <p className="font-medium">Ship To</p>
-            <p className="font-semibold">{delivery.customer?.customer_name ?? '—'}</p>
-          </div>
-          <div className="text-right">
-            <p className="font-medium">Warehouse</p>
-            <p>{delivery.warehouse?.name ?? '—'}</p>
+      <div
+        className="flex min-h-[27.3cm] flex-col text-black"
+        style={{
+          fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
+          fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
+        }}
+      >
+        <div className="relative">
+          <img src={KALINDO_ETAM_LOGO_URL} alt="PT Kalindo Etam" className="absolute left-0 top-0 h-14 w-auto" />
+          <div className="text-center">
+            <p className="text-xl font-bold">{companyName}</p>
+            {printHeaderQuery.data?.npwp && (
+              <p>
+                <span className="font-bold">Co. Reg. No.</span> : {printHeaderQuery.data.npwp}
+              </p>
+            )}
+            {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
+            {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
+            {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
           </div>
         </div>
 
-        <table className="w-full border-collapse">
+        <p className="mt-3 text-center text-lg font-bold">DELIVERY ORDER</p>
+        <hr className="mt-2 border-black" />
+
+        <div className="mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2">
+          <div className="flex flex-col gap-0.5">
+            <MetaRow label="Driver" value={delivery.driver ?? ''} />
+            <MetaRow label="Fleet" value={delivery.fleet ?? ''} />
+            <MetaRow label="Kepada Yth" value={delivery.customer?.customer_name ?? ''} />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <MetaRow label="NO" value={delivery.document_number ?? '—'} bold />
+            <MetaRow label="Date" value={formatDdMmYyyy(delivery.delivery_date)} />
+            <MetaRow label="SO. No" value={delivery.sales_order?.document_number ?? ''} />
+            <MetaRow label="Sales Person" value={delivery.sales_order?.sales_person?.name ?? ''} />
+            <MetaRow label="Location" value={delivery.sales_order?.branch?.name ?? ''} />
+            <MetaRow label="Page" value="1 of 1" />
+          </div>
+        </div>
+
+        <table className="w-full border-collapse text-left">
           <thead>
-            <tr className="border-b-2 border-foreground/80 text-left">
-              <th className="border-r-2 border-foreground/80 p-2">Item Code</th>
-              <th className="border-r-2 border-foreground/80 p-2">Item Name</th>
-              <th className="p-2 text-right">Qty</th>
+            <tr className="border-b border-black">
+              <th className="py-1 pr-2 font-normal">No</th>
+              <th className="py-1 pr-2 font-normal">PKode</th>
+              <th className="py-1 pr-2 font-normal">Nama Barang</th>
+              <th className="py-1 pr-2 text-right font-normal">Quantity</th>
+              <th className="py-1 font-normal">UOM</th>
             </tr>
           </thead>
           <tbody>
-            {delivery.items.map((line) => (
-              <tr key={line.id} className="border-b border-foreground/30">
-                <td className="border-r-2 border-foreground/80 p-2">{line.item_code}</td>
-                <td className="border-r-2 border-foreground/80 p-2">{line.item_name}</td>
-                <td className="p-2 text-right">
-                  {formatQty(line.qty, printOptions.qtyDecimals)} {line.uom}
-                </td>
+            {delivery.items.map((item, index) => (
+              <tr key={item.id}>
+                <td className="py-1 pr-2 align-top">{index + 1}</td>
+                <td className="py-1 pr-2 align-top">{item.item_code}</td>
+                <td className="py-1 pr-2 align-top">{item.item_name}</td>
+                <td className="py-1 pr-2 text-right align-top">{formatNum(item.qty, printOptions.qtyDecimals)}</td>
+                <td className="py-1 align-top">{item.uom}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {delivery.remarks && (
-          <div className="border-t-2 border-foreground/80 p-3">
-            <p className="font-medium">Notes</p>
-            <p>{delivery.remarks}</p>
-          </div>
-        )}
+        <div className="flex-1" />
 
-        <div className={`grid grid-cols-4 border-t-2 border-foreground/80 ${compact ? 'gap-2 p-2 pt-6' : 'gap-4 p-3 pt-10'}`}>
-          <div className="text-center">
-            <div className="border-t border-foreground/80 pt-1">Tanda Terima</div>
-            <p className={compact ? 'text-[9px] text-foreground/70' : 'text-xs text-foreground/70'}>Toko/Penerima Barang</p>
-          </div>
-          <div className="text-center">
-            <div className="border-t border-foreground/80 pt-1">Dikeluarkan</div>
-            <p className={compact ? 'text-[9px] text-foreground/70' : 'text-xs text-foreground/70'}>Kepala Gudang</p>
-          </div>
-          <div className="text-center">
-            <div className="border-t border-foreground/80 pt-1">Supir Pengantar</div>
-          </div>
-          <div className="text-center">
-            <div className="border-t border-foreground/80 pt-1">Prepared By</div>
-            <p className={compact ? 'text-[9px] text-foreground/70' : 'text-xs text-foreground/70'}>Admin</p>
-          </div>
+        <hr className="border-black" />
+        <p className="text-right">
+          {formatNum(totalQty, 0)} {uniformUom}
+        </p>
+
+        <div className="mt-4 grid grid-cols-6 gap-2 text-center">
+          <p>Tanda Terima,</p>
+          <p>Dikeluarkan Oleh,</p>
+          <p>Diantar Oleh,</p>
+          <p>Diperiksa Oleh,</p>
+          <p>Security,</p>
+          <p>Hormat Kami,</p>
         </div>
       </div>
 
-      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={handlePrintOptionsChange} fields={['qty']} showPaperType />
+      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={setPrintOptions} fields={['qty']} />
     </div>
   )
 }
