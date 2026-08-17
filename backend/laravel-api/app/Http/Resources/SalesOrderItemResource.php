@@ -14,6 +14,7 @@ class SalesOrderItemResource extends JsonResource
             'item_id' => $this->item_id,
             'item_code' => $this->whenLoaded('item', fn () => $this->item->item_code),
             'item_name' => $this->whenLoaded('item', fn () => $this->item->item_name),
+            'uom' => $this->whenLoaded('item', fn () => $this->item->uom?->name),
             'qty' => $this->qty,
             'rate' => $this->rate,
             'amount' => $this->amount,

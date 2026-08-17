@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Ban, Download, Eye, Pencil, Plus, RotateCw, Send, Trash2, Upload } from 'lucide-react'
+import { Ban, Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
@@ -109,7 +109,10 @@ export function SalesOrderListPage() {
   }
 
   const actionsFor = (order: SalesOrder): RowAction[] => {
-    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/sales/orders/${order.id}`) }]
+    const actions: RowAction[] = [
+      { label: 'View', icon: Eye, onClick: () => navigate(`/sales/orders/${order.id}`) },
+      { label: 'Print', icon: Printer, onClick: () => navigate(`/sales/orders/${order.id}/print`) },
+    ]
 
     if (order.status === 'submitted') {
       if (canUpdate) {

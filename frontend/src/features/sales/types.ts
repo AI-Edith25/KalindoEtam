@@ -19,6 +19,7 @@ export interface SalesOrderItem {
   item_id: string
   item_code: string | null
   item_name: string | null
+  uom: string | null
   qty: number
   rate: string | number
   amount: string | number
