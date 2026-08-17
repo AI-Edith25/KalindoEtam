@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Ban, Download, Eye, Pencil, Plus, RotateCw, Send, Trash2, Upload } from 'lucide-react'
@@ -12,6 +12,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
+import { Button } from '@/components/ui/button'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -28,6 +29,7 @@ const SORTERS: Record<string, (so: SalesOrder) => string | number> = {
 
 export function SalesOrderListPage() {
   const navigate = useNavigate()
+  const isOutstanding = useLocation().pathname.endsWith('/outstanding')
   const queryClient = useQueryClient()
   const canCreate = useHasPermission('sales.orders.create')
   const canUpdate = useHasPermission('sales.orders.update')
@@ -41,7 +43,7 @@ export function SalesOrderListPage() {
   const [deletingOrder, setDeletingOrder] = useState<SalesOrder | null>(null)
 
   const listQuery = useQuery({
-    queryKey: ['sales-orders', page, search, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: ['sales-orders', page, search, filters.status, filters.dateFrom, filters.dateTo, isOutstanding],
     queryFn: () =>
       fetchSalesOrders({
         page,
@@ -49,6 +51,7 @@ export function SalesOrderListPage() {
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+        ...(isOutstanding ? { outstanding: true } : {}),
       }),
     placeholderData: (previous) => previous,
   })
@@ -136,7 +139,29 @@ export function SalesOrderListPage() {
       className: 'text-right',
       sortKey: 'total_amount',
     },
-    { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
+    {
+      header: 'Status',
+      accessor: (row) => (
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={row.status} />
+          {!isOutstanding && row.status === 'approved' && row.is_fully_delivered !== null && (
+            <StatusBadge status={row.is_fully_delivered ? 'fully_delivered' : 'outstanding'} />
+          )}
+        </div>
+      ),
+    },
+    ...(isOutstanding
+      ? [
+          {
+            header: 'Progress',
+            accessor: (row: SalesOrder) => {
+              const items = row.items ?? []
+              const deliveredCount = items.filter((item) => item.delivered_qty >= item.qty).length
+              return `${deliveredCount}/${items.length} terkirim`
+            },
+          } satisfies DataTableColumn<SalesOrder>,
+        ]
+      : []),
     {
       header: '',
       className: 'text-right',
@@ -167,6 +192,14 @@ export function SalesOrderListPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1 rounded-md border p-1">
+          <Button size="sm" variant={!isOutstanding ? 'default' : 'ghost'} onClick={() => navigate('/sales/orders')}>
+            Semua
+          </Button>
+          <Button size="sm" variant={isOutstanding ? 'default' : 'ghost'} onClick={() => navigate('/sales/orders/outstanding')}>
+            Outstanding
+          </Button>
+        </div>
         <SearchBox
           value={search}
           onChange={(value) => {
@@ -191,7 +224,13 @@ export function SalesOrderListPage() {
         isLoading={listQuery.isLoading}
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
-        emptyMessage={hasFilters ? 'No sales orders match your search or filters.' : 'No sales orders yet.'}
+        emptyMessage={
+          isOutstanding
+            ? 'No outstanding sales orders — every approved order has been fully delivered.'
+            : hasFilters
+              ? 'No sales orders match your search or filters.'
+              : 'No sales orders yet.'
+        }
         onRowClick={(row) => navigate(`/sales/orders/${row.id}`)}
         sort={sort}
         onSortChange={handleSortChange}

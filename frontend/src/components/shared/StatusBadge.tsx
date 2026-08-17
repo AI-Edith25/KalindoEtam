@@ -37,6 +37,11 @@ const STATUS_STYLES: Record<string, string> = {
   // Outgoing Payment's Payment Type (Supplier vs. General Expense) — the list's type indicator.
   supplier: 'bg-blue-100 text-blue-700 border-transparent dark:bg-blue-950 dark:text-blue-300',
   general_expense: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
+  // Outstanding view (Sales Order / Delivery inline badges) — self-describing rows on the "Semua" view.
+  outstanding: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
+  fully_delivered: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
+  not_invoiced: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
+  invoiced: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
 }
 
 function formatLabel(status: string): string {

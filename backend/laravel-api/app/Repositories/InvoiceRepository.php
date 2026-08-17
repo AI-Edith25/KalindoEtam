@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Enums\AccountsReceivableStatus;
 use App\Models\Invoice;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
@@ -32,6 +33,14 @@ class InvoiceRepository extends BaseRepository
             ->when($filters['delivery_id'] ?? null, fn ($query, $deliveryId) => $query->where('delivery_id', $deliveryId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '<=', $date))
+            // Unpaid or partially paid AR. Draft/cancelled invoices have no accountsReceivable
+            // row (cancel() deletes it — InvoiceService::cancel()), so whereHas excludes them
+            // for free. EXISTS subquery, not a per-row check.
+            ->when($filters['outstanding'] ?? null, fn ($query) => $query
+                ->whereHas('accountsReceivable', fn ($sq) => $sq->whereIn('status', [
+                    AccountsReceivableStatus::UNPAID,
+                    AccountsReceivableStatus::PARTIALLY_PAID,
+                ])))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
                 fn ($q) => $q->where('document_number', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($sq) => $sq->where('customer_name', 'like', "%{$search}%"))

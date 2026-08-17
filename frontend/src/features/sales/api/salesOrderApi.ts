@@ -13,6 +13,7 @@ export interface SalesOrderListParams {
   date_from?: string
   date_to?: string
   per_page?: number
+  outstanding?: boolean
 }
 
 /** Server-side paginated + filtered — Sales Order has IndexSalesOrderRequest, mirroring Purchase Order's contract. */

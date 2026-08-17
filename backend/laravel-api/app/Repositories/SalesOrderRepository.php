@@ -34,6 +34,11 @@ class SalesOrderRepository extends BaseRepository
             ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->whereHas('items', fn ($sq) => $sq->where('item_id', $itemId)))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('order_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('order_date', '<=', $date))
+            // Same predicate as the New Delivery flow's eligible-orders filter (approved + not
+            // fully delivered) — whereHas is an EXISTS subquery, not a per-row check.
+            ->when($filters['outstanding'] ?? null, fn ($query) => $query
+                ->where('status', SalesOrderStatus::APPROVED)
+                ->whereHas('items', fn ($sq) => $sq->whereColumn('delivered_qty', '<', 'qty')))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
                 fn ($q) => $q->where('document_number', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($sq) => $sq->where('customer_name', 'like', "%{$search}%"))

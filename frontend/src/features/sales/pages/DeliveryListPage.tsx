@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
@@ -10,7 +10,9 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
+import { Button } from '@/components/ui/button'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -26,6 +28,7 @@ const SORTERS: Record<string, (delivery: Delivery) => string | number> = {
 
 export function DeliveryListPage() {
   const navigate = useNavigate()
+  const isOutstanding = useLocation().pathname.endsWith('/outstanding')
   const queryClient = useQueryClient()
   const canCreate = useHasPermission('sales.deliveries.create')
   const canUpdate = useHasPermission('sales.deliveries.update')
@@ -38,7 +41,7 @@ export function DeliveryListPage() {
   const [deletingDelivery, setDeletingDelivery] = useState<Delivery | null>(null)
 
   const listQuery = useQuery({
-    queryKey: ['deliveries', page, search, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: ['deliveries', page, search, filters.status, filters.dateFrom, filters.dateTo, isOutstanding],
     queryFn: () =>
       fetchDeliveries({
         page,
@@ -46,6 +49,7 @@ export function DeliveryListPage() {
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+        ...(isOutstanding ? { outstanding: true } : {}),
       }),
     placeholderData: (previous) => previous,
   })
@@ -118,6 +122,15 @@ export function DeliveryListPage() {
     { header: 'Reference', accessor: (row) => row.sales_order?.document_number ?? '—' },
     { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
     { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+    ...(!isOutstanding
+      ? [
+          {
+            header: 'Status',
+            accessor: (row: Delivery) =>
+              row.is_invoiced === null ? '—' : <StatusBadge status={row.is_invoiced ? 'invoiced' : 'not_invoiced'} />,
+          } satisfies DataTableColumn<Delivery>,
+        ]
+      : []),
     {
       header: '',
       className: 'text-right',
@@ -148,6 +161,14 @@ export function DeliveryListPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1 rounded-md border p-1">
+          <Button size="sm" variant={!isOutstanding ? 'default' : 'ghost'} onClick={() => navigate('/sales/deliveries')}>
+            Semua
+          </Button>
+          <Button size="sm" variant={isOutstanding ? 'default' : 'ghost'} onClick={() => navigate('/sales/deliveries/outstanding')}>
+            Outstanding
+          </Button>
+        </div>
         <SearchBox
           value={search}
           onChange={(value) => {
@@ -172,7 +193,13 @@ export function DeliveryListPage() {
         isLoading={listQuery.isLoading}
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
-        emptyMessage={hasFilters ? 'No deliveries match your search or filters.' : 'No deliveries yet.'}
+        emptyMessage={
+          isOutstanding
+            ? 'No outstanding deliveries — every completed delivery has been invoiced.'
+            : hasFilters
+              ? 'No deliveries match your search or filters.'
+              : 'No deliveries yet.'
+        }
         onRowClick={(row) => navigate(`/sales/deliveries/${row.id}`)}
         sort={sort}
         onSortChange={handleSortChange}

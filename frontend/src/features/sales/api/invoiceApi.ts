@@ -11,6 +11,7 @@ export interface InvoiceListParams {
   date_from?: string
   date_to?: string
   per_page?: number
+  outstanding?: boolean
 }
 
 /** Server-side paginated + filtered — Invoice has IndexInvoiceRequest, mirroring Sales Order's and Delivery's contract. */

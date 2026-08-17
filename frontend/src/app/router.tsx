@@ -121,15 +121,18 @@ export function AppRouter() {
         <Route path="/purchase/goods-receipts/:id/edit" element={<ProtectedRoute permission="purchase.goods_receipts.view"><GoodsReceiptEditorPage /></ProtectedRoute>} />
         <Route path="/purchase/goods-receipts/:id" element={<ProtectedRoute permission="purchase.goods_receipts.view"><GoodsReceiptDetailPage /></ProtectedRoute>} />
         <Route path="/sales/orders" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPage /></ProtectedRoute>} />
+        <Route path="/sales/orders/outstanding" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPage /></ProtectedRoute>} />
         <Route path="/sales/orders/new" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderEditorPage /></ProtectedRoute>} />
         <Route path="/sales/orders/:id/edit" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderEditorPage /></ProtectedRoute>} />
         <Route path="/sales/orders/:id" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderDetailPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPage /></ProtectedRoute>} />
+        <Route path="/sales/deliveries/outstanding" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/new" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryEditorPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id/edit" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryEditorPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryDetailPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id/print" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryPrintPage /></ProtectedRoute>} />
         <Route path="/sales/invoices" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceListPage /></ProtectedRoute>} />
+        <Route path="/sales/invoices/outstanding" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceListPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/new" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceEditorPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/:id/edit" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceEditorPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/:id" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceDetailPage /></ProtectedRoute>} />

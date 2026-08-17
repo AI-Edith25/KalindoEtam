@@ -12,6 +12,7 @@ export interface DeliveryListParams {
   date_from?: string
   date_to?: string
   per_page?: number
+  outstanding?: boolean
 }
 
 /** Server-side paginated + filtered — Delivery has IndexDeliveryRequest, mirroring Sales Order's and Goods Receipt's contract. */
