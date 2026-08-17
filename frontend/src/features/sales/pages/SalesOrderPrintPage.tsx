@@ -93,7 +93,10 @@ export function SalesOrderPrintPage() {
 
       <div
         className="flex min-h-[27.7cm] flex-col text-black"
-        style={{ fontFamily: "'Times New Roman', Times, serif", fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px' }}
+        style={{
+          fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
+          fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
+        }}
       >
         <div className="flex items-start gap-4">
           {logoObjectUrl && <img src={logoObjectUrl} alt="" className="h-16 w-auto shrink-0" />}
@@ -126,8 +129,7 @@ export function SalesOrderPrintPage() {
           <div className="flex flex-col gap-0.5">
             <MetaRow label="NO" value={salesOrder.document_number ?? '—'} bold />
             <MetaRow label="Date" value={formatDdMmYyyy(salesOrder.order_date)} />
-            <MetaRow label="Reference 1 #" value={salesOrder.reference ?? ''} />
-            <MetaRow label="Reference 2 #" value="" />
+            <MetaRow label="Reference" value={salesOrder.reference ?? ''} />
             <MetaRow label="Payment Terms" value={salesOrder.terms_of_payment?.name ?? ''} />
             <MetaRow label="Customer #" value={salesOrder.customer?.customer_code ?? ''} />
             <MetaRow label="Sales Person" value={salesOrder.sales_person?.name ?? ''} />
@@ -188,16 +190,16 @@ export function SalesOrderPrintPage() {
             </ol>
           </div>
 
-          <div className="self-start border border-black">
-            <div className="flex items-center justify-between px-2 py-1 italic font-bold">
+          <div className="self-start flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-8 italic font-bold">
               <span>Amount Excluding Tax</span>
               <span>RP {formatNum(salesOrder.total_amount, 2)}</span>
             </div>
-            <div className="flex items-center justify-between px-2 py-1 italic font-bold">
+            <div className="flex items-center justify-between gap-8 italic font-bold">
               <span>Add Total Tax Amount</span>
               <span>RP {formatNum(salesOrder.tax_amount, 2)}</span>
             </div>
-            <div className="flex items-center justify-between border-t border-black px-2 py-1 font-bold">
+            <div className="flex items-center justify-between gap-8 border-t border-black pt-1 font-bold">
               <span>Total Amount Due</span>
               <span>RP {formatNum(salesOrder.grand_total, 2)}</span>
             </div>
