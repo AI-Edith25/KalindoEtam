@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import { type PrintOptions } from '@/shared/lib/printOptions'
 import { terbilangUsd } from '@/shared/lib/numberToWords'
-import { useCompanyBranding, useCompanyPrintHeader, useBrandingLogoObjectUrl } from '@/features/administration/hooks/useCompany'
+import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchSalesOrder } from '../api/salesOrderApi'
+
+/** SO.pdf's own logo, static — not the admin-configurable company branding logo (which may not be set), per explicit request to use this file. */
+const KALINDO_ETAM_LOGO_URL = '/kalindo-etam-logo.png'
 
 /** SO.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — the app's shared formatMoney/formatQty (id-ID/IDR style) don't match, so this page formats plain numbers itself. */
 function formatNum(value: number | string, decimals: number): string {
@@ -57,7 +60,6 @@ export function SalesOrderPrintPage() {
   })
   const brandingQuery = useCompanyBranding()
   const printHeaderQuery = useCompanyPrintHeader()
-  const logoObjectUrl = useBrandingLogoObjectUrl(brandingQuery.data?.logo_url)
 
   if (salesOrderQuery.isLoading) {
     return (
@@ -99,7 +101,7 @@ export function SalesOrderPrintPage() {
         }}
       >
         <div className="flex items-start gap-4">
-          {logoObjectUrl && <img src={logoObjectUrl} alt="" className="h-16 w-auto shrink-0" />}
+          <img src={KALINDO_ETAM_LOGO_URL} alt="PT Kalindo Etam" className="h-14 w-auto shrink-0" />
           <div className="flex-1 text-center">
             <p className="text-xl font-bold">{companyName}</p>
             {printHeaderQuery.data?.npwp && (
@@ -111,7 +113,7 @@ export function SalesOrderPrintPage() {
             {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
             {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
           </div>
-          {logoObjectUrl && <div className="w-16 shrink-0" />}
+          <div className="w-14 shrink-0" />
         </div>
 
         <p className="mt-2 text-center text-lg font-bold">SALES ORDER</p>
@@ -172,7 +174,7 @@ export function SalesOrderPrintPage() {
         <p>RP : {terbilangUsd(salesOrder.grand_total)}</p>
 
         <div className="mt-2 grid grid-cols-2 gap-4">
-          <div className="border border-black p-2">
+          <div>
             <p className="font-bold italic">E. &amp; O.E</p>
             <ol className="mt-1 list-decimal pl-4">
               <li>
@@ -190,16 +192,16 @@ export function SalesOrderPrintPage() {
             </ol>
           </div>
 
-          <div className="self-start flex flex-col gap-1">
-            <div className="flex items-center justify-between gap-8 italic font-bold">
+          <div className="self-start border border-black">
+            <div className="flex items-center justify-between gap-8 px-2 py-1 italic font-bold">
               <span>Amount Excluding Tax</span>
               <span>RP {formatNum(salesOrder.total_amount, 2)}</span>
             </div>
-            <div className="flex items-center justify-between gap-8 italic font-bold">
+            <div className="flex items-center justify-between gap-8 px-2 py-1 italic font-bold">
               <span>Add Total Tax Amount</span>
               <span>RP {formatNum(salesOrder.tax_amount, 2)}</span>
             </div>
-            <div className="flex items-center justify-between gap-8 border-t border-black pt-1 font-bold">
+            <div className="flex items-center justify-between gap-8 border-t border-black px-2 py-1 font-bold">
               <span>Total Amount Due</span>
               <span>RP {formatNum(salesOrder.grand_total, 2)}</span>
             </div>
