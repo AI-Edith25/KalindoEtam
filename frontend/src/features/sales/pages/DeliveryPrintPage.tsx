@@ -128,7 +128,7 @@ export function DeliveryPrintPage() {
             <MetaRow label="Date" value={formatDdMmYyyy(delivery.delivery_date)} />
             <MetaRow label="SO. No" value={delivery.sales_order?.document_number ?? ''} />
             <MetaRow label="Sales Person" value={delivery.sales_order?.sales_person?.name ?? ''} />
-            <MetaRow label="Location" value={delivery.sales_order?.branch?.name ?? ''} />
+            <MetaRow label="Location" value={delivery.warehouse?.name ?? ''} />
             <MetaRow label="Page" value="1 of 1" />
           </div>
         </div>
