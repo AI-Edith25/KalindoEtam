@@ -103,9 +103,14 @@ export function SalesOrderPrintPage() {
           fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
         }}
       >
-        <div className="flex items-start gap-4">
-          <img src={KALINDO_ETAM_LOGO_URL} alt="PT Kalindo Etam" className="h-14 w-auto shrink-0" />
-          <div className="flex-1 text-center">
+        {/* Logo is absolutely positioned (not a flex sibling) so its own width — the source
+            asset is a wide 256x97 mark, ~148px at h-14, not a neat square — can't unbalance the
+            company info block's centering the way a flex layout with a fixed-width counterweight
+            spacer did. This keeps the text block centered on the full page width regardless of
+            the logo's aspect ratio. */}
+        <div className="relative">
+          <img src={KALINDO_ETAM_LOGO_URL} alt="PT Kalindo Etam" className="absolute left-0 top-0 h-14 w-auto" />
+          <div className="text-center">
             <p className="text-xl font-bold">{companyName}</p>
             {printHeaderQuery.data?.npwp && (
               <p>
@@ -116,10 +121,9 @@ export function SalesOrderPrintPage() {
             {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
             {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
           </div>
-          <div className="w-14 shrink-0" />
         </div>
 
-        <p className="mt-2 text-center text-lg font-bold">SALES ORDER</p>
+        <p className="mt-3 text-center text-lg font-bold">SALES ORDER</p>
         <hr className="mt-2 border-black" />
 
         <div className="mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2">
