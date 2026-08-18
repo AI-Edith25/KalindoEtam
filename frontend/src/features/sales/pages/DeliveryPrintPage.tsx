@@ -30,6 +30,23 @@ function MetaRow({ label, value, bold }: { label: string; value: ReactNode; bold
   )
 }
 
+/** No | PKode | Nama Barang | Quantity | UOM — fixed widths shared by the item table and the
+    total-row table below it (two separate <table>s, split by a flex-1 spacer so the total sits
+    near the signature row like DO.pdf, not right under the last item). table-layout:fixed with
+    identical <col> widths on both keeps "150 ZAK" under the Quantity/UOM columns regardless of
+    how long any item's name happens to be, instead of each table auto-sizing independently. */
+function ItemColGroup() {
+  return (
+    <colgroup>
+      <col style={{ width: '2.5rem' }} />
+      <col style={{ width: '8rem' }} />
+      <col />
+      <col style={{ width: '5rem' }} />
+      <col style={{ width: '3.5rem' }} />
+    </colgroup>
+  )
+}
+
 /**
  * Classic dot-matrix-era layout matching the legacy system's DO print exactly (DO.pdf) — a
  * genuinely different, plainer layout than SalesOrderPrintPage.tsx, not the same header
@@ -76,7 +93,10 @@ export function DeliveryPrintPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
-      <style>{'@page { size: A4; margin: 0; }'}</style>
+      {/* DO.pdf's own page size — 595.276x420.945pt in its PDF MediaBox, i.e. 210x148.5mm
+          (A5 landscape), not A4 like Sales Order's print. Using A4 here made the printed page
+          nearly twice as tall as the reference. */}
+      <style>{'@page { size: 210mm 148.5mm; margin: 0; }'}</style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Delivery Order Print Preview</h1>
@@ -93,7 +113,7 @@ export function DeliveryPrintPage() {
       </div>
 
       <div
-        className="flex min-h-[27.3cm] flex-col text-black"
+        className="flex min-h-[12.45cm] flex-col text-black"
         style={{
           fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
           fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
@@ -124,7 +144,8 @@ export function DeliveryPrintPage() {
           </div>
         </div>
 
-        <table className="w-full border-collapse text-left">
+        <table className="w-full border-collapse text-left" style={{ tableLayout: 'fixed' }}>
+          <ItemColGroup />
           <thead>
             <tr className="border-b border-black">
               <th className="py-1 pr-2 font-normal">No</th>
@@ -149,10 +170,16 @@ export function DeliveryPrintPage() {
 
         <div className="flex-1" />
 
-        <hr className="border-black" />
-        <p className="text-right">
-          {formatNum(totalQty, 0)} {uniformUom}
-        </p>
+        <table className="w-full border-collapse text-left" style={{ tableLayout: 'fixed' }}>
+          <ItemColGroup />
+          <tbody>
+            <tr className="border-t border-black">
+              <td colSpan={3}></td>
+              <td className="pt-1 pr-2 text-right">{formatNum(totalQty, 0)}</td>
+              <td className="pt-1">{uniformUom}</td>
+            </tr>
+          </tbody>
+        </table>
 
         <div className="mt-4 grid grid-cols-6 gap-2 text-center">
           <p>Tanda Terima,</p>
