@@ -106,9 +106,8 @@ export function TandaTerimaInvoicePrintPage() {
           <thead>
             <tr className="border-b border-black">
               <th className="py-1 pr-2 font-normal">INV DATE</th>
-              <th className="py-1 pr-2 font-normal">DOCUMENT #</th>
-              <th className="py-1 pr-2 font-normal">REFERENCE 1 #</th>
-              <th className="py-1 pr-2 font-normal">REFERENCE 2 #</th>
+              <th className="py-1 pr-2 font-normal">DOCUMENT</th>
+              <th className="py-1 pr-2 font-normal">REFERENCE</th>
               <th className="py-1 pr-2 font-normal">DUE DATE</th>
               <th className="py-1 text-right font-normal">AMOUNT</th>
             </tr>
@@ -119,7 +118,6 @@ export function TandaTerimaInvoicePrintPage() {
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
                 <td className="py-1 pr-2 align-top">{row.invoice?.document_number ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{row.invoice?.reference_1 ?? ''}</td>
-                <td className="py-1 pr-2 align-top">{row.invoice?.reference_2 ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
                 <td className="py-1 text-right align-top">{formatNum(row.outstanding_amount, 2)}</td>
               </tr>
@@ -127,7 +125,7 @@ export function TandaTerimaInvoicePrintPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-black font-bold">
-              <td colSpan={5} className="py-1 pr-2 text-right">
+              <td colSpan={4} className="py-1 pr-2 text-right">
                 TOTAL
               </td>
               <td className="py-1 text-right">{formatNum(total, 2)}</td>
@@ -135,13 +133,13 @@ export function TandaTerimaInvoicePrintPage() {
           </tfoot>
         </table>
 
-        <p className="mt-8 text-xs font-medium">PEMBAYARAN DENGAN CHEQUE / GIRO DIANGGAP LUNAS SETELAH DICAIRKAN</p>
+        <p className="mt-8 text-center text-xs font-medium">PEMBAYARAN DENGAN CHEQUE / GIRO DIANGGAP LUNAS SETELAH DICAIRKAN</p>
 
-        <div className="mt-10 grid grid-cols-2 gap-8">
+        <div className="mt-10 grid grid-cols-2 gap-8 text-center">
           <p>Dibuat Oleh,</p>
           <p>Diterima Oleh,</p>
         </div>
-        <div className="mt-16 grid grid-cols-2 gap-8">
+        <div className="mt-16 grid grid-cols-2 gap-8 text-center">
           <p>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p>
           <p>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p>
         </div>
