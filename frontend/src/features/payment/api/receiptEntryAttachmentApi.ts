@@ -29,3 +29,7 @@ export async function fetchReceiptEntryAttachmentObjectUrl(attachmentId: string)
   const { data } = await apiClient.get(`/attachments/${attachmentId}/download`, { responseType: 'blob' })
   return URL.createObjectURL(data as Blob)
 }
+
+export async function deleteReceiptEntryAttachment(attachmentId: string): Promise<void> {
+  await apiClient.delete(`/attachments/${attachmentId}`)
+}

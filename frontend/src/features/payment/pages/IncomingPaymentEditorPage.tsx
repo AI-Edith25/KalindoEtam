@@ -411,7 +411,18 @@ export function IncomingPaymentEditorPage() {
             </CardContent>
           </Card>
 
-          {isEdit && <ReceiptEntryAttachments receiptEntryId={id!} showUpload />}
+          {isEdit ? (
+            <ReceiptEntryAttachments receiptEntryId={id!} showUpload />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Attachments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Save this payment as a draft first, then you can attach proof-of-transfer files.</p>
+              </CardContent>
+            </Card>
+          )}
 
           {customerId && (
             <Card>
