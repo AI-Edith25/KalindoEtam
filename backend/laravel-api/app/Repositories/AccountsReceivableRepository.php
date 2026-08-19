@@ -86,7 +86,7 @@ class AccountsReceivableRepository extends BaseRepository
     public function search(array $filters, int $perPage = 15): LengthAwarePaginator
     {
         return $this->filteredQuery($filters)
-            ->with(['customer', 'invoice.termsOfPayment', 'salesOrder.salesPerson', 'delivery'])
+            ->with(['customer', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'delivery'])
             ->latest('due_date')
             ->paginate($perPage);
     }
@@ -95,7 +95,7 @@ class AccountsReceivableRepository extends BaseRepository
     public function searchAll(array $filters): Collection
     {
         return $this->filteredQuery($filters)
-            ->with(['customer', 'invoice.termsOfPayment', 'salesOrder.salesPerson', 'delivery'])
+            ->with(['customer', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'delivery'])
             ->latest('due_date')
             ->get();
     }

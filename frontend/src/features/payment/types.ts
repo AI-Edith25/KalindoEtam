@@ -64,7 +64,16 @@ export interface AccountsReceivable {
   customer_id: string
   customer: Customer | null
   invoice_id: string | null
-  invoice: { id: string; document_number: string | null; invoice_date: string; status: string; reference_1: string | null; reference_2: string | null } | null
+  invoice: {
+    id: string
+    document_number: string | null
+    invoice_date: string
+    status: string
+    reference_1: string | null
+    reference_2: string | null
+    /** Delivery document numbers — same source as Sales > Invoices' own "Reference" column. */
+    deliveries: string[]
+  } | null
   sales_order_id: string
   delivery_id: string
   delivery: { id: string; document_number: string | null } | null

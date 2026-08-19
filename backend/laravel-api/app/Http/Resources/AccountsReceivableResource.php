@@ -21,6 +21,12 @@ class AccountsReceivableResource extends JsonResource
                 'status' => $this->invoice->status,
                 'reference_1' => $this->invoice->reference_1,
                 'reference_2' => $this->invoice->reference_2,
+                // Laporan Penagihan Harian's Reference column (2026-08-19) shows the same delivery
+                // document numbers as Sales > Invoices' own "Reference" column — not reference_1
+                // (an SO reference number, a different concept despite the shared column name).
+                'deliveries' => $this->invoice->relationLoaded('deliveries')
+                    ? $this->invoice->deliveries->pluck('document_number')->filter()->values()
+                    : [],
             ] : null),
             'sales_order_id' => $this->sales_order_id,
             'delivery_id' => $this->delivery_id,

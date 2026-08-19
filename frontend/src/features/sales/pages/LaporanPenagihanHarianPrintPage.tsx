@@ -22,7 +22,12 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
  * /reports/penagihan-harian — same AccountsReceivable.outstanding_amount data source (via the
  * shared list-all endpoint, now filtered by invoice_ids instead of due-date/branch/salesman),
  * deliberately rendered as a flat list (no per-customer grouping/subtotals like the old page —
- * CUSTOMER # / CUSTOMER NAME repeat on every row instead), matching Laporan_penagihan.pdf.
+ * CUSTOMER / CUSTOMER NAME repeat on every row instead), matching Laporan_penagihan.pdf.
+ *
+ * REFERENCE column (2026-08-19) intentionally reads invoice.deliveries' document numbers, not
+ * invoice.reference_1 (an SO reference — Tanda Terima Invoice's own Reference column, a
+ * different concept despite the shared column label) — matches Sales > Invoices' own "Reference"
+ * column exactly, per explicit request to align with what that table actually shows.
  */
 export function LaporanPenagihanHarianPrintPage() {
   const [searchParams] = useSearchParams()
@@ -58,13 +63,13 @@ export function LaporanPenagihanHarianPrintPage() {
         <table className="mt-2 w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-black">
-              <th className="py-1 pr-2 font-normal">CUSTOMER #</th>
-              <th className="py-1 pr-2 font-normal">CUSTOMER NAME</th>
-              <th className="py-1 pr-2 font-normal">INV DATE</th>
-              <th className="py-1 pr-2 font-normal">DOCUMENT</th>
-              <th className="py-1 pr-2 font-normal">REFERENCE</th>
-              <th className="py-1 pr-2 font-normal">DUE DATE</th>
-              <th className="py-1 text-right font-normal">OUTSTANDING AMOUNT</th>
+              <th className="py-1 pr-2 font-bold">CUSTOMER</th>
+              <th className="py-1 pr-2 font-bold">CUSTOMER NAME</th>
+              <th className="py-1 pr-2 font-bold">INV DATE</th>
+              <th className="py-1 pr-2 font-bold">DOCUMENT</th>
+              <th className="py-1 pr-2 font-bold">REFERENCE</th>
+              <th className="py-1 pr-2 font-bold">DUE DATE</th>
+              <th className="py-1 text-right font-bold">OUTSTANDING AMOUNT</th>
             </tr>
           </thead>
           <tbody>
@@ -74,7 +79,7 @@ export function LaporanPenagihanHarianPrintPage() {
                 <td className="py-1 pr-2 align-top">{row.customer?.customer_name ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
                 <td className="py-1 pr-2 align-top">{row.invoice?.document_number ?? ''}</td>
-                <td className="py-1 pr-2 align-top">{row.invoice?.reference_1 ?? ''}</td>
+                <td className="py-1 pr-2 align-top">{(row.invoice?.deliveries ?? []).join(', ')}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
                 <td className="py-1 text-right align-top">{formatNum(row.outstanding_amount, 2)}</td>
               </tr>
@@ -97,8 +102,8 @@ export function LaporanPenagihanHarianPrintPage() {
           <p>Diterima Oleh,</p>
         </div>
         <div className="mt-16 grid grid-cols-2 gap-8 text-center">
-          <p>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p>
-          <p>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p>
+          <p>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p>
+          <p>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p>
         </div>
       </div>
     </div>
