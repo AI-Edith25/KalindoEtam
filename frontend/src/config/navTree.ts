@@ -118,26 +118,6 @@ export const navTree: NavGroup[] = [
     ],
   },
   {
-    key: 'accounting',
-    label: 'Accounting Reports',
-    icon: BookOpen,
-    // Not a level-1 sidebar section — reached via Reports' "General Ledger" tab. Journal
-    // Entries itself moved out to the `finance` group above (permissionGroup: 'accounting'
-    // keeps its permission string unchanged); these 7 remaining pages keep their own
-    // `accounting.*` permission strings untouched too (see 2026-08-09/10 revert history) —
-    // only their `path` values moved from /finance/general-journal/* to /reports/general-ledger/*.
-    hideFromSidebar: true,
-    pages: [
-      { key: 'general_ledger', label: 'General Ledger', path: '/reports/general-ledger', actions: ['view'] },
-      { key: 'journal_list', label: 'Journal List', path: '/reports/general-ledger/journal-list', actions: ['view'] },
-      { key: 'trial_balance', label: 'Trial Balance', path: '/reports/general-ledger/trial-balance', actions: ['view'] },
-      { key: 'profit_loss', label: 'Profit & Loss', path: '/reports/general-ledger/profit-loss', actions: ['view'] },
-      { key: 'balance_sheet', label: 'Balance Sheet', path: '/reports/general-ledger/balance-sheet', actions: ['view'] },
-      { key: 'cash_flow', label: 'Cash Flow', path: '/reports/general-ledger/cash-flow', actions: ['view'] },
-      { key: 'period_closing', label: 'Period Closing', path: '/reports/general-ledger/period-closing', actions: ['view', 'create', 'update'] },
-    ],
-  },
-  {
     key: 'reports',
     label: 'Reports',
     icon: BarChart3,
@@ -152,8 +132,33 @@ export const navTree: NavGroup[] = [
       { key: 'tanda_terima_invoice', label: 'Tanda Terima Invoice', path: '/reports/tanda-terima-invoice', actions: ['view'] },
       { key: 'penagihan_harian', label: 'Laporan Penagihan Harian', path: '/reports/penagihan-harian', actions: ['view'] },
       // permissionGroup keeps this tab gated on the same accounting.general_ledger.view that
-      // already governs the content it leads to — see the `accounting` group above.
+      // already governs the content it leads to — see the `accounting` group below.
       { key: 'general_ledger', label: 'General Ledger', path: '/reports/general-ledger', actions: ['view'], permissionGroup: 'accounting' },
+    ],
+  },
+  {
+    key: 'accounting',
+    label: 'Accounting Reports',
+    icon: BookOpen,
+    // Not a level-1 sidebar section — reached via Reports' "General Ledger" tab. Journal
+    // Entries itself moved out to the `finance` group above (permissionGroup: 'accounting'
+    // keeps its permission string unchanged); these 7 remaining pages keep their own
+    // `accounting.*` permission strings untouched too (see 2026-08-09/10 revert history) —
+    // only their `path` values moved from /finance/general-journal/* to /reports/general-ledger/*.
+    //
+    // MUST stay listed after `reports` above: Breadcrumbs.tsx's prefix-match fallback picks
+    // the first navTree group with any page path starting with `/{segment}/`, and every page
+    // here shares the `/reports/` prefix with the `reports` group — same reason `finance` has
+    // to stay listed before this group too (their old shared prefix was `/finance/`).
+    hideFromSidebar: true,
+    pages: [
+      { key: 'general_ledger', label: 'General Ledger', path: '/reports/general-ledger', actions: ['view'] },
+      { key: 'journal_list', label: 'Journal List', path: '/reports/general-ledger/journal-list', actions: ['view'] },
+      { key: 'trial_balance', label: 'Trial Balance', path: '/reports/general-ledger/trial-balance', actions: ['view'] },
+      { key: 'profit_loss', label: 'Profit & Loss', path: '/reports/general-ledger/profit-loss', actions: ['view'] },
+      { key: 'balance_sheet', label: 'Balance Sheet', path: '/reports/general-ledger/balance-sheet', actions: ['view'] },
+      { key: 'cash_flow', label: 'Cash Flow', path: '/reports/general-ledger/cash-flow', actions: ['view'] },
+      { key: 'period_closing', label: 'Period Closing', path: '/reports/general-ledger/period-closing', actions: ['view', 'create', 'update'] },
     ],
   },
   {
