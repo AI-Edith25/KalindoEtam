@@ -1,12 +1,20 @@
-import { useState, type ReactNode } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import JsBarcode from 'jsbarcode'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import { type PrintOptions } from '@/shared/lib/printOptions'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
+import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
+
+/** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
+    common), so this is the one knob to turn if it turns out to be the wrong one. Content width
+    leaves ~4mm margin each side, matching Roll_paper.pdf's effective print area. */
+const ROLL_PAPER_WIDTH_MM = 80
+const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
 
 /** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
 function formatNum(value: number | string, decimals: number): string {
@@ -18,6 +26,13 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
   if (!dateStr) return ''
   const [year, month, day] = dateStr.split('-')
   return `${day}/${month}/${year}`
+}
+
+/** Roll_paper.pdf's own date format — same split-string approach as formatDdMmYyyy, same reasoning. */
+function formatYyyyDotMmDotDd(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  const [year, month, day] = dateStr.split('-')
+  return `${year}.${month}.${day}`
 }
 
 function MetaRow({ label, value, bold }: { label: string; value: ReactNode; bold?: boolean }) {
@@ -45,9 +60,19 @@ function MetaRow({ label, value, bold }: { label: string; value: ReactNode; bold
  * sample Transportation invoice happens to show non-blank values for both, most likely a legacy-
  * system convention this schema doesn't capture — confirmed with the user not to fabricate
  * placeholder text for either field.
+ *
+ * A second "Roll" format (?format=roll, matching Roll_paper.pdf) renders alongside this A4
+ * layout from the same query/data — an 80mm thermal-receipt style with its own sans-serif font,
+ * a Code128 barcode of the document number, and one more schema gap of its own: "BIN" has no
+ * backing column anywhere (Item/InvoiceItem/Warehouse all lack it), so it renders blank for
+ * every invoice, not just Transportation.
  */
 export function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const format = searchParams.get('format') === 'roll' ? 'roll' : 'a4'
+  const barcodeRef = useRef<SVGSVGElement>(null)
+  const { user } = useAuth()
   const [printOptions, setPrintOptions] = useState<PrintOptions>({
     fontSize: 'medium',
     paperType: 'a4',
@@ -65,6 +90,15 @@ export function InvoicePrintPage() {
   })
   const brandingQuery = useCompanyBranding()
   const printHeaderQuery = useCompanyPrintHeader()
+
+  // Above the loading/null early returns so this hook always runs — the barcode <svg> only
+  // exists once format is 'roll' and the invoice has loaded, hence the ref-null guard inside.
+  const documentNumber = invoiceQuery.data?.document_number
+  useEffect(() => {
+    if (format === 'roll' && barcodeRef.current && documentNumber) {
+      JsBarcode(barcodeRef.current, documentNumber, { format: 'CODE128', width: 1, height: 35, margin: 0, displayValue: false })
+    }
+  }, [format, documentNumber])
 
   if (invoiceQuery.isLoading) {
     return (
@@ -84,15 +118,30 @@ export function InvoicePrintPage() {
   const location = invoice.delivery?.warehouse?.name ?? ''
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
+    <div
+      className={
+        format === 'roll'
+          ? 'mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:p-[2mm]'
+          : 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]'
+      }
+      style={format === 'roll' ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` } : undefined}
+    >
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
           + date on top, URL + page number on bottom) — that's not part of the document, it's
-          browser UI. Document margins come from this wrapper's own print:p-[12mm] instead. */}
-      <style>{'@page { size: A4; margin: 0; }'}</style>
+          browser UI. Document margins come from this wrapper's own padding instead. */}
+      <style>{format === 'roll' ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm auto; margin: 0; }` : '@page { size: A4; margin: 0; }'}</style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border p-1">
+            <Button size="sm" variant={format === 'a4' ? 'default' : 'ghost'} onClick={() => setSearchParams({})}>
+              A4
+            </Button>
+            <Button size="sm" variant={format === 'roll' ? 'default' : 'ghost'} onClick={() => setSearchParams({ format: 'roll' })}>
+              Roll
+            </Button>
+          </div>
           <Button variant="outline" onClick={() => setOptionsOpen(true)}>
             <Settings2 className="size-4" />
             Print Options
@@ -104,6 +153,7 @@ export function InvoicePrintPage() {
         </div>
       </div>
 
+      {format === 'a4' && (
       <div
         className="flex min-h-[27.3cm] flex-col text-black"
         style={{
@@ -209,6 +259,84 @@ export function InvoicePrintPage() {
           </div>
         </div>
       </div>
+      )}
+
+      {format === 'roll' && (
+      <div className="flex flex-col gap-2 text-black" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px' }}>
+        <div className="flex flex-col items-center gap-0.5 text-center">
+          <p className="text-[11px] font-bold">{companyName}</p>
+          {printHeaderQuery.data?.npwp && <p>Co Reg. No. : {printHeaderQuery.data.npwp}</p>}
+          {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
+          {printHeaderQuery.data?.phone && <p>Tel : {printHeaderQuery.data.phone}</p>}
+          <p className="mt-1 text-[11px] font-bold">INVOICE</p>
+        </div>
+
+        <div className="flex flex-col gap-0.5">
+          <p className="font-bold">{invoice.customer?.customer_name ?? '—'}</p>
+          {invoice.customer?.address && <p>{invoice.customer.address}</p>}
+        </div>
+
+        <table className="w-full border-collapse border border-black text-left">
+          <tbody>
+            <tr>
+              <td className="border border-black px-1 py-0.5">{invoice.customer?.customer_code ?? ''}</td>
+              <td className="border border-black px-1 py-0.5">{invoice.terms_of_payment?.name ?? ''}</td>
+            </tr>
+            <tr>
+              <td className="border border-black px-1 py-0.5">{invoice.document_number ?? ''}</td>
+              <td className="border border-black px-1 py-0.5">{formatYyyyDotMmDotDd(invoice.invoice_date)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="border-b border-black">
+              <th className="py-0.5 pr-1 font-normal">ITEM</th>
+              <th className="py-0.5 pr-1 font-normal">BIN</th>
+              <th className="py-0.5 pr-1 text-right font-normal">QTY</th>
+              <th className="py-0.5 pr-1 font-normal">UOM</th>
+              <th className="py-0.5 pr-1 text-right font-normal">PRICE</th>
+              <th className="py-0.5 text-right font-normal">AMOUNT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.items.flatMap((item) => [
+              <tr key={item.id}>
+                <td className="pt-1 pr-1 align-top font-bold">{item.item_code ?? ''}</td>
+                <td className="pt-1 pr-1 align-top"></td>
+                <td className="pt-1 pr-1 text-right align-top">{formatNum(item.qty, printOptions.qtyDecimals)}</td>
+                <td className="pt-1 pr-1 align-top">{item.uom ?? ''}</td>
+                <td className="pt-1 pr-1 text-right align-top">{formatNum(item.rate, printOptions.priceDecimals)}</td>
+                <td className="pt-1 text-right align-top">{formatNum(item.amount, printOptions.amountDecimals)}</td>
+              </tr>,
+              <tr key={`${item.id}-desc`}>
+                <td className="pb-1" colSpan={6}>
+                  {item.item_name}
+                </td>
+              </tr>,
+            ])}
+          </tbody>
+        </table>
+
+        <div className="flex items-center justify-between border-t border-black pt-1 font-bold">
+          <span>TOTAL</span>
+          <span>{formatNum(invoice.grand_total, printOptions.amountDecimals)}</span>
+        </div>
+
+        <p>ISSUED BY : {user?.name ?? ''}</p>
+
+        <div className="mt-1 flex flex-col gap-2 border-t border-black pt-1">
+          <p>
+            I acknowledged that the contents &amp; quantity had been checked &amp; calculated, therefore I will take responsibility for any mistake,
+            fault &amp; error.
+          </p>
+          <p>Goods sold are not exchangeable/refundable. We STRICTLY do not accept change of mind returns/exchanges.</p>
+        </div>
+
+        <svg ref={barcodeRef} className="mt-2 h-9 w-full" />
+      </div>
+      )}
 
       <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={setPrintOptions} fields={['qty', 'price', 'amount']} />
     </div>
