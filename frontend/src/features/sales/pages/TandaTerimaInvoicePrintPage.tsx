@@ -105,11 +105,11 @@ export function TandaTerimaInvoicePrintPage() {
         <table className="mt-2 w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-black">
-              <th className="py-1 pr-2 font-normal">INV DATE</th>
-              <th className="py-1 pr-2 font-normal">DOCUMENT</th>
-              <th className="py-1 pr-2 font-normal">REFERENCE</th>
-              <th className="py-1 pr-2 font-normal">DUE DATE</th>
-              <th className="py-1 text-right font-normal">AMOUNT</th>
+              <th className="py-1 pr-2 font-bold">INV DATE</th>
+              <th className="py-1 pr-2 font-bold">DOCUMENT</th>
+              <th className="py-1 pr-2 font-bold">REFERENCE</th>
+              <th className="py-1 pr-2 font-bold">DUE DATE</th>
+              <th className="py-1 text-right font-bold">AMOUNT</th>
             </tr>
           </thead>
           <tbody>

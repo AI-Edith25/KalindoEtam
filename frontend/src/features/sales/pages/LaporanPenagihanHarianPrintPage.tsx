@@ -63,13 +63,13 @@ export function LaporanPenagihanHarianPrintPage() {
         <table className="mt-2 w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-black">
-              <th className="py-1 pr-2 font-bold">CUSTOMER</th>
-              <th className="py-1 pr-2 font-bold">CUSTOMER NAME</th>
-              <th className="py-1 pr-2 font-bold">INV DATE</th>
-              <th className="py-1 pr-2 font-bold">DOCUMENT</th>
-              <th className="py-1 pr-2 font-bold">REFERENCE</th>
-              <th className="py-1 pr-2 font-bold">DUE DATE</th>
-              <th className="py-1 text-right font-bold">OUTSTANDING AMOUNT</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">CUSTOMER</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">CUSTOMER NAME</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">INV DATE</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">DOCUMENT</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">REFERENCE</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">DUE DATE</th>
+              <th className="whitespace-nowrap py-1 text-right font-bold">OUTSTANDING AMOUNT</th>
             </tr>
           </thead>
           <tbody>
