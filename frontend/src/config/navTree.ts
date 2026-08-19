@@ -107,7 +107,13 @@ export const navTree: NavGroup[] = [
     pages: [
       { key: 'outgoing_payment', label: 'Outgoing Payment', path: '/finance/outgoing', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'incoming_payment', label: 'Incoming Payment', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'general_journal', label: 'General Journal', path: '/finance/general-journal', actions: ['view'] },
+      {
+        key: 'journal_entries',
+        label: 'General Journal',
+        path: '/finance/general-journal',
+        actions: ['view', 'create', 'update', 'delete', 'approve'],
+        permissionGroup: 'accounting',
+      },
       { key: 'chart_of_accounts', label: 'Chart of Accounts', path: '/finance/chart-of-accounts', actions: ['view', 'create', 'update', 'delete'], permissionGroup: 'master' },
     ],
   },
@@ -115,19 +121,20 @@ export const navTree: NavGroup[] = [
     key: 'accounting',
     label: 'Accounting Reports',
     icon: BookOpen,
-    // Not a level-1 sidebar section anymore — reached via Finance's "General Journal" tab
-    // and its chooser page. Group/page keys and permission strings stay untouched (see
-    // 2026-08-09/10 revert history) — only these pages' `path` values moved under Finance.
+    // Not a level-1 sidebar section — reached via Reports' "General Ledger" tab. Journal
+    // Entries itself moved out to the `finance` group above (permissionGroup: 'accounting'
+    // keeps its permission string unchanged); these 7 remaining pages keep their own
+    // `accounting.*` permission strings untouched too (see 2026-08-09/10 revert history) —
+    // only their `path` values moved from /finance/general-journal/* to /reports/general-ledger/*.
     hideFromSidebar: true,
     pages: [
-      { key: 'journal_entries', label: 'General Journal', path: '/finance/general-journal/journal-entries', actions: ['view', 'create', 'update', 'delete', 'approve'] },
-      { key: 'journal_list', label: 'Journal List', path: '/finance/general-journal/journal-list', actions: ['view'] },
-      { key: 'general_ledger', label: 'General Ledger', path: '/finance/general-journal/general-ledger', actions: ['view'] },
-      { key: 'trial_balance', label: 'Trial Balance', path: '/finance/general-journal/trial-balance', actions: ['view'] },
-      { key: 'profit_loss', label: 'Profit & Loss', path: '/finance/general-journal/profit-loss', actions: ['view'] },
-      { key: 'balance_sheet', label: 'Balance Sheet', path: '/finance/general-journal/balance-sheet', actions: ['view'] },
-      { key: 'cash_flow', label: 'Cash Flow', path: '/finance/general-journal/cash-flow', actions: ['view'] },
-      { key: 'period_closing', label: 'Period Closing', path: '/finance/general-journal/period-closing', actions: ['view', 'create', 'update'] },
+      { key: 'general_ledger', label: 'General Ledger', path: '/reports/general-ledger', actions: ['view'] },
+      { key: 'journal_list', label: 'Journal List', path: '/reports/general-ledger/journal-list', actions: ['view'] },
+      { key: 'trial_balance', label: 'Trial Balance', path: '/reports/general-ledger/trial-balance', actions: ['view'] },
+      { key: 'profit_loss', label: 'Profit & Loss', path: '/reports/general-ledger/profit-loss', actions: ['view'] },
+      { key: 'balance_sheet', label: 'Balance Sheet', path: '/reports/general-ledger/balance-sheet', actions: ['view'] },
+      { key: 'cash_flow', label: 'Cash Flow', path: '/reports/general-ledger/cash-flow', actions: ['view'] },
+      { key: 'period_closing', label: 'Period Closing', path: '/reports/general-ledger/period-closing', actions: ['view', 'create', 'update'] },
     ],
   },
   {
@@ -144,6 +151,9 @@ export const navTree: NavGroup[] = [
       { key: 'ar_detail', label: 'AR Detail', path: '/reports/ar-detail', actions: ['view'] },
       { key: 'tanda_terima_invoice', label: 'Tanda Terima Invoice', path: '/reports/tanda-terima-invoice', actions: ['view'] },
       { key: 'penagihan_harian', label: 'Laporan Penagihan Harian', path: '/reports/penagihan-harian', actions: ['view'] },
+      // permissionGroup keeps this tab gated on the same accounting.general_ledger.view that
+      // already governs the content it leads to — see the `accounting` group above.
+      { key: 'general_ledger', label: 'General Ledger', path: '/reports/general-ledger', actions: ['view'], permissionGroup: 'accounting' },
     ],
   },
   {

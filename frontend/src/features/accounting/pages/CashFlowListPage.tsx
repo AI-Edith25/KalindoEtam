@@ -39,7 +39,7 @@ export function CashFlowListPage() {
 
   const goToLedger = (accountId: string) => {
     const params = new URLSearchParams({ ...(dateFrom ? { date_from: dateFrom } : {}), ...(dateTo ? { date_to: dateTo } : {}) })
-    navigate(`/finance/general-journal/general-ledger/${accountId}?${params.toString()}`)
+    navigate(`/reports/general-ledger/${accountId}?${params.toString()}`)
   }
 
   // Net Profit isn't one account — drills into the existing Profit & Loss report itself, using
@@ -47,7 +47,7 @@ export function CashFlowListPage() {
   // Current Year Profit — Cash Flow's own filter already IS the period). See §9.
   const goToProfitLoss = () => {
     const params = new URLSearchParams({ ...(dateFrom ? { date_from: dateFrom } : {}), ...(dateTo ? { date_to: dateTo } : {}) })
-    navigate(`/finance/general-journal/profit-loss?${params.toString()}`)
+    navigate(`/reports/general-ledger/profit-loss?${params.toString()}`)
   }
 
   const renderDerivedRow = (label: string, value: number | string, emphasis: 'normal' | 'strong' = 'normal', onClick?: () => void) => (

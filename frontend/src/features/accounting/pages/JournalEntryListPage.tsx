@@ -86,7 +86,7 @@ export function JournalEntryListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav group="accounting" />
+      <SectionNav group="finance" />
 
       <PageHeader
         title="General Journal"

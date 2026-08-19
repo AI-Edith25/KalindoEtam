@@ -68,7 +68,7 @@ export function JournalListListPage() {
           <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Print', icon: Printer, onClick: () => navigate(`/finance/general-journal/journal-list/print${printParams ? `?${printParams}` : ''}`) },
+              { label: 'Print', icon: Printer, onClick: () => navigate(`/reports/general-ledger/journal-list/print${printParams ? `?${printParams}` : ''}`) },
               { label: 'Export CSV', icon: Download, disabled: !report, onClick: () => report && downloadCsv('journal-list.csv', buildJournalListCsv(report)) },
               { label: 'Export XLSX', icon: Download, disabled: isExportingXlsx, onClick: exportXlsx },
             ]}

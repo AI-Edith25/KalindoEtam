@@ -93,7 +93,7 @@ export function TrialBalanceListPage() {
         onRetry={() => listQuery.refetch()}
         emptyMessage="No activity in this period."
         onRowClick={(row) =>
-          navigate(`/finance/general-journal/general-ledger/${row.id}?${new URLSearchParams({ ...(dateFrom ? { date_from: dateFrom } : {}), ...(dateTo ? { date_to: dateTo } : {}) }).toString()}`)
+          navigate(`/reports/general-ledger/${row.id}?${new URLSearchParams({ ...(dateFrom ? { date_from: dateFrom } : {}), ...(dateTo ? { date_to: dateTo } : {}) }).toString()}`)
         }
       />
 

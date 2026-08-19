@@ -45,7 +45,7 @@ export function ProfitLossListPage() {
 
   const goToLedger = (accountId: string) => {
     const params = new URLSearchParams({ ...(dateFrom ? { date_from: dateFrom } : {}), ...(dateTo ? { date_to: dateTo } : {}) })
-    navigate(`/finance/general-journal/general-ledger/${accountId}?${params.toString()}`)
+    navigate(`/reports/general-ledger/${accountId}?${params.toString()}`)
   }
 
   const renderSection = (section: ProfitLossSectionData | undefined, prefix?: string) => {

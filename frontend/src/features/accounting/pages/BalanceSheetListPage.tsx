@@ -37,7 +37,7 @@ export function BalanceSheetListPage() {
 
   const goToLedger = (accountId: string) => {
     const params = new URLSearchParams({ date_to: filters.asOfDate })
-    navigate(`/finance/general-journal/general-ledger/${accountId}?${params.toString()}`)
+    navigate(`/reports/general-ledger/${accountId}?${params.toString()}`)
   }
 
   // Current Year Profit isn't one account — drills into the existing Profit & Loss report itself,
@@ -45,7 +45,7 @@ export function BalanceSheetListPage() {
   const goToProfitLoss = () => {
     const fiscalYearStart = toDateString(resolveFiscalYearStart(companies.data ?? [], filters.companyId))
     const params = new URLSearchParams({ date_from: fiscalYearStart, date_to: filters.asOfDate })
-    navigate(`/finance/general-journal/profit-loss?${params.toString()}`)
+    navigate(`/reports/general-ledger/profit-loss?${params.toString()}`)
   }
 
   const renderSection = (section: BalanceSheetSectionData | undefined) => {
