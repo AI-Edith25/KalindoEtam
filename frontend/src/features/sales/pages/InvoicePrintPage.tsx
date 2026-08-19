@@ -1,57 +1,63 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
-import { formatDate } from '@/lib/utils'
-import {
-  defaultPrintOptions,
-  formatMoney,
-  formatQty,
-  loadPaperTypePreference,
-  PRINT_FONT_SIZE_PX,
-  PRINT_PAPER_PAGE_CSS,
-  savePaperTypePreference,
-  type PrintOptions,
-} from '@/shared/lib/printOptions'
+import { type PrintOptions } from '@/shared/lib/printOptions'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchInvoice } from '../api/invoiceApi'
-import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
-import { discountLabel } from '../lib/discount'
-import type { InvoicePaymentHistoryLine } from '../types'
 
-const PAYMENT_METHOD_LABELS: Record<NonNullable<InvoicePaymentHistoryLine['payment_method']>, string> = {
-  cash: 'Cash',
-  bank_transfer: 'Bank Transfer',
-  cheque: 'Cheque',
-  qris: 'QRIS',
-  credit_card: 'Credit Card',
+/** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
+function formatNum(value: number | string, decimals: number): string {
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))
+}
+
+/** invoice_date/due_date arrive as plain YYYY-MM-DD strings — split directly rather than re-parsing through a Date object, which shifts the calendar date in any timezone ahead of UTC (same pitfall SO/DO print already document). */
+function formatDdMmYyyy(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  const [year, month, day] = dateStr.split('-')
+  return `${day}/${month}/${year}`
+}
+
+function MetaRow({ label, value, bold }: { label: string; value: ReactNode; bold?: boolean }) {
+  return (
+    <div className="flex">
+      <span className="w-28 shrink-0">{label}</span>
+      <span className="shrink-0">:</span>
+      <span className={`pl-2 ${bold ? 'font-bold' : ''}`}>{value}</span>
+    </div>
+  )
 }
 
 /**
- * Full-bordered "cetak" style matching the legacy system's dot-matrix
- * invoice print, with the same pre-print options (Font Size, Decimal
- * Qty/Price/Amount) users already know, plus Paper Type — A4 (default,
- * unaffected: no @page override) or Continuous 9.5"x11", which narrows the
- * live preview immediately and adds a `<style>@page{...}</style>` so the
- * real print output (Ctrl+P / the Print button) follows suit. Not a PDF —
- * @media print CSS + the browser's native print dialog (window.print()).
- * AppLayout hides its Sidebar/Header chrome under print:hidden, so this
- * page's content is all that prints.
+ * Classic dot-matrix-era layout matching the legacy system's Invoice print exactly (SI.pdf) —
+ * replaces the old modern bordered/card style wholesale, the last of the SO/DO/Invoice print
+ * series. Left-aligned header with no logo (DO's convention) but with TEL/EMAIL lines (SO's
+ * convention) — SI.pdf's own header is a genuine hybrid of the two. Same print plumbing as
+ * SO/DO (print:hidden toolbar, @page margin:0 + print:p-[12mm] wrapper, Times New Roman); own
+ * from-scratch JSX, no shared print "shell" component exists in this codebase to extend.
+ *
+ * Goods and Transportation invoices share this exact layout. Two Transportation-only gaps are
+ * deliberate, not bugs: ItemCode/UOM render blank (createTransportation() never stores either —
+ * no form field collects them), and "Location" renders blank (Transportation invoices carry no
+ * sales_order_id/delivery_id, so there is no warehouse/branch to source it from). SI.pdf's own
+ * sample Transportation invoice happens to show non-blank values for both, most likely a legacy-
+ * system convention this schema doesn't capture — confirmed with the user not to fabricate
+ * placeholder text for either field.
  */
 export function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>()
-  const [printOptions, setPrintOptions] = useState<PrintOptions>(() => ({
-    ...defaultPrintOptions,
-    paperType: loadPaperTypePreference(),
-  }))
+  const [printOptions, setPrintOptions] = useState<PrintOptions>({
+    fontSize: 'medium',
+    paperType: 'a4',
+    // SI.pdf shows plain "200" for Qty (no decimals) but "21,000.00" / "4,200,000.00" for
+    // price/amount — unlike SO.pdf's uniform 2-decimal default.
+    qtyDecimals: 0,
+    priceDecimals: 2,
+    amountDecimals: 2,
+  })
   const [optionsOpen, setOptionsOpen] = useState(false)
-
-  const handlePrintOptionsChange = (next: PrintOptions) => {
-    setPrintOptions(next)
-    savePaperTypePreference(next.paperType)
-  }
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -71,18 +77,18 @@ export function InvoicePrintPage() {
   const invoice = invoiceQuery.data
   if (!invoice) return null
 
-  const compact = printOptions.paperType === 'continuous'
-  const pageCss = PRINT_PAPER_PAGE_CSS[printOptions.paperType]
-  const lastPayment = invoice.payment_history[invoice.payment_history.length - 1]
-  const lastPaymentLabel = lastPayment
-    ? [lastPayment.payment_method ? PAYMENT_METHOD_LABELS[lastPayment.payment_method] : null, lastPayment.cash_account_name].filter(Boolean).join(' — ')
-    : ''
+  const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
+  const attn = invoice.sales_order?.attention ?? ''
+  const tel = invoice.sales_order?.tel ?? invoice.customer?.phone ?? ''
+  const fax = invoice.sales_order?.fax ?? ''
+  const location = invoice.delivery?.warehouse?.name ?? ''
 
   return (
-    <div
-      className={`mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0 ${compact ? 'max-w-[9.5in]' : 'max-w-3xl'}`}
-    >
-      {pageCss && <style>{pageCss}</style>}
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
+      {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
+          + date on top, URL + page number on bottom) — that's not part of the document, it's
+          browser UI. Document margins come from this wrapper's own print:p-[12mm] instead. */}
+      <style>{'@page { size: A4; margin: 0; }'}</style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
@@ -98,123 +104,113 @@ export function InvoicePrintPage() {
         </div>
       </div>
 
-      <div className="border-2 border-foreground/80" style={{ fontSize: PRINT_FONT_SIZE_PX[printOptions.fontSize] }}>
-        <div className={`flex items-start justify-between border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
-          <div>
-            <p className="font-semibold">{brandingQuery.data?.name ?? '—'}</p>
-            {printHeaderQuery.data?.address && <p className="text-xs">{printHeaderQuery.data.address}</p>}
-            {(printHeaderQuery.data?.phone || printHeaderQuery.data?.email) && (
-              <p className="text-xs">{[printHeaderQuery.data?.phone, printHeaderQuery.data?.email].filter(Boolean).join(' · ')}</p>
-            )}
-            {printHeaderQuery.data?.npwp && <p className="text-xs">NPWP: {printHeaderQuery.data.npwp}</p>}
-            <h2 className={compact ? 'text-base font-bold' : 'text-lg font-bold'}>INVOICE</h2>
-            <p>{invoice.document_number}</p>
-            <p>{INVOICE_TYPE_LABELS[invoice.invoice_type]} Invoice</p>
+      <div
+        className="flex min-h-[27.3cm] flex-col text-black"
+        style={{
+          fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
+          fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
+        }}
+      >
+        <div className="flex flex-col gap-0.5">
+          <p className="text-xl font-bold">{companyName}</p>
+          {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
+          {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
+          {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
+        </div>
+
+        <p className="mt-3 text-center text-lg font-bold">INVOICE</p>
+        <hr className="mt-2 border-black" />
+
+        <div className="mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2">
+          <div className="flex flex-col gap-0.5">
+            <p className="font-bold">{invoice.customer?.customer_name ?? '—'}</p>
+            {invoice.customer?.address && <p>{invoice.customer.address}</p>}
+            <div className="mt-2 flex flex-col gap-0.5">
+              <MetaRow label="Attn" value={attn} />
+              <MetaRow label="Tel" value={tel} />
+              <MetaRow label="Fax" value={fax} />
+            </div>
           </div>
-          <div className="text-right">
-            <p>Invoice Date: {formatDate(invoice.invoice_date)}</p>
-            <p>Due Date: {formatDate(invoice.due_date)}</p>
-            {invoice.sales_person && <p>Sales Person: {invoice.sales_person.name}</p>}
-            {invoice.sales_order?.branch && <p>Branch: {invoice.sales_order.branch.name}</p>}
-            {invoice.reference_1 && <p>Reference 1: {invoice.reference_1}</p>}
-            {invoice.reference_2 && <p>Reference 2: {invoice.reference_2}</p>}
+          <div className="flex flex-col gap-0.5">
+            <MetaRow label="NO" value={invoice.document_number ?? '—'} bold />
+            <MetaRow label="Date" value={formatDdMmYyyy(invoice.invoice_date)} />
+            <MetaRow label="Reference 1" value={invoice.reference_1 ?? ''} />
+            <MetaRow label="Reference 2" value={invoice.reference_2 ?? ''} />
+            <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} />
+            <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} />
+            <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} />
+            <MetaRow label="Page No" value="1 of 1" />
+            <MetaRow label="Location" value={location} />
           </div>
         </div>
 
-        <div className={`grid grid-cols-2 gap-4 border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
-          <div>
-            <p className="font-medium">Bill To</p>
-            <p className="font-semibold">{invoice.customer?.customer_name}</p>
-            <p>{invoice.customer?.address}</p>
-            <p>{invoice.customer?.phone}</p>
-          </div>
-          <div className="text-right">
-            <p className="font-medium">Delivery Reference</p>
-            <p>{invoice.delivery?.document_number ?? '—'}</p>
-            {invoice.terms_of_payment && <p>Terms: {invoice.terms_of_payment.name}</p>}
-          </div>
-        </div>
-
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse text-left">
           <thead>
-            <tr className="border-b-2 border-foreground/80 text-left">
-              <th className="border-r-2 border-foreground/80 p-2">Item</th>
-              <th className="border-r-2 border-foreground/80 p-2 text-right">Qty</th>
-              <th className="border-r-2 border-foreground/80 p-2 text-right">Rate</th>
-              <th className="p-2 text-right">Amount</th>
+            <tr className="border-b border-black">
+              <th className="py-1 pr-2 font-normal">No</th>
+              <th className="py-1 pr-2 font-normal">ItemCode</th>
+              <th className="py-1 pr-2 font-normal">Description</th>
+              <th className="py-1 pr-2 text-right font-normal">Qty</th>
+              <th className="py-1 pr-2 font-normal">UOM</th>
+              <th className="py-1 pr-2 text-right font-normal">HCUnitCost</th>
+              <th className="py-1 text-right font-normal">HCLineAmt</th>
             </tr>
           </thead>
           <tbody>
-            {invoice.items.map((line) => (
-              <tr key={line.id} className="border-b border-foreground/30">
-                <td className="border-r-2 border-foreground/80 p-2">
-                  {line.item_name}
-                  <span className="block text-xs">{line.item_code}</span>
-                </td>
-                <td className="border-r-2 border-foreground/80 p-2 text-right">
-                  {formatQty(line.qty, printOptions.qtyDecimals)} {line.uom}
-                </td>
-                <td className="border-r-2 border-foreground/80 p-2 text-right">{formatMoney(line.rate, printOptions.priceDecimals)}</td>
-                <td className="p-2 text-right">{formatMoney(line.amount, printOptions.amountDecimals)}</td>
+            {invoice.items.map((item, index) => (
+              <tr key={item.id}>
+                <td className="py-1 pr-2 align-top">{index + 1}</td>
+                <td className="py-1 pr-2 align-top">{item.item_code ?? ''}</td>
+                <td className="py-1 pr-2 align-top">{item.item_name}</td>
+                <td className="py-1 pr-2 text-right align-top">{formatNum(item.qty, printOptions.qtyDecimals)}</td>
+                <td className="py-1 pr-2 align-top">{item.uom ?? ''}</td>
+                <td className="py-1 pr-2 text-right align-top">{formatNum(item.rate, printOptions.priceDecimals)}</td>
+                <td className="py-1 text-right align-top">{formatNum(item.amount, printOptions.amountDecimals)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <div className="flex flex-col items-end gap-1 border-t-2 border-foreground/80 p-3">
-          <div className="flex w-64 justify-between">
-            <span>Subtotal</span>
-            <span>{formatMoney(invoice.subtotal, printOptions.amountDecimals)}</span>
+        <div className="flex-1" />
+
+        <p>RP</p>
+        <hr className="mt-2 border-black" />
+
+        <div className="mt-2 grid grid-cols-2 gap-4">
+          <div>
+            <p className="font-bold italic">E. &amp; O.E</p>
+            <ol className="mt-1 list-decimal pl-4">
+              <li>
+                All cheque and payment should be crossed and made payable to
+                <br />
+                <span className="font-bold">PT. KALINDO ETAM</span>
+                <br />
+                BCA NO A/C. 0271461312
+              </li>
+            </ol>
           </div>
-          <div className="flex w-64 justify-between">
-            <span>{discountLabel(invoice.discount_type, invoice.discount_percentage)}</span>
-            <span>-{formatMoney(invoice.discount_amount, printOptions.amountDecimals)}</span>
-          </div>
-          <div className="flex w-64 justify-between">
-            <span>Tax</span>
-            <span>{formatMoney(invoice.tax_amount, printOptions.amountDecimals)}</span>
-          </div>
-          <div className="flex w-64 justify-between border-t border-foreground/80 pt-1 text-base font-semibold">
-            <span>Grand Total</span>
-            <span>{formatMoney(invoice.grand_total, printOptions.amountDecimals)}</span>
-          </div>
-          <div className="flex w-64 justify-between">
-            <span>Paid</span>
-            <span>{formatMoney(invoice.paid_amount, printOptions.amountDecimals)}</span>
-          </div>
-          <div className="flex w-64 justify-between font-medium">
-            <span>Outstanding</span>
-            <span>{formatMoney(invoice.outstanding_amount, printOptions.amountDecimals)}</span>
+
+          <div className="self-start border border-black">
+            <div className="flex items-center justify-between gap-8 px-2 py-1 font-bold">
+              <span>Grand Total</span>
+              <span>RP {formatNum(invoice.grand_total, printOptions.amountDecimals)}</span>
+            </div>
           </div>
         </div>
 
-        {lastPaymentLabel && (
-          <div className="border-t-2 border-foreground/80 p-3">
-            <p className="font-medium">Payment</p>
-            <p>{lastPaymentLabel}</p>
-          </div>
-        )}
-
-        {invoice.remarks && (
-          <div className="border-t-2 border-foreground/80 p-3">
-            <p className="font-medium">Notes</p>
-            <p>{invoice.remarks}</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-8 border-t-2 border-foreground/80 p-3 pt-10">
+        <div className="grid grid-cols-2 gap-8 pt-10">
           <div className="text-center">
             <p className="font-semibold">{invoice.customer?.customer_name ?? '—'}</p>
-            <div className="mt-10 border-t border-foreground/80 pt-1">(AUTHORISED SIGNATURE)</div>
+            <div className="mt-10 border-t border-black pt-1">(AUTHORISED SIGNATURE)</div>
           </div>
           <div className="text-center">
-            <p className="font-semibold">{brandingQuery.data?.name ?? 'PT. KALINDO ETAM'}</p>
-            <div className="mt-10 border-t border-foreground/80 pt-1">(AUTHORISED SIGNATURE)</div>
+            <p className="font-semibold">{companyName}</p>
+            <div className="mt-10 border-t border-black pt-1">(AUTHORISED SIGNATURE)</div>
           </div>
         </div>
       </div>
 
-      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={handlePrintOptionsChange} showPaperType />
+      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={setPrintOptions} fields={['qty', 'price', 'amount']} />
     </div>
   )
 }
