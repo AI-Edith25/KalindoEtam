@@ -219,6 +219,7 @@ export function InvoicePrintPage() {
               <th className="py-1 pr-2 font-normal">No</th>
               <th className="py-1 pr-2 font-normal">ItemCode</th>
               <th className="py-1 pr-2 font-normal">Description</th>
+              <th className="py-1 pr-2 font-normal">Sales</th>
               <th className="py-1 pr-2 text-right font-normal">Qty</th>
               <th className="py-1 pr-2 font-normal">UOM</th>
               <th className="py-1 pr-2 text-right font-normal">HCUnitCost</th>
@@ -231,6 +232,7 @@ export function InvoicePrintPage() {
                 <td className="py-1 pr-2 align-top">{index + 1}</td>
                 <td className="py-1 pr-2 align-top">{item.item_code ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{item.item_name}</td>
+                <td className="py-1 pr-2 align-top">{item.sales_person?.name ?? invoice.sales_person?.name ?? ''}</td>
                 <td className="py-1 pr-2 text-right align-top">{formatNum(item.qty, printOptions.qtyDecimals)}</td>
                 <td className="py-1 pr-2 align-top">{item.uom ?? ''}</td>
                 <td className="py-1 pr-2 text-right align-top">{formatNum(item.rate, printOptions.priceDecimals)}</td>
@@ -331,7 +333,13 @@ export function InvoicePrintPage() {
               </tr>,
               <tr key={`${item.id}-desc`}>
                 <td className="pb-1" colSpan={6}>
-                  {item.item_name}
+                  <div>{item.item_name}</div>
+                  {/* Appended below the description rather than as its own column — a 7th
+                      column on this 80mm width risks overflow/truncation the narrow Roll
+                      layout can't afford (see ROLL_CONTENT_WIDTH_MM). */}
+                  {(item.sales_person?.name ?? invoice.sales_person?.name) && (
+                    <div className="text-[8px]">Sales: {item.sales_person?.name ?? invoice.sales_person?.name}</div>
+                  )}
                 </td>
               </tr>,
             ])}

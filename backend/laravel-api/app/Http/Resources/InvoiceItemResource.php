@@ -31,6 +31,12 @@ class InvoiceItemResource extends JsonResource
             'credited_amount' => (float) $creditedTotals->amount,
             'creditable_qty' => (int) $this->qty - (int) $creditedTotals->qty,
             'creditable_amount' => (float) $this->amount - (float) $creditedTotals->amount,
+            // Traced back through the Delivery/Sales Order this line originated from — a
+            // manual line item (e.g. Transportation invoices) has no deliveryItem, so this
+            // is null and the frontend falls back to the invoice-level Sales Person.
+            'sales_person' => $this->relationLoaded('deliveryItem') && $this->deliveryItem?->delivery?->salesOrder?->salesPerson
+                ? new SalesPersonResource($this->deliveryItem->delivery->salesOrder->salesPerson)
+                : null,
         ];
     }
 }

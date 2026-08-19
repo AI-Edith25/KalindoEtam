@@ -183,6 +183,7 @@ export interface InvoiceItem {
   credited_amount: string | number
   creditable_qty: number
   creditable_amount: string | number
+  sales_person: { id: string; code: string; name: string } | null
 }
 
 export interface InvoicePaymentHistoryLine {
