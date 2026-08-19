@@ -50,7 +50,7 @@ export function LaporanPenagihanHarianPrintPage() {
         </Button>
       </div>
 
-      <div className="flex min-h-[27.3cm] flex-col text-black text-[13px]">
+      <div className="flex flex-col text-black text-[13px]" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
         <p className="text-center text-lg font-bold">LAPORAN PENAGIHAN HARIAN</p>
         <p className="text-right">Tanggal : {formatDdMmYyyy(today)}</p>
         <hr className="mt-2 border-black" />
@@ -92,9 +92,7 @@ export function LaporanPenagihanHarianPrintPage() {
           </tfoot>
         </table>
 
-        <div className="flex-1" />
-
-        <p className="mt-4 text-xs font-medium">PEMBAYARAN DENGAN CHEQUE / GIRO DIANGGAP LUNAS SETELAH DICAIRKAN</p>
+        <p className="mt-8 text-xs font-medium">PEMBAYARAN DENGAN CHEQUE / GIRO DIANGGAP LUNAS SETELAH DICAIRKAN</p>
 
         <div className="mt-10 grid grid-cols-2 gap-8">
           <p>Dibuat Oleh,</p>

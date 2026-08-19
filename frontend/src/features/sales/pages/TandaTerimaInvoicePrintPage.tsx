@@ -4,8 +4,11 @@ import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useBrandingLogoObjectUrl, useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
+import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchAccountsReceivablesAll } from '@/features/reports/api/accountsReceivableCustomerReportsApi'
+
+/** Tanda_terima.pdf's own logo, static — not the admin-configurable company branding logo (which may not be set), same reasoning/asset as SalesOrderPrintPage.tsx's KALINDO_ETAM_LOGO_URL. */
+const KALINDO_ETAM_LOGO_URL = '/kalindo-etam-logo.png'
 
 /** Tanda_terima.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol — same reasoning as the SO/DO/SI print family's own formatNum, not the shared id-ID formatMoney the old Reports page used. */
 function formatNum(value: number | string, decimals: number): string {
@@ -34,7 +37,6 @@ export function TandaTerimaInvoicePrintPage() {
 
   const brandingQuery = useCompanyBranding()
   const printHeaderQuery = useCompanyPrintHeader()
-  const logoObjectUrl = useBrandingLogoObjectUrl(brandingQuery.data?.logo_url)
 
   const listQuery = useQuery({
     queryKey: ['accounts-receivables', 'by-invoice-ids', ids],
@@ -77,27 +79,28 @@ export function TandaTerimaInvoicePrintPage() {
         </Button>
       </div>
 
-      <div className="flex min-h-[27.3cm] flex-col text-black text-[13px]">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            {logoObjectUrl && <img src={logoObjectUrl} alt="Logo" className="h-12 w-auto object-contain" />}
-            <div>
-              <p className="text-lg font-bold">{companyName}</p>
-              {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
-              <p>
-                TEL : {printHeaderQuery.data?.phone ?? ''}&nbsp;&nbsp;&nbsp;&nbsp;FAX : ,
-              </p>
-              {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
-            </div>
-          </div>
-          <div className="text-right">
-            <p>{formatDdMmYyyy(today)}</p>
-            <p>To. {customerName.toUpperCase()}</p>
+      <div className="flex flex-col text-black text-[13px]" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+        {/* Logo is absolutely positioned (not a flex sibling) so it can't unbalance the company
+            info block's centering — same technique as SalesOrderPrintPage.tsx's header. */}
+        <div className="relative">
+          <img src={KALINDO_ETAM_LOGO_URL} alt="PT Kalindo Etam" className="absolute left-0 top-0 h-12 w-auto object-contain" />
+          <div className="text-center">
+            <p className="text-lg font-bold">{companyName}</p>
+            {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
+            <p>
+              TEL : {printHeaderQuery.data?.phone ?? ''}&nbsp;&nbsp;&nbsp;&nbsp;FAX : ,
+            </p>
+            {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
           </div>
         </div>
-
-        <p className="mt-2 text-center text-lg font-bold">TANDA TERIMA INVOICE</p>
         <hr className="mt-2 border-black" />
+
+        <div className="mt-1 text-right">
+          <p>{formatDdMmYyyy(today)}</p>
+          <p>To. {customerName.toUpperCase()}</p>
+        </div>
+
+        <p className="mt-3 text-center text-lg font-bold">TANDA TERIMA INVOICE</p>
 
         <table className="mt-2 w-full border-collapse text-left">
           <thead>
@@ -132,9 +135,7 @@ export function TandaTerimaInvoicePrintPage() {
           </tfoot>
         </table>
 
-        <div className="flex-1" />
-
-        <p className="mt-4 text-xs font-medium">PEMBAYARAN DENGAN CHEQUE / GIRO DIANGGAP LUNAS SETELAH DICAIRKAN</p>
+        <p className="mt-8 text-xs font-medium">PEMBAYARAN DENGAN CHEQUE / GIRO DIANGGAP LUNAS SETELAH DICAIRKAN</p>
 
         <div className="mt-10 grid grid-cols-2 gap-8">
           <p>Dibuat Oleh,</p>
