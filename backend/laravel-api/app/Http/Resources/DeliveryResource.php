@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\DeliveryStatus;
 use App\Enums\TaxCalculationMode;
 use App\Services\TaxService;
 use Illuminate\Http\Request;
@@ -43,7 +44,10 @@ class DeliveryResource extends JsonResource
 
                 return app(TaxService::class)->calculate((float) $this->items->sum('amount'), $tax, TaxCalculationMode::EXCLUSIVE)['tax_amount'];
             }),
-            'is_invoiced' => $this->whenLoaded('invoices', fn () => $this->invoices->isNotEmpty()),
+            // null (not false) while still Pending — "not invoiced" implies "eligible to invoice
+            // right now," which isn't true until the Delivery is Complete. The frontend already
+            // renders null as "—" rather than a "Not Invoiced" badge (DeliveryListPage.tsx).
+            'is_invoiced' => $this->whenLoaded('invoices', fn () => $this->status === DeliveryStatus::COMPLETE ? $this->invoices->isNotEmpty() : null),
             'submitted_at' => $this->submitted_at,
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,

@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\DocumentStatus;
+use App\Enums\DeliveryStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,7 +17,13 @@ class IndexDeliveryRequest extends FormRequest
     {
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
+            // Delivery overrides Documentable's default Draft/Submitted/Cancelled lifecycle with
+            // its own Pending/Complete enum (see Delivery::initialStatus()/submittedStatus()) —
+            // must validate against that, not the generic DocumentStatus (whose values don't
+            // include "complete"/"pending" at all, so every status-filtered request 422'd:
+            // New Invoice's eligible-deliveries fetch, this list's own Status filter, and the
+            // Outstanding toggle all send status=complete/pending).
+            'status' => ['sometimes', 'nullable', Rule::enum(DeliveryStatus::class)],
             'warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
             'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
             'item_id' => ['sometimes', 'nullable', 'uuid', 'exists:items,id'],

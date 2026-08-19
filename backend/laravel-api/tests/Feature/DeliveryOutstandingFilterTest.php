@@ -137,6 +137,42 @@ class DeliveryOutstandingFilterTest extends TestCase
         $this->assertFalse($documentNumbers->contains($delivery->fresh()->document_number));
     }
 
+    /**
+     * Regression: IndexDeliveryRequest validated `status` against the generic DocumentStatus
+     * enum (draft/submitted/cancelled) instead of Delivery's own DeliveryStatus (pending/
+     * complete) — every status-filtered request 422'd ("The selected status is invalid."),
+     * including New Invoice's own eligible-deliveries fetch and this list's Status filter.
+     */
+    public function test_status_filter_accepts_delivery_specific_enum_values(): void
+    {
+        $pending = $this->newDelivery();
+        $complete = $this->deliveryService->complete($this->newDelivery());
+
+        $completeResponse = $this->getJson('/api/v1/deliveries?status=complete');
+        $completeResponse->assertOk();
+        $completeNumbers = collect($completeResponse->json('data'))->pluck('document_number');
+        $this->assertTrue($completeNumbers->contains($complete->fresh()->document_number));
+        $this->assertFalse($completeNumbers->contains($pending->fresh()->document_number));
+
+        $pendingResponse = $this->getJson('/api/v1/deliveries?status=pending');
+        $pendingResponse->assertOk();
+        $pendingNumbers = collect($pendingResponse->json('data'))->pluck('document_number');
+        $this->assertTrue($pendingNumbers->contains($pending->fresh()->document_number));
+        $this->assertFalse($pendingNumbers->contains($complete->fresh()->document_number));
+    }
+
+    /** Regression: is_invoiced used to be false (not null) while still Pending, misleadingly implying "eligible to invoice now" on the list's status badge before the Delivery is even Complete. */
+    public function test_is_invoiced_is_null_while_pending(): void
+    {
+        $delivery = $this->newDelivery();
+
+        $response = $this->getJson('/api/v1/deliveries');
+
+        $response->assertOk();
+        $row = collect($response->json('data'))->firstWhere('document_number', $delivery->fresh()->document_number);
+        $this->assertNull($row['is_invoiced']);
+    }
+
     public function test_outstanding_filter_query_count_does_not_scale_with_row_count(): void
     {
         $this->deliveryService->complete($this->newDelivery());
