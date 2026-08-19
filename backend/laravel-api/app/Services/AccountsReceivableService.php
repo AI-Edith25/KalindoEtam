@@ -28,43 +28,6 @@ class AccountsReceivableService
     }
 
     /**
-     * F2 (UAT review 2026-08-12) — "Laporan Penagihan Harian": the same
-     * filtered row set as listAll(), grouped by Customer only (no Sales
-     * Person nesting — that's groupedDetail()/C3's shape, not this one),
-     * each group's own subtotal, plus a grand total.
-     */
-    public function groupedByCustomer(array $filters): array
-    {
-        $rows = $this->accountsReceivableRepository->searchAll($filters);
-
-        $groups = $rows
-            ->groupBy(fn (AccountsReceivable $row) => $row->customer_id ?? '—')
-            ->map(function ($customerRows) {
-                $customer = $customerRows->first()->customer;
-
-                return [
-                    'customer_code' => $customer?->customer_code,
-                    'customer_name' => $customer?->customer_name ?? '—',
-                    'rows' => $customerRows->map(fn (AccountsReceivable $row) => [
-                        'document_no' => $row->invoice?->document_number,
-                        'date' => $row->invoice?->invoice_date?->format('Y-m-d'),
-                        'reference_1' => $row->invoice?->reference_1,
-                        'reference_2' => $row->invoice?->reference_2,
-                        'due_date' => $row->due_date?->format('Y-m-d'),
-                        'outstanding_amount' => (float) $row->amount - (float) $row->paid_amount,
-                    ])->values()->all(),
-                    'customer_subtotal' => $customerRows->sum(fn (AccountsReceivable $row) => (float) $row->amount - (float) $row->paid_amount),
-                ];
-            })
-            ->values();
-
-        return [
-            'groups' => $groups,
-            'grand_total' => $groups->sum('customer_subtotal'),
-        ];
-    }
-
-    /**
      * Called only by InvoiceService::submit() — Accounts Receivable is a
      * system-generated side effect, never created directly by a user.
      * Amount is the Invoice's grand_total (authoritative, includes

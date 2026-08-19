@@ -14,11 +14,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 export interface DataTableColumn<T> {
-  header: string
+  /** Usually a plain string; a ReactNode (e.g. a header "select all" checkbox) needs `id` set too, since `header` alone can no longer serve as the React key below. */
+  header: ReactNode
   accessor: (row: T) => ReactNode
   className?: string
   /** Enables a clickable sort header for this column. Requires `sort`/`onSortChange` on DataTable. */
   sortKey?: string
+  /** Stable React key when `header` isn't a plain string. Falls back to `header` itself (unchanged behavior) when omitted. */
+  id?: string
 }
 
 export interface DataTableSort {
@@ -38,6 +41,11 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void
   sort?: DataTableSort
   onSortChange?: (key: string) => void
+}
+
+/** String headers use themselves as the React key (unchanged behavior for every existing caller); a ReactNode header needs `column.id` or falls back to its column index. */
+function columnKey<T>(column: DataTableColumn<T>, index: number): string {
+  return column.id ?? (typeof column.header === 'string' ? column.header : `col-${index}`)
 }
 
 /**
@@ -65,8 +73,8 @@ export function DataTable<T>({
       <Table>
         <TableHeader>
           <TableRow>
-            {columns.map((column) => (
-              <TableHead key={column.header} className={column.className}>
+            {columns.map((column, index) => (
+              <TableHead key={columnKey(column, index)} className={column.className}>
                 {column.sortKey && onSortChange ? (
                   <button
                     type="button"
@@ -95,8 +103,8 @@ export function DataTable<T>({
           {isLoading ? (
             Array.from({ length: 5 }).map((_, rowIndex) => (
               <TableRow key={rowIndex}>
-                {columns.map((column) => (
-                  <TableCell key={column.header}>
+                {columns.map((column, index) => (
+                  <TableCell key={columnKey(column, index)}>
                     <Skeleton className="h-4 w-full" />
                   </TableCell>
                 ))}
@@ -115,8 +123,8 @@ export function DataTable<T>({
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={cn(onRowClick && 'cursor-pointer hover:bg-muted/50')}
               >
-                {columns.map((column) => (
-                  <TableCell key={column.header} className={column.className}>
+                {columns.map((column, index) => (
+                  <TableCell key={columnKey(column, index)} className={column.className}>
                     {column.accessor(row)}
                   </TableCell>
                 ))}

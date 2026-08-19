@@ -25,6 +25,8 @@ class IndexAccountsReceivableRequest extends FormRequest
             'aging_bucket' => ['sometimes', 'nullable', Rule::in(['30', '45', '60', '90', 'over_180'])],
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
             'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
+            'invoice_ids' => ['sometimes', 'nullable', 'array'],
+            'invoice_ids.*' => ['uuid', 'exists:invoices,id'],
             'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
         ];
     }

@@ -73,28 +73,6 @@ export interface ArDetailGroupedDetail {
   grand_total: number
 }
 
-/** F2 (UAT review 2026-08-12) — "Laporan Penagihan Harian": AR rows grouped by Customer only (no Sales Person nesting — that's the C3 shape). */
-export interface CustomerGroupedRow {
-  document_no: string | null
-  date: string | null
-  reference_1: string | null
-  reference_2: string | null
-  due_date: string | null
-  outstanding_amount: number
-}
-
-export interface CustomerGroupedCustomer {
-  customer_code: string | null
-  customer_name: string
-  rows: CustomerGroupedRow[]
-  customer_subtotal: number
-}
-
-export interface CustomerGroupedDetail {
-  groups: CustomerGroupedCustomer[]
-  grand_total: number
-}
-
 export interface ArDetailReportFilterValues {
   customer_id: string
   status: SettlementStatus | null

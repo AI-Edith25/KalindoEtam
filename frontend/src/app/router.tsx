@@ -31,6 +31,8 @@ import { InvoiceListPage } from '@/features/sales/pages/InvoiceListPage'
 import { InvoiceEditorPage } from '@/features/sales/pages/InvoiceEditorPage'
 import { InvoiceDetailPage } from '@/features/sales/pages/InvoiceDetailPage'
 import { InvoicePrintPage } from '@/features/sales/pages/InvoicePrintPage'
+import { TandaTerimaInvoicePrintPage } from '@/features/sales/pages/TandaTerimaInvoicePrintPage'
+import { LaporanPenagihanHarianPrintPage } from '@/features/sales/pages/LaporanPenagihanHarianPrintPage'
 import { CreditNoteListPage } from '@/features/sales/pages/CreditNoteListPage'
 import { CreditNoteEditorPage } from '@/features/sales/pages/CreditNoteEditorPage'
 import { CreditNoteDetailPage } from '@/features/sales/pages/CreditNoteDetailPage'
@@ -55,10 +57,6 @@ import { InventoryMovementReportPage } from '@/features/reports/pages/InventoryM
 import { InventoryBalanceReportPage } from '@/features/reports/pages/InventoryBalanceReportPage'
 import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/AccountsReceivableDetailReportPage'
 import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/pages/AccountsReceivableDetailReportPrintPage'
-import { TandaTerimaInvoicePage } from '@/features/reports/pages/TandaTerimaInvoicePage'
-import { TandaTerimaInvoicePrintPage } from '@/features/reports/pages/TandaTerimaInvoicePrintPage'
-import { LaporanPenagihanHarianPage } from '@/features/reports/pages/LaporanPenagihanHarianPage'
-import { LaporanPenagihanHarianPrintPage } from '@/features/reports/pages/LaporanPenagihanHarianPrintPage'
 import { IncomingPaymentListPage } from '@/features/payment/pages/IncomingPaymentListPage'
 import { IncomingPaymentEditorPage } from '@/features/payment/pages/IncomingPaymentEditorPage'
 import { IncomingPaymentDetailPage } from '@/features/payment/pages/IncomingPaymentDetailPage'
@@ -138,6 +136,22 @@ export function AppRouter() {
         <Route path="/sales/invoices/:id/edit" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceEditorPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/:id" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceDetailPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/:id/print" element={<ProtectedRoute permission="sales.invoices.view"><InvoicePrintPage /></ProtectedRoute>} />
+        <Route
+          path="/sales/invoices/print/tanda-terima-invoice"
+          element={
+            <ProtectedRoute permission="sales.invoices.view">
+              <TandaTerimaInvoicePrintPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/invoices/print/penagihan-harian"
+          element={
+            <ProtectedRoute permission="sales.invoices.view">
+              <LaporanPenagihanHarianPrintPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/sales/credit-notes" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteListPage /></ProtectedRoute>} />
         <Route path="/sales/credit-notes/new" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/credit-notes/:id/edit" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteEditorPage /></ProtectedRoute>} />
@@ -166,10 +180,6 @@ export function AppRouter() {
         <Route path="/reports/inventory-balance" element={<ProtectedRoute permission="reports.inventory_balance.view"><InventoryBalanceReportPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
-        <Route path="/reports/tanda-terima-invoice" element={<ProtectedRoute permission="reports.tanda_terima_invoice.view"><TandaTerimaInvoicePage /></ProtectedRoute>} />
-        <Route path="/reports/tanda-terima-invoice/print" element={<ProtectedRoute permission="reports.tanda_terima_invoice.view"><TandaTerimaInvoicePrintPage /></ProtectedRoute>} />
-        <Route path="/reports/penagihan-harian" element={<ProtectedRoute permission="reports.penagihan_harian.view"><LaporanPenagihanHarianPage /></ProtectedRoute>} />
-        <Route path="/reports/penagihan-harian/print" element={<ProtectedRoute permission="reports.penagihan_harian.view"><LaporanPenagihanHarianPrintPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/:accountId" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerDetailPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListListPage /></ProtectedRoute>} />

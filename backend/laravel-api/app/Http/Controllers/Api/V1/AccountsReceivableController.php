@@ -46,15 +46,6 @@ class AccountsReceivableController extends Controller
         return $this->success(AccountsReceivableResource::collection($this->accountsReceivableService->listAll($filters)));
     }
 
-    /** F2 (UAT review 2026-08-12) — "Laporan Penagihan Harian": same filters as index(), grouped by Customer with a subtotal per customer + grand total. */
-    public function groupedByCustomer(IndexAccountsReceivableRequest $request): JsonResponse
-    {
-        $filters = $request->validated();
-        unset($filters['per_page']);
-
-        return $this->success($this->accountsReceivableService->groupedByCustomer($filters));
-    }
-
     /** C3 (UAT review 2026-08-12) — "Perincian Piutang": same filters as index(), grouped Sales Person -> Customer with subtotals. */
     public function detailGrouped(IndexAccountsReceivableRequest $request): JsonResponse
     {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -40,6 +41,17 @@ export function InvoiceListPage() {
   const [filters, setFilters] = useState<InvoiceFilterValues>(emptyInvoiceFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null)
+  // Set() iterates in insertion order — the Tanda Terima Invoice print page relies on this to
+  // find the first-checked invoice's customer for its "To." line, not just the first table row.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Selection intentionally doesn't survive a filter/search/page change — matches Sales >
+  // Invoices' existing behavior of resetting scroll/highlighted rows on any query change, and
+  // avoids the complexity of tracking selections against rows no longer in view.
+  useEffect(() => {
+    setSelectedIds(new Set())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, filters.status, filters.dateFrom, filters.dateTo, isOutstanding, page])
 
   const listQuery = useQuery({
     queryKey: ['invoices', page, search, filters.status, filters.dateFrom, filters.dateTo, isOutstanding],
@@ -128,11 +140,47 @@ export function InvoiceListPage() {
     return actions
   }
 
+  const toggleRow = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Scoped to the currently loaded page's rows — this list is server-paginated and there's no
+  // "select every invoice matching the filter across all pages" requirement.
+  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id))
+  const toggleAll = () => {
+    setSelectedIds((prev) => {
+      if (allVisibleSelected) return new Set()
+      const next = new Set(prev)
+      rows.forEach((row) => next.add(row.id))
+      return next
+    })
+  }
+
+  const selectionColumn: DataTableColumn<Invoice> = {
+    id: 'select',
+    header: <Checkbox checked={allVisibleSelected} onCheckedChange={toggleAll} onClick={(e) => e.stopPropagation()} aria-label="Select all" />,
+    accessor: (row) => (
+      <Checkbox
+        checked={selectedIds.has(row.id)}
+        onCheckedChange={() => toggleRow(row.id)}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={`Select ${row.document_number ?? row.id}`}
+      />
+    ),
+    className: 'w-10',
+  }
+
   // "Semua" keeps the fixed 8-column set as-is. "Outstanding" swaps in the billing-relevant
   // columns instead — same fields the AR Detail report already shows (outstanding_amount,
   // display_status via StatusBadge, due_date), reused rather than recomputed.
   const columns: DataTableColumn<Invoice>[] = isOutstanding
     ? [
+        selectionColumn,
         { header: 'Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
         { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
         { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
@@ -146,6 +194,7 @@ export function InvoiceListPage() {
         },
       ]
     : [
+        selectionColumn,
         { header: 'Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
         { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
         {
@@ -184,6 +233,20 @@ export function InvoiceListPage() {
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: true },
+              ...(selectedIds.size > 0
+                ? [
+                    {
+                      label: 'Print Tanda Terima Invoice',
+                      icon: Printer,
+                      onClick: () => navigate(`/sales/invoices/print/tanda-terima-invoice?ids=${[...selectedIds].join(',')}`),
+                    },
+                    {
+                      label: 'Print Laporan Penagihan Harian',
+                      icon: Printer,
+                      onClick: () => navigate(`/sales/invoices/print/penagihan-harian?ids=${[...selectedIds].join(',')}`),
+                    },
+                  ]
+                : []),
             ]}
             primary={canCreate ? { label: 'New Invoice', icon: Plus, onClick: () => navigate('/sales/invoices/new') } : undefined}
           />

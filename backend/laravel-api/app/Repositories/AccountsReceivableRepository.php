@@ -71,6 +71,8 @@ class AccountsReceivableRepository extends BaseRepository
             ->when($filters['invoice_date_to'] ?? null, fn ($query, $date) => $query->whereHas('invoice', fn ($invoiceQuery) => $invoiceQuery->whereDate('invoice_date', '<=', $date)))
             ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('branch_id', $branchId)))
             ->when($filters['sales_person_id'] ?? null, fn ($query, $salesPersonId) => $query->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('sales_person_id', $salesPersonId)))
+            // Sales > Invoices' checkbox-driven print flow (Tanda Terima Invoice / Laporan Penagihan Harian) — resolves checked Invoice ids to their AccountsReceivable rows.
+            ->when($filters['invoice_ids'] ?? null, fn ($query, $ids) => $query->whereIn('invoice_id', $ids))
             ->when($filters['aging_bucket'] ?? null, fn ($query, $bucket) => match ($bucket) {
                 '30' => $query->whereDate('due_date', '>=', now()->subDays(30))->whereDate('due_date', '<=', now()->subDay()),
                 '45' => $query->whereDate('due_date', '>=', now()->subDays(45))->whereDate('due_date', '<=', now()->subDay()),

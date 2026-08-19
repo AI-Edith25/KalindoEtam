@@ -12,6 +12,8 @@ export interface AccountsReceivableListParams {
   invoice_date_to?: string
   branch_id?: string
   sales_person_id?: string
+  /** Sales > Invoices' checkbox print flow (Tanda Terima Invoice / Laporan Penagihan Harian) — resolves checked Invoice ids to their AccountsReceivable rows. */
+  invoice_ids?: string[]
   page?: number
   per_page?: number
 }
