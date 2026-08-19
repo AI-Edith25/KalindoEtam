@@ -14,6 +14,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -228,28 +229,34 @@ export function InvoiceListPage() {
         description="Billed against a delivered order. Accounts Receivable is created once an Invoice is submitted."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} invoices` : undefined}
         actions={
-          <ActionBar
-            actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
-              ...(selectedIds.size > 0
-                ? [
-                    {
-                      label: 'Print Tanda Terima Invoice',
-                      icon: Printer,
-                      onClick: () => navigate(`/sales/invoices/print/tanda-terima-invoice?ids=${[...selectedIds].join(',')}`),
-                    },
-                    {
-                      label: 'Print Laporan Penagihan Harian',
-                      icon: Printer,
-                      onClick: () => navigate(`/sales/invoices/print/penagihan-harian?ids=${[...selectedIds].join(',')}`),
-                    },
-                  ]
-                : []),
-            ]}
-            primary={canCreate ? { label: 'New Invoice', icon: Plus, onClick: () => navigate('/sales/invoices/new') } : undefined}
-          />
+          <>
+            {selectedIds.size > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Printer className="size-4" />
+                    Print
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => navigate(`/sales/invoices/print/tanda-terima-invoice?ids=${[...selectedIds].join(',')}`)}>
+                    Tanda Terima Invoice
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`/sales/invoices/print/penagihan-harian?ids=${[...selectedIds].join(',')}`)}>
+                    Laporan Penagihan Harian
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <ActionBar
+              actions={[
+                { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+                { label: 'Export', icon: Download, disabled: true },
+                { label: 'Import', icon: Upload, disabled: true },
+              ]}
+              primary={canCreate ? { label: 'New Invoice', icon: Plus, onClick: () => navigate('/sales/invoices/new') } : undefined}
+            />
+          </>
         }
       />
 
