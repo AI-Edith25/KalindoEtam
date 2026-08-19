@@ -72,6 +72,15 @@ export function InvoicePrintPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const format = searchParams.get('format') === 'roll' ? 'roll' : 'a4'
   const barcodeRef = useRef<SVGSVGElement>(null)
+  const rollContentRef = useRef<HTMLDivElement>(null)
+  // CSS @page's `size` descriptor has no valid syntax for "fixed width, auto height" (`80mm
+  // auto` is not a legal value per the Paged Media spec — browsers drop the whole declaration
+  // and fall back to the previous/default paper, which is how this shipped broken: Chrome kept
+  // defaulting to A4 with the receipt rendered small in the corner). Two explicit lengths *is*
+  // valid and Chrome does select it as the print paper size without the user touching the paper
+  // picker — so the actual content height is measured after render and fed in as the second
+  // length, faking "auto" instead of using the unsupported keyword.
+  const [rollHeightMm, setRollHeightMm] = useState(150)
   const { user } = useAuth()
   const [printOptions, setPrintOptions] = useState<PrintOptions>({
     fontSize: 'medium',
@@ -99,6 +108,16 @@ export function InvoicePrintPage() {
       JsBarcode(barcodeRef.current, documentNumber, { format: 'CODE128', width: 1, height: 35, margin: 0, displayValue: false })
     }
   }, [format, documentNumber])
+
+  // Runs after the barcode effect above (declaration order = effect execution order for the
+  // same commit) so the barcode's own height is already in the DOM before this measures it.
+  // +2mm safety margin against sub-pixel rounding.
+  useEffect(() => {
+    if (format === 'roll' && rollContentRef.current) {
+      const heightPx = rollContentRef.current.scrollHeight
+      setRollHeightMm(Math.ceil((heightPx * 25.4) / 96) + 2)
+    }
+  }, [format, documentNumber, printOptions.qtyDecimals, printOptions.priceDecimals, printOptions.amountDecimals])
 
   if (invoiceQuery.isLoading) {
     return (
@@ -129,7 +148,7 @@ export function InvoicePrintPage() {
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
           + date on top, URL + page number on bottom) — that's not part of the document, it's
           browser UI. Document margins come from this wrapper's own padding instead. */}
-      <style>{format === 'roll' ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm auto; margin: 0; }` : '@page { size: A4; margin: 0; }'}</style>
+      <style>{format === 'roll' ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }` : '@page { size: A4; margin: 0; }'}</style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
@@ -262,7 +281,7 @@ export function InvoicePrintPage() {
       )}
 
       {format === 'roll' && (
-      <div className="flex flex-col gap-2 text-black" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px' }}>
+      <div ref={rollContentRef} className="flex flex-col gap-2 text-black" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px' }}>
         <div className="flex flex-col items-center gap-0.5 text-center">
           <p className="text-[11px] font-bold">{companyName}</p>
           {printHeaderQuery.data?.npwp && <p>Co Reg. No. : {printHeaderQuery.data.npwp}</p>}
