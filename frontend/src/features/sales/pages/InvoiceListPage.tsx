@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Ban, Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
@@ -10,7 +10,6 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
-import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -30,7 +29,6 @@ const SORTERS: Record<string, (invoice: Invoice) => string | number> = {
 
 export function InvoiceListPage() {
   const navigate = useNavigate()
-  const isOutstanding = useLocation().pathname.endsWith('/outstanding')
   const queryClient = useQueryClient()
   const canCreate = useHasPermission('sales.invoices.create')
   const canUpdate = useHasPermission('sales.invoices.update')
@@ -51,10 +49,10 @@ export function InvoiceListPage() {
   useEffect(() => {
     setSelectedIds(new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, filters.status, filters.dateFrom, filters.dateTo, isOutstanding, page])
+  }, [search, filters.status, filters.dateFrom, filters.dateTo, page])
 
   const listQuery = useQuery({
-    queryKey: ['invoices', page, search, filters.status, filters.dateFrom, filters.dateTo, isOutstanding],
+    queryKey: ['invoices', page, search, filters.status, filters.dateFrom, filters.dateTo],
     queryFn: () =>
       fetchInvoices({
         page,
@@ -62,7 +60,6 @@ export function InvoiceListPage() {
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-        ...(isOutstanding ? { outstanding: true } : {}),
       }),
     placeholderData: (previous) => previous,
   })
@@ -175,47 +172,29 @@ export function InvoiceListPage() {
     className: 'w-10',
   }
 
-  // "Semua" keeps the fixed 8-column set as-is. "Outstanding" swaps in the billing-relevant
-  // columns instead — same fields the AR Detail report already shows (outstanding_amount,
-  // display_status via StatusBadge, due_date), reused rather than recomputed.
-  const columns: DataTableColumn<Invoice>[] = isOutstanding
-    ? [
-        selectionColumn,
-        { header: 'Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
-        { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
-        { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
-        { header: 'Outstanding Amount', accessor: (row) => formatCurrency(row.outstanding_amount), className: 'text-right' },
-        { header: 'Status', accessor: (row) => <StatusBadge status={row.display_status} /> },
-        { header: 'Due Date', accessor: (row) => formatDate(row.due_date) },
-        {
-          header: '',
-          className: 'text-right',
-          accessor: (row) => <RowActionsMenu actions={actionsFor(row)} />,
-        },
-      ]
-    : [
-        selectionColumn,
-        { header: 'Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
-        { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
-        {
-          header: 'Reference',
-          accessor: (row) =>
-            (row.deliveries ?? [])
-              .map((delivery) => delivery.document_number)
-              .filter(Boolean)
-              .join(', ') || '—',
-        },
-        { header: 'Attention', accessor: (row) => row.sales_order?.attention ?? '—' },
-        { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
-        { header: 'Gross Amount', accessor: (row) => formatCurrency(row.subtotal), className: 'text-right' },
-        { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
-        { header: 'Amount', accessor: (row) => formatCurrency(row.grand_total), className: 'text-right', sortKey: 'grand_total' },
-        {
-          header: '',
-          className: 'text-right',
-          accessor: (row) => <RowActionsMenu actions={actionsFor(row)} />,
-        },
-      ]
+  const columns: DataTableColumn<Invoice>[] = [
+    selectionColumn,
+    { header: 'Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
+    { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    {
+      header: 'Reference',
+      accessor: (row) =>
+        (row.deliveries ?? [])
+          .map((delivery) => delivery.document_number)
+          .filter(Boolean)
+          .join(', ') || '—',
+    },
+    { header: 'Attention', accessor: (row) => row.sales_order?.attention ?? '—' },
+    { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
+    { header: 'Gross Amount', accessor: (row) => formatCurrency(row.subtotal), className: 'text-right' },
+    { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
+    { header: 'Amount', accessor: (row) => formatCurrency(row.grand_total), className: 'text-right', sortKey: 'grand_total' },
+    {
+      header: '',
+      className: 'text-right',
+      accessor: (row) => <RowActionsMenu actions={actionsFor(row)} />,
+    },
+  ]
 
   const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo)
 
@@ -254,14 +233,6 @@ export function InvoiceListPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1 rounded-md border p-1">
-          <Button size="sm" variant={!isOutstanding ? 'default' : 'ghost'} onClick={() => navigate('/sales/invoices')}>
-            Semua
-          </Button>
-          <Button size="sm" variant={isOutstanding ? 'default' : 'ghost'} onClick={() => navigate('/sales/invoices/outstanding')}>
-            Outstanding
-          </Button>
-        </div>
         <SearchBox
           value={search}
           onChange={(value) => {
@@ -286,13 +257,7 @@ export function InvoiceListPage() {
         isLoading={listQuery.isLoading}
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
-        emptyMessage={
-          isOutstanding
-            ? 'No outstanding invoices — everything has been paid.'
-            : hasFilters
-              ? 'No invoices match your search or filters.'
-              : 'No invoices yet.'
-        }
+        emptyMessage={hasFilters ? 'No invoices match your search or filters.' : 'No invoices yet.'}
         onRowClick={(row) => navigate(`/sales/invoices/${row.id}`)}
         sort={sort}
         onSortChange={handleSortChange}
