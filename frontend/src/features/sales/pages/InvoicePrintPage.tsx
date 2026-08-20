@@ -5,7 +5,7 @@ import JsBarcode from 'jsbarcode'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
-import { type PrintOptions } from '@/shared/lib/printOptions'
+import { PRINT_PAPER_PAGE_CSS, type PrintOptions } from '@/shared/lib/printOptions'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
@@ -15,6 +15,17 @@ import { fetchInvoice } from '../api/invoiceApi'
     leaves ~4mm margin each side, matching Roll_paper.pdf's effective print area. */
 const ROLL_PAPER_WIDTH_MM = 80
 const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
+
+/**
+ * Continuous paper's own margin (see PRINT_PAPER_PAGE_CSS.continuous — 6mm) subtracted from
+ * 11in on both edges, converted to cm to match the A4 block's own min-h-[27.3cm] convention
+ * (297mm A4 minus 12mm page's own p-[12mm] wrapper padding = 27.3cm). This number — 9.5"×11"
+ * at a flat 6mm margin — was already sitting in printOptions.ts, unconfirmed against the real
+ * printer; flagged for the ops team to verify against actual continuous stock (sprocket-hole
+ * tractor-feed strips often need a wider left/right margin than a flat 6mm allows) and adjusted
+ * here once confirmed.
+ */
+const CONTINUOUS_CONTENT_HEIGHT_CM = 11 * 2.54 - 1.2
 
 /** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
 function formatNum(value: number | string, decimals: number): string {
@@ -92,6 +103,10 @@ export function InvoicePrintPage() {
     amountDecimals: 2,
   })
   const [optionsOpen, setOptionsOpen] = useState(false)
+  // Continuous is a paper-size variant of the A4 layout (same classic tabular content, just a
+  // different @page size/margin) — orthogonal to the Roll format above, which is a completely
+  // different 80mm thermal-receipt layout. Only meaningful when format === 'a4'.
+  const isContinuous = format === 'a4' && printOptions.paperType === 'continuous'
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -141,14 +156,24 @@ export function InvoicePrintPage() {
       className={
         format === 'roll'
           ? 'mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:p-[2mm]'
-          : 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]'
+          : isContinuous
+            // @page's own margin (PRINT_PAPER_PAGE_CSS.continuous) does the inset here — no
+            // extra wrapper padding on top of it, unlike A4's margin:0-on-@page + p-[12mm].
+            ? 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0'
+            : 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]'
       }
       style={format === 'roll' ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` } : undefined}
     >
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
           + date on top, URL + page number on bottom) — that's not part of the document, it's
-          browser UI. Document margins come from this wrapper's own padding instead. */}
-      <style>{format === 'roll' ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }` : '@page { size: A4; margin: 0; }'}</style>
+          browser UI. Document margins come from this wrapper's own padding instead (A4/Roll) or
+          @page's own margin (Continuous, see PRINT_PAPER_PAGE_CSS — kept as a single source of
+          truth rather than a second hardcoded copy here). */}
+      <style>
+        {format === 'roll'
+          ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
+          : (isContinuous ? PRINT_PAPER_PAGE_CSS.continuous : '@page { size: A4; margin: 0; }')}
+      </style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
@@ -161,6 +186,8 @@ export function InvoicePrintPage() {
               Roll
             </Button>
           </div>
+          {/* Roll already picks its own fixed 80mm size — Paper Type only makes sense against
+              the A4-style tabular layout, so it's hidden while format === 'roll'. */}
           <Button variant="outline" onClick={() => setOptionsOpen(true)}>
             <Settings2 className="size-4" />
             Print Options
@@ -174,8 +201,9 @@ export function InvoicePrintPage() {
 
       {format === 'a4' && (
       <div
-        className="flex min-h-[27.3cm] flex-col text-black"
+        className="flex flex-col text-black"
         style={{
+          minHeight: isContinuous ? `${CONTINUOUS_CONTENT_HEIGHT_CM}cm` : '27.3cm',
           fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
           fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
         }}
@@ -228,7 +256,10 @@ export function InvoicePrintPage() {
           </thead>
           <tbody>
             {invoice.items.map((item, index) => (
-              <tr key={item.id}>
+              // break-inside-avoid only for Continuous — a genuinely multi-page invoice on
+              // continuous stock must not split a row across the perforation; A4 is left
+              // exactly as it already behaved (no page-break rule at all).
+              <tr key={item.id} className={isContinuous ? 'break-inside-avoid' : undefined}>
                 <td className="py-1 pr-2 align-top">{index + 1}</td>
                 <td className="py-1 pr-2 align-top">{item.item_code ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{item.item_name}</td>
@@ -365,7 +396,14 @@ export function InvoicePrintPage() {
       </div>
       )}
 
-      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={setPrintOptions} fields={['qty', 'price', 'amount']} />
+      <PrintOptionsDialog
+        open={optionsOpen}
+        onOpenChange={setOptionsOpen}
+        options={printOptions}
+        onChange={setPrintOptions}
+        fields={['qty', 'price', 'amount']}
+        showPaperType={format === 'a4'}
+      />
     </div>
   )
 }
