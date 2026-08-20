@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\TaxCalculationMode;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,10 +23,9 @@ class StorePurchaseOrderRequest extends FormRequest
             'items.*.item_id' => ['required', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.rate' => ['required', 'numeric', 'min:0'],
-            // Same Tax Engine contract as Invoice — docs/TAX_ENGINE_DESIGN.md §6.
+            'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
+            // Header tax_id is now display-only — the "last bulk-applied tax" marker. See docs/TAX_ENGINE_DESIGN.md §6.
             'tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('is_active', true)],
-            'tax_mode' => ['sometimes', 'nullable', Rule::enum(TaxCalculationMode::class)],
-            'tax_amount' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

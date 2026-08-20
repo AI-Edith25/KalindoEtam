@@ -25,18 +25,26 @@ export interface ChartOfAccountFormValues {
 
 export type TaxType = 'vat' | 'zero_rated' | 'exempt'
 
+export type TaxTransactionType = 'purchase' | 'sales'
+
+export type TaxCalculationMode = 'inclusive' | 'exclusive'
+
 /**
  * Tax Engine (Sprint 21B) — see docs/TAX_ENGINE_DESIGN.md. rate/type only
  * matter for `type = 'vat'`; Zero Rated and Exempt always calculate to
  * Rp 0 regardless of the stored rate (TaxService::calculate() decides
- * this server-side — never reimplemented here).
+ * this server-side — never reimplemented here). transaction_type/
+ * calculation_mode added for per-line Purchase/Sales tax — a Tax record
+ * applies to exactly one side of a transaction, never both.
  */
 export interface Tax {
   id: string
   code: string
   name: string
   type: TaxType
+  transaction_type: TaxTransactionType
   rate: string | number
+  calculation_mode: TaxCalculationMode
   is_active: boolean
   created_at: string
   updated_at: string
@@ -46,7 +54,9 @@ export interface TaxFormValues {
   code: string
   name: string
   type: TaxType
+  transaction_type: TaxTransactionType
   rate: number
+  calculation_mode: TaxCalculationMode
   is_active?: boolean
 }
 
@@ -76,6 +86,10 @@ export interface Item {
   uom: Uom | null
   standard_rate: string | number
   current_stock: number
+  purchase_tax_id: string | null
+  purchase_tax: Tax | null
+  sales_tax_id: string | null
+  sales_tax: Tax | null
   created_at: string
   updated_at: string
 }
@@ -86,6 +100,8 @@ export interface ItemFormValues {
   item_group_id: string
   uom_id: string
   standard_rate: number
+  purchase_tax_id?: string | null
+  sales_tax_id?: string | null
 }
 
 export interface ItemGroupFormValues {

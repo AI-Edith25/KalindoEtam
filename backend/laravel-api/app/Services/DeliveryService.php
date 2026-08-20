@@ -25,6 +25,7 @@ class DeliveryService
         protected SalesOrderItemRepository $salesOrderItemRepository,
         protected StockLedgerService $stockLedgerService,
         protected AuditLogService $auditLogService,
+        protected TaxService $taxService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -151,6 +152,12 @@ class DeliveryService
         $this->assertWithinOutstanding($soItem, $qty);
 
         $item = $soItem->item;
+        $lineAmount = $qty * $soItem->rate;
+        // tax_id carries forward as-is; tax_amount is recomputed against this delivery
+        // line's own (possibly partial) qty, not simply copied — same "rate inherited,
+        // amount recomputed against the real quantity" rule the old header-level
+        // inheritance used, now applied per line.
+        $taxAmount = $this->taxService->calculate($lineAmount, $soItem->tax)['tax_amount'];
 
         $this->deliveryItemRepository->create([
             'delivery_id' => $delivery->id,
@@ -161,7 +168,9 @@ class DeliveryService
             'uom' => $item->uom->name,
             'rate' => $soItem->rate,
             'qty' => $qty,
-            'amount' => $qty * $soItem->rate,
+            'amount' => $lineAmount,
+            'tax_id' => $soItem->tax_id,
+            'tax_amount' => $taxAmount,
         ]);
     }
 

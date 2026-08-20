@@ -4,11 +4,10 @@ namespace App\Services;
 
 use App\Enums\SalesOrderStatus;
 use App\Exceptions\BusinessException;
-use App\Enums\TaxCalculationMode;
+use App\Models\Item;
 use App\Models\SalesOrder;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
-use App\Repositories\TaxRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +19,6 @@ class SalesOrderService
         protected SalesOrderItemRepository $salesOrderItemRepository,
         protected AuditLogService $auditLogService,
         protected CustomerCreditService $customerCreditService,
-        protected TaxRepository $taxRepository,
         protected TaxService $taxService,
     ) {}
 
@@ -43,8 +41,6 @@ class SalesOrderService
                 'creating Sales Order',
             );
 
-            [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
-
             $salesOrder = $this->salesOrderRepository->create([
                 'customer_id' => $data['customer_id'],
                 'sales_person_id' => $data['sales_person_id'] ?? null,
@@ -58,14 +54,22 @@ class SalesOrderService
                 'reference' => $data['reference'] ?? null,
                 'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
                 'total_amount' => $subtotal,
-                'tax_id' => $taxId,
+                // tax_id is now purely a "last bulk-applied tax" marker for the header's
+                // own "Apply to all lines" convenience — the authoritative tax_amount below
+                // is always a sum of the per-line amounts resolveLineTax() computes.
+                'tax_id' => $data['tax_id'] ?? null,
+                'tax_amount' => 0,
+                'grand_total' => $subtotal,
+            ]);
+
+            $taxAmount = $this->replaceItems($salesOrder, $data['items']);
+
+            $this->salesOrderRepository->update($salesOrder, [
                 'tax_amount' => $taxAmount,
                 'grand_total' => round($subtotal + $taxAmount, 2),
             ]);
 
-            $this->replaceItems($salesOrder, $data['items']);
-
-            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'tax', 'items.item']);
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'tax', 'items.item', 'items.tax']);
             $this->auditLogService->record('created', 'sales_order', "Created Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;
@@ -79,50 +83,29 @@ class SalesOrderService
 
             $headerData = collect($data)->except(['items', 'tax_id', 'tax_amount'])->all();
 
-            $subtotal = (float) $salesOrder->total_amount;
+            // Items changing means the per-line tax sum can change too — always recompute
+            // together, never reuse a stale cached tax_amount against a new subtotal.
             if (isset($data['items'])) {
-                $this->replaceItems($salesOrder, $data['items']);
                 $subtotal = $this->sumLines($data['items']);
+                $taxAmount = $this->replaceItems($salesOrder, $data['items']);
                 $headerData['total_amount'] = $subtotal;
-            }
-
-            // Only re-resolve tax when the caller actually touched it — otherwise keep the
-            // sales order's existing tax_id/tax_amount exactly as they were (same shape as
-            // PurchaseOrderService::update()).
-            if (array_key_exists('tax_id', $data) || array_key_exists('tax_amount', $data)) {
-                [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
-                $headerData['tax_id'] = $taxId;
                 $headerData['tax_amount'] = $taxAmount;
                 $headerData['grand_total'] = round($subtotal + $taxAmount, 2);
-            } elseif (isset($data['items'])) {
-                // Subtotal changed but tax selection didn't — re-total against the same tax.
-                $headerData['grand_total'] = round($subtotal + (float) $salesOrder->tax_amount, 2);
+            }
+
+            // tax_id is display-only (the "last bulk-applied tax" marker) — store verbatim
+            // if the caller sent one, never used to (re)drive calculation here.
+            if (array_key_exists('tax_id', $data)) {
+                $headerData['tax_id'] = $data['tax_id'];
             }
 
             $this->salesOrderRepository->update($salesOrder, $headerData);
 
-            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'tax', 'items.item']);
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'tax', 'items.item', 'items.tax']);
             $this->auditLogService->record('updated', 'sales_order', "Updated Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;
         });
-    }
-
-    /** Identical contract to PurchaseOrderService::resolveTax() — same TaxService, same fallback rule.
-     *
-     * @return array{0: ?string, 1: float} [taxId, taxAmount]
-     */
-    protected function resolveTax(array $data, float $subtotal): array
-    {
-        if (! empty($data['tax_id'])) {
-            $tax = $this->taxRepository->findOrFail($data['tax_id']);
-            $mode = TaxCalculationMode::from($data['tax_mode'] ?? TaxCalculationMode::EXCLUSIVE->value);
-            $taxAmount = $this->taxService->calculate($subtotal, $tax, $mode)['tax_amount'];
-
-            return [$tax->id, $taxAmount];
-        }
-
-        return [null, (float) ($data['tax_amount'] ?? 0)];
     }
 
     public function delete(SalesOrder $salesOrder): void
@@ -215,20 +198,33 @@ class SalesOrderService
         }
     }
 
-    protected function replaceItems(SalesOrder $salesOrder, array $items): void
+    /** @return float the sum of every line's resolved tax_amount, for the header's own cache column. */
+    protected function replaceItems(SalesOrder $salesOrder, array $items): float
     {
         $salesOrder->items()->delete();
 
+        $itemsById = Item::query()->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
+        $totalTax = 0.0;
+
         foreach ($items as $line) {
+            $lineAmount = $line['qty'] * $line['rate'];
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'sales_tax_id', $lineAmount);
+
             $this->salesOrderItemRepository->create([
                 'sales_order_id' => $salesOrder->id,
                 'item_id' => $line['item_id'],
                 'qty' => $line['qty'],
                 'rate' => $line['rate'],
-                'amount' => $line['qty'] * $line['rate'],
+                'amount' => $lineAmount,
                 'delivered_qty' => 0,
+                'tax_id' => $taxId,
+                'tax_amount' => $taxAmount,
             ]);
+
+            $totalTax += $taxAmount;
         }
+
+        return round($totalTax, 2);
     }
 
     protected function sumLines(array $items): float

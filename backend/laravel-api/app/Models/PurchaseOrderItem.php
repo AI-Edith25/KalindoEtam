@@ -19,6 +19,8 @@ class PurchaseOrderItem extends Model
         'rate',
         'amount',
         'received_qty',
+        'tax_id',
+        'tax_amount',
     ];
 
     protected $casts = [
@@ -26,6 +28,7 @@ class PurchaseOrderItem extends Model
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
         'received_qty' => 'integer',
+        'tax_amount' => 'decimal:2',
     ];
 
     public function purchaseOrder(): BelongsTo
@@ -36,5 +39,10 @@ class PurchaseOrderItem extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function tax(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class);
     }
 }

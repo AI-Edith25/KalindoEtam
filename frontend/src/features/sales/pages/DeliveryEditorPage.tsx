@@ -17,7 +17,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { computeGrandTotal, computeSubtotal } from '@/shared/lib/documentTotals'
+import { computeGrandTotal, computeSubtotal, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { fetchWarehousesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
 import { fetchStockBalances } from '@/features/inventory/api/stockApi'
 import { addDays } from '@/shared/lib/dateMath'
@@ -311,9 +311,14 @@ function DeliveryForm({
   const watchedItems = form.watch('items')
   const deliveringNowLines = (watchedItems ?? []).map((line) => ({ qty: line.deliverNow, rate: line.rate }))
   const subtotal = computeSubtotal(deliveringNowLines)
-  // Read-only, inherited from the Sales Order's tax (B1/B2 of the workflow spec) — never an
-  // independent choice here. Preview only; DeliveryResource on the backend is authoritative.
-  const tax = salesOrder.tax && salesOrder.tax.type === 'vat' ? Math.round(subtotal * (Number(salesOrder.tax.rate) / 100) * 100) / 100 : 0
+  // Tax is per-line now — each line's tax comes from its own Sales Order line (already
+  // resolved there), recomputed against this delivery's own (possibly partial) qty, not a
+  // single document-wide rate. Preview only; DeliveryResource on the backend is authoritative.
+  const tax = (watchedItems ?? []).reduce((sum, line) => {
+    const soItem = salesOrder.items.find((item) => item.id === line.sales_order_item_id)
+
+    return sum + lineTaxAmount(Number(line.deliverNow || 0) * Number(line.rate || 0), soItem?.tax)
+  }, 0)
   const grandTotal = computeGrandTotal(deliveringNowLines) + tax
 
   return (

@@ -72,7 +72,6 @@ export function SalesOrderPrintPage() {
   const salesOrder = salesOrderQuery.data
   if (!salesOrder) return null
 
-  const taxRatePercent = salesOrder.tax ? Number(salesOrder.tax.rate) : 0
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
 
   return (
@@ -160,7 +159,9 @@ export function SalesOrderPrintPage() {
           </thead>
           <tbody>
             {salesOrder.items.map((item, index) => {
-              const inclusiveAmount = Number(item.amount) * (1 + taxRatePercent / 100)
+              // Per-line now — each line's own tax_amount (already resolved server-side), not a
+              // document-wide rate, since different lines can carry different taxes.
+              const inclusiveAmount = Number(item.amount) + Number(item.tax_amount)
               return (
                 <tr key={item.id}>
                   <td className="py-1 pr-2 align-top">{index + 1}</td>

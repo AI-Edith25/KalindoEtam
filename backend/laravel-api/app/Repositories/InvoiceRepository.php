@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class InvoiceRepository extends BaseRepository
 {
-    protected const EAGER = ['customer', 'salesOrder', 'salesOrders', 'delivery.warehouse', 'deliveries', 'items', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount'];
+    protected const EAGER = ['customer', 'salesOrder', 'salesOrders', 'delivery.warehouse', 'deliveries', 'items.tax', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount'];
 
     public function __construct(Invoice $model)
     {

@@ -15,6 +15,7 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Enums\TaxTransactionType;
 use App\Enums\TaxType;
 use App\Models\JournalEntry;
 use App\Models\Tax;
@@ -88,11 +89,11 @@ class AccountingEngineTest extends TestCase
 
     protected function submittedDelivery(int $qty = 10, float $rate = 10000, ?string $taxId = null): \App\Models\Delivery
     {
+        // Tax is per-line now — attached to the Sales Order's own line item, not the header.
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
-            'tax_id' => $taxId,
+            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'tax_id' => $taxId]],
         ]);
         $this->approveDocument($salesOrder);
         $this->salesOrderService->approve($salesOrder);
@@ -120,6 +121,7 @@ class AccountingEngineTest extends TestCase
                 'code' => 'TEST-'.Str::random(6),
                 'name' => 'Test Tax',
                 'type' => TaxType::VAT,
+                'transaction_type' => TaxTransactionType::SALES,
                 'rate' => $taxAmount / $subtotal * 100,
                 'is_active' => true,
             ])->id;

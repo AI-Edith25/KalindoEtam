@@ -19,7 +19,7 @@ import { formatCurrency } from '@/lib/utils'
 import { fetchItemsLookup, fetchSuppliersLookup, fetchTaxesLookup } from '@/features/master/api/lookupsApi'
 import { createPurchaseOrder, fetchPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder } from '../api/purchaseOrderApi'
 import { PurchaseOrderLineItemTable } from '../components/PurchaseOrderLineItemTable'
-import { computeSubtotal } from '@/shared/lib/documentTotals'
+import { computeSubtotal, computeLineTaxTotal } from '@/shared/lib/documentTotals'
 import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
 import {
   emptyPurchaseOrderEditorValues,
@@ -72,6 +72,7 @@ export function PurchaseOrderEditorPage() {
         item_id: line.item_id,
         qty: String(line.qty),
         rate: String(line.rate),
+        tax_id: line.tax_id ?? '',
       })),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,6 +88,7 @@ export function PurchaseOrderEditorPage() {
       item_id: line.item_id,
       qty: Number(line.qty),
       rate: Number(line.rate),
+      tax_id: line.tax_id || null,
     })),
   })
 
@@ -124,18 +126,23 @@ export function PurchaseOrderEditorPage() {
   const watchedItems = form.watch('items')
   const subtotal = computeSubtotal(watchedItems ?? [])
 
+  // Tax is per-line now — the header Select below is a bulk "apply to all lines" override,
+  // not the source of calculation. Preview only; TaxService::calculate() on the backend
+  // always computes and returns the authoritative per-line tax_amount/grand_total on save.
   const existingTax = isEdit ? orderQuery.data?.tax : null
-  const activeTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active)
+  const activePurchaseTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'purchase')
   const taxOptions =
-    existingTax && !activeTaxOptions.some((t) => t.id === existingTax.id) ? [...activeTaxOptions, existingTax] : activeTaxOptions
+    existingTax && !activePurchaseTaxOptions.some((t) => t.id === existingTax.id)
+      ? [...activePurchaseTaxOptions, existingTax]
+      : activePurchaseTaxOptions
 
   const watchedTaxId = form.watch('tax_id')
-  const selectedTax = taxOptions.find((t) => t.id === watchedTaxId) ?? null
-  // Preview only — TaxService::calculate() on the backend always computes and returns the
-  // authoritative tax_amount/grand_total on save. Mirrors that same exclusive-VAT formula
-  // purely for instant visual feedback; the saved value never comes from here.
-  const tax = selectedTax && selectedTax.type === 'vat' ? Math.round(subtotal * (Number(selectedTax.rate) / 100) * 100) / 100 : 0
+  const tax = computeLineTaxTotal(watchedItems ?? [], (line) => taxOptions.find((t) => t.id === line.tax_id))
   const grandTotal = subtotal + tax
+
+  const applyTaxToAllLines = () => {
+    ;(watchedItems ?? []).forEach((_, index) => form.setValue(`items.${index}.tax_id`, watchedTaxId, { shouldValidate: true }))
+  }
 
   if (isEdit && orderQuery.isLoading) {
     return (
@@ -215,25 +222,33 @@ export function PurchaseOrderEditorPage() {
                 name="tax_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tax</FormLabel>
-                    <Select
-                      value={field.value || NO_TAX}
-                      onValueChange={(value) => field.onChange(value === NO_TAX ? '' : value)}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_TAX}>No tax</SelectItem>
-                        {taxOptions.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name} ({t.code}){t.type === 'vat' ? ` — ${t.rate}%` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Tax (bulk override)</FormLabel>
+                    <div className="flex gap-2">
+                      <Select
+                        value={field.value || NO_TAX}
+                        onValueChange={(value) => field.onChange(value === NO_TAX ? '' : value)}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={NO_TAX}>No tax</SelectItem>
+                          {taxOptions.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name} ({t.code}){t.type === 'vat' ? ` — ${t.rate}%` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button type="button" variant="outline" size="sm" onClick={applyTaxToAllLines} disabled={!watchedItems?.length}>
+                        Apply to all lines
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Each line defaults to its Item&apos;s own Purchase Tax — this only bulk-replaces every line&apos;s tax at once.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -259,7 +274,7 @@ export function PurchaseOrderEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <PurchaseOrderLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} />
+              <PurchaseOrderLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} taxes={activePurchaseTaxOptions} />
               {form.formState.errors.items?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
               )}

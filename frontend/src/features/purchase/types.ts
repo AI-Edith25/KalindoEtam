@@ -10,6 +10,9 @@ export interface PurchaseOrderItem {
   qty: number
   rate: string | number
   amount: string | number
+  tax_id: string | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
+  tax_amount: string | number
   received_qty: number
   outstanding_qty: number
 }
@@ -25,7 +28,7 @@ export interface PurchaseOrder {
   expected_delivery_date: string | null
   total_amount: string | number
   tax_id: string | null
-  tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
   grand_total: string | number
   remarks: string | null
@@ -42,6 +45,7 @@ export interface PurchaseOrderLineFormValues {
   item_id: string
   qty: string
   rate: string
+  tax_id: string
 }
 
 export interface PurchaseOrderFormValues {
@@ -50,7 +54,7 @@ export interface PurchaseOrderFormValues {
   expected_delivery_date: string | null
   tax_id: string | null
   remarks: string | null
-  items: { item_id: string; qty: number; rate: number }[]
+  items: { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
 }
 
 export interface PurchaseOrderFilterValues {

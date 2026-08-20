@@ -17,7 +17,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { computeSubtotal } from '@/shared/lib/documentTotals'
+import { computeSubtotal, computeLineTaxTotal } from '@/shared/lib/documentTotals'
 import {
   fetchBranches,
   fetchCustomersLookup,
@@ -88,6 +88,7 @@ export function SalesOrderEditorPage() {
         item_id: line.item_id,
         qty: String(line.qty),
         rate: String(line.rate),
+        tax_id: line.tax_id ?? '',
       })),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,6 +134,7 @@ export function SalesOrderEditorPage() {
       item_id: line.item_id,
       qty: Number(line.qty),
       rate: Number(line.rate),
+      tax_id: line.tax_id || null,
     })),
     ...(values.override_credit_block ? { override_credit_block: true, override_reason: values.override_reason || null } : {}),
   })
@@ -175,17 +177,23 @@ export function SalesOrderEditorPage() {
   const watchedItems = form.watch('items')
   const subtotal = computeSubtotal(watchedItems ?? [])
 
-  // Same Tax select pattern as PurchaseOrderEditorPage — preview only, TaxService::calculate()
-  // on the backend always computes and returns the authoritative tax_amount/grand_total on save.
+  // Tax is per-line now — the header Select below is a bulk "apply to all lines" override,
+  // not the source of calculation. Preview only; TaxService::calculate() on the backend
+  // always computes and returns the authoritative per-line tax_amount/grand_total on save.
   const existingTax = isEdit ? orderQuery.data?.tax : null
-  const activeTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active)
+  const activeSalesTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'sales')
   const taxOptions =
-    existingTax && !activeTaxOptions.some((t) => t.id === existingTax.id) ? [...activeTaxOptions, existingTax] : activeTaxOptions
+    existingTax && !activeSalesTaxOptions.some((t) => t.id === existingTax.id)
+      ? [...activeSalesTaxOptions, existingTax]
+      : activeSalesTaxOptions
 
   const watchedTaxId = form.watch('tax_id')
-  const selectedTax = taxOptions.find((t) => t.id === watchedTaxId) ?? null
-  const tax = selectedTax && selectedTax.type === 'vat' ? Math.round(subtotal * (Number(selectedTax.rate) / 100) * 100) / 100 : 0
+  const tax = computeLineTaxTotal(watchedItems ?? [], (line) => taxOptions.find((t) => t.id === line.tax_id))
   const grandTotal = subtotal + tax
+
+  const applyTaxToAllLines = () => {
+    ;(watchedItems ?? []).forEach((_, index) => form.setValue(`items.${index}.tax_id`, watchedTaxId, { shouldValidate: true }))
+  }
 
   // Customer Credit block — see CustomerCreditService on the backend. Live-rechecked against
   // grandTotal on every line-item change with no extra network call (see useCustomerCreditCheck).
@@ -419,22 +427,30 @@ export function SalesOrderEditorPage() {
                 name="tax_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tax</FormLabel>
-                    <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NONE}>No tax</SelectItem>
-                        {taxOptions.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name} ({t.code}){t.type === 'vat' ? ` — ${t.rate}%` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Tax (bulk override)</FormLabel>
+                    <div className="flex gap-2">
+                      <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={NONE}>No tax</SelectItem>
+                          {taxOptions.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name} ({t.code}){t.type === 'vat' ? ` — ${t.rate}%` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button type="button" variant="outline" size="sm" onClick={applyTaxToAllLines} disabled={!watchedItems?.length}>
+                        Apply to all lines
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Each line defaults to its Item&apos;s own Sales Tax — this only bulk-replaces every line&apos;s tax at once.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -486,7 +502,7 @@ export function SalesOrderEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <SalesOrderLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} />
+              <SalesOrderLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} taxes={activeSalesTaxOptions} />
               {form.formState.errors.items?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
               )}

@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\TaxCalculationMode;
+use App\Enums\TaxTransactionType;
 use App\Enums\TaxType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,7 +21,9 @@ class UpdateTaxRequest extends FormRequest
             'code' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('taxes', 'code')->ignore($this->route('tax'))],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'type' => ['sometimes', 'required', Rule::enum(TaxType::class)],
+            'transaction_type' => ['sometimes', 'required', Rule::enum(TaxTransactionType::class)],
             'rate' => ['sometimes', 'required', 'numeric', 'min:0', 'max:100'],
+            'calculation_mode' => ['sometimes', 'required', Rule::enum(TaxCalculationMode::class)],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

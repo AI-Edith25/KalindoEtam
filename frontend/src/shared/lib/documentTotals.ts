@@ -24,3 +24,32 @@ export function computeTax(): number {
 export function computeGrandTotal(lines: LineLike[]): number {
   return computeSubtotal(lines) + computeTax()
 }
+
+interface TaxLike {
+  type: string
+  rate: string | number
+  calculation_mode: string
+}
+
+/**
+ * Client-side preview of TaxService::calculate() — mirrors the backend's
+ * Exclusive/Inclusive formula exactly. Preview only; the backend always
+ * recomputes and returns the authoritative amount on save.
+ */
+export function lineTaxAmount(amount: number, tax: TaxLike | null | undefined): number {
+  if (!tax || tax.type !== 'vat') return 0
+
+  const rate = Number(tax.rate)
+
+  if (tax.calculation_mode === 'inclusive') {
+    const net = amount / (1 + rate / 100)
+
+    return Math.round((amount - net) * 100) / 100
+  }
+
+  return Math.round(((amount * rate) / 100) * 100) / 100
+}
+
+export function computeLineTaxTotal<T extends LineLike>(lines: T[], resolveTax: (line: T) => TaxLike | null | undefined): number {
+  return lines.reduce((sum, line) => sum + lineTaxAmount(lineAmount(line), resolveTax(line)), 0)
+}

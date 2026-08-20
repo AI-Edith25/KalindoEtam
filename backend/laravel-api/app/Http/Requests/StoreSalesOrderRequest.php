@@ -32,6 +32,7 @@ class StoreSalesOrderRequest extends FormRequest
             'items.*.item_id' => ['required', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.rate' => ['required', 'numeric', 'min:0'],
+            'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }

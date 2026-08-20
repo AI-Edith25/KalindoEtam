@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreItemRequest extends FormRequest
 {
@@ -26,6 +27,8 @@ class StoreItemRequest extends FormRequest
             'item_group_id' => ['required', 'uuid', 'exists:item_groups,id'],
             'uom_id' => ['required', 'uuid', 'exists:uoms,id'],
             'standard_rate' => ['sometimes', 'numeric', 'min:0'],
+            'purchase_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'purchase')],
+            'sales_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'sales')],
         ];
     }
 }

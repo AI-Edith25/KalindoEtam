@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\TaxCalculationMode;
+use App\Enums\TaxTransactionType;
 use App\Enums\TaxType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,7 +21,9 @@ class StoreTaxRequest extends FormRequest
             'code' => ['required', 'string', 'max:50', 'unique:taxes,code'],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::enum(TaxType::class)],
+            'transaction_type' => ['required', Rule::enum(TaxTransactionType::class)],
             'rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'calculation_mode' => ['required', Rule::enum(TaxCalculationMode::class)],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

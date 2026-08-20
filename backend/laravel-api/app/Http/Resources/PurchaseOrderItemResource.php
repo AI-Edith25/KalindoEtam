@@ -17,6 +17,9 @@ class PurchaseOrderItemResource extends JsonResource
             'qty' => $this->qty,
             'rate' => $this->rate,
             'amount' => $this->amount,
+            'tax_id' => $this->tax_id,
+            'tax' => new TaxResource($this->whenLoaded('tax')),
+            'tax_amount' => $this->tax_amount,
             'received_qty' => $this->received_qty,
             'outstanding_qty' => $this->qty - $this->received_qty,
         ];

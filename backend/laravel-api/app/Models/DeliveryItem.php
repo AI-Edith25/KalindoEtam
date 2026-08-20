@@ -22,12 +22,15 @@ class DeliveryItem extends Model
         'rate',
         'qty',
         'amount',
+        'tax_id',
+        'tax_amount',
     ];
 
     protected $casts = [
         'rate' => 'decimal:2',
         'qty' => 'integer',
         'amount' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
     ];
 
     public function delivery(): BelongsTo
@@ -43,5 +46,10 @@ class DeliveryItem extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function tax(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class);
     }
 }

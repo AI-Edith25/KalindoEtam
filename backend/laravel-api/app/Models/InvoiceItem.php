@@ -23,12 +23,15 @@ class InvoiceItem extends Model
         'rate',
         'qty',
         'amount',
+        'tax_id',
+        'tax_amount',
     ];
 
     protected $casts = [
         'rate' => 'decimal:2',
         'qty' => 'integer',
         'amount' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
     ];
 
     public function invoice(): BelongsTo
@@ -44,6 +47,11 @@ class InvoiceItem extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function tax(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class);
     }
 
     public function creditNoteItems(): HasMany

@@ -22,7 +22,7 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchCustomersLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
 import { addDays } from '@/shared/lib/dateMath'
-import { computeSubtotal, lineAmount } from '@/shared/lib/documentTotals'
+import { computeSubtotal, lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
@@ -59,6 +59,10 @@ interface PreviewLine {
   qty: number
   rate: string | number
   amount: string | number
+  // Already resolved server-side (from the source Delivery/Sales Order line) — never
+  // recomputed here, unlike Transportation's own header-level tax preview below.
+  tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+  tax_amount: string | number
 }
 
 /** Transportation-only manual line — no Item/inventory link, matching Debit Note's own freestanding-line pattern (a plain useState array, not RHF/zod). */
@@ -79,6 +83,8 @@ const lineColumns: DataTableColumn<PreviewLine>[] = [
   { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
   { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+  { header: 'Tax', accessor: (row) => row.tax?.name ?? '—' },
+  { header: 'Tax Amount', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
 ]
 
 export function InvoiceEditorPage() {
@@ -327,8 +333,8 @@ function InvoiceForm({
   // Only Active taxes may be selected for a new/changed assignment (docs/TAX_ENGINE_DESIGN.md §9)
   // — but an invoice already referencing a since-deactivated tax must keep showing it correctly.
   const existingTax = isEdit ? invoice?.tax : null
-  const activeTaxOptions = (taxesQuery.data ?? []).filter((tax) => tax.is_active)
-  const taxOptions: { id: string; code: string; name: string; type: string; rate: string | number }[] =
+  const activeTaxOptions = (taxesQuery.data ?? []).filter((tax) => tax.is_active && tax.transaction_type === 'sales')
+  const taxOptions: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string }[] =
     existingTax && !activeTaxOptions.some((tax) => tax.id === existingTax.id) ? [...activeTaxOptions, existingTax] : activeTaxOptions
 
   const form = useForm<InvoiceEditorValues>({
@@ -407,8 +413,9 @@ function InvoiceForm({
     discount_amount: values.discount_type === 'amount' ? (values.discount_amount === '' ? 0 : Number(values.discount_amount)) : null,
     discount_percentage: values.discount_type === 'percentage' ? (values.discount_percentage === '' ? 0 : Number(values.discount_percentage)) : null,
     // TaxService::calculate() computes tax_amount server-side from tax_id — never sent directly
-    // from here. See docs/TAX_ENGINE_DESIGN.md §6. Goods invoices never send tax_id at all —
-    // the backend always inherits it from the Sales Order, ignoring anything sent (B1/B3).
+    // from here. See docs/TAX_ENGINE_DESIGN.md §6. Goods invoices have no header tax at all
+    // anymore (tax is per-line, resolved when the Sales Order/Delivery line was created) — omitted
+    // entirely so the backend's own null default applies.
     tax_id: isTransportation ? values.tax_id || null : undefined,
     tax_amount: null,
     remarks: values.remarks || null,
@@ -447,12 +454,11 @@ function InvoiceForm({
   const watchedDiscountAmount = form.watch('discount_amount')
   const watchedDiscountPercentage = form.watch('discount_percentage')
   const watchedTaxId = form.watch('tax_id')
-  // Goods invoices never let the user pick a tax (B1/B3 of the workflow spec) — it's inherited
-  // read-only from the anchor Sales Order, either the already-saved invoice's own tax (edit
-  // mode) or the first selected Delivery's Sales Order (create mode preview). Transportation
-  // (no Sales Order) keeps the independent Select, driven by the RHF field as before.
-  const inheritedTax = isEdit ? (invoice?.tax ?? null) : (selectedDeliveries[0]?.sales_order?.tax ?? null)
-  const selectedTax = isTransportation ? (taxOptions.find((tax) => tax.id === watchedTaxId) ?? null) : inheritedTax
+  // Transportation (no Item-backed lines) keeps the independent header Select, driven by the
+  // RHF field. Goods invoices have no single header tax anymore — each line already carries
+  // its own resolved tax (inherited from its Sales Order/Delivery line), so the total below is
+  // always a sum of the lines, never a single Select's calculation.
+  const selectedTax = isTransportation ? (taxOptions.find((tax) => tax.id === watchedTaxId) ?? null) : null
 
   const previewLines: PreviewLine[] = isEdit
     ? (invoice?.items ?? []).map((line) => ({ ...line }))
@@ -464,11 +470,13 @@ function InvoiceForm({
     watchedDiscountType === 'percentage'
       ? Math.round(subtotal * (Number(watchedDiscountPercentage || 0) / 100) * 100) / 100
       : Number(watchedDiscountAmount || 0)
-  // Preview only — TaxService::calculate() on the backend always computes and returns the
-  // authoritative tax_amount on save (Exclusive mode, this document's only mode today). This
-  // mirrors that same formula purely for instant visual feedback before the round trip; the
-  // saved value never comes from here. See docs/TAX_ENGINE_DESIGN.md §4/§6.
-  const watchedTax = selectedTax && selectedTax.type === 'vat' ? Math.round(subtotal * (Number(selectedTax.rate) / 100) * 100) / 100 : 0
+  // Transportation: preview only, mirrors TaxService::calculate()'s Exclusive/Inclusive
+  // formula (docs/TAX_ENGINE_DESIGN.md §4) purely for instant feedback before the round trip.
+  // Goods: each line's tax_amount is already server-resolved (from the Delivery/Sales Order
+  // line), so this is a real sum, not a preview.
+  const watchedTax = isTransportation
+    ? lineTaxAmount(subtotal, selectedTax)
+    : previewLines.reduce((sum, line) => sum + Number(line.tax_amount || 0), 0)
   const grandTotal = subtotal - discountAmount + watchedTax
 
   const onSubmit = form.handleSubmit((values) => {
@@ -745,10 +753,8 @@ function InvoiceForm({
               ) : (
                 <div className="flex flex-col gap-1.5">
                   <span className="text-sm font-medium">Tax</span>
-                  <span className="text-sm text-muted-foreground">
-                    {inheritedTax ? `${inheritedTax.name} (${inheritedTax.code}) — ${inheritedTax.rate}%` : 'No tax'}
-                  </span>
-                  <p className="text-xs text-muted-foreground">Inherited from the Sales Order — cannot be changed here.</p>
+                  <span className="text-sm text-muted-foreground">{formatCurrency(watchedTax)}</span>
+                  <p className="text-xs text-muted-foreground">Calculated per line — see the Line Items table below.</p>
                 </div>
               )}
               <FormField

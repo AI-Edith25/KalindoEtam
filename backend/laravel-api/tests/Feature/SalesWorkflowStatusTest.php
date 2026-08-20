@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\AccountsReceivableStatus;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
+use App\Enums\TaxTransactionType;
 use App\Enums\TaxType;
 use App\Enums\WarehouseType;
 use App\Exceptions\BusinessException;
@@ -92,8 +93,7 @@ class SalesWorkflowStatusTest extends TestCase
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
-            'tax_id' => $taxId,
+            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'tax_id' => $taxId]],
         ]);
         $this->approveDocument($salesOrder);
 
@@ -225,7 +225,7 @@ class SalesWorkflowStatusTest extends TestCase
 
     public function test_delivery_tax_amount_is_computed_from_the_sales_order_rate_on_a_partial_shipment(): void
     {
-        $tax = Tax::query()->create(['code' => 'PPN11', 'name' => 'PPN 11%', 'type' => TaxType::VAT, 'rate' => 11, 'is_active' => true]);
+        $tax = Tax::query()->create(['code' => 'PPN11', 'name' => 'PPN 11%', 'type' => TaxType::VAT, 'transaction_type' => TaxTransactionType::SALES, 'rate' => 11, 'is_active' => true]);
         $salesOrder = $this->approvedSalesOrder(qty: 10, rate: 10000, taxId: $tax->id); // full SO amount 100000
 
         // Only 4 of the 10 ordered units go out on this Delivery — a partial shipment.
@@ -237,7 +237,7 @@ class SalesWorkflowStatusTest extends TestCase
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => 4]],
         ]);
         $delivery = $this->deliveryService->complete($delivery);
-        $delivery->load(['items', 'salesOrder.tax']);
+        $delivery->load(['items.tax']);
 
         $resource = (new DeliveryResource($delivery))->toArray(request());
 

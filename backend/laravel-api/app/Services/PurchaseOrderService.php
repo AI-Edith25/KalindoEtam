@@ -3,29 +3,27 @@
 namespace App\Services;
 
 use App\Enums\DocumentStatus;
-use App\Enums\TaxCalculationMode;
 use App\Exceptions\BusinessException;
+use App\Models\Item;
 use App\Models\PurchaseOrder;
 use App\Repositories\PurchaseOrderItemRepository;
 use App\Repositories\PurchaseOrderRepository;
-use App\Repositories\TaxRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Purchase Order is the closest existing Purchase document to gain tax
  * support — no Purchase Invoice/Bill document type exists yet in this
- * codebase. Reuses TaxService::calculate() identically to InvoiceService,
- * the same "one calculation, many callers" shape. Never posts a journal
- * entry (Purchase Order doesn't today, unchanged) — this is calculation
- * only. See docs/TAX_ENGINE_DESIGN.md §5/§6.
+ * codebase. Per-line tax defaults from each line's Item.purchase_tax_id
+ * via TaxService::resolveLineTax(); the header tax_amount is a sum of
+ * line amounts. Never posts a journal entry (Purchase Order doesn't
+ * today, unchanged) — this is calculation only. See docs/TAX_ENGINE_DESIGN.md §5/§6.
  */
 class PurchaseOrderService
 {
     public function __construct(
         protected PurchaseOrderRepository $purchaseOrderRepository,
         protected PurchaseOrderItemRepository $purchaseOrderItemRepository,
-        protected TaxRepository $taxRepository,
         protected TaxService $taxService,
         protected AuditLogService $auditLogService,
     ) {}
@@ -39,7 +37,6 @@ class PurchaseOrderService
     {
         return DB::transaction(function () use ($data) {
             $subtotal = $this->sumLines($data['items']);
-            [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
 
             $purchaseOrder = $this->purchaseOrderRepository->create([
                 'supplier_id' => $data['supplier_id'],
@@ -47,14 +44,22 @@ class PurchaseOrderService
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'total_amount' => $subtotal,
-                'tax_id' => $taxId,
+                // tax_id is now purely a "last bulk-applied tax" marker for the header's
+                // own "Apply to all lines" convenience — the authoritative tax_amount below
+                // is always a sum of the per-line amounts resolveLineTax() computes.
+                'tax_id' => $data['tax_id'] ?? null,
+                'tax_amount' => 0,
+                'grand_total' => $subtotal,
+            ]);
+
+            $taxAmount = $this->replaceItems($purchaseOrder, $data['items']);
+
+            $this->purchaseOrderRepository->update($purchaseOrder, [
                 'tax_amount' => $taxAmount,
                 'grand_total' => round($subtotal + $taxAmount, 2),
             ]);
 
-            $this->replaceItems($purchaseOrder, $data['items']);
-
-            $purchaseOrder = $purchaseOrder->fresh(['supplier', 'items.item', 'tax']);
+            $purchaseOrder = $purchaseOrder->fresh(['supplier', 'items.item', 'items.tax', 'tax']);
             $this->auditLogService->record('created', 'purchase_order', "Created Purchase Order \"{$purchaseOrder->document_number}\".");
 
             return $purchaseOrder;
@@ -66,49 +71,31 @@ class PurchaseOrderService
         return DB::transaction(function () use ($purchaseOrder, $data) {
             $this->assertDraft($purchaseOrder, 'updated');
 
-            $headerData = collect($data)->except(['items', 'tax_id', 'tax_mode'])->all();
+            $headerData = collect($data)->except(['items', 'tax_id', 'tax_amount'])->all();
 
-            $subtotal = (float) $purchaseOrder->total_amount;
+            // Items changing means the per-line tax sum can change too — always recompute
+            // together, never reuse a stale cached tax_amount against a new subtotal.
             if (isset($data['items'])) {
-                $this->replaceItems($purchaseOrder, $data['items']);
                 $subtotal = $this->sumLines($data['items']);
+                $taxAmount = $this->replaceItems($purchaseOrder, $data['items']);
                 $headerData['total_amount'] = $subtotal;
-            }
-
-            if (array_key_exists('tax_id', $data) || array_key_exists('tax_amount', $data)) {
-                [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
-                $headerData['tax_id'] = $taxId;
                 $headerData['tax_amount'] = $taxAmount;
                 $headerData['grand_total'] = round($subtotal + $taxAmount, 2);
-            } elseif (isset($data['items'])) {
-                // Subtotal changed but tax selection didn't — re-total against the same tax.
-                $headerData['grand_total'] = round($subtotal + (float) $purchaseOrder->tax_amount, 2);
+            }
+
+            // tax_id is display-only (the "last bulk-applied tax" marker) — store verbatim
+            // if the caller sent one, never used to (re)drive calculation here.
+            if (array_key_exists('tax_id', $data)) {
+                $headerData['tax_id'] = $data['tax_id'];
             }
 
             $this->purchaseOrderRepository->update($purchaseOrder, $headerData);
 
-            $purchaseOrder = $purchaseOrder->fresh(['supplier', 'items.item', 'tax']);
+            $purchaseOrder = $purchaseOrder->fresh(['supplier', 'items.item', 'items.tax', 'tax']);
             $this->auditLogService->record('updated', 'purchase_order', "Updated Purchase Order \"{$purchaseOrder->document_number}\".");
 
             return $purchaseOrder;
         });
-    }
-
-    /** Identical contract to InvoiceService::resolveTax() — same TaxService, same fallback rule. See docs/TAX_ENGINE_DESIGN.md §6.
-     *
-     * @return array{0: ?string, 1: float} [taxId, taxAmount]
-     */
-    protected function resolveTax(array $data, float $subtotal): array
-    {
-        if (! empty($data['tax_id'])) {
-            $tax = $this->taxRepository->findOrFail($data['tax_id']);
-            $mode = TaxCalculationMode::from($data['tax_mode'] ?? TaxCalculationMode::EXCLUSIVE->value);
-            $taxAmount = $this->taxService->calculate($subtotal, $tax, $mode)['tax_amount'];
-
-            return [$tax->id, $taxAmount];
-        }
-
-        return [null, (float) ($data['tax_amount'] ?? 0)];
     }
 
     public function delete(PurchaseOrder $purchaseOrder): void
@@ -158,20 +145,33 @@ class PurchaseOrderService
         }
     }
 
-    protected function replaceItems(PurchaseOrder $purchaseOrder, array $items): void
+    /** @return float the sum of every line's resolved tax_amount, for the header's own cache column. */
+    protected function replaceItems(PurchaseOrder $purchaseOrder, array $items): float
     {
         $purchaseOrder->items()->delete();
 
+        $itemsById = Item::query()->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
+        $totalTax = 0.0;
+
         foreach ($items as $line) {
+            $lineAmount = $line['qty'] * $line['rate'];
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'purchase_tax_id', $lineAmount);
+
             $this->purchaseOrderItemRepository->create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'item_id' => $line['item_id'],
                 'qty' => $line['qty'],
                 'rate' => $line['rate'],
-                'amount' => $line['qty'] * $line['rate'],
+                'amount' => $lineAmount,
                 'received_qty' => 0,
+                'tax_id' => $taxId,
+                'tax_amount' => $taxAmount,
             ]);
+
+            $totalTax += $taxAmount;
         }
+
+        return round($totalTax, 2);
     }
 
     protected function sumLines(array $items): float

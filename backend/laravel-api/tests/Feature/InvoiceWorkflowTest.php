@@ -8,6 +8,7 @@ use App\Enums\InvoiceType;
 use App\Enums\PaymentMethod;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
+use App\Enums\TaxTransactionType;
 use App\Enums\TaxType;
 use App\Enums\WarehouseType;
 use App\Exceptions\BusinessException;
@@ -91,8 +92,7 @@ class InvoiceWorkflowTest extends TestCase
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
-            'tax_id' => $taxId,
+            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'tax_id' => $taxId]],
         ]);
         $this->approveDocument($salesOrder);
         $this->salesOrderService->approve($salesOrder);
@@ -110,10 +110,9 @@ class InvoiceWorkflowTest extends TestCase
 
     public function test_invoice_can_be_created_from_a_submitted_delivery(): void
     {
-        // Goods invoices inherit tax from their Sales Order (B1/B2 of the workflow spec) —
-        // a raw tax_amount in the request is no longer honored, so the Sales Order carries
-        // an 11% Tax instead to reach the same 111000 grand total.
-        $tax = Tax::query()->create(['code' => 'PPN11', 'name' => 'PPN 11%', 'type' => TaxType::VAT, 'rate' => 11, 'is_active' => true]);
+        // Tax is per-line now — attached to the Sales Order's line item, flows through
+        // Delivery to the Invoice line, and sums into the header's tax_amount/grand_total.
+        $tax = Tax::query()->create(['code' => 'PPN11', 'name' => 'PPN 11%', 'type' => TaxType::VAT, 'transaction_type' => TaxTransactionType::SALES, 'rate' => 11, 'is_active' => true]);
         $delivery = $this->submittedDelivery(qty: 10, rate: 10000, taxId: $tax->id);
 
         $invoice = $this->invoiceService->create([

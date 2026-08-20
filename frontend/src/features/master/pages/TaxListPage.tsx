@@ -25,6 +25,16 @@ const TYPE_LABELS: Record<Tax['type'], string> = {
   exempt: 'Tax Exempt',
 }
 
+const TRANSACTION_TYPE_LABELS: Record<Tax['transaction_type'], string> = {
+  purchase: 'Purchase',
+  sales: 'Sales',
+}
+
+const CALCULATION_MODE_LABELS: Record<Tax['calculation_mode'], string> = {
+  inclusive: 'Inclusive',
+  exclusive: 'Exclusive',
+}
+
 const SORTERS: Record<string, (t: Tax) => string | number> = {
   code: (t) => t.code,
   name: (t) => t.name,
@@ -51,7 +61,16 @@ export function TaxListPage() {
   })
 
   const toggleActiveMutation = useMutation({
-    mutationFn: (tax: Tax) => updateTax(tax.id, { code: tax.code, name: tax.name, type: tax.type, rate: Number(tax.rate), is_active: !tax.is_active }),
+    mutationFn: (tax: Tax) =>
+      updateTax(tax.id, {
+        code: tax.code,
+        name: tax.name,
+        type: tax.type,
+        transaction_type: tax.transaction_type,
+        rate: Number(tax.rate),
+        calculation_mode: tax.calculation_mode,
+        is_active: !tax.is_active,
+      }),
     onSuccess: (tax) => {
       queryClient.invalidateQueries({ queryKey: ['taxes-paged'] })
       toast.success(tax.is_active ? `${tax.name} activated.` : `${tax.name} deactivated.`)
@@ -63,7 +82,9 @@ export function TaxListPage() {
     { header: 'Code', accessor: (row) => row.code, sortKey: 'code' },
     { header: 'Name', accessor: (row) => row.name, sortKey: 'name' },
     { header: 'Type', accessor: (row) => TYPE_LABELS[row.type] },
+    { header: 'Transaction Type', accessor: (row) => TRANSACTION_TYPE_LABELS[row.transaction_type] },
     { header: 'Rate', accessor: (row) => (row.type === 'vat' ? `${row.rate}%` : '—'), className: 'text-right' },
+    { header: 'Calculation', accessor: (row) => CALCULATION_MODE_LABELS[row.calculation_mode] },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.is_active ? 'active' : 'inactive'} /> },
     {
       header: '',

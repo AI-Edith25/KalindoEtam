@@ -3,8 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Enums\DeliveryStatus;
-use App\Enums\TaxCalculationMode;
-use App\Services\TaxService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,18 +30,22 @@ class DeliveryResource extends JsonResource
             'driver' => $this->driver,
             'items' => DeliveryItemResource::collection($this->whenLoaded('items')),
             'amount' => $this->whenLoaded('items', fn () => $this->items->sum('amount')),
-            // Read-only, inherited from the Sales Order's tax code (never an independent
-            // choice on the Delivery — B1 of the workflow spec) and recomputed against this
-            // Delivery's own item amounts, so a partial shipment's tax is correct on its own.
-            'tax_id' => $this->whenLoaded('salesOrder', fn () => $this->salesOrder?->tax_id),
-            'tax' => $this->whenLoaded('salesOrder', fn () => $this->salesOrder?->relationLoaded('tax') && $this->salesOrder->tax
-                ? new TaxResource($this->salesOrder->tax)
-                : null),
-            'tax_amount' => $this->when($this->relationLoaded('items') && $this->relationLoaded('salesOrder'), function () {
-                $tax = $this->salesOrder?->relationLoaded('tax') ? $this->salesOrder->tax : null;
+            // Tax is per-line now (each item's own tax_id/tax_amount, already resolved when
+            // the Sales Order line/Delivery line was created) — tax_amount below is always
+            // the accurate sum. tax_id/tax only resolve to a single value when every line
+            // happens to share the same Tax; a genuinely mixed-tax shipment shows "—" here
+            // (the frontend already renders a null tax as that), same as no tax at all.
+            'tax_id' => $this->whenLoaded('items', function () {
+                $taxIds = $this->items->pluck('tax_id')->unique();
 
-                return app(TaxService::class)->calculate((float) $this->items->sum('amount'), $tax, TaxCalculationMode::EXCLUSIVE)['tax_amount'];
+                return $taxIds->count() === 1 ? $taxIds->first() : null;
             }),
+            'tax' => $this->whenLoaded('items', function () {
+                $taxes = $this->items->pluck('tax')->filter()->unique('id');
+
+                return $taxes->count() === 1 ? new TaxResource($taxes->first()) : null;
+            }),
+            'tax_amount' => $this->whenLoaded('items', fn () => round((float) $this->items->sum('tax_amount'), 2)),
             // null (not false) while still Pending — "not invoiced" implies "eligible to invoice
             // right now," which isn't true until the Delivery is Complete. The frontend already
             // renders null as "—" rather than a "Not Invoiced" badge (DeliveryListPage.tsx).

@@ -11,6 +11,16 @@ const TYPE_LABELS: Record<Tax['type'], string> = {
   exempt: 'Tax Exempt',
 }
 
+const TRANSACTION_TYPE_LABELS: Record<Tax['transaction_type'], string> = {
+  purchase: 'Purchase',
+  sales: 'Sales',
+}
+
+const CALCULATION_MODE_LABELS: Record<Tax['calculation_mode'], string> = {
+  inclusive: 'Inclusive',
+  exclusive: 'Exclusive',
+}
+
 interface TaxDetailDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -34,7 +44,9 @@ export function TaxDetailDrawer({ open, onOpenChange, tax, onEdit }: TaxDetailDr
         <DetailField label="Code" value={tax.code} />
         <DetailField label="Name" value={tax.name} />
         <DetailField label="Type" value={TYPE_LABELS[tax.type]} />
+        <DetailField label="Transaction Type" value={TRANSACTION_TYPE_LABELS[tax.transaction_type]} />
         <DetailField label="Rate" value={tax.type === 'vat' ? `${tax.rate}%` : 'Not applicable'} />
+        <DetailField label="Tax Calculation" value={CALCULATION_MODE_LABELS[tax.calculation_mode]} />
       </DetailSection>
 
       <Separator />

@@ -18,6 +18,9 @@ class SalesOrderItemResource extends JsonResource
             'qty' => $this->qty,
             'rate' => $this->rate,
             'amount' => $this->amount,
+            'tax_id' => $this->tax_id,
+            'tax' => new TaxResource($this->whenLoaded('tax')),
+            'tax_amount' => $this->tax_amount,
             'delivered_qty' => $this->delivered_qty,
             'outstanding_qty' => $this->qty - $this->delivered_qty,
         ];

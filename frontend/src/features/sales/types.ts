@@ -23,6 +23,9 @@ export interface SalesOrderItem {
   qty: number
   rate: string | number
   amount: string | number
+  tax_id: string | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
+  tax_amount: string | number
   delivered_qty: number
   outstanding_qty: number
 }
@@ -42,7 +45,7 @@ export interface SalesOrder {
   expected_delivery_date: string | null
   total_amount: string | number
   tax_id: string | null
-  tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
   grand_total: string | number
   remarks: string | null
@@ -74,7 +77,7 @@ export interface SalesOrderFormValues {
   reference?: string | null
   terms_of_payment_id?: string | null
   tax_id?: string | null
-  items: { item_id: string; qty: number; rate: number }[]
+  items: { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
   override_credit_block?: boolean
   override_reason?: string | null
 }
@@ -107,6 +110,9 @@ export interface DeliveryItem {
   qty: number
   rate: string | number
   amount: string | number
+  tax_id: string | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
+  tax_amount: string | number
 }
 
 export interface Delivery {
@@ -124,7 +130,7 @@ export interface Delivery {
     reference: string | null
     sales_person: { id: string; code: string; name: string } | null
     tax_id: string | null
-    tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+    tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   } | null
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
@@ -139,9 +145,10 @@ export interface Delivery {
   driver: string | null
   items: DeliveryItem[]
   amount: string | number
-  // Read-only, inherited from the Sales Order's tax (B1 of the workflow spec) — see DeliveryResource.
+  // Per-line now — only resolves to a single value here when every line shares the same
+  // Tax; a mixed-tax shipment leaves these null while tax_amount stays an accurate sum. See DeliveryResource.
   tax_id: string | null
-  tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
   is_invoiced: boolean | null
   submitted_at: string | null
@@ -179,6 +186,9 @@ export interface InvoiceItem {
   qty: number
   rate: string | number
   amount: string | number
+  tax_id: string | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
+  tax_amount: string | number
   credited_qty: number
   credited_amount: string | number
   creditable_qty: number
@@ -230,7 +240,7 @@ export interface Invoice {
   discount_type: DiscountType
   discount_percentage: string | number | null
   tax_id: string | null
-  tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
+  tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
   grand_total: string | number
   paid_amount: string | number

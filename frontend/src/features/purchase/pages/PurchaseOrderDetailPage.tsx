@@ -179,7 +179,7 @@ export function PurchaseOrderDetailPage() {
             <DetailField label="Supplier" value={order.supplier?.supplier_name ?? '—'} />
             <DetailField label="Order Date" value={formatDate(order.order_date)} />
             <DetailField label="Expected Delivery Date" value={formatDate(order.expected_delivery_date)} />
-            <DetailField label="Tax" value={order.tax ? `${order.tax.name} (${order.tax.code})` : '—'} />
+            <DetailField label="Tax (bulk override)" value={order.tax ? `${order.tax.name} (${order.tax.code})` : '— (per line)'} />
             <DetailField label="Notes" value={order.remarks || '—'} />
           </DetailSection>
         </CardContent>

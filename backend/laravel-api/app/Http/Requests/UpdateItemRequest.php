@@ -29,6 +29,8 @@ class UpdateItemRequest extends FormRequest
             'item_group_id' => ['sometimes', 'required', 'uuid', 'exists:item_groups,id'],
             'uom_id' => ['sometimes', 'required', 'uuid', 'exists:uoms,id'],
             'standard_rate' => ['sometimes', 'numeric', 'min:0'],
+            'purchase_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'purchase')],
+            'sales_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'sales')],
         ];
     }
 }

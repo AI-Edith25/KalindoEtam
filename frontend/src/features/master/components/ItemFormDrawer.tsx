@@ -19,8 +19,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { createItem, updateItem } from '../api/itemApi'
-import { fetchItemGroups, fetchUoms } from '../api/lookupsApi'
+import { fetchItemGroups, fetchUoms, fetchTaxesLookup } from '../api/lookupsApi'
 import type { Item } from '../types'
+
+const NO_TAX = '__none__'
 
 const itemFormSchema = z.object({
   item_code: z.string().min(1, 'Item Code is required').max(255),
@@ -31,16 +33,20 @@ const itemFormSchema = z.object({
     .string()
     .min(1, 'Standard Rate is required')
     .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0, 'Must be zero or greater'),
+  purchase_tax_id: z.string(),
+  sales_tax_id: z.string(),
 })
 
-type ItemFormValues = z.infer<typeof itemFormSchema>
+type ItemFormSchemaValues = z.infer<typeof itemFormSchema>
 
-const emptyValues: ItemFormValues = {
+const emptyValues: ItemFormSchemaValues = {
   item_code: '',
   item_name: '',
   item_group_id: '',
   uom_id: '',
   standard_rate: '0',
+  purchase_tax_id: '',
+  sales_tax_id: '',
 }
 
 interface ItemFormDrawerProps {
@@ -54,7 +60,7 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
   const isEdit = !!item
   const queryClient = useQueryClient()
 
-  const form = useForm<ItemFormValues>({
+  const form = useForm<ItemFormSchemaValues>({
     resolver: zodResolver(itemFormSchema),
     defaultValues: emptyValues,
   })
@@ -70,6 +76,8 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
             item_group_id: item.item_group_id,
             uom_id: item.uom_id,
             standard_rate: String(item.standard_rate),
+            purchase_tax_id: item.purchase_tax_id ?? '',
+            sales_tax_id: item.sales_tax_id ?? '',
           }
         : emptyValues,
     )
@@ -77,10 +85,19 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
 
   const itemGroups = useQuery({ queryKey: ['item-groups'], queryFn: fetchItemGroups })
   const uoms = useQuery({ queryKey: ['uoms'], queryFn: fetchUoms })
+  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
+  const activeTaxes = (taxesQuery.data ?? []).filter((t) => t.is_active)
+  const purchaseTaxOptions = activeTaxes.filter((t) => t.transaction_type === 'purchase')
+  const salesTaxOptions = activeTaxes.filter((t) => t.transaction_type === 'sales')
 
   const mutation = useMutation({
-    mutationFn: (values: ItemFormValues) => {
-      const payload = { ...values, standard_rate: Number(values.standard_rate) }
+    mutationFn: (values: ItemFormSchemaValues) => {
+      const payload = {
+        ...values,
+        standard_rate: Number(values.standard_rate),
+        purchase_tax_id: values.purchase_tax_id || null,
+        sales_tax_id: values.sales_tax_id || null,
+      }
       return isEdit ? updateItem(item.id, payload) : createItem(payload)
     },
     onSuccess: () => {
@@ -91,7 +108,7 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
     onError: (error) => toastApiError(error),
   })
 
-  const onSubmit = (values: ItemFormValues) => mutation.mutate(values)
+  const onSubmit = (values: ItemFormSchemaValues) => mutation.mutate(values)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -190,6 +207,56 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
                     <FormControl>
                       <Input type="number" min={0} step="0.01" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="purchase_tax_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Purchase Tax</FormLabel>
+                    <Select value={field.value || NO_TAX} onValueChange={(value) => field.onChange(value === NO_TAX ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_TAX}>No tax</SelectItem>
+                        {purchaseTaxOptions.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name} ({t.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sales_tax_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sales Tax</FormLabel>
+                    <Select value={field.value || NO_TAX} onValueChange={(value) => field.onChange(value === NO_TAX ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_TAX}>No tax</SelectItem>
+                        {salesTaxOptions.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name} ({t.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

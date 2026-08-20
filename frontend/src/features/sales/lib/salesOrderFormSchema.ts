@@ -19,6 +19,9 @@ export const lineItemFormSchema = z.object({
     .string()
     .min(1, 'Rate is required')
     .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0, 'Must be zero or greater'),
+  // Defaults from the selected Item's sales_tax_id when the line is first added,
+  // editable per line thereafter — see SalesOrderLineItemTable's handleItemChange().
+  tax_id: z.string(),
 })
 
 export const salesOrderFormSchema = z.object({

@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\DiscountType;
-use App\Enums\TaxCalculationMode;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,7 +23,6 @@ class UpdateInvoiceRequest extends FormRequest
             'discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'discount_percentage' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
             'tax_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('taxes', 'id')->where('is_active', true)],
-            'tax_mode' => ['sometimes', 'nullable', Rule::enum(TaxCalculationMode::class)],
             'tax_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string'],
             'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],

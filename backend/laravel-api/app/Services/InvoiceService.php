@@ -6,10 +6,8 @@ use App\Enums\DiscountType;
 use App\Enums\DeliveryStatus;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
-use App\Enums\TaxCalculationMode;
 use App\Exceptions\BusinessException;
 use App\Models\Invoice;
-use App\Models\SalesOrder;
 use App\Repositories\AccountsReceivableRepository;
 use App\Repositories\DeliveryRepository;
 use App\Repositories\InvoiceItemRepository;
@@ -20,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'delivery.warehouse', 'deliveries', 'items', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
+    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'delivery.warehouse', 'deliveries', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
@@ -86,7 +84,10 @@ class InvoiceService
 
             $subtotal = $deliveries->sum(fn ($delivery) => (float) $delivery->items->sum('amount'));
             [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
-            [$taxId, $taxAmount] = $this->resolveInheritedTax($anchor->salesOrder, $subtotal);
+            // Goods invoices have no single header tax anymore — each line's tax was already
+            // resolved when its Sales Order line/Delivery line was created (Item.sales_tax_id
+            // default or a manual per-line override); this invoice just sums what it copies below.
+            $taxAmount = round($deliveries->sum(fn ($delivery) => (float) $delivery->items->sum('tax_amount')), 2);
             $grandTotal = $subtotal - $discountAmount + $taxAmount;
 
             if ($grandTotal < 0) {
@@ -108,7 +109,9 @@ class InvoiceService
                 'discount_amount' => $discountAmount,
                 'discount_type' => $discountType->value,
                 'discount_percentage' => $discountPercentage,
-                'tax_id' => $taxId,
+                // Header tax_id has no single meaningful value once tax is per-line — always
+                // null for Goods, tax_amount above is the authoritative sum of the lines.
+                'tax_id' => null,
                 'tax_amount' => $taxAmount,
                 'grand_total' => $grandTotal,
                 'remarks' => $data['remarks'] ?? null,
@@ -130,6 +133,10 @@ class InvoiceService
                         'rate' => $line->rate,
                         'qty' => $line->qty,
                         'amount' => $line->amount,
+                        // Copied verbatim from the DeliveryItem — already resolved upstream,
+                        // same frozen-snapshot treatment as item_code/item_name/uom above.
+                        'tax_id' => $line->tax_id,
+                        'tax_amount' => $line->tax_amount,
                     ]);
                 }
             }
@@ -231,11 +238,12 @@ class InvoiceService
                 $discountPercentage = $invoice->discount_percentage;
             }
 
-            // Goods invoices never accept an independent tax choice (B1/B3 of the workflow
-            // spec) — tax_id/tax_amount always stay whatever they were inherited from the
-            // Sales Order at creation, regardless of what the request sends. Only
-            // Transportation (no Sales Order, Misc charge-type mechanism) re-resolves tax
-            // when the caller actually touches it.
+            // Goods invoices never accept an independent tax choice — items aren't editable
+            // on Invoice (see this method's own docblock), so tax_id/tax_amount always stay
+            // whatever they were resolved to at creation (a sum of each line's own tax,
+            // copied forward from the source Delivery/Sales Order line), regardless of what
+            // the request sends. Only Transportation (no Sales Order, no Item-backed lines)
+            // re-resolves tax when the caller actually touches it.
             if ($invoice->invoice_type === InvoiceType::TRANSPORTATION && (array_key_exists('tax_id', $data) || array_key_exists('tax_amount', $data))) {
                 [$taxId, $taxAmount] = $this->resolveTax($data, (float) $invoice->subtotal);
             } else {
@@ -318,32 +326,12 @@ class InvoiceService
     {
         if (! empty($data['tax_id'])) {
             $tax = $this->taxRepository->findOrFail($data['tax_id']);
-            $mode = TaxCalculationMode::from($data['tax_mode'] ?? TaxCalculationMode::EXCLUSIVE->value);
-            $taxAmount = $this->taxService->calculate($subtotal, $tax, $mode)['tax_amount'];
+            $taxAmount = $this->taxService->calculate($subtotal, $tax)['tax_amount'];
 
             return [$tax->id, $taxAmount];
         }
 
         return [null, (float) ($data['tax_amount'] ?? 0)];
-    }
-
-    /**
-     * Goods invoices — the tax code is inherited read-only from the anchor
-     * Sales Order (B1 of the workflow spec), never chosen independently.
-     * The rate is what's inherited; the amount is recomputed against this
-     * invoice's own subtotal (B2), so a partial invoice against a partially
-     * delivered order still comes out correct.
-     */
-    protected function resolveInheritedTax(?SalesOrder $salesOrder, float $subtotal): array
-    {
-        if (! $salesOrder || ! $salesOrder->tax_id) {
-            return [null, 0.0];
-        }
-
-        $tax = $this->taxRepository->findOrFail($salesOrder->tax_id);
-        $taxAmount = $this->taxService->calculate($subtotal, $tax, TaxCalculationMode::EXCLUSIVE)['tax_amount'];
-
-        return [$tax->id, $taxAmount];
     }
 
     public function delete(Invoice $invoice): void

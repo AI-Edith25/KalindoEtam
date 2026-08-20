@@ -82,14 +82,15 @@ class DemoDataSeeder extends Seeder
         [$warehouseUtama, $warehouseSparepart] = $this->seedWarehouses();
         $itemGroup = $this->seedItemGroup();
         $uom = $this->reuseUom();
-        $tax = $this->reuseTax();
+        $purchaseTax = $this->reusePurchaseTax();
+        $salesTax = $this->reuseSalesTax();
         $suppliers = $this->seedSuppliers();
         $customers = $this->seedCustomers();
         $items = $this->seedItems($itemGroup, $uom);
         $this->seedEmployees();
 
-        $this->seedPurchaseToPay($suppliers, $items, $warehouseUtama, $tax);
-        $this->seedOrderToCash($customers, $items, $warehouseUtama, $tax);
+        $this->seedPurchaseToPay($suppliers, $items, $warehouseUtama, $purchaseTax);
+        $this->seedOrderToCash($customers, $items, $warehouseUtama, $salesTax);
 
         $this->printSummary();
     }
@@ -207,10 +208,16 @@ class DemoDataSeeder extends Seeder
         return UnitOfMeasurement::where('name', 'Pcs')->firstOrFail();
     }
 
-    /** "PPN 11%" already exists (MasterDataSeeder) and is active — reused, not recreated. */
-    protected function reuseTax(): Tax
+    /** "PPN 11%" (Purchase-tagged) already exists (MasterDataSeeder) and is active — reused, not recreated. */
+    protected function reusePurchaseTax(): Tax
     {
-        return Tax::where('name', 'PPN 11%')->where('is_active', true)->firstOrFail();
+        return Tax::where('code', 'PPN11-P')->where('is_active', true)->firstOrFail();
+    }
+
+    /** "PPN 11%" (Sales-tagged) already exists (MasterDataSeeder) and is active — reused, not recreated. */
+    protected function reuseSalesTax(): Tax
+    {
+        return Tax::where('code', 'PPN11-S')->where('is_active', true)->firstOrFail();
     }
 
     protected function seedSuppliers(): array
@@ -325,17 +332,18 @@ class DemoDataSeeder extends Seeder
 
         $today = now()->toDateString();
 
-        // PO1: PT Astra Otoparts — Laptop, Mouse, SSD
+        // PO1: PT Astra Otoparts — Laptop, Mouse, SSD. Tax is per-line now — attached to each
+        // item's own line rather than a single header selection (docs/TAX_ENGINE_DESIGN.md,
+        // per-line Purchase/Sales split).
         $po1 = $poService->create([
             'supplier_id' => $suppliers['SUP-AST']->id,
             'order_date' => $today,
             'expected_delivery_date' => now()->addDays(7)->toDateString(),
             'remarks' => 'Demo seed data',
-            'tax_id' => $tax->id,
             'items' => [
-                ['item_id' => $items['ITM-LAPTOP01']->id, 'qty' => 5, 'rate' => 12500000],
-                ['item_id' => $items['ITM-MOUSE01']->id, 'qty' => 20, 'rate' => 150000],
-                ['item_id' => $items['ITM-SSD01']->id, 'qty' => 10, 'rate' => 1200000],
+                ['item_id' => $items['ITM-LAPTOP01']->id, 'qty' => 5, 'rate' => 12500000, 'tax_id' => $tax->id],
+                ['item_id' => $items['ITM-MOUSE01']->id, 'qty' => 20, 'rate' => 150000, 'tax_id' => $tax->id],
+                ['item_id' => $items['ITM-SSD01']->id, 'qty' => 10, 'rate' => 1200000, 'tax_id' => $tax->id],
             ],
         ]);
 
@@ -345,10 +353,9 @@ class DemoDataSeeder extends Seeder
             'order_date' => $today,
             'expected_delivery_date' => now()->addDays(7)->toDateString(),
             'remarks' => 'Demo seed data',
-            'tax_id' => $tax->id,
             'items' => [
-                ['item_id' => $items['ITM-PRINTER01']->id, 'qty' => 5, 'rate' => 2800000],
-                ['item_id' => $items['ITM-KEYBOARD01']->id, 'qty' => 15, 'rate' => 450000],
+                ['item_id' => $items['ITM-PRINTER01']->id, 'qty' => 5, 'rate' => 2800000, 'tax_id' => $tax->id],
+                ['item_id' => $items['ITM-KEYBOARD01']->id, 'qty' => 15, 'rate' => 450000, 'tax_id' => $tax->id],
             ],
         ]);
 

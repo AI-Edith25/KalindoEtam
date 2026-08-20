@@ -31,14 +31,14 @@ class ItemController extends Controller
 
     public function show(Item $item): JsonResponse
     {
-        return $this->success(new ItemResource($item->load(['itemGroup', 'uom'])));
+        return $this->success(new ItemResource($item->load(['itemGroup', 'uom', 'purchaseTax', 'salesTax'])));
     }
 
     public function update(UpdateItemRequest $request, Item $item): JsonResponse
     {
         $item = $this->itemService->update($item, $request->validated());
 
-        return $this->success(new ItemResource($item->load(['itemGroup', 'uom'])), 'Item updated.');
+        return $this->success(new ItemResource($item->load(['itemGroup', 'uom', 'purchaseTax', 'salesTax'])), 'Item updated.');
     }
 
     public function destroy(Item $item): JsonResponse

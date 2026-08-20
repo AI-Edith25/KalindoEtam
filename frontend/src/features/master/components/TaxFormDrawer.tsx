@@ -19,7 +19,9 @@ const taxFormSchema = z.object({
   code: z.string().min(1, 'Code is required').max(50),
   name: z.string().min(1, 'Name is required').max(255),
   type: z.enum(['vat', 'zero_rated', 'exempt']),
+  transaction_type: z.enum(['purchase', 'sales']),
   rate: z.string().refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100, 'Must be between 0 and 100'),
+  calculation_mode: z.enum(['inclusive', 'exclusive']),
   is_active: z.boolean(),
 })
 
@@ -29,7 +31,9 @@ const emptyValues: TaxFormSchemaValues = {
   code: '',
   name: '',
   type: 'vat',
+  transaction_type: 'sales',
   rate: '0',
+  calculation_mode: 'exclusive',
   is_active: true,
 }
 
@@ -54,7 +58,15 @@ export function TaxFormDrawer({ open, onOpenChange, tax }: TaxFormDrawerProps) {
 
     form.reset(
       tax
-        ? { code: tax.code, name: tax.name, type: tax.type, rate: String(tax.rate), is_active: tax.is_active }
+        ? {
+            code: tax.code,
+            name: tax.name,
+            type: tax.type,
+            transaction_type: tax.transaction_type,
+            rate: String(tax.rate),
+            calculation_mode: tax.calculation_mode,
+            is_active: tax.is_active,
+          }
         : emptyValues,
     )
   }, [open, tax, form])
@@ -142,6 +154,28 @@ export function TaxFormDrawer({ open, onOpenChange, tax }: TaxFormDrawerProps) {
               />
               <FormField
                 control={form.control}
+                name="transaction_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Transaction Type</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select transaction type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="purchase">Purchase</SelectItem>
+                        <SelectItem value="sales">Sales</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">A shared rate needing both sides is two separate Tax records.</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="rate"
                 render={({ field }) => (
                   <FormItem>
@@ -150,6 +184,27 @@ export function TaxFormDrawer({ open, onOpenChange, tax }: TaxFormDrawerProps) {
                       <Input type="number" min="0" max="100" step="0.01" disabled={!isVat} {...field} />
                     </FormControl>
                     {!isVat && <p className="text-xs text-muted-foreground">Zero Rated and Exempt always calculate to Rp 0.</p>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="calculation_mode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tax Calculation</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select calculation mode" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="exclusive">Exclusive</SelectItem>
+                        <SelectItem value="inclusive">Inclusive</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

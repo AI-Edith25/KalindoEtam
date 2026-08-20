@@ -240,7 +240,7 @@ export function SalesOrderDetailPage() {
               label="Payment Terms"
               value={order.terms_of_payment ? `${order.terms_of_payment.name} (${order.terms_of_payment.code})` : '—'}
             />
-            <DetailField label="Tax" value={order.tax ? `${order.tax.name} (${order.tax.code})` : '—'} />
+            <DetailField label="Tax (bulk override)" value={order.tax ? `${order.tax.name} (${order.tax.code})` : '— (per line)'} />
             <DetailField label="Notes" value={order.remarks || '—'} />
           </DetailSection>
         </CardContent>

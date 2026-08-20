@@ -19,6 +19,9 @@ class DeliveryItemResource extends JsonResource
             'rate' => $this->rate,
             'qty' => $this->qty,
             'amount' => $this->amount,
+            'tax_id' => $this->tax_id,
+            'tax' => new TaxResource($this->whenLoaded('tax')),
+            'tax_amount' => $this->tax_amount,
         ];
     }
 }

@@ -30,6 +30,7 @@ class UpdateSalesOrderRequest extends FormRequest
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }

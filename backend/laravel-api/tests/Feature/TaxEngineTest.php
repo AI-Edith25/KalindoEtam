@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Enums\TaxCalculationMode;
+use App\Enums\TaxTransactionType;
 use App\Enums\TaxType;
 use App\Enums\WarehouseType;
 use App\Exceptions\BusinessException;
@@ -90,7 +91,9 @@ class TaxEngineTest extends TestCase
             'code' => 'PPN11',
             'name' => 'PPN 11%',
             'type' => TaxType::VAT,
+            'transaction_type' => TaxTransactionType::SALES,
             'rate' => 11,
+            'calculation_mode' => TaxCalculationMode::EXCLUSIVE,
             'is_active' => true,
         ], $overrides));
     }
@@ -100,8 +103,7 @@ class TaxEngineTest extends TestCase
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
-            'tax_id' => $taxId,
+            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'tax_id' => $taxId]],
         ]);
         $this->approveDocument($salesOrder);
         $this->salesOrderService->approve($salesOrder);
@@ -121,9 +123,9 @@ class TaxEngineTest extends TestCase
 
     public function test_calculate_exclusive_vat_adds_tax_on_top_of_the_base_amount(): void
     {
-        $tax = $this->makeTax();
+        $tax = $this->makeTax(['calculation_mode' => TaxCalculationMode::EXCLUSIVE]);
 
-        $result = $this->taxService->calculate(100000, $tax, TaxCalculationMode::EXCLUSIVE);
+        $result = $this->taxService->calculate(100000, $tax);
 
         $this->assertEquals(11000.0, $result['tax_amount']);
         $this->assertEquals(100000.0, $result['base_amount']);
@@ -132,9 +134,9 @@ class TaxEngineTest extends TestCase
 
     public function test_calculate_inclusive_vat_backs_the_tax_out_of_the_base_amount(): void
     {
-        $tax = $this->makeTax();
+        $tax = $this->makeTax(['calculation_mode' => TaxCalculationMode::INCLUSIVE]);
 
-        $result = $this->taxService->calculate(111000, $tax, TaxCalculationMode::INCLUSIVE);
+        $result = $this->taxService->calculate(111000, $tax);
 
         $this->assertEquals(11000.0, $result['tax_amount']);
         $this->assertEquals(100000.0, $result['base_amount']);
@@ -145,7 +147,7 @@ class TaxEngineTest extends TestCase
     {
         $tax = $this->makeTax(['code' => 'PPN0', 'type' => TaxType::ZERO_RATED, 'rate' => 11]);
 
-        $result = $this->taxService->calculate(100000, $tax, TaxCalculationMode::EXCLUSIVE);
+        $result = $this->taxService->calculate(100000, $tax);
 
         $this->assertEquals(0.0, $result['tax_amount']);
         $this->assertEquals(100000.0, $result['total']);
@@ -155,14 +157,14 @@ class TaxEngineTest extends TestCase
     {
         $tax = $this->makeTax(['code' => 'EXEMPT', 'type' => TaxType::EXEMPT, 'rate' => 0]);
 
-        $result = $this->taxService->calculate(100000, $tax, TaxCalculationMode::EXCLUSIVE);
+        $result = $this->taxService->calculate(100000, $tax);
 
         $this->assertEquals(0.0, $result['tax_amount']);
     }
 
     public function test_calculate_with_no_tax_selected_yields_zero(): void
     {
-        $result = $this->taxService->calculate(100000, null, TaxCalculationMode::EXCLUSIVE);
+        $result = $this->taxService->calculate(100000, null);
 
         $this->assertEquals(0.0, $result['tax_amount']);
         $this->assertEquals(100000.0, $result['total']);
@@ -224,8 +226,9 @@ class TaxEngineTest extends TestCase
     public function test_invoice_create_inherits_the_tax_amount_from_the_sales_order(): void
     {
         $tax = $this->makeTax();
-        // Goods invoices inherit tax_id read-only from their Sales Order (B1/B2 of the
-        // workflow spec) — never chosen independently on the Invoice itself.
+        // Tax is per-line now — attached to the Sales Order's line, flows through the
+        // Delivery line to the Invoice line unchanged, and sums into the header total.
+        // Goods invoices have no single header tax anymore (tax_id stays null).
         $delivery = $this->submittedDelivery(qty: 5, rate: 20000, taxId: $tax->id); // subtotal 100000
 
         $invoice = $this->invoiceService->create([
@@ -234,7 +237,9 @@ class TaxEngineTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
 
-        $this->assertEquals($tax->id, $invoice->tax_id);
+        $this->assertNull($invoice->tax_id);
+        $this->assertEquals($tax->id, $invoice->items->first()->tax_id);
+        $this->assertEquals(11000.0, (float) $invoice->items->first()->tax_amount);
         $this->assertEquals(11000.0, (float) $invoice->tax_amount);
         $this->assertEquals(111000.0, (float) $invoice->grand_total);
     }
@@ -271,11 +276,12 @@ class TaxEngineTest extends TestCase
         ]);
         $this->assertEquals(11000.0, (float) $invoice->tax_amount);
 
-        // Even an explicit tax_id in the update payload is ignored for Goods (B1/B3) — the
-        // Invoice keeps whatever it inherited from the Sales Order at creation.
+        // Goods invoice items are never editable after creation (see update()'s own
+        // docblock) — an explicit tax_id in the update payload is ignored, the Invoice
+        // keeps whatever its lines resolved to at creation.
         $updated = $this->invoiceService->update($invoice, ['tax_id' => $taxB->id]);
 
-        $this->assertEquals($taxA->id, $updated->tax_id);
+        $this->assertNull($updated->tax_id);
         $this->assertEquals(11000.0, (float) $updated->tax_amount);
         $this->assertEquals(111000.0, (float) $updated->grand_total);
     }
@@ -304,16 +310,17 @@ class TaxEngineTest extends TestCase
 
     public function test_purchase_order_create_calculates_tax_amount_from_the_selected_tax(): void
     {
-        $tax = $this->makeTax();
+        // Tax is per-line now (PurchaseOrderService::resolveLineTax()) — the header tax_id
+        // sent alongside is stored verbatim as a display-only marker, not what drives calculation.
+        $tax = $this->makeTax(['transaction_type' => TaxTransactionType::PURCHASE]);
 
         $purchaseOrder = $this->purchaseOrderService->create([
             'supplier_id' => $this->supplier->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 20000]], // subtotal 100000
-            'tax_id' => $tax->id,
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 20000, 'tax_id' => $tax->id]], // subtotal 100000
         ]);
 
-        $this->assertEquals($tax->id, $purchaseOrder->tax_id);
+        $this->assertEquals($tax->id, $purchaseOrder->items->first()->tax_id);
         $this->assertEquals(100000.0, (float) $purchaseOrder->total_amount);
         $this->assertEquals(11000.0, (float) $purchaseOrder->tax_amount);
         $this->assertEquals(111000.0, (float) $purchaseOrder->grand_total);
@@ -330,5 +337,107 @@ class TaxEngineTest extends TestCase
         $this->assertNull($purchaseOrder->tax_id);
         $this->assertEquals(0.0, (float) $purchaseOrder->tax_amount);
         $this->assertEquals(100000.0, (float) $purchaseOrder->grand_total);
+    }
+
+    // --- Item-driven Purchase/Sales Tax split ---
+
+    public function test_sales_order_and_purchase_order_lines_default_tax_from_the_items_own_purchase_and_sales_tax(): void
+    {
+        $salesTax = $this->makeTax(['code' => 'SALES11', 'transaction_type' => TaxTransactionType::SALES, 'rate' => 11]);
+        $purchaseTax = $this->makeTax(['code' => 'PURCH5', 'transaction_type' => TaxTransactionType::PURCHASE, 'rate' => 5]);
+        $item = Item::query()->create([
+            'item_code' => 'ITM-TAXED',
+            'item_name' => 'Taxed Widget',
+            'item_group_id' => $this->item->item_group_id,
+            'uom_id' => $this->item->uom_id,
+            'standard_rate' => 10000,
+            'sales_tax_id' => $salesTax->id,
+            'purchase_tax_id' => $purchaseTax->id,
+        ]);
+
+        $salesOrder = $this->salesOrderService->create([
+            'customer_id' => $this->customer->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['item_id' => $item->id, 'qty' => 5, 'rate' => 20000]], // no tax_id sent — defaults from Item
+        ]);
+
+        $this->assertEquals($salesTax->id, $salesOrder->items->first()->tax_id);
+        $this->assertEquals(11000.0, (float) $salesOrder->items->first()->tax_amount);
+        $this->assertEquals(11000.0, (float) $salesOrder->tax_amount);
+
+        $purchaseOrder = $this->purchaseOrderService->create([
+            'supplier_id' => $this->supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['item_id' => $item->id, 'qty' => 5, 'rate' => 20000]], // no tax_id sent — defaults from Item
+        ]);
+
+        $this->assertEquals($purchaseTax->id, $purchaseOrder->items->first()->tax_id);
+        $this->assertEquals(5000.0, (float) $purchaseOrder->items->first()->tax_amount);
+        $this->assertEquals(5000.0, (float) $purchaseOrder->tax_amount);
+    }
+
+    public function test_sales_order_with_mixed_tax_lines_sums_correctly(): void
+    {
+        $vat = $this->makeTax(['code' => 'PPN11B', 'rate' => 11]);
+        $exempt = $this->makeTax(['code' => 'BEBASB', 'type' => TaxType::EXEMPT, 'rate' => 0]);
+
+        $salesOrder = $this->salesOrderService->create([
+            'customer_id' => $this->customer->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['item_id' => $this->item->id, 'qty' => 5, 'rate' => 20000, 'tax_id' => $vat->id], // 100000, tax 11000
+                ['item_id' => $this->item->id, 'qty' => 2, 'rate' => 10000, 'tax_id' => $exempt->id], // 20000, tax 0
+            ],
+        ]);
+
+        $this->assertEquals(120000.0, (float) $salesOrder->total_amount);
+        $this->assertEquals(11000.0, (float) $salesOrder->tax_amount);
+        $this->assertEquals(131000.0, (float) $salesOrder->grand_total);
+    }
+
+    public function test_line_with_no_tax_on_the_item_works_without_error(): void
+    {
+        $salesOrder = $this->salesOrderService->create([
+            'customer_id' => $this->customer->id,
+            'order_date' => now()->toDateString(),
+            // $this->item has no purchase_tax_id/sales_tax_id set — legacy Item, no tax_id sent either.
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 20000]],
+        ]);
+
+        $this->assertNull($salesOrder->items->first()->tax_id);
+        $this->assertEquals(0.0, (float) $salesOrder->items->first()->tax_amount);
+        $this->assertEquals(0.0, (float) $salesOrder->tax_amount);
+    }
+
+    public function test_item_purchase_tax_field_rejects_a_sales_only_tax(): void
+    {
+        $salesTax = $this->makeTax(['transaction_type' => TaxTransactionType::SALES]);
+
+        $validator = validator(
+            [
+                'item_code' => 'X1',
+                'item_name' => 'X',
+                'item_group_id' => $this->item->item_group_id,
+                'uom_id' => $this->item->uom_id,
+                'purchase_tax_id' => $salesTax->id,
+            ],
+            (new \App\Http\Requests\StoreItemRequest())->rules(),
+        );
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('purchase_tax_id', $validator->errors()->toArray());
+    }
+
+    public function test_inclusive_tax_line_backs_the_tax_out_of_the_line_amount(): void
+    {
+        $inclusiveTax = $this->makeTax(['calculation_mode' => TaxCalculationMode::INCLUSIVE, 'rate' => 11]);
+
+        $salesOrder = $this->salesOrderService->create([
+            'customer_id' => $this->customer->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 1, 'rate' => 111000, 'tax_id' => $inclusiveTax->id]],
+        ]);
+
+        $this->assertEquals(11000.0, (float) $salesOrder->items->first()->tax_amount);
     }
 }

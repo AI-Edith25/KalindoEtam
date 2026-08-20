@@ -20,6 +20,8 @@ class Item extends Model
         'uom_id',
         'standard_rate',
         'current_stock',
+        'purchase_tax_id',
+        'sales_tax_id',
     ];
 
     protected $casts = [
@@ -35,6 +37,16 @@ class Item extends Model
     public function uom(): BelongsTo
     {
         return $this->belongsTo(UnitOfMeasurement::class, 'uom_id');
+    }
+
+    public function purchaseTax(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class, 'purchase_tax_id');
+    }
+
+    public function salesTax(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class, 'sales_tax_id');
     }
 
     public function stockIns(): HasMany

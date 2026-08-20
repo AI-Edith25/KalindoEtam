@@ -13,6 +13,7 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Enums\TaxTransactionType;
 use App\Enums\TaxType;
 use App\Models\JournalEntry;
 use App\Models\Tax;
@@ -100,6 +101,7 @@ class GeneralLedgerTest extends TestCase
                 'code' => 'TEST-'.Str::random(6),
                 'name' => 'Test Tax',
                 'type' => TaxType::VAT,
+                'transaction_type' => TaxTransactionType::SALES,
                 'rate' => $taxAmount / $subtotal * 100,
                 'is_active' => true,
             ])->id;
@@ -108,8 +110,7 @@ class GeneralLedgerTest extends TestCase
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
-            'tax_id' => $taxId,
+            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'tax_id' => $taxId]],
         ]);
         $this->approveDocument($salesOrder);
         $this->salesOrderService->approve($salesOrder);
