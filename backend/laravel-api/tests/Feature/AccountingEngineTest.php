@@ -150,6 +150,7 @@ class AccountingEngineTest extends TestCase
         $this->assertEquals(DocumentStatus::SUBMITTED, $journalEntry->status);
         $this->assertEquals(111000, (float) $journalEntry->total_debit);
         $this->assertEquals(111000, (float) $journalEntry->total_credit);
+        $this->assertStringContainsString($this->customer->customer_name, $journalEntry->description);
 
         // Regression check: morphTo('referenceDocument', ...) must name itself after the
         // method it's defined on, or eager loading silently populates the wrong relation key
@@ -178,9 +179,40 @@ class AccountingEngineTest extends TestCase
         $this->assertEquals(100000, (float) $journalEntry->total_debit);
         $this->assertEquals(100000, (float) $journalEntry->total_credit);
 
+        $this->assertStringContainsString($this->customer->customer_name, $journalEntry->description);
+
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
         $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '1100')->debit);
         $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '1150')->credit);
+        // Every line, not just the 1150 leg, so a General Ledger drill-down on the cash
+        // account also shows which customer this receipt belongs to, not just the AR ledger.
+        $this->assertStringContainsString($this->customer->customer_name, $lines->firstWhere('chartOfAccount.code', '1100')->description);
+        $this->assertStringContainsString($this->customer->customer_name, $lines->firstWhere('chartOfAccount.code', '1150')->description);
+    }
+
+    public function test_two_receipt_entries_for_different_customers_get_distinct_journal_descriptions(): void
+    {
+        $otherCustomer = Customer::query()->create(['customer_code' => 'C002', 'customer_name' => 'Toko Restu Bumi']);
+
+        $receiptA = $this->receiptEntryService->submit($this->receiptEntryService->create([
+            'customer_id' => $this->customer->id,
+            'receipt_date' => now()->toDateString(),
+            'cash_account_id' => $this->accountId('1100'),
+            'total_amount' => 100000,
+        ]));
+        $receiptB = $this->receiptEntryService->submit($this->receiptEntryService->create([
+            'customer_id' => $otherCustomer->id,
+            'receipt_date' => now()->toDateString(),
+            'cash_account_id' => $this->accountId('1100'),
+            'total_amount' => 50000,
+        ]));
+
+        $descriptionA = JournalEntry::query()->where('reference_type', 'receipt_entry')->where('reference_id', $receiptA->id)->firstOrFail()->description;
+        $descriptionB = JournalEntry::query()->where('reference_type', 'receipt_entry')->where('reference_id', $receiptB->id)->firstOrFail()->description;
+
+        $this->assertStringContainsString('Acme', $descriptionA);
+        $this->assertStringContainsString('Toko Restu Bumi', $descriptionB);
+        $this->assertNotEquals($descriptionA, $descriptionB);
     }
 
     public function test_an_unbalanced_manual_journal_entry_is_rejected(): void

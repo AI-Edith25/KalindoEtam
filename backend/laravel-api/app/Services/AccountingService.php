@@ -29,15 +29,40 @@ class AccountingService
      */
     public function postForDocument(Model $referenceDocument, array $lines, string $description, ?string $postingDate = null): JournalEntry
     {
+        $counterparty = $this->counterpartyName($referenceDocument);
+        $description = $counterparty ? "{$description} - {$counterparty}" : $description;
+
         $journalEntry = $this->journalEntryService->create([
             'posting_date' => $postingDate ?? now()->toDateString(),
             'description' => $description,
             'reference_type' => $referenceDocument->getMorphClass(),
             'reference_id' => $referenceDocument->getKey(),
-            'lines' => $this->resolveLines($lines),
+            'lines' => $this->resolveLines($lines, $description),
         ]);
 
         return $this->journalEntryService->post($journalEntry);
+    }
+
+    /**
+     * Customer/Supplier name for the document, so Journal List / General
+     * Ledger rows read as "Receipt RC-0001 - TOKO RESTU BUMI" instead of a
+     * generic account purpose repeated across every same-type row. Duck-typed
+     * on the two relation names business documents actually use, rather than
+     * an interface every future document type would have to implement.
+     */
+    protected function counterpartyName(Model $referenceDocument): ?string
+    {
+        foreach (['customer', 'supplier'] as $relation) {
+            if (method_exists($referenceDocument, $relation)) {
+                $related = $referenceDocument->{$relation};
+
+                if ($related !== null) {
+                    return $related->customer_name ?? $related->supplier_name ?? null;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -74,9 +99,9 @@ class AccountingService
     ];
 
     /** Maps journalLines()' {account: code, type: debit|credit, amount} shape onto {chart_of_account_id, debit, credit}. */
-    protected function resolveLines(array $lines): array
+    protected function resolveLines(array $lines, ?string $defaultDescription = null): array
     {
-        return array_map(function (array $line) {
+        return array_map(function (array $line) use ($defaultDescription) {
             $account = $this->chartOfAccountRepository->findActiveByCode($line['account']);
 
             if ($account === null) {
@@ -93,7 +118,7 @@ class AccountingService
                 'chart_of_account_id' => $account->id,
                 'debit' => $line['type'] === 'debit' ? $line['amount'] : 0,
                 'credit' => $line['type'] === 'credit' ? $line['amount'] : 0,
-                'description' => $line['description'] ?? null,
+                'description' => $line['description'] ?? $defaultDescription,
             ];
         }, $lines);
     }
