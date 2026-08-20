@@ -90,6 +90,11 @@ export function DeliveryPrintPage() {
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
   const totalQty = delivery.items.reduce((sum, item) => sum + Number(item.qty), 0)
   const uniformUom = delivery.items.length > 0 && delivery.items.every((item) => item.uom === delivery.items[0].uom) ? delivery.items[0].uom : ''
+  // Same source the Delivery form itself uses (DeliveryEditorPage.tsx) — the Delivery's own
+  // remarks, already seeded from the Sales Order's remarks at creation time and editable from
+  // there; the Sales Order fallback only covers a Delivery that somehow never got that default
+  // (e.g. a pre-existing record). Hidden entirely when empty — no "Notes: -" clutter.
+  const notes = delivery.remarks || delivery.sales_order?.remarks || ''
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
@@ -167,6 +172,12 @@ export function DeliveryPrintPage() {
             ))}
           </tbody>
         </table>
+
+        {notes && (
+          <div className="mt-2">
+            <MetaRow label="Notes" value={notes} />
+          </div>
+        )}
 
         <div className="flex-1" />
 

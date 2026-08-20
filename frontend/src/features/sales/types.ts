@@ -131,6 +131,7 @@ export interface Delivery {
     sales_person: { id: string; code: string; name: string } | null
     tax_id: string | null
     tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
+    remarks: string | null
   } | null
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
