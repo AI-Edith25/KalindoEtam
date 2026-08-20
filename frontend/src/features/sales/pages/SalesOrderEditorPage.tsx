@@ -83,7 +83,10 @@ export function SalesOrderEditorPage() {
       fax: order.fax ?? '',
       reference: order.reference ?? '',
       terms_of_payment_id: order.terms_of_payment_id ?? '',
-      tax_id: order.tax_id ?? '',
+      // No header override on Sales Order anymore — tax is per-line only, so this field is
+      // never re-loaded from the order's own (now-legacy) header tax_id; it stays empty and
+      // toPayload() below sends null, clearing any stale value on save.
+      tax_id: '',
       items: order.items.map((line) => ({
         item_id: line.item_id,
         qty: String(line.qty),
@@ -177,23 +180,12 @@ export function SalesOrderEditorPage() {
   const watchedItems = form.watch('items')
   const subtotal = computeSubtotal(watchedItems ?? [])
 
-  // Tax is per-line now — the header Select below is a bulk "apply to all lines" override,
-  // not the source of calculation. Preview only; TaxService::calculate() on the backend
-  // always computes and returns the authoritative per-line tax_amount/grand_total on save.
-  const existingTax = isEdit ? orderQuery.data?.tax : null
+  // Tax is per-line now, defaulting from each line's Item — no header override on Sales Order.
+  // Preview only; TaxService::calculate() on the backend always computes and returns the
+  // authoritative per-line tax_amount/grand_total on save.
   const activeSalesTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'sales')
-  const taxOptions =
-    existingTax && !activeSalesTaxOptions.some((t) => t.id === existingTax.id)
-      ? [...activeSalesTaxOptions, existingTax]
-      : activeSalesTaxOptions
-
-  const watchedTaxId = form.watch('tax_id')
-  const tax = computeLineTaxTotal(watchedItems ?? [], (line) => taxOptions.find((t) => t.id === line.tax_id))
+  const tax = computeLineTaxTotal(watchedItems ?? [], (line) => activeSalesTaxOptions.find((t) => t.id === line.tax_id))
   const grandTotal = subtotal + tax
-
-  const applyTaxToAllLines = () => {
-    ;(watchedItems ?? []).forEach((_, index) => form.setValue(`items.${index}.tax_id`, watchedTaxId, { shouldValidate: true }))
-  }
 
   // Customer Credit block — see CustomerCreditService on the backend. Live-rechecked against
   // grandTotal on every line-item change with no extra network call (see useCustomerCreditCheck).
@@ -418,39 +410,6 @@ export function SalesOrderEditorPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="tax_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tax (bulk override)</FormLabel>
-                    <div className="flex gap-2">
-                      <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value={NONE}>No tax</SelectItem>
-                          {taxOptions.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name} ({t.code}){t.type === 'vat' ? ` — ${t.rate}%` : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button type="button" variant="outline" size="sm" onClick={applyTaxToAllLines} disabled={!watchedItems?.length}>
-                        Apply to all lines
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Each line defaults to its Item&apos;s own Sales Tax — this only bulk-replaces every line&apos;s tax at once.
-                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

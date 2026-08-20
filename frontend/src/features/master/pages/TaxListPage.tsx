@@ -19,12 +19,6 @@ import { TaxDetailDrawer } from '../components/TaxDetailDrawer'
 import { applyTaxFilters, emptyTaxFilters, type TaxFilterValues } from '../lib/taxFilters'
 import type { Tax } from '../types'
 
-const TYPE_LABELS: Record<Tax['type'], string> = {
-  vat: 'VAT',
-  zero_rated: 'Zero Rated',
-  exempt: 'Tax Exempt',
-}
-
 const TRANSACTION_TYPE_LABELS: Record<Tax['transaction_type'], string> = {
   purchase: 'Purchase',
   sales: 'Sales',
@@ -81,7 +75,6 @@ export function TaxListPage() {
   const columns: DataTableColumn<Tax>[] = [
     { header: 'Code', accessor: (row) => row.code, sortKey: 'code' },
     { header: 'Name', accessor: (row) => row.name, sortKey: 'name' },
-    { header: 'Type', accessor: (row) => TYPE_LABELS[row.type] },
     { header: 'Transaction Type', accessor: (row) => TRANSACTION_TYPE_LABELS[row.transaction_type] },
     { header: 'Rate', accessor: (row) => (row.type === 'vat' ? `${row.rate}%` : '—'), className: 'text-right' },
     { header: 'Calculation', accessor: (row) => CALCULATION_MODE_LABELS[row.calculation_mode] },
