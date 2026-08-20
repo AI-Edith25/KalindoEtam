@@ -173,12 +173,6 @@ export function DeliveryPrintPage() {
           </tbody>
         </table>
 
-        {notes && (
-          <div className="mt-2">
-            <MetaRow label="Notes" value={notes} />
-          </div>
-        )}
-
         <div className="flex-1" />
 
         <table className="w-full border-collapse text-left" style={{ tableLayout: 'fixed' }}>
@@ -191,6 +185,12 @@ export function DeliveryPrintPage() {
             </tr>
           </tbody>
         </table>
+
+        {notes && (
+          <div className="mt-2">
+            <MetaRow label="Notes" value={notes} />
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-6 gap-2 text-center">
           <p>Tanda Terima,</p>
