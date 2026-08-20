@@ -14,7 +14,6 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -231,22 +230,16 @@ export function InvoiceListPage() {
         actions={
           <>
             {selectedIds.size > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
-                    <Printer className="size-4" />
-                    Print
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => navigate(`/sales/invoices/print/tanda-terima-invoice?ids=${[...selectedIds].join(',')}`)}>
-                    Tanda Terima Invoice
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate(`/sales/invoices/print/penagihan-harian?ids=${[...selectedIds].join(',')}`)}>
-                    Laporan Penagihan Harian
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <>
+                <Button variant="outline" onClick={() => navigate(`/sales/invoices/print/tanda-terima-invoice?ids=${[...selectedIds].join(',')}`)}>
+                  <Printer className="size-4" />
+                  Print Tanda Terima Invoice
+                </Button>
+                <Button variant="outline" onClick={() => navigate(`/sales/invoices/print/penagihan-harian?ids=${[...selectedIds].join(',')}`)}>
+                  <Printer className="size-4" />
+                  Print Laporan Penagihan Harian
+                </Button>
+              </>
             )}
             <ActionBar
               actions={[

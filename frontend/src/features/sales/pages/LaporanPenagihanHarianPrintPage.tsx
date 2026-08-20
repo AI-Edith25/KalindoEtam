@@ -22,12 +22,9 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
  * /reports/penagihan-harian — same AccountsReceivable.outstanding_amount data source (via the
  * shared list-all endpoint, now filtered by invoice_ids instead of due-date/branch/salesman),
  * deliberately rendered as a flat list (no per-customer grouping/subtotals like the old page —
- * CUSTOMER / CUSTOMER NAME repeat on every row instead), matching Laporan_penagihan.pdf.
- *
- * REFERENCE column (2026-08-19) intentionally reads invoice.deliveries' document numbers, not
- * invoice.reference_1 (an SO reference — Tanda Terima Invoice's own Reference column, a
- * different concept despite the shared column label) — matches Sales > Invoices' own "Reference"
- * column exactly, per explicit request to align with what that table actually shows.
+ * CUSTOMER # / CUSTOMER NAME repeat on every row instead), matching Laporan_penagihan.pdf's
+ * 8-column layout exactly — including REFERENCE 1 # / REFERENCE 2 # (invoice.reference_1/
+ * reference_2, same fields Tanda Terima Invoice print uses), not invoice.deliveries.
  */
 export function LaporanPenagihanHarianPrintPage() {
   const [searchParams] = useSearchParams()
@@ -63,11 +60,12 @@ export function LaporanPenagihanHarianPrintPage() {
         <table className="mt-2 w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-black">
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">CUSTOMER</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">CUSTOMER #</th>
               <th className="whitespace-nowrap py-1 pr-2 font-bold">CUSTOMER NAME</th>
               <th className="whitespace-nowrap py-1 pr-2 font-bold">INV DATE</th>
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">DOCUMENT</th>
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">REFERENCE</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">DOCUMENT #</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">REFERENCE 1 #</th>
+              <th className="whitespace-nowrap py-1 pr-2 font-bold">REFERENCE 2 #</th>
               <th className="whitespace-nowrap py-1 pr-2 font-bold">DUE DATE</th>
               <th className="whitespace-nowrap py-1 text-right font-bold">OUTSTANDING AMOUNT</th>
             </tr>
@@ -79,7 +77,8 @@ export function LaporanPenagihanHarianPrintPage() {
                 <td className="py-1 pr-2 align-top">{row.customer?.customer_name ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
                 <td className="py-1 pr-2 align-top">{row.invoice?.document_number ?? ''}</td>
-                <td className="py-1 pr-2 align-top">{(row.invoice?.deliveries ?? []).join(', ')}</td>
+                <td className="py-1 pr-2 align-top">{row.invoice?.reference_1 ?? ''}</td>
+                <td className="py-1 pr-2 align-top">{row.invoice?.reference_2 ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
                 <td className="py-1 text-right align-top">{formatNum(row.outstanding_amount, 2)}</td>
               </tr>
@@ -87,7 +86,7 @@ export function LaporanPenagihanHarianPrintPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-black font-bold">
-              <td colSpan={6} className="py-1 pr-2 text-right">
+              <td colSpan={7} className="py-1 pr-2 text-right">
                 TOTAL
               </td>
               <td className="py-1 text-right">{formatNum(total, 2)}</td>

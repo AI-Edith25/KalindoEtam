@@ -106,8 +106,9 @@ export function TandaTerimaInvoicePrintPage() {
           <thead>
             <tr className="border-b border-black">
               <th className="py-1 pr-2 font-bold">INV DATE</th>
-              <th className="py-1 pr-2 font-bold">DOCUMENT</th>
-              <th className="py-1 pr-2 font-bold">REFERENCE</th>
+              <th className="py-1 pr-2 font-bold">DOCUMENT #</th>
+              <th className="py-1 pr-2 font-bold">REFERENCE 1 #</th>
+              <th className="py-1 pr-2 font-bold">REFERENCE 2 #</th>
               <th className="py-1 pr-2 font-bold">DUE DATE</th>
               <th className="py-1 text-right font-bold">AMOUNT</th>
             </tr>
@@ -118,6 +119,7 @@ export function TandaTerimaInvoicePrintPage() {
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
                 <td className="py-1 pr-2 align-top">{row.invoice?.document_number ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{row.invoice?.reference_1 ?? ''}</td>
+                <td className="py-1 pr-2 align-top">{row.invoice?.reference_2 ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
                 <td className="py-1 text-right align-top">{formatNum(row.outstanding_amount, 2)}</td>
               </tr>
@@ -125,7 +127,7 @@ export function TandaTerimaInvoicePrintPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-black font-bold">
-              <td colSpan={4} className="py-1 pr-2 text-right">
+              <td colSpan={5} className="py-1 pr-2 text-right">
                 TOTAL
               </td>
               <td className="py-1 text-right">{formatNum(total, 2)}</td>
