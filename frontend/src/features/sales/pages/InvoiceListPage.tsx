@@ -16,8 +16,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../api/invoiceApi'
+import { exportSalesReport } from '../api/salesReportApi'
 import { InvoiceFiltersBar } from '../components/InvoiceFiltersBar'
 import { emptyInvoiceFilters } from '../lib/invoiceFilters'
 import type { Invoice, InvoiceFilterValues } from '../types'
@@ -95,6 +97,34 @@ export function InvoiceListPage() {
     },
     onError: (error) => toastApiError(error),
   })
+
+  const [isExporting, setIsExporting] = useState(false)
+  // Checked rows override the active filter entirely when present (confirmed with the user) —
+  // same filter object the list query itself already builds (:60-65), just without page/per_page.
+  const exportSalesReportAs = async (mode: 'summary' | 'detail', format: 'xlsx' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const blob = await exportSalesReport(
+        {
+          ...(selectedIds.size > 0
+            ? { ids: [...selectedIds] }
+            : {
+                ...(search ? { search } : {}),
+                ...(filters.status ? { status: filters.status } : {}),
+                ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+                ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+              }),
+        },
+        mode,
+        format,
+      )
+      downloadBlob(`sales-report-${mode}.${format}`, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const rows = useMemo(() => {
     const data = listQuery.data?.data ?? []
@@ -227,10 +257,23 @@ export function InvoiceListPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isExporting}>
+                  <Download className="size-4" />
+                  Laporan Penjualan
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportSalesReportAs('summary', 'xlsx')}>Summary (XLSX)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportSalesReportAs('summary', 'csv')}>Summary (CSV)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportSalesReportAs('detail', 'xlsx')}>Detail (XLSX)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportSalesReportAs('detail', 'csv')}>Detail (CSV)</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ActionBar
               actions={[
                 { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-                { label: 'Export', icon: Download, disabled: true },
                 { label: 'Import', icon: Upload, disabled: true },
               ]}
               primary={canCreate ? { label: 'New Invoice', icon: Plus, onClick: () => navigate('/sales/invoices/new') } : undefined}

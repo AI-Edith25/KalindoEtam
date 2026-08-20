@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
 use App\Http\Controllers\Api\V1\SalesPersonController;
+use App\Http\Controllers\Api\V1\SalesReportController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StockInController;
@@ -177,6 +178,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('deliveries/{delivery}/complete', [DeliveryController::class, 'complete'])->middleware('permission:sales.deliveries.update');
 
     // Invoice Workflow (Sprint 10): Delivery -> Invoice -> Accounts Receivable -> Receipt Entry.
+    // Registered before apiResource('invoices', ...) below — its GET invoices/{invoice} (show)
+    // would otherwise swallow this path first and try to resolve "export" as an invoice id.
+    Route::get('invoices/export/sales-report', [SalesReportController::class, 'export'])->middleware('permission:sales.invoices.view');
     $withPagePermissions(Route::apiResource('invoices', InvoiceController::class), 'sales.invoices');
     Route::post('invoices/{invoice}/submit', [InvoiceController::class, 'submit'])->middleware('permission:sales.invoices.update');
     Route::post('invoices/{invoice}/cancel', [InvoiceController::class, 'cancel'])->middleware('permission:sales.invoices.update');

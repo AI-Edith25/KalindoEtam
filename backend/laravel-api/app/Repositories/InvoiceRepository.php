@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Enums\AccountsReceivableStatus;
 use App\Models\Invoice;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
 class InvoiceRepository extends BaseRepository
@@ -52,5 +53,33 @@ class InvoiceRepository extends BaseRepository
     public function findOrFail(string $id): Model
     {
         return $this->model->query()->with(self::EAGER)->findOrFail($id);
+    }
+
+    /**
+     * Unpaginated, for the Sales Report export (Summary/Detail). When $ids is given, it
+     * replaces the whole filter chain rather than AND-ing with it — a checked-rows selection
+     * on the Invoices list means "export exactly these", not "these narrowed further by
+     * whatever filter happens to still be active" (deliberately different from
+     * AccountsReceivableRepository::searchAll()'s own invoice_ids, which stays additive).
+     */
+    public function searchAll(array $filters, ?array $ids = null): Collection
+    {
+        if (! empty($ids)) {
+            return $this->model->query()->with(self::EAGER)->whereIn('id', $ids)->latest('invoice_date')->get();
+        }
+
+        return $this->model->query()
+            ->with(self::EAGER)
+            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['invoice_type'] ?? null, fn ($query, $invoiceType) => $query->where('invoice_type', $invoiceType))
+            ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
+            ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '<=', $date))
+            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
+                fn ($q) => $q->where('document_number', 'like', "%{$search}%")
+                    ->orWhereHas('customer', fn ($sq) => $sq->where('customer_name', 'like', "%{$search}%"))
+            ))
+            ->latest('invoice_date')
+            ->get();
     }
 }
