@@ -173,16 +173,16 @@ export function DeliveryPrintPage() {
           </tbody>
         </table>
 
+        <div className="flex-1" />
+
         {notes && (
-          <div className="mt-2">
+          <div className="mb-2">
             <MetaRow label="Notes" value={notes} />
           </div>
         )}
 
-        <div className="flex-1" />
-
         {/* border-t here is the dividing line above the signature block — Notes above renders
-            above this line, not between it and "Tanda Terima". */}
+            directly on top of this line, not up against the item table. */}
         <table className="w-full border-collapse text-left" style={{ tableLayout: 'fixed' }}>
           <ItemColGroup />
           <tbody>
