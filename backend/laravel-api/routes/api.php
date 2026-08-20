@@ -241,6 +241,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
 
     // Accounting Engine (Sprint 11): Invoice/Receipt Entry -> Accounting Service -> Journal Entry -> General Ledger.
     $withPagePermissions(Route::apiResource('chart-of-accounts', ChartOfAccountController::class), 'master.chart_of_accounts');
+    // Registered before the apiResource below so its implicit GET journal-entries/{journalEntry}
+    // (show) doesn't swallow "export" as an id — same ordering trick as accounts-receivables/export.
+    Route::get('journal-entries/export', [JournalEntryController::class, 'export'])->middleware('permission:accounting.journal_entries.view');
     $withPagePermissions(Route::apiResource('journal-entries', JournalEntryController::class), 'accounting.journal_entries');
     Route::post('journal-entries/{journalEntry}/post', [JournalEntryController::class, 'post'])->middleware('permission:accounting.journal_entries.update');
     Route::post('journal-entries/{journalEntry}/reverse', [JournalEntryController::class, 'reverse'])->middleware('permission:accounting.journal_entries.update');

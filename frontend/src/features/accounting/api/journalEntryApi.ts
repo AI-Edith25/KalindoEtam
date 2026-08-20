@@ -8,6 +8,7 @@ export interface JournalEntryListParams {
   status?: string
   reference_type?: string
   account_id?: string
+  branch_id?: string
   date_from?: string
   date_to?: string
   per_page?: number
@@ -16,6 +17,15 @@ export interface JournalEntryListParams {
 export async function fetchJournalEntries(params: JournalEntryListParams): Promise<ApiListResponse<JournalEntry>> {
   const { data } = await apiClient.get<ApiListResponse<JournalEntry>>('/journal-entries', { params })
   return data
+}
+
+/** Same filters as fetchJournalEntries(), unpaginated, XLSX or CSV. */
+export async function exportJournalEntries(
+  params: Omit<JournalEntryListParams, 'page' | 'per_page'>,
+  format: 'xlsx' | 'csv',
+): Promise<Blob> {
+  const { data } = await apiClient.get('/journal-entries/export', { params: { ...params, format }, responseType: 'blob' })
+  return data as Blob
 }
 
 export async function fetchJournalEntry(id: string): Promise<JournalEntry> {

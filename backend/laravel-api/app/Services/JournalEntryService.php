@@ -8,6 +8,7 @@ use App\Models\JournalEntry;
 use App\Repositories\JournalEntryLineRepository;
 use App\Repositories\JournalEntryRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -33,6 +34,12 @@ class JournalEntryService
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->journalEntryRepository->search($filters, $perPage);
+    }
+
+    /** Same filters as list(), unpaginated — for Export, which must cover every filtered row. */
+    public function listAll(array $filters = []): Collection
+    {
+        return $this->journalEntryRepository->searchAll($filters);
     }
 
     public function create(array $data): JournalEntry

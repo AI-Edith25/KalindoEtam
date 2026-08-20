@@ -1,7 +1,7 @@
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
+import { useBranchesLookup, useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import { emptyJournalEntryFilters, hasActiveJournalEntryFilters } from '../lib/journalEntryFilters'
 import type { DocumentStatus, JournalEntryFilterValues } from '../types'
 
@@ -14,6 +14,7 @@ interface JournalEntryFiltersBarProps {
 
 export function JournalEntryFiltersBar({ value, onChange }: JournalEntryFiltersBarProps) {
   const accounts = useChartOfAccountsLookup()
+  const branches = useBranchesLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyJournalEntryFilters)} hasActiveFilters={hasActiveJournalEntryFilters(value)}>
@@ -65,6 +66,22 @@ export function JournalEntryFiltersBar({ value, onChange }: JournalEntryFiltersB
             {accounts.data?.map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 {account.code} — {account.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Branch</span>
+        <Select value={value.branchId ?? ALL} onValueChange={(next) => onChange({ ...value, branchId: next === ALL ? null : next })}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'All branches'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All branches</SelectItem>
+            {branches.data?.map((branch) => (
+              <SelectItem key={branch.id} value={branch.id}>
+                {branch.name}
               </SelectItem>
             ))}
           </SelectContent>

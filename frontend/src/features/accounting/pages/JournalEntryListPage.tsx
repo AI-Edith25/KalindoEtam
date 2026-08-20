@@ -13,8 +13,9 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { fetchJournalEntries, postJournalEntry } from '../api/journalEntryApi'
+import { exportJournalEntries, fetchJournalEntries, postJournalEntry } from '../api/journalEntryApi'
 import { JournalEntryFiltersBar } from '../components/JournalEntryFiltersBar'
 import { emptyJournalEntryFilters } from '../lib/journalEntryFilters'
 import type { JournalEntry, JournalEntryFilterValues } from '../types'
@@ -30,20 +31,34 @@ export function JournalEntryListPage() {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<JournalEntryFilterValues>(emptyJournalEntryFilters)
 
+  const activeFilterParams = {
+    ...(search ? { search } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.referenceType ? { reference_type: filters.referenceType } : {}),
+    ...(filters.accountId ? { account_id: filters.accountId } : {}),
+    ...(filters.branchId ? { branch_id: filters.branchId } : {}),
+    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+  }
+
   const listQuery = useQuery({
-    queryKey: ['journal-entries', page, search, filters.status, filters.referenceType, filters.accountId, filters.dateFrom, filters.dateTo],
-    queryFn: () =>
-      fetchJournalEntries({
-        page,
-        ...(search ? { search } : {}),
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.referenceType ? { reference_type: filters.referenceType } : {}),
-        ...(filters.accountId ? { account_id: filters.accountId } : {}),
-        ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
-        ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-      }),
+    queryKey: ['journal-entries', page, search, filters.status, filters.referenceType, filters.accountId, filters.branchId, filters.dateFrom, filters.dateTo],
+    queryFn: () => fetchJournalEntries({ page, ...activeFilterParams }),
     placeholderData: (previous) => previous,
   })
+
+  const [isExporting, setIsExporting] = useState(false)
+  const exportReport = async (format: 'xlsx' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const blob = await exportJournalEntries(activeFilterParams, format)
+      downloadBlob(`general-journal.${format}`, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const postMutation = useMutation({
     mutationFn: postJournalEntry,
@@ -82,7 +97,9 @@ export function JournalEntryListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.referenceType || filters.accountId || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(
+    search || filters.status || filters.referenceType || filters.accountId || filters.branchId || filters.dateFrom || filters.dateTo
+  )
 
   return (
     <div className="flex flex-col gap-4">
@@ -96,7 +113,8 @@ export function JournalEntryListPage() {
           <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
+              { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },
+              { label: 'Export CSV', icon: Download, onClick: () => exportReport('csv'), disabled: isExporting },
               { label: 'Import', icon: Upload, disabled: true },
             ]}
             primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate('/finance/general-journal/journal-entries/new') } : undefined}

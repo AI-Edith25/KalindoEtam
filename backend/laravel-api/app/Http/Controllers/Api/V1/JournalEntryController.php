@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exports\JournalEntryExport;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexJournalEntryRequest;
@@ -13,6 +14,9 @@ use App\Models\JournalEntry;
 use App\Services\ApprovalService;
 use App\Services\JournalEntryService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class JournalEntryController extends Controller
 {
@@ -31,6 +35,18 @@ class JournalEntryController extends Controller
         return $this->success(JournalEntryResource::collection(
             $this->journalEntryService->list($filters, $perPage)
         ));
+    }
+
+    /** Same filters as index(), unpaginated (JournalEntryService::listAll()) — XLSX/CSV export. */
+    public function export(IndexJournalEntryRequest $request): BinaryFileResponse
+    {
+        $format = $request->validate(['format' => ['sometimes', Rule::in(['xlsx', 'csv'])]])['format'] ?? 'xlsx';
+        $filters = $request->validated();
+        unset($filters['per_page']);
+
+        $rows = $this->journalEntryService->listAll($filters);
+
+        return Excel::download(new JournalEntryExport($rows), "general-journal.{$format}");
     }
 
     public function store(StoreJournalEntryRequest $request): JsonResponse
