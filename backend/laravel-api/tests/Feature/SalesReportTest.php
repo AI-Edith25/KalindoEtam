@@ -265,6 +265,10 @@ class SalesReportTest extends TestCase
         $this->assertStringContainsString(' - Base Currency', $sheet->getCell('A2')->getValue());
         $this->assertEquals('EXCL.TAX', $sheet->getCell('F8')->getValue());
         $this->assertEquals(100000, $sheet->getCell('F9')->getValue());
+        // Regression: PhpSpreadsheet's fromArray() defaults to loose (==) null comparison and
+        // silently skips writing any cell whose value == null — which a real 0 does in PHP.
+        // WithStrictNullComparison on the Export class is what keeps this a real 0, not blank.
+        $this->assertSame(0.0, $sheet->getCell('G9')->getValue()); // DISC — genuinely zero, must not render blank
         $this->assertEquals(11000, $sheet->getCell('H9')->getValue());
         $this->assertEquals(111000, $sheet->getCell('I9')->getValue());
         $this->assertEquals('Total By Header', $sheet->getCell('E10')->getValue());
@@ -330,6 +334,7 @@ class SalesReportTest extends TestCase
         $this->assertNull($sheet->getCell('E8')->getValue()); // blank spacer column
         $this->assertEquals('ITM-1', $sheet->getCell('A11')->getValue());
         $this->assertEquals(10, $sheet->getCell('F11')->getValue()); // QUANTITY
+        $this->assertSame(0.0, $sheet->getCell('H11')->getValue()); // DISC — always 0, must not render blank (see WithStrictNullComparison)
         $this->assertEquals(11000, $sheet->getCell('I11')->getValue()); // TAX
         $this->assertEquals(100000, $sheet->getCell('K11')->getValue()); // LINE AMOUNT
         $this->assertEquals('TAX SUMMARY', $sheet->getCell('A14')->getValue());
