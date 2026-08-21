@@ -9,11 +9,13 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 
 /**
- * Sales Report — Summary mode. $rows/$boldRows come from
+ * Sales Report — Summary mode. $rows/$meta come from
  * SalesReportService::wrapReport(..., SalesReportService::summaryRows(...), ...) — title/date-range/
  * company-timestamp/blank/heading rows, the summary body (including its own trailing "Total By
  * Header" row), the Tax Summary section, then "Printed By" — FromArray, not FromCollection/
- * WithMapping, since there's no further per-row mapping left to do.
+ * WithMapping, since there's no further per-row mapping left to do. $meta carries which rows are
+ * bold, the table's rightmost column, and (Summary only) the DATE column's number-format range
+ * and the bordered data range — see StylesSalesReportSheet.
  *
  * WithStrictNullComparison is required, not decorative: PhpSpreadsheet's Worksheet::fromArray()
  * defaults to loose (==) null comparison and silently skips writing any cell whose value equals
@@ -24,8 +26,8 @@ class SalesReportSummaryExport implements FromArray, WithCustomCsvSettings, With
 {
     use StylesSalesReportSheet;
 
-    /** @param array<int, int> $boldRows */
-    public function __construct(protected array $rows, protected array $boldRows = []) {}
+    /** @param array<int, mixed> $meta see SalesReportService::wrapReport()'s return shape */
+    public function __construct(protected array $rows, protected array $meta = []) {}
 
     public function array(): array
     {

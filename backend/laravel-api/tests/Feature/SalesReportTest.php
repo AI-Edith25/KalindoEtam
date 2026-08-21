@@ -29,6 +29,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 use Tests\TestCase;
 
 class SalesReportTest extends TestCase
@@ -124,19 +125,21 @@ class SalesReportTest extends TestCase
 
         $this->assertCount(3, $rows); // 2 invoices + Total
 
+        // EXCL.TAX/DISC/TAX/INCL.TAX are pre-formatted Indonesian-style text ("5.000,00"), not raw
+        // numeric — see summaryRows()'s own docblock for why a numeric format code can't do this
+        // reliably across locales.
         $row1 = collect($rows)->first(fn ($r) => $r[1] === $invoice1->document_number);
-        $this->assertEquals(100000.0, $row1[5]); // EXCL.TAX
-        $this->assertEquals(0.0, $row1[6]); // DISC
-        $this->assertEquals(11000.0, $row1[7]); // TAX
-        $this->assertEquals(111000.0, $row1[8]); // INCL.TAX
-        $this->assertEqualsWithDelta($row1[5] - $row1[6] + $row1[7], $row1[8], 0.001);
+        $this->assertEquals('100.000,00', $row1[4]); // EXCL.TAX
+        $this->assertEquals('0,00', $row1[5]); // DISC — genuinely zero, must not render blank
+        $this->assertEquals('11.000,00', $row1[6]); // TAX
+        $this->assertEquals('111.000,00', $row1[7]); // INCL.TAX
 
         $total = $rows[array_key_last($rows)];
-        $this->assertEquals('Total By Header', $total[4]);
-        $this->assertEquals(200000.0, $total[5]);
-        $this->assertEquals(0.0, $total[6]);
-        $this->assertEquals(11000.0, $total[7]);
-        $this->assertEquals(211000.0, $total[8]);
+        $this->assertEquals('Total By Header', $total[3]);
+        $this->assertEquals('200.000,00', $total[4]);
+        $this->assertEquals('0,00', $total[5]);
+        $this->assertEquals('11.000,00', $total[6]);
+        $this->assertEquals('211.000,00', $total[7]);
     }
 
     public function test_summary_includes_transportation_invoices(): void
@@ -260,28 +263,44 @@ class SalesReportTest extends TestCase
         // Row 1 title, row 2 date range, rows 3-4 blank, row 5 company/timestamp, rows 6-7 blank,
         // row 8 column headings, row 9 invoice data, row 10 "Total By Header", rows 11-12 blank,
         // row 13 "TAX SUMMARY", row 14 its own Code/Rate/... header, row 15 the one tax group,
-        // row 16 its grand total, row 17 blank, row 18 "Printed By".
+        // row 16 its grand total, row 17 blank, row 18 "Printed By". CURRENCY column removed, so
+        // EXCL.TAX now sits at E (was F), with 12 columns total (A:L, was A:M).
         $this->assertEquals('SALES INVOICE LISTING - SUMMARY', $sheet->getCell('A1')->getValue());
         $this->assertStringContainsString(' - Base Currency', $sheet->getCell('A2')->getValue());
-        $this->assertEquals('EXCL.TAX', $sheet->getCell('F8')->getValue());
-        $this->assertEquals(100000, $sheet->getCell('F9')->getValue());
-        // Regression: PhpSpreadsheet's fromArray() defaults to loose (==) null comparison and
-        // silently skips writing any cell whose value == null — which a real 0 does in PHP.
-        // WithStrictNullComparison on the Export class is what keeps this a real 0, not blank.
-        $this->assertSame(0.0, $sheet->getCell('G9')->getValue()); // DISC — genuinely zero, must not render blank
-        $this->assertEquals(11000, $sheet->getCell('H9')->getValue());
-        $this->assertEquals(111000, $sheet->getCell('I9')->getValue());
-        $this->assertEquals('Total By Header', $sheet->getCell('E10')->getValue());
-        $this->assertEquals(100000, $sheet->getCell('F10')->getValue());
-        $this->assertEquals(111000, $sheet->getCell('I10')->getValue());
+        $this->assertEquals('DOCUMENT', $sheet->getCell('B8')->getValue()); // no "#" suffix
+        $this->assertEquals('CUSTOMER', $sheet->getCell('C8')->getValue());
+        $this->assertEquals('EXCL.TAX', $sheet->getCell('E8')->getValue());
+        $this->assertEquals('REFERENCE 1', $sheet->getCell('I8')->getValue());
+
+        // DATE is a real Excel date value (sortable/filterable), displayed dd/mm/yyyy — not a string.
+        $this->assertIsFloat($sheet->getCell('A9')->getValue());
+        $this->assertEquals('dd/mm/yyyy', $sheet->getStyle('A9')->getNumberFormat()->getFormatCode());
+        $this->assertEquals(now()->format('d/m/Y'), $sheet->getCell('A9')->getFormattedValue());
+
+        // EXCL.TAX/DISC/TAX/INCL.TAX are pre-formatted Indonesian-style text ("100.000,00"), not
+        // raw numeric — see SalesReportService::summaryRows()'s own docblock for why.
+        $this->assertEquals('100.000,00', $sheet->getCell('E9')->getValue());
+        $this->assertEquals('0,00', $sheet->getCell('F9')->getValue()); // DISC — genuinely zero, must not render blank
+        $this->assertEquals('11.000,00', $sheet->getCell('G9')->getValue());
+        $this->assertEquals('111.000,00', $sheet->getCell('H9')->getValue());
+        $this->assertEquals('Total By Header', $sheet->getCell('D10')->getValue());
+        $this->assertEquals('100.000,00', $sheet->getCell('E10')->getValue());
+        $this->assertEquals('111.000,00', $sheet->getCell('H10')->getValue());
         $this->assertEquals('TAX SUMMARY', $sheet->getCell('A13')->getValue());
         $this->assertEquals('Code', $sheet->getCell('A14')->getValue());
         $this->assertEquals('PPN11', $sheet->getCell('A15')->getValue());
         $this->assertEquals('11 %', $sheet->getCell('B15')->getValue());
-        $this->assertEquals(100000, $sheet->getCell('C15')->getValue());
+        $this->assertEquals(100000, $sheet->getCell('C15')->getValue()); // Tax Summary block stays raw numeric — out of this ticket's scope
         $this->assertEquals(11000, $sheet->getCell('D15')->getValue());
         $this->assertEquals(100000, $sheet->getCell('C16')->getValue()); // tax summary grand total
         $this->assertEquals('Printed By :', $sheet->getCell('A18')->getValue());
+
+        // Thin border grid from the heading row through the last body row (Total By Header).
+        $this->assertEquals(Border::BORDER_THIN, $sheet->getStyle('A8')->getBorders()->getBottom()->getBorderStyle());
+        $this->assertEquals(Border::BORDER_THIN, $sheet->getStyle('E9')->getBorders()->getLeft()->getBorderStyle());
+        $this->assertEquals(Border::BORDER_THIN, $sheet->getStyle('L10')->getBorders()->getRight()->getBorderStyle());
+        // Border does not leak into the Tax Summary block below it.
+        $this->assertNotEquals(Border::BORDER_THIN, $sheet->getStyle('A14')->getBorders()->getTop()->getBorderStyle());
 
         unlink($tmpPath);
     }
@@ -329,7 +348,8 @@ class SalesReportTest extends TestCase
         // the one tax group (16), grand total (17), blank, "Printed By".
         $this->assertEquals('SALES INVOICE LISTING - DETAIL', $sheet->getCell('A1')->getValue());
         $this->assertEquals('DATE', $sheet->getCell('A8')->getValue());
-        $this->assertEquals('ITEM # ', $sheet->getCell('A9')->getValue());
+        $this->assertEquals('DOCUMENT', $sheet->getCell('B8')->getValue()); // no "#" suffix
+        $this->assertEquals('ITEM', $sheet->getCell('A9')->getValue());
         $this->assertEquals('DELIVERY TO', $sheet->getCell('F8')->getValue());
         $this->assertNull($sheet->getCell('E8')->getValue()); // blank spacer column
         $this->assertEquals('ITM-1', $sheet->getCell('A11')->getValue());

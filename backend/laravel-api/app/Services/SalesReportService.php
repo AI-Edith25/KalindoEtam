@@ -3,13 +3,13 @@
 namespace App\Services;
 
 use App\Enums\InvoiceType;
-use App\Models\Currency;
 use App\Models\Invoice;
 use App\Repositories\CompanyRepository;
 use App\Repositories\InvoiceRepository;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 /**
  * Sales → Invoices' "Laporan Penjualan" export — Summary (one row per invoice) and Detail (one
@@ -34,30 +34,31 @@ class SalesReportService
     }
 
     /**
-     * DATE, DOCUMENT#, CUSTOMER #, CUSTOMER NAME, CURRENCY, EXCL.TAX, DISC, TAX, INCL.TAX,
-     * REFERENCE 1 #, REFERENCE 2 #, ADD BY, UPDATE BY, plus a trailing "Total By Header" row
-     * (label in the CURRENCY column position — matches the reference export exactly). Kept
-     * numeric (not the reference file's comma-formatted text) per the ticket's own "store numbers
-     * as numeric, not text" rule — the one deliberate deviation from the legacy sample.
-     * subtotal - discount_amount + tax_amount = grand_total already holds per invoice, so summing
-     * the four money columns independently reconciles for free.
+     * DATE, DOCUMENT, CUSTOMER, CUSTOMER NAME, EXCL.TAX, DISC, TAX, INCL.TAX, REFERENCE 1,
+     * REFERENCE 2, ADD BY, UPDATE BY, plus a trailing "Total By Header" row (label one column
+     * before EXCL.TAX). DATE is a real Excel date value (see excelDate()) so it sorts/filters as a
+     * date in XLSX — StylesSalesReportSheet applies the dd/mm/yyyy display format. The four money
+     * columns are pre-formatted Indonesian-style text ("5.000,00" — period thousands, comma
+     * decimal), not raw numeric: PhpSpreadsheet's format-code engine always treats "," as the
+     * thousands token and "." as the decimal token regardless of which literal character is used
+     * in a custom format string, so there is no numeric-cell format code that renders this
+     * correctly independent of the opening application's locale — confirmed empirically, not
+     * assumed. Writing the literal text is the only way to guarantee "5.000,00" everywhere.
+     * formatMoney(0) already yields "0,00", so a genuinely-zero DISC/TAX never renders blank.
      *
      * @return array<int, array<int, mixed>>
      */
     public function summaryRows(Collection $invoices): array
     {
-        $currency = $this->currencyLabel();
-
         $rows = $invoices->map(fn (Invoice $invoice) => [
-            $invoice->invoice_date?->format('Y-m-d'),
+            $this->excelDate($invoice->invoice_date),
             $invoice->document_number,
             $invoice->customer?->customer_code,
             $invoice->customer?->customer_name,
-            $currency,
-            (float) $invoice->subtotal,
-            (float) $invoice->discount_amount,
-            (float) $invoice->tax_amount,
-            (float) $invoice->grand_total,
+            $this->formatMoney((float) $invoice->subtotal),
+            $this->formatMoney((float) $invoice->discount_amount),
+            $this->formatMoney((float) $invoice->tax_amount),
+            $this->formatMoney((float) $invoice->grand_total),
             $invoice->reference_1,
             $invoice->reference_2,
             $invoice->creator?->name,
@@ -65,11 +66,11 @@ class SalesReportService
         ])->all();
 
         $rows[] = [
-            null, null, null, null, 'Total By Header',
-            round($invoices->sum(fn (Invoice $i) => (float) $i->subtotal), 2),
-            round($invoices->sum(fn (Invoice $i) => (float) $i->discount_amount), 2),
-            round($invoices->sum(fn (Invoice $i) => (float) $i->tax_amount), 2),
-            round($invoices->sum(fn (Invoice $i) => (float) $i->grand_total), 2),
+            null, null, null, 'Total By Header',
+            $this->formatMoney($invoices->sum(fn (Invoice $i) => (float) $i->subtotal)),
+            $this->formatMoney($invoices->sum(fn (Invoice $i) => (float) $i->discount_amount)),
+            $this->formatMoney($invoices->sum(fn (Invoice $i) => (float) $i->tax_amount)),
+            $this->formatMoney($invoices->sum(fn (Invoice $i) => (float) $i->grand_total)),
             null, null, null, null,
         ];
 
@@ -80,9 +81,9 @@ class SalesReportService
      * Two header rows (document-level, then item-level) with blank spacer columns matching the
      * reference export exactly — column positions differ from the current-shipped 10-col table,
      * but DISC/TAX/T.CODE always sit at H/I/J and AMOUNT/LINE AMOUNT at K for both row shapes:
-     *   header row: DATE(A) DOCUMENT#(B) CUSTOMER#(C) NAME(D) — DELIVERY TO(F) — DISC(H) TAX(I)
-     *               T.CODE(J) AMOUNT(K) REFERENCE 1#(L) REFERENCE 2#(M)
-     *   item row:   ITEM#(A) — DESCRIPTION(C) — UOM(E) QUANTITY(F) UNIT PRICE(G) DISC(H) TAX(I)
+     *   header row: DATE(A) DOCUMENT(B) CUSTOMER(C) NAME(D) — DELIVERY TO(F) — DISC(H) TAX(I)
+     *               T.CODE(J) AMOUNT(K) REFERENCE 1(L) REFERENCE 2(M)
+     *   item row:   ITEM(A) — DESCRIPTION(C) — UOM(E) QUANTITY(F) UNIT PRICE(G) DISC(H) TAX(I)
      *               T.CODE(J) LINE AMOUNT(K)
      *
      * @return array<int, array<int, mixed>>
@@ -147,31 +148,43 @@ class SalesReportService
         return $codes->count() === 1 ? $codes->first() : null;
     }
 
-    protected function currencyLabel(): ?string
-    {
-        $company = $this->companyRepository->defaultOrById(null);
-        $currency = $company ? Currency::query()->where('code', $company->currency)->first() : null;
-
-        if (! $currency) {
-            return null;
-        }
-
-        return "{$currency->symbol} - " . number_format((float) $currency->exchange_rate, 2);
-    }
-
-    /** @return array<int, mixed> */
+    /**
+     * No column header in this report ever carries a trailing "#" — a standing convention in this
+     * codebase (previously enforced on the Invoice checkbox print flow's own column headers).
+     *
+     * @return array<int, mixed>
+     */
     public function summaryHeadings(): array
     {
-        return ['DATE', 'DOCUMENT#', 'CUSTOMER #', 'CUSTOMER NAME', 'CURRENCY', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'REFERENCE 1 #', 'REFERENCE 2 #', 'ADD BY', 'UPDATE BY'];
+        return ['DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'REFERENCE 1', 'REFERENCE 2', 'ADD BY', 'UPDATE BY'];
     }
 
     /** @return array<int, array<int, mixed>> the two heading rows, document-level then item-level */
     public function detailHeadings(): array
     {
         return [
-            ['DATE', 'DOCUMENT #', 'CUSTOMER#', 'NAME', null, 'DELIVERY TO', null, 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'REFERENCE 1 #', 'REFERENCE 2 #'],
-            ['ITEM # ', null, 'DESCRIPTION', null, 'UOM', 'QUANTITY', 'UNIT PRICE', 'DISC', 'TAX', 'T.CODE', 'LINE AMOUNT', null, null],
+            ['DATE', 'DOCUMENT', 'CUSTOMER', 'NAME', null, 'DELIVERY TO', null, 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'REFERENCE 1', 'REFERENCE 2'],
+            ['ITEM', null, 'DESCRIPTION', null, 'UOM', 'QUANTITY', 'UNIT PRICE', 'DISC', 'TAX', 'T.CODE', 'LINE AMOUNT', null, null],
         ];
+    }
+
+    /** "5.000,00" — period thousands, comma decimal, always 2dp, regardless of the opening application's locale. See summaryRows()'s own docblock for why this must be text, not a numeric format code. */
+    protected function formatMoney(float $value): string
+    {
+        return number_format($value, 2, ',', '.');
+    }
+
+    /**
+     * A real Excel date serial (not a string) so Summary's DATE column sorts/filters as a date in
+     * XLSX — PhpSpreadsheet's own value binder does NOT auto-detect \DateTimeInterface values
+     * (confirmed empirically), so the conversion must happen explicitly here; the dd/mm/yyyy
+     * display format is applied separately, over this column's cell range, by
+     * StylesSalesReportSheet. Returns '' for a null date — harmless on both an unset numeric
+     * format and an empty CSV field.
+     */
+    protected function excelDate(?Carbon $date): float|string
+    {
+        return $date ? ExcelDate::PHPToExcel($date) : '';
     }
 
     /**
@@ -182,18 +195,30 @@ class SalesReportService
      * their full row set from, so CSV/XLSX for a given mode can never diverge in content (only in
      * how StylesSalesReportSheet renders the rows).
      *
-     * Returns ['rows' => ..., 'boldRows' => ...] rather than a plain row array — the Tax Summary
-     * section's position depends on how many body rows precede it, so which rows need bold
-     * styling (the heading row(s), "TAX SUMMARY", and its own "Code/Rate/..." header) can only be
-     * known after the whole array is assembled, not as fixed row numbers.
+     * Returns ['rows' => ..., 'boldRows' => ..., ...] rather than a plain row array — the Tax
+     * Summary section's position depends on how many body rows precede it, so which rows need
+     * bold styling (the heading row(s), "TAX SUMMARY", and its own "Code/Rate/..." header), and
+     * which rows are the actual data table (for $dateColumn's number format / $withDataBorders),
+     * can only be known after the whole array is assembled, not as fixed row numbers.
      *
      * @param array<int, array<int, mixed>> $headingRows one or more heading rows (Summary: 1, Detail: 2)
      * @param array<int, array<int, mixed>> $bodyRows
      * @param array<string, mixed> $filters
-     * @return array{rows: array<int, array<int, mixed>>, boldRows: array<int, int>}
+     * @param string $lastColumn rightmost column letter of this mode's table — bold/border ranges span A:$lastColumn
+     * @param string|null $dateColumn column letter to apply a dd/mm/yyyy display format to, over the body row range; null = untouched
+     * @param bool $withDataBorders thin borders around every cell from the heading row(s) through the last body row
+     * @return array{rows: array<int, array<int, mixed>>, boldRows: array<int, int>, lastColumn: string, dateColumn: ?string, dateRowRange: ?array{0: int, 1: int}, borderRange: ?array{0: int, 1: int}}
      */
-    public function wrapReport(string $title, array $headingRows, array $bodyRows, array $filters, Collection $invoices): array
-    {
+    public function wrapReport(
+        string $title,
+        array $headingRows,
+        array $bodyRows,
+        array $filters,
+        Collection $invoices,
+        string $lastColumn = 'M',
+        ?string $dateColumn = null,
+        bool $withDataBorders = false,
+    ): array {
         $company = $this->companyRepository->defaultOrById(null);
 
         $rows = [
@@ -207,12 +232,15 @@ class SalesReportService
         ];
 
         $boldRows = [];
+        $firstHeadingRow = count($rows) + 1;
         foreach ($headingRows as $headingRow) {
             $rows[] = $headingRow;
             $boldRows[] = count($rows);
         }
 
+        $firstBodyRow = count($rows) + 1;
         array_push($rows, ...$bodyRows);
+        $lastBodyRow = count($rows);
 
         $rows[] = [''];
         $rows[] = [''];
@@ -225,7 +253,14 @@ class SalesReportService
         $rows[] = [''];
         $rows[] = ['Printed By :', Auth::user()?->name];
 
-        return ['rows' => $rows, 'boldRows' => $boldRows];
+        return [
+            'rows' => $rows,
+            'boldRows' => $boldRows,
+            'lastColumn' => $lastColumn,
+            'dateColumn' => $dateColumn,
+            'dateRowRange' => $dateColumn !== null ? [$firstBodyRow, $lastBodyRow] : null,
+            'borderRange' => $withDataBorders ? [$firstHeadingRow, $lastBodyRow] : null,
+        ];
     }
 
     /**

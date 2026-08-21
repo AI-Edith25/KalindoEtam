@@ -28,8 +28,9 @@ class SalesReportController extends Controller
                 $this->salesReportService->detailRows($invoices),
                 $data,
                 $invoices,
+                lastColumn: 'M',
             );
-            $export = new SalesReportDetailExport($wrapped['rows'], $wrapped['boldRows']);
+            $export = new SalesReportDetailExport($wrapped['rows'], $wrapped);
             $filename = "SalesInvoiceListing_Detail.{$format}";
         } else {
             $wrapped = $this->salesReportService->wrapReport(
@@ -38,8 +39,11 @@ class SalesReportController extends Controller
                 $this->salesReportService->summaryRows($invoices),
                 $data,
                 $invoices,
+                lastColumn: 'L',
+                dateColumn: 'A',
+                withDataBorders: true,
             );
-            $export = new SalesReportSummaryExport($wrapped['rows'], $wrapped['boldRows']);
+            $export = new SalesReportSummaryExport($wrapped['rows'], $wrapped);
             $filename = "SalesInvoiceListing_Summary.{$format}";
         }
 
