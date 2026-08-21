@@ -77,6 +77,10 @@ export interface AccountsReceivable {
   sales_order_id: string
   delivery_id: string
   delivery: { id: string; document_number: string | null } | null
+  branch_id: string | null
+  // Goods invoices' branch lives on their Sales Order; Transportation invoices' own branch_id
+  // is the fallback (they have no Sales Order at all) — already resolved server-side.
+  branch_name: string | null
   terms_of_payment_days: number | null
   age_in_days: number | null
   sales_person_name: string | null

@@ -28,6 +28,7 @@ class Invoice extends Model
         'cancelled_at',
         'delivery_id',
         'sales_order_id',
+        'branch_id',
         'customer_id',
         'sales_person_id',
         'invoice_date',
@@ -96,6 +97,12 @@ class Invoice extends Model
     public function salesOrders(): BelongsToMany
     {
         return $this->belongsToMany(SalesOrder::class, 'invoice_sales_orders');
+    }
+
+    /** Transportation only — captured directly at creation, since there's no Sales Order to derive it from. Null for Goods. */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function customer(): BelongsTo

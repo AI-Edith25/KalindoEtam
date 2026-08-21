@@ -228,6 +228,9 @@ export interface Invoice {
     sales_person: { id: string; code: string; name: string } | null
     branch: { id: string; name: string; code: string } | null
   } | null
+  // Transportation only — captured directly at creation (no Sales Order to derive it from). Null for Goods.
+  branch_id: string | null
+  branch: { id: string; name: string; code: string } | null
   customer_id: string
   customer: { id: string; customer_code: string; customer_name: string; phone: string | null; address: string | null } | null
   sales_person_id: string | null
@@ -268,6 +271,8 @@ export interface InvoiceFormValues {
   // manual freestanding line items (no Item/inventory link).
   customer_id?: string
   items?: { description: string; qty: number; rate: number }[]
+  // Transportation only, create-only — no Sales Order to derive Branch from.
+  branch_id?: string
   invoice_type?: InvoiceType
   invoice_date: string
   due_date: string

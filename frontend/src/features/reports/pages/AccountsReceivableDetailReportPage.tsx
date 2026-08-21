@@ -79,6 +79,7 @@ export function AccountsReceivableDetailReportPage() {
 
   const columns: DataTableColumn<AccountsReceivable>[] = [
     { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
+    { header: 'Branch', accessor: (row) => row.branch_name ?? '—' },
     { header: 'Sales Person', accessor: (row) => row.sales_person_name ?? '—' },
     { header: 'Invoice Number', accessor: (row) => row.invoice?.document_number ?? '—' },
     { header: 'Invoice Date', accessor: (row) => (row.invoice?.invoice_date ? formatDate(row.invoice.invoice_date) : '—') },

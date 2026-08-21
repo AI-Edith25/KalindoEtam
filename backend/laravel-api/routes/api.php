@@ -184,6 +184,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('invoices', InvoiceController::class), 'sales.invoices');
     Route::post('invoices/{invoice}/submit', [InvoiceController::class, 'submit'])->middleware('permission:sales.invoices.update');
     Route::post('invoices/{invoice}/cancel', [InvoiceController::class, 'cancel'])->middleware('permission:sales.invoices.update');
+    // Transportation only — Branch is metadata, not a financial field, so it stays editable
+    // regardless of Draft/Submitted status. See InvoiceService::updateBranch().
+    Route::patch('invoices/{invoice}/branch', [InvoiceController::class, 'updateBranch'])->middleware('permission:sales.invoices.update');
 
     // Invoice Angkutan nominal lock + approval: a Submitted Transportation Invoice's Rate/Amount/
     // Grand Total are otherwise immutable (no write path exists at all); this is the sole, audited,

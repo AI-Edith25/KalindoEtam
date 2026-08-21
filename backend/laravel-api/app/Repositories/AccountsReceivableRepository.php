@@ -69,7 +69,12 @@ class AccountsReceivableRepository extends BaseRepository
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
             ->when($filters['invoice_date_from'] ?? null, fn ($query, $date) => $query->whereHas('invoice', fn ($invoiceQuery) => $invoiceQuery->whereDate('invoice_date', '>=', $date)))
             ->when($filters['invoice_date_to'] ?? null, fn ($query, $date) => $query->whereHas('invoice', fn ($invoiceQuery) => $invoiceQuery->whereDate('invoice_date', '<=', $date)))
-            ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('branch_id', $branchId)))
+            // Goods invoices' branch lives on their Sales Order; Transportation invoices have no
+            // Sales Order at all, so their own branch_id (captured directly at creation, see
+            // InvoiceService::createTransportation()) is the only source for them — match either.
+            ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->where(fn ($q) => $q
+                ->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('branch_id', $branchId))
+                ->orWhere('branch_id', $branchId)))
             ->when($filters['sales_person_id'] ?? null, fn ($query, $salesPersonId) => $query->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('sales_person_id', $salesPersonId)))
             // Sales > Invoices' checkbox-driven print flow (Tanda Terima Invoice / Laporan Penagihan Harian) — resolves checked Invoice ids to their AccountsReceivable rows.
             ->when($filters['invoice_ids'] ?? null, fn ($query, $ids) => $query->whereIn('invoice_id', $ids))
@@ -86,7 +91,7 @@ class AccountsReceivableRepository extends BaseRepository
     public function search(array $filters, int $perPage = 15): LengthAwarePaginator
     {
         return $this->filteredQuery($filters)
-            ->with(['customer', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'delivery'])
+            ->with(['customer', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'salesOrder.branch', 'branch', 'delivery'])
             ->latest('due_date')
             ->paginate($perPage);
     }
@@ -95,7 +100,7 @@ class AccountsReceivableRepository extends BaseRepository
     public function searchAll(array $filters): Collection
     {
         return $this->filteredQuery($filters)
-            ->with(['customer', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'delivery'])
+            ->with(['customer', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'salesOrder.branch', 'branch', 'delivery'])
             ->latest('due_date')
             ->get();
     }

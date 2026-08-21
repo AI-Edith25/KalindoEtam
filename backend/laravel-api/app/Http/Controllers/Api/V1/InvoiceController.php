@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexInvoiceRequest;
 use App\Http\Requests\StoreInvoiceRequest;
+use App\Http\Requests\UpdateInvoiceBranchRequest;
 use App\Http\Requests\UpdateInvoiceRequest;
 use App\Http\Resources\InvoiceResource;
 use App\Models\Invoice;
@@ -38,7 +39,7 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice): JsonResponse
     {
         return $this->success(new InvoiceResource($invoice->load([
-            'customer', 'salesPerson', 'salesOrder.salesPerson', 'salesOrder.branch', 'salesOrders', 'delivery.warehouse', 'deliveries', 'items.deliveryItem.delivery.salesOrder.salesPerson', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes',
+            'customer', 'salesPerson', 'salesOrder.salesPerson', 'salesOrder.branch', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'items.deliveryItem.delivery.salesOrder.salesPerson', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes',
         ])));
     }
 
@@ -68,5 +69,12 @@ class InvoiceController extends Controller
         $invoice = $this->invoiceService->cancel($invoice);
 
         return $this->success(new InvoiceResource($invoice), 'Invoice cancelled.');
+    }
+
+    public function updateBranch(UpdateInvoiceBranchRequest $request, Invoice $invoice): JsonResponse
+    {
+        $invoice = $this->invoiceService->updateBranch($invoice, $request->validated()['branch_id']);
+
+        return $this->success(new InvoiceResource($invoice), 'Branch updated.');
     }
 }

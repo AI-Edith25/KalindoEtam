@@ -423,6 +423,70 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertEquals(500000, (float) $journalEntry->total_credit);
     }
 
+    public function test_a_transportation_invoices_branch_is_captured_at_creation_and_copied_to_its_accounts_receivable(): void
+    {
+        $branch = Branch::query()->firstOrFail();
+
+        $invoice = $this->invoiceService->create([
+            'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'customer_id' => $this->customer->id,
+            'branch_id' => $branch->id,
+            'items' => [
+                ['description' => 'Ongkos Angkut Semen', 'qty' => 1, 'rate' => 500000],
+            ],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertSame($branch->id, $invoice->branch_id);
+
+        $invoice = $this->invoiceService->submit($invoice);
+        $accountsReceivable = $invoice->accountsReceivable()->firstOrFail();
+
+        $this->assertSame($branch->id, $accountsReceivable->branch_id);
+    }
+
+    public function test_update_branch_corrects_a_submitted_transportation_invoices_branch_and_its_accounts_receivable(): void
+    {
+        $originalBranch = Branch::query()->firstOrFail();
+        $correctedBranch = Branch::query()->create(['company_id' => $originalBranch->company_id, 'name' => 'Balikpapan', 'code' => 'BPN']);
+
+        $invoice = $this->invoiceService->create([
+            'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'customer_id' => $this->customer->id,
+            'branch_id' => $originalBranch->id,
+            'items' => [
+                ['description' => 'Ongkos Angkut Semen', 'qty' => 1, 'rate' => 500000],
+            ],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $invoice = $this->invoiceService->submit($invoice);
+
+        $invoice = $this->invoiceService->updateBranch($invoice, $correctedBranch->id);
+
+        $this->assertSame($correctedBranch->id, $invoice->branch_id);
+        $accountsReceivable = $invoice->accountsReceivable()->firstOrFail();
+        $this->assertSame($correctedBranch->id, $accountsReceivable->branch_id);
+    }
+
+    public function test_update_branch_rejects_a_goods_invoice(): void
+    {
+        $branch = Branch::query()->firstOrFail();
+
+        $delivery = $this->submittedDelivery();
+        $invoice = $this->invoiceService->create([
+            'delivery_ids' => [$delivery->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('Only Transportation Invoices support a direct Branch edit.');
+
+        $this->invoiceService->updateBranch($invoice, $branch->id);
+    }
+
     public function test_a_transportation_invoice_requires_a_customer_and_at_least_one_item(): void
     {
         $this->expectException(QueryException::class);

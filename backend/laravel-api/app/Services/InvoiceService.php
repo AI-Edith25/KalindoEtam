@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'delivery.warehouse', 'deliveries', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
+    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
@@ -179,6 +179,7 @@ class InvoiceService
             $invoice = $this->invoiceRepository->create([
                 'delivery_id' => null,
                 'sales_order_id' => null,
+                'branch_id' => $data['branch_id'] ?? null,
                 'customer_id' => $data['customer_id'],
                 'sales_person_id' => $data['sales_person_id'] ?? null,
                 'invoice_type' => InvoiceType::TRANSPORTATION->value,
@@ -385,6 +386,36 @@ class InvoiceService
 
             $invoice = $invoice->fresh(self::EAGER);
             $this->auditLogService->record('cancelled', 'invoice', "Cancelled Invoice \"{$invoice->document_number}\".");
+
+            return $invoice;
+        });
+    }
+
+    /**
+     * Transportation only — Branch is pure reporting metadata (never touches
+     * grand_total/journal lines/AR balances), so unlike every other Invoice
+     * field it stays editable regardless of Draft/Submitted status. This is
+     * the one deliberate exception to assertDraft()'s "Invoice is locked
+     * once submitted" rule; corrections that DO touch money still only ever
+     * flow through InvoiceChangeRequestService (nominal) or Credit Note.
+     * Exists so a Transportation Invoice submitted before Branch was
+     * captured (or created with the wrong one) can be corrected/backfilled.
+     */
+    public function updateBranch(Invoice $invoice, string $branchId): Invoice
+    {
+        if ($invoice->invoice_type !== InvoiceType::TRANSPORTATION) {
+            throw new BusinessException('Only Transportation Invoices support a direct Branch edit.');
+        }
+
+        return DB::transaction(function () use ($invoice, $branchId) {
+            $this->invoiceRepository->update($invoice, ['branch_id' => $branchId]);
+
+            if ($invoice->accountsReceivable !== null) {
+                $this->accountsReceivableService->updateBranch($invoice->accountsReceivable, $branchId);
+            }
+
+            $invoice = $invoice->fresh(self::EAGER);
+            $this->auditLogService->record('updated', 'invoice', "Updated Branch on Invoice \"{$invoice->document_number}\".");
 
             return $invoice;
         });

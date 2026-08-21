@@ -24,6 +24,8 @@ class StoreInvoiceRequest extends FormRequest
             'delivery_ids.*' => ['uuid', 'distinct', 'exists:deliveries,id'],
             // Transportation only — picked directly instead of being derived from a Delivery.
             'customer_id' => ['required_if:invoice_type,transportation', 'nullable', 'uuid', 'exists:customers,id'],
+            // Transportation only — no Sales Order to derive Branch from, so it's captured directly here.
+            'branch_id' => ['required_if:invoice_type,transportation', 'nullable', 'uuid', 'exists:branches,id'],
             // Transportation only — manual, freestanding lines (no Item/inventory link).
             'items' => ['required_if:invoice_type,transportation', 'nullable', 'array', 'min:1'],
             'items.*.description' => ['required', 'string'],

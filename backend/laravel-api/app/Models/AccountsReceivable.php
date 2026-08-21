@@ -24,6 +24,7 @@ class AccountsReceivable extends Model
         'invoice_id',
         'sales_order_id',
         'delivery_id',
+        'branch_id',
         'reference_number',
         'amount',
         'paid_amount',
@@ -55,6 +56,12 @@ class AccountsReceivable extends Model
     public function delivery(): BelongsTo
     {
         return $this->belongsTo(Delivery::class);
+    }
+
+    /** Transportation only — copied from Invoice.branch_id at creation, since there's no Sales Order to derive it from. Null for Goods. */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function invoice(): BelongsTo

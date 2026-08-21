@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\InvoiceType;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Enums\WarehouseType;
@@ -181,7 +182,7 @@ class AccountsReceivableDetailReportTest extends TestCase
         $this->assertCount(1, $this->accountsReceivableRepository->search([])->items());
     }
 
-    /** C1 (UAT review 2026-08-12) — Branch and Salesman filter through AccountsReceivable -> salesOrder, since neither column lives directly on accounts_receivables. */
+    /** C1 (UAT review 2026-08-12) — Goods invoices' Branch/Salesman filter through AccountsReceivable -> salesOrder (neither column lives directly on accounts_receivables for Goods). Transportation invoices instead use accounts_receivables.branch_id directly — see the regression test below. */
     public function test_branch_and_sales_person_filters_narrow_by_the_underlying_sales_order(): void
     {
         $salesPerson = \App\Models\SalesPerson::query()->create(['code' => 'SP1', 'name' => 'Budi']);
@@ -198,6 +199,31 @@ class AccountsReceivableDetailReportTest extends TestCase
         $this->assertCount(1, $bySalesPerson->items());
         $this->assertCount(1, $byBranch->items());
         $this->assertNotSame($bySalesPerson->items()[0]->id, $byBranch->items()[0]->id);
+    }
+
+    /**
+     * Regression test for the bug this fix addresses: Transportation invoices have no Sales
+     * Order at all, so the Branch filter must also match accounts_receivables.branch_id
+     * directly (captured at creation), not only whereHas('salesOrder', ...) — which previously
+     * silently dropped every Transportation invoice whenever a specific Branch was selected.
+     */
+    public function test_branch_filter_includes_a_transportation_invoice_with_no_sales_order(): void
+    {
+        $branch = Branch::query()->first();
+        $otherBranch = Branch::query()->create(['company_id' => $branch->company_id, 'name' => 'Branch 2', 'code' => 'BR2']);
+
+        $transportationInvoice = $this->invoiceService->create([
+            'invoice_type' => InvoiceType::TRANSPORTATION->value,
+            'customer_id' => $this->customer->id,
+            'branch_id' => $branch->id,
+            'items' => [['description' => 'Ongkos Angkut', 'qty' => 1, 'rate' => 500000]],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $this->invoiceService->submit($transportationInvoice);
+
+        $this->assertCount(1, $this->accountsReceivableRepository->search(['branch_id' => $branch->id])->items());
+        $this->assertCount(0, $this->accountsReceivableRepository->search(['branch_id' => $otherBranch->id])->items());
     }
 
     public function test_outstanding_total_sums_the_same_filtered_set_as_search(): void

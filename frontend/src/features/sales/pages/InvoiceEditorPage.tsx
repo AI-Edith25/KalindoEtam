@@ -20,7 +20,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { fetchCustomersLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchCustomersLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { computeSubtotal, lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { fetchDeliveries } from '../api/deliveryApi'
@@ -321,6 +321,21 @@ function InvoiceForm({
   // Transportation only — picked directly here instead of being derived from a Delivery.
   const customersQuery = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup, enabled: !isEdit && isTransportation })
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  // Transportation only — no Sales Order to derive Branch from, so it's captured directly here
+  // at create time. Read-only thereafter; corrections go through the Invoice Detail page's own
+  // "Edit Branch" dialog (works regardless of Draft/Submitted status), not this create-only field.
+  const branchesQuery = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches, enabled: !isEdit && isTransportation })
+  const [selectedBranchId, setSelectedBranchId] = useState('')
+
+  // New Transportation invoice only — default to the head-office branch, same convention as
+  // SalesOrderEditorPage's own branch_id default (single-branch companies never need to touch this).
+  useEffect(() => {
+    if (isEdit || !isTransportation || !branchesQuery.data?.length || selectedBranchId) return
+
+    const headOffice = branchesQuery.data.find((branch) => branch.is_head_office) ?? branchesQuery.data[0]
+    setSelectedBranchId(headOffice.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchesQuery.data, isEdit, isTransportation])
   const [transportLines, setTransportLines] = useState<TransportLine[]>(() => [emptyTransportLine()])
   const addTransportLine = () => setTransportLines((prev) => [...prev, emptyTransportLine()])
   const removeTransportLine = (key: string) => setTransportLines((prev) => prev.filter((line) => line.key !== key))
@@ -404,6 +419,9 @@ function InvoiceForm({
     // Immutable once created (see invoiceFormSchema.ts) — only sent on create; UpdateInvoiceRequest
     // doesn't accept it, so omitting it here on edit is what the backend already expects.
     ...(isEdit ? {} : { invoice_type: selectedInvoiceType ?? undefined }),
+    // Transportation, create-only — same posture as invoice_type above. Post-submit corrections
+    // go through Invoice Detail's dedicated "Edit Branch" action, not this form.
+    ...(isTransportation && !isEdit ? { branch_id: selectedBranchId } : {}),
     invoice_date: values.invoice_date,
     due_date: values.due_date,
     terms_of_payment_id: values.terms_of_payment_id || null,
@@ -559,6 +577,27 @@ function InvoiceForm({
                   <span className="text-sm font-medium">
                     {deliveryLabel} — {customerName}
                   </span>
+                </div>
+              )}
+              {isTransportation && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">Branch</label>
+                  {isEdit ? (
+                    <span className="text-sm font-medium">{invoice?.branch?.name ?? '—'}</span>
+                  ) : (
+                    <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={branchesQuery.isLoading ? 'Loading…' : 'Select branch'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branchesQuery.data?.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               )}
               <div className="flex flex-col gap-0.5">

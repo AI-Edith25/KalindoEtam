@@ -30,6 +30,11 @@ class AccountsReceivableResource extends JsonResource
             ] : null),
             'sales_order_id' => $this->sales_order_id,
             'delivery_id' => $this->delivery_id,
+            'branch_id' => $this->branch_id,
+            // Goods invoices' branch lives on their Sales Order; Transportation invoices have
+            // none, so this falls back to the AR row's own branch_id — same either/or as
+            // AccountsReceivableRepository::filteredQuery()'s branch_id filter.
+            'branch_name' => $this->salesOrder?->branch?->name ?? $this->branch?->name,
             'delivery' => $this->whenLoaded('delivery', fn () => $this->delivery ? [
                 'id' => $this->delivery->id,
                 'document_number' => $this->delivery->document_number,

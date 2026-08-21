@@ -48,3 +48,9 @@ export async function cancelInvoice(id: string): Promise<Invoice> {
   const { data } = await apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/cancel`)
   return data.data
 }
+
+/** Transportation only — Branch is metadata, not a financial field, so it's editable regardless of Draft/Submitted status. See InvoiceService::updateBranch() on the backend. */
+export async function updateInvoiceBranch(id: string, branchId: string): Promise<Invoice> {
+  const { data } = await apiClient.patch<ApiResponse<Invoice>>(`/invoices/${id}/branch`, { branch_id: branchId })
+  return data.data
+}

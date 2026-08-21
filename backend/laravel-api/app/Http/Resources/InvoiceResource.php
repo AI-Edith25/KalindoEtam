@@ -39,6 +39,8 @@ class InvoiceResource extends JsonResource
                 'document_number' => $salesOrder->document_number,
             ])),
             'sales_order' => new SalesOrderResource($this->whenLoaded('salesOrder')),
+            'branch_id' => $this->branch_id,
+            'branch' => $this->whenLoaded('branch', fn () => $this->branch ? new BranchResource($this->branch) : null),
             'customer_id' => $this->customer_id,
             'customer' => new CustomerResource($this->whenLoaded('customer')),
             'sales_person_id' => $this->sales_person_id,

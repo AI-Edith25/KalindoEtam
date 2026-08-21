@@ -15,6 +15,7 @@ import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayo
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoice, submitInvoice } from '../api/invoiceApi'
+import { BranchEditDialog } from '../components/BranchEditDialog'
 import { NominalChangeRequestPanel } from '../components/NominalChangeRequestPanel'
 import { CREDIT_NOTE_REASON_LABELS } from '../lib/creditNoteReasonLabels'
 import { DEBIT_NOTE_REASON_LABELS } from '../lib/debitNoteReasonLabels'
@@ -282,6 +283,17 @@ export function InvoiceDetailPage() {
             <DetailField label="Due Date" value={formatDate(invoice.due_date)} />
             <DetailField label="Terms of Payment" value={invoice.terms_of_payment ? `${invoice.terms_of_payment.name} (${invoice.terms_of_payment.code})` : '—'} />
             <DetailField label="Sales Person" value={invoice.sales_person?.name || '—'} />
+            {invoice.invoice_type === 'transportation' && (
+              <DetailField
+                label="Branch"
+                value={
+                  <span className="inline-flex items-center gap-1">
+                    {invoice.branch?.name ?? '—'}
+                    <BranchEditDialog invoice={invoice} />
+                  </span>
+                }
+              />
+            )}
             <DetailField label="Location" value={invoice.delivery?.warehouse?.name || '—'} />
             <DetailField label="Attention" value={invoice.sales_order?.attention || '—'} />
             <DetailField label="Tel" value={invoice.sales_order?.tel || '—'} />

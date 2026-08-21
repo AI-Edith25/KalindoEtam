@@ -41,6 +41,7 @@ class AccountsReceivableService
                 'invoice_id' => $invoice->id,
                 'sales_order_id' => $invoice->sales_order_id,
                 'delivery_id' => $invoice->delivery_id,
+                'branch_id' => $invoice->branch_id,
                 'reference_number' => $invoice->document_number,
                 'amount' => $invoice->grand_total,
                 'paid_amount' => 0,
@@ -221,6 +222,20 @@ class AccountsReceivableService
     public function overdueInvoicesFor(string $customerId): Collection
     {
         return $this->accountsReceivableRepository->overdueForCustomer($customerId);
+    }
+
+    /**
+     * Called only by InvoiceService::updateBranch() — keeps this row's
+     * branch_id in sync when a Transportation Invoice's Branch is
+     * corrected/backfilled post-submit. Purely additive to this frozen
+     * module (one field, no status/amount recomputation), same posture as
+     * every other extension made here (credited_amount/debited_amount).
+     */
+    public function updateBranch(AccountsReceivable $accountsReceivable, string $branchId): AccountsReceivable
+    {
+        $this->accountsReceivableRepository->update($accountsReceivable, ['branch_id' => $branchId]);
+
+        return $accountsReceivable->fresh();
     }
 
     /**
