@@ -132,7 +132,7 @@ class SalesReportTest extends TestCase
         $this->assertEqualsWithDelta($row1[5] - $row1[6] + $row1[7], $row1[8], 0.001);
 
         $total = $rows[array_key_last($rows)];
-        $this->assertEquals('Total', $total[3]);
+        $this->assertEquals('Total By Header', $total[4]);
         $this->assertEquals(200000.0, $total[5]);
         $this->assertEquals(0.0, $total[6]);
         $this->assertEquals(11000.0, $total[7]);
@@ -169,17 +169,17 @@ class SalesReportTest extends TestCase
         $header = $rows[0];
         $this->assertEquals($invoice->document_number, $header[1]);
         $this->assertEquals($this->customer->customer_code, $header[2]);
-        $this->assertEquals(111000.0, $header[8]); // AMOUNT = grand_total
-        $this->assertEquals('PPN11', $header[7]); // T.CODE — single tax across all lines
+        $this->assertEquals(111000.0, $header[10]); // AMOUNT = grand_total
+        $this->assertEquals('PPN11', $header[9]); // T.CODE — single tax across all lines
 
         $item = $rows[1];
         $this->assertEquals('ITM-1', $item[0]); // ITEM#
-        $this->assertEquals(10, $item[3]); // QUANTITY
-        $this->assertEquals(0.0, $item[5]); // DISC — no per-line discount exists
-        $this->assertEquals(11000.0, $item[6]); // TAX
-        $this->assertEquals('PPN11', $item[7]); // T.CODE
-        $this->assertEquals(100000.0, $item[8]); // LINE AMOUNT
-        $this->assertNull($item[9]); // REFERENCE 1# blank on item rows
+        $this->assertEquals(10, $item[5]); // QUANTITY
+        $this->assertEquals(0.0, $item[7]); // DISC — no per-line discount exists
+        $this->assertEquals(11000.0, $item[8]); // TAX
+        $this->assertEquals('PPN11', $item[9]); // T.CODE
+        $this->assertEquals(100000.0, $item[10]); // LINE AMOUNT
+        $this->assertNull($item[11]); // REFERENCE 1# blank on item rows
     }
 
     public function test_detail_header_tax_code_blank_when_lines_use_different_taxes(): void
@@ -213,7 +213,7 @@ class SalesReportTest extends TestCase
         $rows = $this->salesReportService->detailRows($invoices);
 
         $header = collect($rows)->first(fn ($r) => $r[1] === $invoice->document_number);
-        $this->assertNull($header[7]); // T.CODE blank — lines disagree
+        $this->assertNull($header[9]); // T.CODE blank — lines disagree
     }
 
     public function test_ids_override_takes_priority_over_filters(): void
@@ -257,14 +257,92 @@ class SalesReportTest extends TestCase
         file_put_contents($tmpPath, $response->streamedContent());
         $sheet = IOFactory::load($tmpPath)->getActiveSheet();
 
-        // Header row 1, invoice data row 2, Total row 3.
-        $this->assertEquals('EXCL.TAX', $sheet->getCell('F1')->getValue());
-        $this->assertEquals(100000, $sheet->getCell('F2')->getValue());
-        $this->assertEquals(11000, $sheet->getCell('H2')->getValue());
-        $this->assertEquals(111000, $sheet->getCell('I2')->getValue());
-        $this->assertEquals('Total', $sheet->getCell('D3')->getValue());
-        $this->assertEquals(100000, $sheet->getCell('F3')->getValue());
-        $this->assertEquals(111000, $sheet->getCell('I3')->getValue());
+        // Row 1 title, row 2 date range, rows 3-4 blank, row 5 company/timestamp, rows 6-7 blank,
+        // row 8 column headings, row 9 invoice data, row 10 "Total By Header", rows 11-12 blank,
+        // row 13 "TAX SUMMARY", row 14 its own Code/Rate/... header, row 15 the one tax group,
+        // row 16 its grand total, row 17 blank, row 18 "Printed By".
+        $this->assertEquals('SALES INVOICE LISTING - SUMMARY', $sheet->getCell('A1')->getValue());
+        $this->assertStringContainsString(' - Base Currency', $sheet->getCell('A2')->getValue());
+        $this->assertEquals('EXCL.TAX', $sheet->getCell('F8')->getValue());
+        $this->assertEquals(100000, $sheet->getCell('F9')->getValue());
+        $this->assertEquals(11000, $sheet->getCell('H9')->getValue());
+        $this->assertEquals(111000, $sheet->getCell('I9')->getValue());
+        $this->assertEquals('Total By Header', $sheet->getCell('E10')->getValue());
+        $this->assertEquals(100000, $sheet->getCell('F10')->getValue());
+        $this->assertEquals(111000, $sheet->getCell('I10')->getValue());
+        $this->assertEquals('TAX SUMMARY', $sheet->getCell('A13')->getValue());
+        $this->assertEquals('Code', $sheet->getCell('A14')->getValue());
+        $this->assertEquals('PPN11', $sheet->getCell('A15')->getValue());
+        $this->assertEquals('11 %', $sheet->getCell('B15')->getValue());
+        $this->assertEquals(100000, $sheet->getCell('C15')->getValue());
+        $this->assertEquals(11000, $sheet->getCell('D15')->getValue());
+        $this->assertEquals(100000, $sheet->getCell('C16')->getValue()); // tax summary grand total
+        $this->assertEquals('Printed By :', $sheet->getCell('A18')->getValue());
+
+        unlink($tmpPath);
+    }
+
+    public function test_export_route_downloads_a_utf8_bom_csv(): void
+    {
+        [, $delivery] = $this->submittedDelivery(qty: 1, rate: 10000);
+        $this->invoiceService->create(['delivery_ids' => [$delivery->id], 'invoice_date' => now()->toDateString(), 'due_date' => now()->addDays(30)->toDateString()]);
+
+        Permission::query()->firstOrCreate(['name' => 'sales.invoices.view', 'guard_name' => 'web']);
+        $viewer = User::factory()->create();
+        $viewer->givePermissionTo('sales.invoices.view');
+        Sanctum::actingAs($viewer);
+
+        $response = $this->get('/api/v1/invoices/export/sales-report?mode=summary&format=csv');
+        $response->assertOk();
+
+        $content = $response->streamedContent();
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $content); // UTF-8 BOM
+        $this->assertStringContainsString('SALES INVOICE LISTING - SUMMARY', $content);
+        $this->assertStringContainsString('TAX SUMMARY', $content);
+    }
+
+    public function test_export_route_downloads_a_real_xlsx_for_detail_mode_with_two_heading_rows_and_a_tax_summary(): void
+    {
+        $tax = $this->makeTax();
+        [, $delivery] = $this->submittedDelivery(qty: 10, rate: 10000, taxId: $tax->id);
+        $this->invoiceService->create(['delivery_ids' => [$delivery->id], 'invoice_date' => now()->toDateString(), 'due_date' => now()->addDays(30)->toDateString()]);
+
+        Permission::query()->firstOrCreate(['name' => 'sales.invoices.view', 'guard_name' => 'web']);
+        $viewer = User::factory()->create();
+        $viewer->givePermissionTo('sales.invoices.view');
+        Sanctum::actingAs($viewer);
+
+        $response = $this->get('/api/v1/invoices/export/sales-report?mode=detail&format=xlsx');
+        $response->assertOk();
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'sales-report') . '.xlsx';
+        file_put_contents($tmpPath, $response->streamedContent());
+        $sheet = IOFactory::load($tmpPath)->getActiveSheet();
+
+        // Same 7-row header block as Summary, but two heading rows (8 document-level, 9
+        // item-level), then the invoice header row (10) and its one item row (11) — no
+        // "Total By Header" row for Detail — then blanks, TAX SUMMARY (14), its own header (15),
+        // the one tax group (16), grand total (17), blank, "Printed By".
+        $this->assertEquals('SALES INVOICE LISTING - DETAIL', $sheet->getCell('A1')->getValue());
+        $this->assertEquals('DATE', $sheet->getCell('A8')->getValue());
+        $this->assertEquals('ITEM # ', $sheet->getCell('A9')->getValue());
+        $this->assertEquals('DELIVERY TO', $sheet->getCell('F8')->getValue());
+        $this->assertNull($sheet->getCell('E8')->getValue()); // blank spacer column
+        $this->assertEquals('ITM-1', $sheet->getCell('A11')->getValue());
+        $this->assertEquals(10, $sheet->getCell('F11')->getValue()); // QUANTITY
+        $this->assertEquals(11000, $sheet->getCell('I11')->getValue()); // TAX
+        $this->assertEquals(100000, $sheet->getCell('K11')->getValue()); // LINE AMOUNT
+        $this->assertEquals('TAX SUMMARY', $sheet->getCell('A14')->getValue());
+        $this->assertEquals('PPN11', $sheet->getCell('A16')->getValue());
+        $this->assertEquals(11000, $sheet->getCell('D16')->getValue());
+        $this->assertEquals('Printed By :', $sheet->getCell('A19')->getValue());
+
+        // Both heading rows and both Tax Summary header rows are bold; the title row is not.
+        $this->assertTrue($sheet->getStyle('A8')->getFont()->getBold());
+        $this->assertTrue($sheet->getStyle('A9')->getFont()->getBold());
+        $this->assertTrue($sheet->getStyle('A14')->getFont()->getBold());
+        $this->assertTrue($sheet->getStyle('A15')->getFont()->getBold());
+        $this->assertFalse($sheet->getStyle('A1')->getFont()->getBold());
 
         unlink($tmpPath);
     }

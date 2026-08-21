@@ -118,7 +118,7 @@ export function InvoiceListPage() {
         mode,
         format,
       )
-      downloadBlob(`sales-report-${mode}.${format}`, blob)
+      downloadBlob(`SalesInvoiceListing_${mode === 'detail' ? 'Detail' : 'Summary'}.${format}`, blob)
     } catch (error) {
       toastApiError(error)
     } finally {
@@ -261,14 +261,24 @@ export function InvoiceListPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" disabled={isExporting}>
                   <Download className="size-4" />
-                  Laporan Penjualan
+                  Export CSV
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportSalesReportAs('summary', 'xlsx')}>Summary (XLSX)</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportSalesReportAs('summary', 'csv')}>Summary (CSV)</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportSalesReportAs('detail', 'xlsx')}>Detail (XLSX)</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportSalesReportAs('detail', 'csv')}>Detail (CSV)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportSalesReportAs('detail', 'csv')}>Detail</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportSalesReportAs('summary', 'csv')}>Summary</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isExporting}>
+                  <Download className="size-4" />
+                  Export XLSX
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportSalesReportAs('detail', 'xlsx')}>Detail</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportSalesReportAs('summary', 'xlsx')}>Summary</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <ActionBar

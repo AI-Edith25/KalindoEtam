@@ -21,10 +21,28 @@ class SalesReportController extends Controller
         $format = $data['format'] ?? 'xlsx';
         $invoices = $this->salesReportService->rows($data, $data['ids'] ?? null);
 
-        $export = $data['mode'] === 'detail'
-            ? new SalesReportDetailExport($this->salesReportService->detailRows($invoices))
-            : new SalesReportSummaryExport($this->salesReportService->summaryRows($invoices));
+        if ($data['mode'] === 'detail') {
+            $wrapped = $this->salesReportService->wrapReport(
+                'SALES INVOICE LISTING - DETAIL',
+                $this->salesReportService->detailHeadings(),
+                $this->salesReportService->detailRows($invoices),
+                $data,
+                $invoices,
+            );
+            $export = new SalesReportDetailExport($wrapped['rows'], $wrapped['boldRows']);
+            $filename = "SalesInvoiceListing_Detail.{$format}";
+        } else {
+            $wrapped = $this->salesReportService->wrapReport(
+                'SALES INVOICE LISTING - SUMMARY',
+                [$this->salesReportService->summaryHeadings()],
+                $this->salesReportService->summaryRows($invoices),
+                $data,
+                $invoices,
+            );
+            $export = new SalesReportSummaryExport($wrapped['rows'], $wrapped['boldRows']);
+            $filename = "SalesInvoiceListing_Summary.{$format}";
+        }
 
-        return Excel::download($export, "sales-report-{$data['mode']}.{$format}");
+        return Excel::download($export, $filename);
     }
 }

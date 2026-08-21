@@ -2,17 +2,23 @@
 
 namespace App\Services;
 
+use App\Enums\InvoiceType;
 use App\Models\Currency;
 use App\Models\Invoice;
 use App\Repositories\CompanyRepository;
 use App\Repositories\InvoiceRepository;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Sales → Invoices' "Laporan Penjualan" export — Summary (one row per invoice) and Detail (one
  * header row per invoice plus a sub-row per line item), both built from the same filtered/selected
  * Invoice set. Row-shaping only; SalesReportController picks the Export class (XLSX/CSV writer)
- * and file name.
+ * and file name. Column layout, header/footer block, and the Tax Summary section are all modeled
+ * directly on the client's real legacy-system export samples (xlsSalesInvoiceListing_Detail.xlsx /
+ * _Summary.xlsx), not just the ticket's prose spec — the reference files are the ground truth for
+ * exact column positions/labels/spacing.
  */
 class SalesReportService
 {
@@ -28,9 +34,13 @@ class SalesReportService
     }
 
     /**
-     * DATE, DOCUMENT#, CUSTOMER#, CUSTOMER NAME, CURRENCY, EXCL.TAX, DISC, TAX, INCL.TAX, REFERENCE 1#
-     * plus a trailing Total row. subtotal - discount_amount + tax_amount = grand_total already
-     * holds per invoice, so summing the four money columns independently reconciles for free.
+     * DATE, DOCUMENT#, CUSTOMER #, CUSTOMER NAME, CURRENCY, EXCL.TAX, DISC, TAX, INCL.TAX,
+     * REFERENCE 1 #, REFERENCE 2 #, ADD BY, UPDATE BY, plus a trailing "Total By Header" row
+     * (label in the CURRENCY column position — matches the reference export exactly). Kept
+     * numeric (not the reference file's comma-formatted text) per the ticket's own "store numbers
+     * as numeric, not text" rule — the one deliberate deviation from the legacy sample.
+     * subtotal - discount_amount + tax_amount = grand_total already holds per invoice, so summing
+     * the four money columns independently reconciles for free.
      *
      * @return array<int, array<int, mixed>>
      */
@@ -49,27 +59,31 @@ class SalesReportService
             (float) $invoice->tax_amount,
             (float) $invoice->grand_total,
             $invoice->reference_1,
+            $invoice->reference_2,
+            $invoice->creator?->name,
+            $invoice->updater?->name,
         ])->all();
 
         $rows[] = [
-            null, null, null, 'Total', null,
+            null, null, null, null, 'Total By Header',
             round($invoices->sum(fn (Invoice $i) => (float) $i->subtotal), 2),
             round($invoices->sum(fn (Invoice $i) => (float) $i->discount_amount), 2),
             round($invoices->sum(fn (Invoice $i) => (float) $i->tax_amount), 2),
             round($invoices->sum(fn (Invoice $i) => (float) $i->grand_total), 2),
-            null,
+            null, null, null, null,
         ];
 
         return $rows;
     }
 
     /**
-     * One unified 10-column table — the ticket's own header/item column lists already align:
-     * DISC/TAX/T.CODE share positions 6/7/8 and AMOUNT/LINE AMOUNT share position 9 in both
-     * row shapes, so columns 1-5 (and the header-only trailing REFERENCE 1#) are the only ones
-     * that change meaning by row type:
-     *   header row: DATE, DOCUMENT#, CUSTOMER#, NAME, DELIVERY TO, DISC, TAX, T.CODE, AMOUNT, REFERENCE 1#
-     *   item row:   ITEM#, DESCRIPTION, UOM, QUANTITY, UNIT PRICE, DISC, TAX, T.CODE, LINE AMOUNT, (blank)
+     * Two header rows (document-level, then item-level) with blank spacer columns matching the
+     * reference export exactly — column positions differ from the current-shipped 10-col table,
+     * but DISC/TAX/T.CODE always sit at H/I/J and AMOUNT/LINE AMOUNT at K for both row shapes:
+     *   header row: DATE(A) DOCUMENT#(B) CUSTOMER#(C) NAME(D) — DELIVERY TO(F) — DISC(H) TAX(I)
+     *               T.CODE(J) AMOUNT(K) REFERENCE 1#(L) REFERENCE 2#(M)
+     *   item row:   ITEM#(A) — DESCRIPTION(C) — UOM(E) QUANTITY(F) UNIT PRICE(G) DISC(H) TAX(I)
+     *               T.CODE(J) LINE AMOUNT(K)
      *
      * @return array<int, array<int, mixed>>
      */
@@ -84,18 +98,23 @@ class SalesReportService
                 $invoice->document_number,
                 $invoice->customer?->customer_code,
                 $invoice->customer?->customer_name,
+                null,
                 $invoice->delivery?->warehouse?->name,
+                null,
                 (float) $invoice->discount_amount,
                 (float) $invoice->tax_amount,
                 $this->headerTaxCode($invoice),
                 (float) $invoice->grand_total,
                 $invoice->reference_1,
+                $invoice->reference_2,
             ];
 
             foreach ($invoice->items as $item) {
                 $rows[] = [
                     $item->item_code,
+                    null,
                     $item->item_name,
+                    null,
                     $item->uom,
                     (int) $item->qty,
                     (float) $item->rate,
@@ -107,6 +126,7 @@ class SalesReportService
                     (float) $item->tax_amount,
                     $item->tax?->code,
                     (float) $item->amount,
+                    null,
                     null,
                 ];
             }
@@ -137,5 +157,150 @@ class SalesReportService
         }
 
         return "{$currency->symbol} - " . number_format((float) $currency->exchange_rate, 2);
+    }
+
+    /** @return array<int, mixed> */
+    public function summaryHeadings(): array
+    {
+        return ['DATE', 'DOCUMENT#', 'CUSTOMER #', 'CUSTOMER NAME', 'CURRENCY', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'REFERENCE 1 #', 'REFERENCE 2 #', 'ADD BY', 'UPDATE BY'];
+    }
+
+    /** @return array<int, array<int, mixed>> the two heading rows, document-level then item-level */
+    public function detailHeadings(): array
+    {
+        return [
+            ['DATE', 'DOCUMENT #', 'CUSTOMER#', 'NAME', null, 'DELIVERY TO', null, 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'REFERENCE 1 #', 'REFERENCE 2 #'],
+            ['ITEM # ', null, 'DESCRIPTION', null, 'UOM', 'QUANTITY', 'UNIT PRICE', 'DISC', 'TAX', 'T.CODE', 'LINE AMOUNT', null, null],
+        ];
+    }
+
+    /**
+     * Wraps a mode's already-shaped $bodyRows in the report's full header/footer block — title,
+     * date range, company/timestamp, column heading row(s), the body (Summary's own $bodyRows
+     * already ends with its trailing "Total By Header" row — see summaryRows()), the Tax Summary
+     * section, and "Printed By". The one shared path both Detail and Summary export files build
+     * their full row set from, so CSV/XLSX for a given mode can never diverge in content (only in
+     * how StylesSalesReportSheet renders the rows).
+     *
+     * Returns ['rows' => ..., 'boldRows' => ...] rather than a plain row array — the Tax Summary
+     * section's position depends on how many body rows precede it, so which rows need bold
+     * styling (the heading row(s), "TAX SUMMARY", and its own "Code/Rate/..." header) can only be
+     * known after the whole array is assembled, not as fixed row numbers.
+     *
+     * @param array<int, array<int, mixed>> $headingRows one or more heading rows (Summary: 1, Detail: 2)
+     * @param array<int, array<int, mixed>> $bodyRows
+     * @param array<string, mixed> $filters
+     * @return array{rows: array<int, array<int, mixed>>, boldRows: array<int, int>}
+     */
+    public function wrapReport(string $title, array $headingRows, array $bodyRows, array $filters, Collection $invoices): array
+    {
+        $company = $this->companyRepository->defaultOrById(null);
+
+        $rows = [
+            [$title],
+            [$this->dateRangeLabel($filters, $invoices) . ' - Base Currency'],
+            [''],
+            [''],
+            [$company->name ?? '', '', '', now()->format('d/m/Y H:i:s')],
+            [''],
+            [''],
+        ];
+
+        $boldRows = [];
+        foreach ($headingRows as $headingRow) {
+            $rows[] = $headingRow;
+            $boldRows[] = count($rows);
+        }
+
+        array_push($rows, ...$bodyRows);
+
+        $rows[] = [''];
+        $rows[] = [''];
+        $rows[] = ['TAX SUMMARY'];
+        $boldRows[] = count($rows);
+        $rows[] = ['Code', 'Rate', 'Goods Amount', 'Tax Amount'];
+        $boldRows[] = count($rows);
+        array_push($rows, ...$this->taxSummaryRows($invoices));
+
+        $rows[] = [''];
+        $rows[] = ['Printed By :', Auth::user()?->name];
+
+        return ['rows' => $rows, 'boldRows' => $boldRows];
+    }
+
+    /**
+     * Groups every exported row's tax by T.CODE, plus a trailing grand-total row — item-level tax
+     * for Goods invoices (each line carries its own tax), header-level tax for Transportation
+     * invoices (their items carry no tax at all, see InvoiceService::createTransportation()).
+     * Untaxed lines/invoices group under the reference export's own literal 'NON-PPN' label at 0%.
+     * Used identically by both Summary and Detail, so their Tax Summary totals always agree with
+     * each other (the reference samples' own Summary/Detail totals differ slightly from one
+     * another — a legacy-system quirk this shared implementation deliberately doesn't reproduce).
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    protected function taxSummaryRows(Collection $invoices): array
+    {
+        $groups = [];
+
+        $add = function (?string $code, float $rate, float $taxable, float $tax) use (&$groups) {
+            $code ??= 'NON-PPN';
+            $groups[$code] ??= ['rate' => $rate, 'taxable' => 0.0, 'tax' => 0.0];
+            $groups[$code]['taxable'] += $taxable;
+            $groups[$code]['tax'] += $tax;
+        };
+
+        foreach ($invoices as $invoice) {
+            /** @var Invoice $invoice */
+            if ($invoice->invoice_type === InvoiceType::TRANSPORTATION) {
+                $add($invoice->tax?->code, (float) ($invoice->tax?->rate ?? 0), (float) $invoice->subtotal, (float) $invoice->tax_amount);
+
+                continue;
+            }
+
+            foreach ($invoice->items as $item) {
+                $add($item->tax?->code, (float) ($item->tax?->rate ?? 0), (float) $item->amount, (float) $item->tax_amount);
+            }
+        }
+
+        $rows = [];
+        $totalTaxable = 0.0;
+        $totalTax = 0.0;
+
+        foreach ($groups as $code => $group) {
+            $rows[] = [$code, $this->formatRate($group['rate']), round($group['taxable'], 2), round($group['tax'], 2)];
+            $totalTaxable += $group['taxable'];
+            $totalTax += $group['tax'];
+        }
+
+        $rows[] = ['', '', round($totalTaxable, 2), round($totalTax, 2)];
+
+        return $rows;
+    }
+
+    /** '11' -> '11 %', '0' -> '0 %' — matches the reference export's own integer-looking rate labels. */
+    protected function formatRate(float $rate): string
+    {
+        $trimmed = rtrim(rtrim(number_format($rate, 4, '.', ''), '0'), '.');
+
+        return ($trimmed === '' ? '0' : $trimmed) . ' %';
+    }
+
+    /**
+     * Explicit date_from/date_to filter when both are set; otherwise derived from the min/max
+     * invoice_date actually present in the exported set — the "ids" (checked-rows) export path
+     * carries no date filter at all, and an unbounded filter shouldn't just print a blank range.
+     */
+    protected function dateRangeLabel(array $filters, Collection $invoices): string
+    {
+        if (! empty($filters['date_from']) && ! empty($filters['date_to'])) {
+            return Carbon::parse($filters['date_from'])->format('d/m/Y') . ' - ' . Carbon::parse($filters['date_to'])->format('d/m/Y');
+        }
+
+        $dates = $invoices->pluck('invoice_date')->filter();
+        $from = $dates->min();
+        $to = $dates->max();
+
+        return ($from ? $from->format('d/m/Y') : '') . ' - ' . ($to ? $to->format('d/m/Y') : '');
     }
 }
