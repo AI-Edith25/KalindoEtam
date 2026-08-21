@@ -86,8 +86,8 @@ class SalesReportService
      * level column's old comment), so folding it into the single DISC column loses nothing.
      * Document-level values repeat on every item row of that invoice, so each row stands alone for
      * filtering/sorting. Column order:
-     *   DATE(A) DOCUMENT(B) CUSTOMER(C) CUSTOMER NAME(D) ITEM(E) UOM(F) QUANTITY(G) UNIT PRICE(H)
-     *   LINE AMOUNT(I) DISC(J) TAX(K) T.CODE(L) AMOUNT(M) DELIVERY TO(N) DESCRIPTION(O)
+     *   DATE(A) DOCUMENT(B) CUSTOMER(C) CUSTOMER NAME(D) ITEM(E) DESCRIPTION(F) UOM(G) QUANTITY(H)
+     *   UNIT PRICE(I) LINE AMOUNT(J) DISC(K) TAX(L) T.CODE(M) AMOUNT(N) DELIVERY TO(O)
      *   REFERENCE 1(P) REFERENCE 2(Q)
      * DATE is a real Excel date serial (see excelDate()) so it still sorts/filters as a date.
      * UNIT PRICE/LINE AMOUNT/DISC/TAX/AMOUNT are pre-formatted Indonesian-style text ("5.000,00"),
@@ -115,6 +115,7 @@ class SalesReportService
                     $invoice->customer?->customer_code,
                     $invoice->customer?->customer_name,
                     $item->item_code,
+                    $item->item_name,
                     $item->uom,
                     (int) $item->qty,
                     $this->formatMoney((float) $item->rate),
@@ -124,7 +125,6 @@ class SalesReportService
                     $taxCode,
                     $amount,
                     $deliveryTo,
-                    $item->item_name,
                     $invoice->reference_1,
                     $invoice->reference_2,
                 ];
@@ -161,8 +161,8 @@ class SalesReportService
     public function detailHeadings(): array
     {
         return [
-            'DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'ITEM', 'UOM', 'QUANTITY', 'UNIT PRICE', 'LINE AMOUNT',
-            'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'DELIVERY TO', 'DESCRIPTION', 'REFERENCE 1', 'REFERENCE 2',
+            'DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'ITEM', 'DESCRIPTION', 'UOM', 'QUANTITY', 'UNIT PRICE',
+            'LINE AMOUNT', 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'DELIVERY TO', 'REFERENCE 1', 'REFERENCE 2',
         ];
     }
 

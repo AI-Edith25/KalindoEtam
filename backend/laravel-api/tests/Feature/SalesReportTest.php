@@ -177,14 +177,14 @@ class SalesReportTest extends TestCase
         $this->assertEquals($this->customer->customer_name, $row[3]); // CUSTOMER NAME
 
         $this->assertEquals('ITM-1', $row[4]); // ITEM
-        $this->assertEquals(10, $row[6]); // QUANTITY
-        $this->assertEquals('100.000,00', $row[8]); // LINE AMOUNT
+        $this->assertEquals(10, $row[7]); // QUANTITY
+        $this->assertEquals('100.000,00', $row[9]); // LINE AMOUNT
 
         // DISC/TAX/T.CODE are single merged columns (document-level) — no more separate LINE variants.
-        $this->assertEquals('0,00', $row[9]); // DISC — genuinely zero, must not render blank
-        $this->assertEquals('11.000,00', $row[10]); // TAX
-        $this->assertEquals('PPN11', $row[11]); // T.CODE — single tax across all lines
-        $this->assertEquals('111.000,00', $row[12]); // AMOUNT = grand_total
+        $this->assertEquals('0,00', $row[10]); // DISC — genuinely zero, must not render blank
+        $this->assertEquals('11.000,00', $row[11]); // TAX
+        $this->assertEquals('PPN11', $row[12]); // T.CODE — single tax across all lines
+        $this->assertEquals('111.000,00', $row[13]); // AMOUNT = grand_total
     }
 
     public function test_detail_header_tax_code_blank_when_lines_use_different_taxes(): void
@@ -218,7 +218,7 @@ class SalesReportTest extends TestCase
         $rows = $this->salesReportService->detailRows($invoices);
 
         $row = collect($rows)->first(fn ($r) => $r[1] === $invoice->document_number);
-        $this->assertNull($row[11]); // T.CODE blank — lines disagree
+        $this->assertNull($row[12]); // T.CODE blank — lines disagree
     }
 
     public function test_ids_override_takes_priority_over_filters(): void
@@ -347,19 +347,20 @@ class SalesReportTest extends TestCase
         // Same 7-row header block as Summary, but one flat heading row (8), then the single item
         // row (9, document + item columns on the same row) — then blanks, TAX SUMMARY (12), its
         // own header (13), the one tax group (14), grand total (15), blank, "Printed By" (17).
-        // Column order: DATE(A) DOCUMENT(B) CUSTOMER(C) CUSTOMER NAME(D) ITEM(E) UOM(F) QUANTITY(G)
-        // UNIT PRICE(H) LINE AMOUNT(I) DISC(J) TAX(K) T.CODE(L) AMOUNT(M) DELIVERY TO(N)
-        // DESCRIPTION(O) REFERENCE 1(P) REFERENCE 2(Q) — DISC/TAX/T.CODE are single merged columns,
+        // Column order: DATE(A) DOCUMENT(B) CUSTOMER(C) CUSTOMER NAME(D) ITEM(E) DESCRIPTION(F)
+        // UOM(G) QUANTITY(H) UNIT PRICE(I) LINE AMOUNT(J) DISC(K) TAX(L) T.CODE(M) AMOUNT(N)
+        // DELIVERY TO(O) REFERENCE 1(P) REFERENCE 2(Q) — DISC/TAX/T.CODE are single merged columns,
         // no more separate "(DOC)"/"(LINE)" pair.
         $this->assertEquals('SALES INVOICE LISTING - DETAIL', $sheet->getCell('A1')->getValue());
         $this->assertEquals('DATE', $sheet->getCell('A8')->getValue());
         $this->assertEquals('DOCUMENT', $sheet->getCell('B8')->getValue()); // no "#" suffix
         $this->assertEquals('CUSTOMER NAME', $sheet->getCell('D8')->getValue());
         $this->assertEquals('ITEM', $sheet->getCell('E8')->getValue());
-        $this->assertEquals('DISC', $sheet->getCell('J8')->getValue()); // no "(DOC)"/"(LINE)" suffix
-        $this->assertEquals('TAX', $sheet->getCell('K8')->getValue());
-        $this->assertEquals('T.CODE', $sheet->getCell('L8')->getValue());
-        $this->assertEquals('AMOUNT', $sheet->getCell('M8')->getValue());
+        $this->assertEquals('DESCRIPTION', $sheet->getCell('F8')->getValue()); // right after ITEM
+        $this->assertEquals('DISC', $sheet->getCell('K8')->getValue()); // no "(DOC)"/"(LINE)" suffix
+        $this->assertEquals('TAX', $sheet->getCell('L8')->getValue());
+        $this->assertEquals('T.CODE', $sheet->getCell('M8')->getValue());
+        $this->assertEquals('AMOUNT', $sheet->getCell('N8')->getValue());
 
         // DATE is a real Excel date value, displayed dd-mm-yyyy (Detail-only, differs from Summary's dd/mm/yyyy).
         $this->assertIsFloat($sheet->getCell('A9')->getValue());
@@ -367,12 +368,13 @@ class SalesReportTest extends TestCase
         $this->assertEquals(now()->format('d-m-Y'), $sheet->getCell('A9')->getFormattedValue());
 
         $this->assertEquals('ITM-1', $sheet->getCell('E9')->getValue());
-        $this->assertEquals(10, $sheet->getCell('G9')->getValue()); // QUANTITY
-        $this->assertEquals('100.000,00', $sheet->getCell('I9')->getValue()); // LINE AMOUNT
-        $this->assertEquals('0,00', $sheet->getCell('J9')->getValue()); // DISC — always 0, must not render blank
-        $this->assertEquals('11.000,00', $sheet->getCell('K9')->getValue()); // TAX
-        $this->assertEquals('PPN11', $sheet->getCell('L9')->getValue()); // T.CODE
-        $this->assertEquals('111.000,00', $sheet->getCell('M9')->getValue()); // AMOUNT = grand_total
+        $this->assertEquals('Widget', $sheet->getCell('F9')->getValue()); // DESCRIPTION right after ITEM
+        $this->assertEquals(10, $sheet->getCell('H9')->getValue()); // QUANTITY
+        $this->assertEquals('100.000,00', $sheet->getCell('J9')->getValue()); // LINE AMOUNT
+        $this->assertEquals('0,00', $sheet->getCell('K9')->getValue()); // DISC — always 0, must not render blank
+        $this->assertEquals('11.000,00', $sheet->getCell('L9')->getValue()); // TAX
+        $this->assertEquals('PPN11', $sheet->getCell('M9')->getValue()); // T.CODE
+        $this->assertEquals('111.000,00', $sheet->getCell('N9')->getValue()); // AMOUNT = grand_total
         $this->assertEquals('TAX SUMMARY', $sheet->getCell('A12')->getValue());
         $this->assertEquals('PPN11', $sheet->getCell('A14')->getValue());
         $this->assertEquals(11000, $sheet->getCell('D14')->getValue());
@@ -393,8 +395,8 @@ class SalesReportTest extends TestCase
         // Text columns left-aligned, money/qty columns right-aligned, uniformly on header and data.
         $this->assertEquals(Alignment::HORIZONTAL_LEFT, $sheet->getStyle('E8')->getAlignment()->getHorizontal());
         $this->assertEquals(Alignment::HORIZONTAL_LEFT, $sheet->getStyle('E9')->getAlignment()->getHorizontal());
-        $this->assertEquals(Alignment::HORIZONTAL_RIGHT, $sheet->getStyle('I8')->getAlignment()->getHorizontal());
-        $this->assertEquals(Alignment::HORIZONTAL_RIGHT, $sheet->getStyle('I9')->getAlignment()->getHorizontal());
+        $this->assertEquals(Alignment::HORIZONTAL_RIGHT, $sheet->getStyle('J8')->getAlignment()->getHorizontal());
+        $this->assertEquals(Alignment::HORIZONTAL_RIGHT, $sheet->getStyle('J9')->getAlignment()->getHorizontal());
 
         // Columns auto-fit to content instead of sitting at PhpSpreadsheet's unset default (-1) —
         // the writer bakes the calculated best-fit width into the file, so getAutoSize() itself

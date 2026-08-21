@@ -34,7 +34,7 @@ class SalesReportController extends Controller
                 dateFormat: 'dd-mm-yyyy',
                 // Money/qty columns right-aligned; everything else (including DATE and T.CODE,
                 // which read as text) stays left — see detailRows()'s own docblock for column letters.
-                rightAlignColumns: ['G', 'H', 'I', 'J', 'K', 'M'],
+                rightAlignColumns: ['H', 'I', 'J', 'K', 'L', 'N'],
             );
             $export = new SalesReportDetailExport($wrapped['rows'], $wrapped);
             $filename = "SalesInvoiceListing_Detail.{$format}";
