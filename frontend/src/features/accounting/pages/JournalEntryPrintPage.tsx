@@ -20,12 +20,30 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
   return `${day}/${month}/${year}`
 }
 
-/** One GJ, one A4 page — shared verbatim between the single-print and multi-select-print entry points (single is just a list of one). */
+// Account Code / Account Name / Description / Prj-Dept / Debit / Credit — must match across thead/tbody/tfoot
+// below since each is forced to its own independent `display: table` (see GeneralJournalPage's docblock),
+// so column widths can no longer come from a single shared <colgroup>.
+const COLUMN_WIDTHS = ['12%', '14%', '37%', '10%', '13.5%', '13.5%']
+
+/**
+ * One GJ, one A4 page — shared verbatim between the single-print and multi-select-print entry points
+ * (single is just a list of one).
+ *
+ * TOTAL/terbilang/signature must sit at the bottom of the sheet regardless of how many lines are
+ * above them, while TOTAL itself stays a real <tfoot> row of the same <table> as the lines (for
+ * border/column consistency). Plain flex-grow on the page div can't reach inside the table, and
+ * flex-growing the lines' own <tbody> stretches gaps *between* every row (verified against a plain
+ * `<tbody style="flex:1">` — Chrome's table row-height algorithm spreads extra space across all rows,
+ * not just after the last one). The fix: split the table into independently-`display:table` sections
+ * stacked in a flex column (thead/tbody/tbody/tfoot), with a second, empty <tbody> as a dedicated
+ * spacer between the lines and TOTAL — as the *only* row in its own row-stretch context, it alone
+ * absorbs 100% of the leftover height instead of sharing it with the data rows.
+ */
 function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntry; companyName: string; isLast: boolean }) {
   return (
     <div
-      className="mx-auto w-full max-w-[210mm] bg-background p-6 text-black print:max-w-none print:p-[12mm]"
-      style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '13px', pageBreakAfter: isLast ? 'auto' : 'always' }}
+      className="mx-auto flex w-full max-w-[210mm] flex-col bg-background p-6 text-black print:max-w-none print:p-[12mm]"
+      style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '13px', pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
     >
       <div className="grid grid-cols-3 items-start">
         <p className="text-[14pt] font-bold">{companyName}</p>
@@ -44,36 +62,41 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
         <span className="pl-2">{entry.description ?? ''}</span>
       </div>
 
-      <table className="mt-2 w-full border-collapse">
-        <thead>
+      <table className="mt-2 flex w-full flex-1 flex-col border-collapse">
+        <thead style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
           <tr className="border-y border-black">
-            <th className="py-1 px-2 text-center font-bold">Account Code</th>
-            <th className="py-1 px-2 text-center font-bold">Account Name</th>
-            <th className="py-1 px-2 text-center font-bold">Description</th>
-            <th className="py-1 px-2 text-center font-bold">Prj /Dept</th>
-            <th className="py-1 px-2 text-center font-bold">Debit</th>
-            <th className="py-1 px-2 text-center font-bold">Credit</th>
+            <th style={{ width: COLUMN_WIDTHS[0] }} className="py-1 px-2 text-center font-bold">Account Code</th>
+            <th style={{ width: COLUMN_WIDTHS[1] }} className="py-1 px-2 text-center font-bold">Account Name</th>
+            <th style={{ width: COLUMN_WIDTHS[2] }} className="py-1 px-2 text-center font-bold">Description</th>
+            <th style={{ width: COLUMN_WIDTHS[3] }} className="py-1 px-2 text-center font-bold">Prj /Dept</th>
+            <th style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-center font-bold">Debit</th>
+            <th style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-center font-bold">Credit</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
           {entry.lines.map((line) => (
             <tr key={line.id}>
-              <td className="py-1 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
-              <td className="py-1 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
-              <td className="py-1 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
-              <td className="py-1 px-2 text-center align-top">{line.branch?.name || '/'}</td>
-              <td className="py-1 px-2 text-right align-top">{formatNum(line.debit)}</td>
-              <td className="py-1 px-2 text-right align-top">{formatNum(line.credit)}</td>
+              <td style={{ width: COLUMN_WIDTHS[0] }} className="py-1 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
+              <td style={{ width: COLUMN_WIDTHS[1] }} className="py-1 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
+              <td style={{ width: COLUMN_WIDTHS[2] }} className="py-1 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
+              <td style={{ width: COLUMN_WIDTHS[3] }} className="py-1 px-2 text-center align-top">{line.branch?.name || '/'}</td>
+              <td style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-right align-top">{formatNum(line.debit)}</td>
+              <td style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-right align-top">{formatNum(line.credit)}</td>
             </tr>
           ))}
         </tbody>
-        <tfoot>
-          <tr className="border-t border-black font-bold">
-            <td colSpan={4} className="py-1 px-2 text-right">
+        <tbody aria-hidden style={{ display: 'table', width: '100%', flex: '1 1 auto' }}>
+          <tr>
+            <td colSpan={6} style={{ padding: 0, border: 0 }} />
+          </tr>
+        </tbody>
+        <tfoot style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+          <tr className="border-y border-black font-bold">
+            <td colSpan={4} style={{ width: '73%' }} className="py-1 px-2 text-right">
               TOTAL
             </td>
-            <td className="py-1 px-2 text-right">{formatNum(entry.total_debit)}</td>
-            <td className="py-1 px-2 text-right">{formatNum(entry.total_credit)}</td>
+            <td style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-right">{formatNum(entry.total_debit)}</td>
+            <td style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-right">{formatNum(entry.total_credit)}</td>
           </tr>
         </tfoot>
       </table>
