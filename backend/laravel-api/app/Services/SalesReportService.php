@@ -79,13 +79,18 @@ class SalesReportService
 
     /**
      * Flat table, one row per line item — no more stacking a document-level row and an item-level
-     * row onto the same physical columns. Document-level values (DATE..REFERENCE 2) repeat on
-     * every item row of that invoice, so each row stands alone for filtering/sorting. Column order:
-     *   DATE(A) DOCUMENT(B) CUSTOMER(C) NAME(D) DELIVERY TO(E) DISC-DOC(F) TAX-DOC(G) T.CODE-DOC(H)
-     *   AMOUNT(I) REFERENCE 1(J) REFERENCE 2(K) ITEM(L) DESCRIPTION(M) UOM(N) QUANTITY(O)
-     *   UNIT PRICE(P) DISC-LINE(Q) TAX-LINE(R) T.CODE-LINE(S) LINE AMOUNT(T)
+     * row onto the same physical columns, and no more duplicate DISC/TAX/T.CODE pair (a "(DOC)" and
+     * a "(LINE)" version of each) — one column apiece, carrying the document-level value (paired
+     * with AMOUNT right after, same as it always was on the header row). The per-line discount was
+     * always 0 anyway (no per-line discount exists anywhere in this system, see the removed line-
+     * level column's old comment), so folding it into the single DISC column loses nothing.
+     * Document-level values repeat on every item row of that invoice, so each row stands alone for
+     * filtering/sorting. Column order:
+     *   DATE(A) DOCUMENT(B) CUSTOMER(C) CUSTOMER NAME(D) ITEM(E) UOM(F) QUANTITY(G) UNIT PRICE(H)
+     *   LINE AMOUNT(I) DISC(J) TAX(K) T.CODE(L) AMOUNT(M) DELIVERY TO(N) DESCRIPTION(O)
+     *   REFERENCE 1(P) REFERENCE 2(Q)
      * DATE is a real Excel date serial (see excelDate()) so it still sorts/filters as a date.
-     * UNIT PRICE/DISC/TAX/AMOUNT/LINE AMOUNT are pre-formatted Indonesian-style text ("5.000,00"),
+     * UNIT PRICE/LINE AMOUNT/DISC/TAX/AMOUNT are pre-formatted Indonesian-style text ("5.000,00"),
      * same rule and same reason as summaryRows() — formatMoney(0) already yields "0,00", so a
      * genuinely-zero DISC/TAX never renders blank.
      *
@@ -97,36 +102,31 @@ class SalesReportService
 
         foreach ($invoices as $invoice) {
             /** @var Invoice $invoice */
-            $header = [
-                $this->excelDate($invoice->invoice_date),
-                $invoice->document_number,
-                $invoice->customer?->customer_code,
-                $invoice->customer?->customer_name,
-                $invoice->delivery?->warehouse?->name,
-                $this->formatMoney((float) $invoice->discount_amount),
-                $this->formatMoney((float) $invoice->tax_amount),
-                $this->headerTaxCode($invoice),
-                $this->formatMoney((float) $invoice->grand_total),
-                $invoice->reference_1,
-                $invoice->reference_2,
-            ];
+            $disc = $this->formatMoney((float) $invoice->discount_amount);
+            $tax = $this->formatMoney((float) $invoice->tax_amount);
+            $taxCode = $this->headerTaxCode($invoice);
+            $amount = $this->formatMoney((float) $invoice->grand_total);
+            $deliveryTo = $invoice->delivery?->warehouse?->name;
 
             foreach ($invoice->items as $item) {
                 $rows[] = [
-                    ...$header,
+                    $this->excelDate($invoice->invoice_date),
+                    $invoice->document_number,
+                    $invoice->customer?->customer_code,
+                    $invoice->customer?->customer_name,
                     $item->item_code,
-                    $item->item_name,
                     $item->uom,
                     (int) $item->qty,
                     $this->formatMoney((float) $item->rate),
-                    // No per-line discount exists anywhere in this system (discount is
-                    // document-level only, already in the header columns above) — always 0
-                    // here rather than a pro-rated split, which would invent numbers that
-                    // don't reconcile to anything actually stored.
-                    $this->formatMoney(0.0),
-                    $this->formatMoney((float) $item->tax_amount),
-                    $item->tax?->code,
                     $this->formatMoney((float) $item->amount),
+                    $disc,
+                    $tax,
+                    $taxCode,
+                    $amount,
+                    $deliveryTo,
+                    $item->item_name,
+                    $invoice->reference_1,
+                    $invoice->reference_2,
                 ];
             }
         }
@@ -161,8 +161,8 @@ class SalesReportService
     public function detailHeadings(): array
     {
         return [
-            'DATE', 'DOCUMENT', 'CUSTOMER', 'NAME', 'DELIVERY TO', 'DISC (DOC)', 'TAX (DOC)', 'T.CODE (DOC)', 'AMOUNT', 'REFERENCE 1', 'REFERENCE 2',
-            'ITEM', 'DESCRIPTION', 'UOM', 'QUANTITY', 'UNIT PRICE', 'DISC (LINE)', 'TAX (LINE)', 'T.CODE (LINE)', 'LINE AMOUNT',
+            'DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'ITEM', 'UOM', 'QUANTITY', 'UNIT PRICE', 'LINE AMOUNT',
+            'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'DELIVERY TO', 'DESCRIPTION', 'REFERENCE 1', 'REFERENCE 2',
         ];
     }
 

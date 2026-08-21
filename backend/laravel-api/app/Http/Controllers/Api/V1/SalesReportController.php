@@ -28,13 +28,13 @@ class SalesReportController extends Controller
                 $this->salesReportService->detailRows($invoices),
                 $data,
                 $invoices,
-                lastColumn: 'T',
+                lastColumn: 'Q',
                 dateColumn: 'A',
                 withDataBorders: true,
                 dateFormat: 'dd-mm-yyyy',
-                // Money/qty columns right-aligned; everything else (including DATE and the T.CODE
-                // columns, which read as text) stays left — see wrapReport()'s own docblock.
-                rightAlignColumns: ['F', 'G', 'I', 'O', 'P', 'Q', 'R', 'T'],
+                // Money/qty columns right-aligned; everything else (including DATE and T.CODE,
+                // which read as text) stays left — see detailRows()'s own docblock for column letters.
+                rightAlignColumns: ['G', 'H', 'I', 'J', 'K', 'M'],
             );
             $export = new SalesReportDetailExport($wrapped['rows'], $wrapped);
             $filename = "SalesInvoiceListing_Detail.{$format}";
