@@ -72,3 +72,12 @@ export function terbilangUsd(amount: number | string): string {
 
   return cents > 0 ? `${integerWords} AND CENTS ${integerToWords(cents)} ONLY` : `${integerWords} ONLY`
 }
+
+/** Same as terbilangUsd() but always states the cents clause, even at zero (e.g. "SEVENTY THOUSAND AND CENTS ZERO ONLY") — General Journal print's own convention, unlike SO/DO/SI which omit it when cents are zero. */
+export function terbilangUsdWithCents(amount: number | string): string {
+  const rounded = Math.round(Number(amount) * 100) / 100
+  const integerPart = Math.floor(rounded)
+  const cents = Math.round((rounded - integerPart) * 100)
+
+  return `${integerToWords(integerPart)} AND CENTS ${integerToWords(cents)} ONLY`
+}

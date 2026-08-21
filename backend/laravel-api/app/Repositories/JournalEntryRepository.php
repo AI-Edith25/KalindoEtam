@@ -43,6 +43,7 @@ class JournalEntryRepository extends BaseRepository
     protected function filteredQuery(array $filters): Builder
     {
         return $this->model->query()
+            ->when($filters['ids'] ?? null, fn ($query, $ids) => $query->whereIn('id', $ids))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['reference_type'] ?? null, fn ($query, $type) => $query->where('reference_type', $type))
             ->when($filters['account_id'] ?? null, fn ($query, $accountId) => $query->whereHas(

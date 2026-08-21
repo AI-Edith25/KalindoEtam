@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, Eye, Plus, RotateCw, Send, Upload } from 'lucide-react'
+import { Download, Eye, Plus, Printer, RotateCw, Send, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -11,6 +11,8 @@ import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMe
 import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
@@ -30,6 +32,14 @@ export function JournalEntryListPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<JournalEntryFilterValues>(emptyJournalEntryFilters)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Selection intentionally doesn't survive a filter/search/page change — same convention as
+  // Sales > Invoices' own checkbox print flow.
+  useEffect(() => {
+    setSelectedIds(new Set())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, filters.status, filters.referenceType, filters.accountId, filters.branchId, filters.dateFrom, filters.dateTo, page])
 
   const activeFilterParams = {
     ...(search ? { search } : {}),
@@ -72,7 +82,10 @@ export function JournalEntryListPage() {
   const rows = listQuery.data?.data ?? []
 
   const actionsFor = (entry: JournalEntry): RowAction[] => {
-    const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/finance/general-journal/journal-entries/${entry.id}`) }]
+    const actions: RowAction[] = [
+      { label: 'View', icon: Eye, onClick: () => navigate(`/finance/general-journal/journal-entries/${entry.id}`) },
+      { label: 'Print', icon: Printer, onClick: () => navigate(`/finance/general-journal/journal-entries/print?ids=${entry.id}`) },
+    ]
 
     if (entry.status === 'draft' && canUpdate) {
       actions.push({ label: 'Post', icon: Send, onClick: () => postMutation.mutate(entry.id) })
@@ -81,7 +94,43 @@ export function JournalEntryListPage() {
     return actions
   }
 
+  const toggleRow = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Scoped to the currently loaded page's rows — this list is server-paginated and there's no
+  // "select every entry matching the filter across all pages" requirement.
+  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id))
+  const toggleAll = () => {
+    setSelectedIds((prev) => {
+      if (allVisibleSelected) return new Set()
+      const next = new Set(prev)
+      rows.forEach((row) => next.add(row.id))
+      return next
+    })
+  }
+
+  const selectionColumn: DataTableColumn<JournalEntry> = {
+    id: 'select',
+    header: <Checkbox checked={allVisibleSelected} onCheckedChange={toggleAll} onClick={(e) => e.stopPropagation()} aria-label="Select all" />,
+    accessor: (row) => (
+      <Checkbox
+        checked={selectedIds.has(row.id)}
+        onCheckedChange={() => toggleRow(row.id)}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={`Select ${row.document_number ?? row.id}`}
+      />
+    ),
+    className: 'w-10',
+  }
+
   const columns: DataTableColumn<JournalEntry>[] = [
+    selectionColumn,
     { header: 'Journal Number', accessor: (row) => row.document_number ?? '—' },
     { header: 'Posting Date', accessor: (row) => formatDate(row.posting_date) },
     { header: 'Reference Type', accessor: (row) => row.reference_label ?? 'Manual' },
@@ -110,15 +159,23 @@ export function JournalEntryListPage() {
         description="Every posted debit/credit, system-generated or manually posted."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} entries` : undefined}
         actions={
-          <ActionBar
-            actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },
-              { label: 'Export CSV', icon: Download, onClick: () => exportReport('csv'), disabled: isExporting },
-              { label: 'Import', icon: Upload, disabled: true },
-            ]}
-            primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate('/finance/general-journal/journal-entries/new') } : undefined}
-          />
+          <>
+            {selectedIds.size > 0 && (
+              <Button variant="outline" onClick={() => navigate(`/finance/general-journal/journal-entries/print?ids=${[...selectedIds].join(',')}`)}>
+                <Printer className="size-4" />
+                Print Selected
+              </Button>
+            )}
+            <ActionBar
+              actions={[
+                { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+                { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },
+                { label: 'Export CSV', icon: Download, onClick: () => exportReport('csv'), disabled: isExporting },
+                { label: 'Import', icon: Upload, disabled: true },
+              ]}
+              primary={canCreate ? { label: 'New Journal Entry', icon: Plus, onClick: () => navigate('/finance/general-journal/journal-entries/new') } : undefined}
+            />
+          </>
         }
       />
 

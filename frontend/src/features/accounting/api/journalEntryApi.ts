@@ -33,6 +33,12 @@ export async function fetchJournalEntry(id: string): Promise<JournalEntry> {
   return data.data
 }
 
+/** Full entries (with lines) for the Print page — single or multi-select, same endpoint/eager-load as the list, just filtered by id and unpaginated in one page. */
+export async function fetchJournalEntriesByIds(ids: string[]): Promise<JournalEntry[]> {
+  const { data } = await apiClient.get<ApiListResponse<JournalEntry>>('/journal-entries', { params: { ids, per_page: ids.length } })
+  return data.data
+}
+
 export async function createJournalEntry(payload: JournalEntryFormValues): Promise<JournalEntry> {
   const { data } = await apiClient.post<ApiResponse<JournalEntry>>('/journal-entries', payload)
   return data.data

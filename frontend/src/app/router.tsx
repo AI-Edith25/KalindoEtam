@@ -68,6 +68,7 @@ import { OutgoingPaymentPrintPage } from '@/features/payment/pages/OutgoingPayme
 import { JournalEntryListPage } from '@/features/accounting/pages/JournalEntryListPage'
 import { JournalEntryEditorPage } from '@/features/accounting/pages/JournalEntryEditorPage'
 import { JournalEntryDetailPage } from '@/features/accounting/pages/JournalEntryDetailPage'
+import { JournalEntryPrintPage } from '@/features/accounting/pages/JournalEntryPrintPage'
 import { JournalListListPage } from '@/features/accounting/pages/JournalListListPage'
 import { JournalListPrintPage } from '@/features/accounting/pages/JournalListPrintPage'
 import { GeneralLedgerListPage } from '@/features/accounting/pages/GeneralLedgerListPage'
@@ -204,6 +205,7 @@ export function AppRouter() {
         <Route path="/finance/general-journal" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryListPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal/journal-entries" element={<Navigate to="/finance/general-journal" replace />} />
         <Route path="/finance/general-journal/journal-entries/new" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/journal-entries/print" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryPrintPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal/journal-entries/:id/edit" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal/journal-entries/:id" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryDetailPage /></ProtectedRoute>} />
         {/* Redirects for the 7 reports that moved to Reports > General Ledger (2026-08-19) — keeps old bookmarks/links working. */}

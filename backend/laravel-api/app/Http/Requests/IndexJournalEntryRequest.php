@@ -17,13 +17,15 @@ class IndexJournalEntryRequest extends FormRequest
     {
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'ids' => ['sometimes', 'nullable', 'array'],
+            'ids.*' => ['uuid', 'exists:journal_entries,id'],
             'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
             'reference_type' => ['sometimes', 'nullable', 'string'],
             'account_id' => ['sometimes', 'nullable', 'uuid', 'exists:chart_of_accounts,id'],
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
         ];
     }
 }

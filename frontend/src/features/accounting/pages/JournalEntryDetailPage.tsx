@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ExternalLink, Loader2, Pencil, RotateCcw, Send, Trash2 } from 'lucide-react'
+import { ExternalLink, Loader2, Pencil, Printer, RotateCcw, Send, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -90,6 +90,10 @@ export function JournalEntryDetailPage() {
         description="Journal Entry details."
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate(`/finance/general-journal/journal-entries/print?ids=${entry.id}`)}>
+              <Printer className="size-4" />
+              Print
+            </Button>
             {entry.status === 'draft' && (
               <>
                 <Button variant="outline" onClick={() => navigate(`/finance/general-journal/journal-entries/${entry.id}/edit`)}>
