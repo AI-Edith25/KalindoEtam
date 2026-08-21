@@ -24,11 +24,17 @@ class SalesReportController extends Controller
         if ($data['mode'] === 'detail') {
             $wrapped = $this->salesReportService->wrapReport(
                 'SALES INVOICE LISTING - DETAIL',
-                $this->salesReportService->detailHeadings(),
+                [$this->salesReportService->detailHeadings()],
                 $this->salesReportService->detailRows($invoices),
                 $data,
                 $invoices,
-                lastColumn: 'M',
+                lastColumn: 'T',
+                dateColumn: 'A',
+                withDataBorders: true,
+                dateFormat: 'dd-mm-yyyy',
+                // Money/qty columns right-aligned; everything else (including DATE and the T.CODE
+                // columns, which read as text) stays left — see wrapReport()'s own docblock.
+                rightAlignColumns: ['F', 'G', 'I', 'O', 'P', 'Q', 'R', 'T'],
             );
             $export = new SalesReportDetailExport($wrapped['rows'], $wrapped);
             $filename = "SalesInvoiceListing_Detail.{$format}";

@@ -78,13 +78,16 @@ class SalesReportService
     }
 
     /**
-     * Two header rows (document-level, then item-level) with blank spacer columns matching the
-     * reference export exactly — column positions differ from the current-shipped 10-col table,
-     * but DISC/TAX/T.CODE always sit at H/I/J and AMOUNT/LINE AMOUNT at K for both row shapes:
-     *   header row: DATE(A) DOCUMENT(B) CUSTOMER(C) NAME(D) — DELIVERY TO(F) — DISC(H) TAX(I)
-     *               T.CODE(J) AMOUNT(K) REFERENCE 1(L) REFERENCE 2(M)
-     *   item row:   ITEM(A) — DESCRIPTION(C) — UOM(E) QUANTITY(F) UNIT PRICE(G) DISC(H) TAX(I)
-     *               T.CODE(J) LINE AMOUNT(K)
+     * Flat table, one row per line item — no more stacking a document-level row and an item-level
+     * row onto the same physical columns. Document-level values (DATE..REFERENCE 2) repeat on
+     * every item row of that invoice, so each row stands alone for filtering/sorting. Column order:
+     *   DATE(A) DOCUMENT(B) CUSTOMER(C) NAME(D) DELIVERY TO(E) DISC-DOC(F) TAX-DOC(G) T.CODE-DOC(H)
+     *   AMOUNT(I) REFERENCE 1(J) REFERENCE 2(K) ITEM(L) DESCRIPTION(M) UOM(N) QUANTITY(O)
+     *   UNIT PRICE(P) DISC-LINE(Q) TAX-LINE(R) T.CODE-LINE(S) LINE AMOUNT(T)
+     * DATE is a real Excel date serial (see excelDate()) so it still sorts/filters as a date.
+     * UNIT PRICE/DISC/TAX/AMOUNT/LINE AMOUNT are pre-formatted Indonesian-style text ("5.000,00"),
+     * same rule and same reason as summaryRows() — formatMoney(0) already yields "0,00", so a
+     * genuinely-zero DISC/TAX never renders blank.
      *
      * @return array<int, array<int, mixed>>
      */
@@ -94,41 +97,36 @@ class SalesReportService
 
         foreach ($invoices as $invoice) {
             /** @var Invoice $invoice */
-            $rows[] = [
-                $invoice->invoice_date?->format('Y-m-d'),
+            $header = [
+                $this->excelDate($invoice->invoice_date),
                 $invoice->document_number,
                 $invoice->customer?->customer_code,
                 $invoice->customer?->customer_name,
-                null,
                 $invoice->delivery?->warehouse?->name,
-                null,
-                (float) $invoice->discount_amount,
-                (float) $invoice->tax_amount,
+                $this->formatMoney((float) $invoice->discount_amount),
+                $this->formatMoney((float) $invoice->tax_amount),
                 $this->headerTaxCode($invoice),
-                (float) $invoice->grand_total,
+                $this->formatMoney((float) $invoice->grand_total),
                 $invoice->reference_1,
                 $invoice->reference_2,
             ];
 
             foreach ($invoice->items as $item) {
                 $rows[] = [
+                    ...$header,
                     $item->item_code,
-                    null,
                     $item->item_name,
-                    null,
                     $item->uom,
                     (int) $item->qty,
-                    (float) $item->rate,
+                    $this->formatMoney((float) $item->rate),
                     // No per-line discount exists anywhere in this system (discount is
-                    // document-level only, already on the header row above) — always 0 here
-                    // rather than a pro-rated split, which would invent numbers that don't
-                    // reconcile to anything actually stored.
-                    0.0,
-                    (float) $item->tax_amount,
+                    // document-level only, already in the header columns above) — always 0
+                    // here rather than a pro-rated split, which would invent numbers that
+                    // don't reconcile to anything actually stored.
+                    $this->formatMoney(0.0),
+                    $this->formatMoney((float) $item->tax_amount),
                     $item->tax?->code,
-                    (float) $item->amount,
-                    null,
-                    null,
+                    $this->formatMoney((float) $item->amount),
                 ];
             }
         }
@@ -159,12 +157,12 @@ class SalesReportService
         return ['DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'REFERENCE 1', 'REFERENCE 2', 'ADD BY', 'UPDATE BY'];
     }
 
-    /** @return array<int, array<int, mixed>> the two heading rows, document-level then item-level */
+    /** @return array<int, mixed> single flat heading row matching detailRows()' column order */
     public function detailHeadings(): array
     {
         return [
-            ['DATE', 'DOCUMENT', 'CUSTOMER', 'NAME', null, 'DELIVERY TO', null, 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'REFERENCE 1', 'REFERENCE 2'],
-            ['ITEM', null, 'DESCRIPTION', null, 'UOM', 'QUANTITY', 'UNIT PRICE', 'DISC', 'TAX', 'T.CODE', 'LINE AMOUNT', null, null],
+            'DATE', 'DOCUMENT', 'CUSTOMER', 'NAME', 'DELIVERY TO', 'DISC (DOC)', 'TAX (DOC)', 'T.CODE (DOC)', 'AMOUNT', 'REFERENCE 1', 'REFERENCE 2',
+            'ITEM', 'DESCRIPTION', 'UOM', 'QUANTITY', 'UNIT PRICE', 'DISC (LINE)', 'TAX (LINE)', 'T.CODE (LINE)', 'LINE AMOUNT',
         ];
     }
 
@@ -201,13 +199,15 @@ class SalesReportService
      * which rows are the actual data table (for $dateColumn's number format / $withDataBorders),
      * can only be known after the whole array is assembled, not as fixed row numbers.
      *
-     * @param array<int, array<int, mixed>> $headingRows one or more heading rows (Summary: 1, Detail: 2)
+     * @param array<int, array<int, mixed>> $headingRows one or more heading rows (Summary: 1, Detail: 1)
      * @param array<int, array<int, mixed>> $bodyRows
      * @param array<string, mixed> $filters
-     * @param string $lastColumn rightmost column letter of this mode's table — bold/border ranges span A:$lastColumn
-     * @param string|null $dateColumn column letter to apply a dd/mm/yyyy display format to, over the body row range; null = untouched
+     * @param string $lastColumn rightmost column letter of this mode's table — bold/border/alignment ranges span A:$lastColumn
+     * @param string|null $dateColumn column letter to apply $dateFormat's display format to, over the body row range; null = untouched
      * @param bool $withDataBorders thin borders around every cell from the heading row(s) through the last body row
-     * @return array{rows: array<int, array<int, mixed>>, boldRows: array<int, int>, lastColumn: string, dateColumn: ?string, dateRowRange: ?array{0: int, 1: int}, borderRange: ?array{0: int, 1: int}}
+     * @param string $dateFormat number-format code applied to $dateColumn (ignored if $dateColumn is null)
+     * @param array<int, string> $rightAlignColumns column letters to right-align over the heading+body range; every other column in A:$lastColumn is explicitly left-aligned for the same range so header and data never disagree. Empty = leave alignment untouched.
+     * @return array{rows: array<int, array<int, mixed>>, boldRows: array<int, int>, lastColumn: string, dateColumn: ?string, dateFormat: string, dateRowRange: ?array{0: int, 1: int}, borderRange: ?array{0: int, 1: int}, rightAlignColumns: array<int, string>, alignRange: ?array{0: int, 1: int}}
      */
     public function wrapReport(
         string $title,
@@ -218,6 +218,8 @@ class SalesReportService
         string $lastColumn = 'M',
         ?string $dateColumn = null,
         bool $withDataBorders = false,
+        string $dateFormat = 'dd/mm/yyyy',
+        array $rightAlignColumns = [],
     ): array {
         $company = $this->companyRepository->defaultOrById(null);
 
@@ -241,6 +243,7 @@ class SalesReportService
         $firstBodyRow = count($rows) + 1;
         array_push($rows, ...$bodyRows);
         $lastBodyRow = count($rows);
+        $tableRange = [$firstHeadingRow, $lastBodyRow];
 
         $rows[] = [''];
         $rows[] = [''];
@@ -258,8 +261,11 @@ class SalesReportService
             'boldRows' => $boldRows,
             'lastColumn' => $lastColumn,
             'dateColumn' => $dateColumn,
+            'dateFormat' => $dateFormat,
             'dateRowRange' => $dateColumn !== null ? [$firstBodyRow, $lastBodyRow] : null,
-            'borderRange' => $withDataBorders ? [$firstHeadingRow, $lastBodyRow] : null,
+            'borderRange' => $withDataBorders ? $tableRange : null,
+            'rightAlignColumns' => $rightAlignColumns,
+            'alignRange' => $rightAlignColumns !== [] ? $tableRange : null,
         ];
     }
 

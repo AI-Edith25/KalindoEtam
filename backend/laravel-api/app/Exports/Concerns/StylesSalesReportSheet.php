@@ -3,6 +3,8 @@
 namespace App\Exports\Concerns;
 
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
 /**
@@ -44,13 +46,33 @@ trait StylesSalesReportSheet
                 $dateRowRange = $this->meta['dateRowRange'] ?? null;
                 if ($dateColumn !== null && $dateRowRange !== null) {
                     [$start, $end] = $dateRowRange;
-                    $sheet->getStyle("{$dateColumn}{$start}:{$dateColumn}{$end}")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+                    $sheet->getStyle("{$dateColumn}{$start}:{$dateColumn}{$end}")->getNumberFormat()->setFormatCode($this->meta['dateFormat'] ?? 'dd/mm/yyyy');
                 }
 
                 $borderRange = $this->meta['borderRange'] ?? null;
                 if ($borderRange !== null) {
                     [$start, $end] = $borderRange;
                     $sheet->getStyle("A{$start}:{$lastColumn}{$end}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                }
+
+                // Text columns default to left already, but money/qty columns get pre-formatted as
+                // text (see SalesReportService::formatMoney()) which Excel would otherwise also
+                // left-align — explicit left-then-right-override keeps every column consistent
+                // across both the heading row(s) and the data, instead of relying on cell-type defaults.
+                $alignRange = $this->meta['alignRange'] ?? null;
+                $rightAlignColumns = $this->meta['rightAlignColumns'] ?? [];
+                if ($alignRange !== null) {
+                    [$start, $end] = $alignRange;
+                    $sheet->getStyle("A{$start}:{$lastColumn}{$end}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    foreach ($rightAlignColumns as $column) {
+                        $sheet->getStyle("{$column}{$start}:{$column}{$end}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                    }
+                }
+
+                // Auto-fit every column so no cell is truncated behind the default width — decorative
+                // only for CSV (ignored by that writer), harmless either way.
+                for ($i = 1; $i <= Coordinate::columnIndexFromString($lastColumn); $i++) {
+                    $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
                 }
             },
         ];
