@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -83,6 +83,11 @@ export function LoginPage() {
                   </FormItem>
                 )}
               />
+              <p className="text-right text-sm">
+                <Link to="/forgot-password" className="text-muted-foreground underline-offset-4 hover:underline">
+                  Lupa Password?
+                </Link>
+              </p>
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="size-4 animate-spin" />}
                 Sign in

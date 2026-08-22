@@ -9,6 +9,7 @@ interface AuthContextValue {
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  clearSession: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -46,8 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Local-only cleanup, no /auth/logout call — used after change-password, which already
+  // revoked every token server-side (including the current one), so logoutRequest() would 401.
+  const clearSession = () => {
+    localStorage.removeItem(AUTH_TOKEN_KEY)
+    setUser(null)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: user !== null, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: user !== null, login, logout, clearSession }}>
       {children}
     </AuthContext.Provider>
   )

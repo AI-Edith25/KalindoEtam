@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Menu, LogOut, Package } from 'lucide-react'
+import { Menu, LogOut, Package, KeyRound } from 'lucide-react'
 import { useAuth } from '@/app/AuthContext'
+import { ChangePasswordDialog } from '@/features/auth/components/ChangePasswordDialog'
 import { useBrandingLogoObjectUrl, useCompanyBranding } from '@/features/administration/hooks/useCompany'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,7 @@ export function Header() {
   const logoObjectUrl = useBrandingLogoObjectUrl(branding?.logo_url)
   const navigate = useNavigate()
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
 
   useEffect(() => {
     document.title = branding?.name ?? 'ERP'
@@ -82,12 +84,18 @@ export function Header() {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setIsChangePasswordOpen(true)}>
+            <KeyRound className="size-4" />
+            Ubah Password
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleLogout}>
             <LogOut className="size-4" />
             Log out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ChangePasswordDialog open={isChangePasswordOpen} onOpenChange={setIsChangePasswordOpen} />
     </header>
   )
 }

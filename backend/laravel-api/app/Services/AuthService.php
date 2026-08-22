@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\BusinessException;
 use App\Models\User;
 use App\Repositories\UserRepository;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -47,5 +48,43 @@ class AuthService
         $this->auditLogService->record('logout', 'auth', "{$user->email} logged out.", userId: $user->id);
 
         $user->currentAccessToken()->delete();
+    }
+
+    public function changePassword(User $user, string $currentPassword, string $newPassword): void
+    {
+        if (! Hash::check($currentPassword, $user->password)) {
+            throw new BusinessException('Password lama tidak sesuai.');
+        }
+
+        DB::transaction(function () use ($user, $newPassword) {
+            $user->update(['password' => Hash::make($newPassword)]);
+            $user->tokens()->delete();
+
+            $this->auditLogService->record('password_changed', 'auth', "{$user->email} changed their password.", userId: $user->id);
+        });
+    }
+
+    /**
+     * Phase 1 (no email/OTP verification — known, temporary trade-off): anyone who
+     * knows an account's email can reset its password. Silently no-ops on unknown
+     * emails so the response never reveals whether an account exists.
+     * ponytail: phase 2 would add a token/OTP check here before allowing the update
+     * (reusing the unused password_reset_tokens table + Password facade, or TOTP) —
+     * deliberately deferred, not built now.
+     */
+    public function resetPasswordUnverified(string $email, string $newPassword): void
+    {
+        $user = $this->userRepository->findByEmail($email);
+
+        if (! $user) {
+            return;
+        }
+
+        DB::transaction(function () use ($user, $newPassword) {
+            $user->update(['password' => Hash::make($newPassword)]);
+            $user->tokens()->delete();
+
+            $this->auditLogService->record('password_reset_unverified', 'auth', "Password reset (unverified) for {$user->email}.", userId: $user->id);
+        });
     }
 }

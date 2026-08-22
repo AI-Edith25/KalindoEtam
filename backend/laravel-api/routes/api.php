@@ -85,11 +85,14 @@ $withPagePermissions = function (PendingResourceRegistration $resource, string $
 
 Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login']);
+    // Phase 1 self-service reset (no email/OTP verification) — see AuthService::resetPasswordUnverified.
+    Route::post('auth/reset-password-unverified', [AuthController::class, 'resetPasswordUnverified']);
 });
 
 Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPagePermissions) {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
+    Route::post('auth/change-password', [AuthController::class, 'changePassword']);
 
     $withPagePermissions(Route::apiResource('companies', CompanyController::class), 'administration.company');
     // App-shell branding (name/logo only) — every authenticated user needs this regardless of

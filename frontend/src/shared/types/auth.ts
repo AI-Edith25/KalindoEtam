@@ -16,3 +16,15 @@ export interface LoginResult {
   token: string
   user: AuthUser
 }
+
+export interface ChangePasswordPayload {
+  current_password: string
+  password: string
+  password_confirmation: string
+}
+
+export interface ResetPasswordUnverifiedPayload {
+  email: string
+  password: string
+  password_confirmation: string
+}
