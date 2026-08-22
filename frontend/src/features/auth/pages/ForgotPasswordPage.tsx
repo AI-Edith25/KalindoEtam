@@ -20,10 +20,10 @@ type EmailFormValues = z.infer<typeof emailSchema>
 
 const resetSchema = z
   .object({
-    password: z.string().min(8, 'Minimal 8 karakter'),
+    newPassword: z.string().min(8, 'Minimal 8 karakter'),
     confirmPassword: z.string().min(1, 'Konfirmasi password wajib diisi'),
   })
-  .refine((data) => data.password === data.confirmPassword, {
+  .refine((data) => data.newPassword === data.confirmPassword, {
     message: 'Konfirmasi password tidak cocok',
     path: ['confirmPassword'],
   })
@@ -46,12 +46,12 @@ export function ForgotPasswordPage() {
 
   const resetForm = useForm<ResetFormValues>({
     resolver: zodResolver(resetSchema),
-    defaultValues: { password: '', confirmPassword: '' },
+    defaultValues: { newPassword: '', confirmPassword: '' },
   })
 
   const mutation = useMutation({
     mutationFn: (values: ResetFormValues) =>
-      resetPasswordUnverifiedRequest({ email, password: values.password, password_confirmation: values.confirmPassword }),
+      resetPasswordUnverifiedRequest({ email, password: values.newPassword, password_confirmation: values.confirmPassword }),
     onSuccess: () => {
       toast.success('Password berhasil diubah. Silakan login dengan password baru Anda.')
       navigate('/login', { replace: true })
@@ -104,7 +104,7 @@ export function ForgotPasswordPage() {
               <form onSubmit={resetForm.handleSubmit(onSubmitReset)} className="space-y-4" noValidate>
                 <FormField
                   control={resetForm.control}
-                  name="password"
+                  name="newPassword"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Password Baru</FormLabel>
