@@ -109,7 +109,8 @@ export function ForgotPasswordPage() {
                     <FormItem>
                       <FormLabel>Password Baru</FormLabel>
                       <FormControl>
-                        <Input type="password" autoComplete="new-password" {...field} />
+                        {/* autoComplete="off" (not "new-password") — Chrome's "suggest a strong password" popup for new-password fields can swallow real keystrokes/paste until dismissed. */}
+                        <Input type="password" autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -122,7 +123,7 @@ export function ForgotPasswordPage() {
                     <FormItem>
                       <FormLabel>Konfirmasi Password Baru</FormLabel>
                       <FormControl>
-                        <Input type="password" autoComplete="new-password" {...field} />
+                        <Input type="password" autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
