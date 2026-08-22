@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\CreditNote;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 
@@ -61,6 +62,17 @@ class CreditNoteRepository extends BaseRepository
             ->where('invoice_id', $invoiceId)
             ->where('is_reversed', false)
             ->where('status', 'submitted')
+            ->sum('total_amount');
+    }
+
+    /** AR Aging report's Summary footer "MTD/YTD CN" figures — company-wide, ignores every report filter/selection. */
+    public function creditNoteTotal(Carbon $from, Carbon $to): float
+    {
+        return (float) $this->model->query()
+            ->where('is_reversed', false)
+            ->where('status', 'submitted')
+            ->whereDate('credit_note_date', '>=', $from)
+            ->whereDate('credit_note_date', '<=', $to)
             ->sum('total_amount');
     }
 }

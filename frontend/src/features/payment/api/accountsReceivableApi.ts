@@ -29,11 +29,16 @@ export async function fetchAccountsReceivables(params: AccountsReceivableListPar
   return data
 }
 
-/** AR Detail's Export (C2) — same filters as fetchAccountsReceivables(), unpaginated, XLSX or CSV. Blob response (auth is a Bearer header, not a cookie, so a plain window.open link can't carry it). */
+/**
+ * AR Detail's Export (C2) — same filters as fetchAccountsReceivables(), unpaginated, XLSX or CSV,
+ * plus a Detail/Summary template choice ("Customer Detail Aging" / "Customer Summary Aging").
+ * Blob response (auth is a Bearer header, not a cookie, so a plain window.open link can't carry it).
+ */
 export async function exportAccountsReceivables(
   params: Omit<AccountsReceivableListParams, 'page' | 'per_page'>,
+  type: 'detail' | 'summary',
   format: 'xlsx' | 'csv',
 ): Promise<Blob> {
-  const { data } = await apiClient.get('/accounts-receivables/export', { params: { ...params, format }, responseType: 'blob' })
+  const { data } = await apiClient.get('/accounts-receivables/export', { params: { ...params, type, format }, responseType: 'blob' })
   return data as Blob
 }

@@ -8,6 +8,7 @@ use App\Models\AccountsReceivable;
 use App\Models\Invoice;
 use App\Repositories\AccountsReceivableRepository;
 use App\Support\SettlementStatus;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -252,19 +253,20 @@ class AccountsReceivableService
         $today = now()->startOfDay();
 
         $detailRows = $rows->map(function (AccountsReceivable $row) use ($today) {
-            $dueDate = $row->due_date?->copy()->startOfDay();
-            $isOverdue = $dueDate && $dueDate->lt($today);
             $outstanding = (float) $row->amount - (float) $row->paid_amount;
+            $overdue = $this->overdueFigures($row->due_date, $outstanding, $today);
 
             return [
                 'sales_person_name' => $row->salesOrder?->salesPerson?->name ?? 'Unassigned',
+                'customer_id' => $row->customer_id,
                 'customer_name' => $row->customer?->customer_name ?? '—',
+                'invoice_id' => $row->invoice_id,
                 'document_no' => $row->invoice?->document_number,
                 'date' => $row->invoice?->invoice_date?->format('Y-m-d'),
                 'due_date' => $row->due_date?->format('Y-m-d'),
                 'total_outstanding' => $outstanding,
-                'overdue_days' => $isOverdue ? (int) $dueDate->diffInDays($today, true) : 0,
-                'overdue_amount' => $isOverdue ? $outstanding : 0.0,
+                'overdue_days' => $overdue['overdue_days'],
+                'overdue_amount' => $overdue['overdue_amount'],
             ];
         });
 
@@ -274,6 +276,7 @@ class AccountsReceivableService
                 $customers = $salesPersonRows
                     ->groupBy('customer_name')
                     ->map(fn ($customerRows, $customerName) => [
+                        'customer_id' => $customerRows->first()['customer_id'],
                         'customer_name' => $customerName,
                         'rows' => $customerRows->values()->all(),
                         'customer_subtotal' => $customerRows->sum('total_outstanding'),
@@ -291,6 +294,23 @@ class AccountsReceivableService
         return [
             'groups' => $groups,
             'grand_total' => $detailRows->sum('total_outstanding'),
+        ];
+    }
+
+    /**
+     * Shared by groupedDetail() and AccountsReceivableAgingReportService — the one PHP-side
+     * (not SQL) overdue-days/overdue-amount calc, so both reports always agree with each other.
+     * $asAt is caller-supplied (not now() here) so a caller computing several figures off one
+     * snapshot instant (e.g. the aging report's bucket calc) uses a single consistent instant.
+     */
+    public function overdueFigures(?Carbon $dueDate, float $outstanding, Carbon $asAt): array
+    {
+        $due = $dueDate?->copy()->startOfDay();
+        $isOverdue = $due && $due->lt($asAt);
+
+        return [
+            'overdue_days' => $isOverdue ? (int) $due->diffInDays($asAt, true) : 0,
+            'overdue_amount' => $isOverdue ? $outstanding : 0.0,
         ];
     }
 

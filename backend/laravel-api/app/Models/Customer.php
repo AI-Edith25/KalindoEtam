@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Customer extends Model
@@ -26,4 +27,9 @@ class Customer extends Model
         'is_active' => 'boolean',
         'credit_limit' => 'decimal:2',
     ];
+
+    public function termsOfPayment(): BelongsTo
+    {
+        return $this->belongsTo(TermsOfPayment::class);
+    }
 }

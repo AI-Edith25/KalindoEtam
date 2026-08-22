@@ -93,6 +93,8 @@ class AccountsReceivableGroupedDetailTest extends TestCase
         $tokoAUnderBudi = $budiGroup['customers']->firstWhere('customer_name', 'Toko A');
         $this->assertEquals(150000.0, $tokoAUnderBudi['customer_subtotal']);
         $this->assertCount(2, $tokoAUnderBudi['rows']);
+        $this->assertEquals($tokoA->id, $tokoAUnderBudi['customer_id']); // needed by the frontend for per-customer checkbox selection
+        $this->assertNotNull($tokoAUnderBudi['rows'][0]['invoice_id']); // needed to resolve a customer's checkbox to invoice_ids
 
         $aniGroup = $result['groups']->firstWhere('sales_person_name', 'Ani');
         $this->assertEquals(20000.0, $aniGroup['sales_person_subtotal']);

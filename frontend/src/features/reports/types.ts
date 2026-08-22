@@ -48,6 +48,7 @@ export type AgingBucketValue = '30' | '45' | '60' | '90' | 'over_180'
 
 /** C3 (UAT review 2026-08-12) — "Perincian Piutang": AR Detail rows grouped Sales Person -> Customer, with a subtotal at each level. */
 export interface ArDetailGroupedRow {
+  invoice_id: string | null
   document_no: string | null
   date: string | null
   due_date: string | null
@@ -57,6 +58,7 @@ export interface ArDetailGroupedRow {
 }
 
 export interface ArDetailGroupedCustomer {
+  customer_id: string
   customer_name: string
   rows: ArDetailGroupedRow[]
   customer_subtotal: number

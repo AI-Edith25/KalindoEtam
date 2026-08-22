@@ -96,11 +96,15 @@ class AccountsReceivableRepository extends BaseRepository
             ->paginate($perPage);
     }
 
-    /** Same filters/eager-loads as search() but unpaginated — for Export (C2), which must cover every filtered row, not just one page's worth. */
+    /**
+     * Same filters as search() but unpaginated — for Export (C2), which must cover every
+     * filtered row, not just one page's worth. Also eager-loads customer.termsOfPayment (unlike
+     * search()) for the AR Aging report's per-customer "Term" figure.
+     */
     public function searchAll(array $filters): Collection
     {
         return $this->filteredQuery($filters)
-            ->with(['customer', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'salesOrder.branch', 'branch', 'delivery'])
+            ->with(['customer.termsOfPayment', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'salesOrder.branch', 'branch', 'delivery'])
             ->latest('due_date')
             ->get();
     }
@@ -111,6 +115,25 @@ class AccountsReceivableRepository extends BaseRepository
         return (float) $this->filteredQuery($filters)
             ->selectRaw('COALESCE(SUM(amount - paid_amount), 0) as outstanding')
             ->value('outstanding');
+    }
+
+    /**
+     * AR Aging report's Summary sheet "Ledger Balance" column — a customer's full outstanding
+     * balance across ALL of their receivables, deliberately ignoring the export's active
+     * filters/selection (user-confirmed: proven from the real reference export that this figure
+     * diverges from the filtered "Total Outstanding" column). One grouped query, not N+1.
+     *
+     * @return array<string, float> customer_id => balance
+     */
+    public function ledgerBalanceByCustomerIds(array $customerIds): array
+    {
+        return $this->model->query()
+            ->whereIn('customer_id', array_unique($customerIds))
+            ->selectRaw('customer_id, SUM(amount - paid_amount) as balance')
+            ->groupBy('customer_id')
+            ->pluck('balance', 'customer_id')
+            ->map(fn ($value) => (float) $value)
+            ->all();
     }
 
     /**

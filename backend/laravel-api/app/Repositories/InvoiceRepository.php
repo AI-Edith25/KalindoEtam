@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Enums\AccountsReceivableStatus;
 use App\Models\Invoice;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -81,5 +82,15 @@ class InvoiceRepository extends BaseRepository
             ))
             ->latest('invoice_date')
             ->get();
+    }
+
+    /** AR Aging report's Summary footer "MTD/YTD SALES" figures — company-wide, ignores every report filter/selection. */
+    public function salesTotal(Carbon $from, Carbon $to): float
+    {
+        return (float) $this->model->query()
+            ->where('status', 'submitted')
+            ->whereDate('invoice_date', '>=', $from)
+            ->whereDate('invoice_date', '<=', $to)
+            ->sum('grand_total');
     }
 }
