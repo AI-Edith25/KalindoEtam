@@ -12,22 +12,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 const emailSchema = z.object({
   email: z.string().min(1, 'Email wajib diisi').email('Masukkan email yang valid'),
 })
 type EmailFormValues = z.infer<typeof emailSchema>
-
-const resetSchema = z
-  .object({
-    newPassword: z.string().min(8, 'Minimal 8 karakter'),
-    confirmPassword: z.string().min(1, 'Konfirmasi password wajib diisi'),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: 'Konfirmasi password tidak cocok',
-    path: ['confirmPassword'],
-  })
-type ResetFormValues = z.infer<typeof resetSchema>
 
 /**
  * Phase 1 (no email/OTP verification, known temporary trade-off) — the email step never
@@ -44,14 +34,13 @@ export function ForgotPasswordPage() {
     defaultValues: { email: '' },
   })
 
-  const resetForm = useForm<ResetFormValues>({
-    resolver: zodResolver(resetSchema),
-    defaultValues: { newPassword: '', confirmPassword: '' },
-  })
+  // Plain useState here (not react-hook-form) — matches RoleFormDialog.tsx's pattern.
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetError, setResetError] = useState<string | null>(null)
 
   const mutation = useMutation({
-    mutationFn: (values: ResetFormValues) =>
-      resetPasswordUnverifiedRequest({ email, password: values.newPassword, password_confirmation: values.confirmPassword }),
+    mutationFn: () => resetPasswordUnverifiedRequest({ email, password: newPassword, password_confirmation: confirmPassword }),
     onSuccess: () => {
       toast.success('Password berhasil diubah. Silakan login dengan password baru Anda.')
       navigate('/login', { replace: true })
@@ -64,7 +53,21 @@ export function ForgotPasswordPage() {
     setStep('reset')
   }
 
-  const onSubmitReset = (values: ResetFormValues) => mutation.mutate(values)
+  const onSubmitReset = (event: React.FormEvent) => {
+    event.preventDefault()
+
+    if (newPassword.length < 8) {
+      setResetError('Minimal 8 karakter')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setResetError('Konfirmasi password tidak cocok')
+      return
+    }
+
+    setResetError(null)
+    mutation.mutate()
+  }
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-muted p-4">
@@ -100,41 +103,33 @@ export function ForgotPasswordPage() {
               </form>
             </Form>
           ) : (
-            <Form {...resetForm}>
-              <form onSubmit={resetForm.handleSubmit(onSubmitReset)} className="space-y-4" noValidate>
-                <FormField
-                  control={resetForm.control}
-                  name="newPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password Baru</FormLabel>
-                      <FormControl>
-                        {/* autoComplete="off" (not "new-password") — Chrome's "suggest a strong password" popup for new-password fields can swallow real keystrokes/paste until dismissed. */}
-                        <Input type="password" autoComplete="off" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+            <form onSubmit={onSubmitReset} className="space-y-4" noValidate>
+              <div className="grid gap-2">
+                <Label htmlFor="reset-new-password">Password Baru</Label>
+                <Input
+                  id="reset-new-password"
+                  type="password"
+                  autoComplete="off"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
                 />
-                <FormField
-                  control={resetForm.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Konfirmasi Password Baru</FormLabel>
-                      <FormControl>
-                        <Input type="password" autoComplete="off" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="reset-confirm-password">Konfirmasi Password Baru</Label>
+                <Input
+                  id="reset-confirm-password"
+                  type="password"
+                  autoComplete="off"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
                 />
-                <Button type="submit" className="w-full" disabled={mutation.isPending}>
-                  {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
-                  Simpan Password Baru
-                </Button>
-              </form>
-            </Form>
+              </div>
+              {resetError && <p className="text-sm text-destructive">{resetError}</p>}
+              <Button type="submit" className="w-full" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                Simpan Password Baru
+              </Button>
+            </form>
           )}
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
