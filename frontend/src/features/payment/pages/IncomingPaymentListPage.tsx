@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Download, Eye, Pencil, Plus, RotateCw, Send, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
-import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
+import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
@@ -20,7 +20,11 @@ import { ReceiptEntryFiltersBar } from '../components/ReceiptEntryFiltersBar'
 import { emptyReceiptEntryFilters } from '../lib/receiptEntryFilters'
 import type { ReceiptEntry, ReceiptEntryFilterValues } from '../types'
 
-/** Incoming Payment — settles Accounts Receivable created by Delivery. Never touches stock. */
+const SORTERS: Record<string, (receipt: ReceiptEntry) => number> = {
+  unallocated_amount: (receipt) => (receipt.status === 'submitted' ? Number(receipt.unallocated_amount) : 0),
+}
+
+/** Official Receipt — settles Accounts Receivable created by Delivery. Never touches stock. */
 export function IncomingPaymentListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -32,9 +36,10 @@ export function IncomingPaymentListPage() {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<ReceiptEntryFilterValues>(emptyReceiptEntryFilters)
   const [deletingReceipt, setDeletingReceipt] = useState<ReceiptEntry | null>(null)
+  const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
 
   const listQuery = useQuery({
-    queryKey: ['receipt-entries', page, search, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: ['receipt-entries', page, search, filters.status, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
     queryFn: () =>
       fetchReceiptEntries({
         page,
@@ -42,6 +47,7 @@ export function IncomingPaymentListPage() {
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+        ...(filters.unallocatedOnly ? { unallocated_only: true } : {}),
       }),
     placeholderData: (previous) => previous,
   })
@@ -67,7 +73,22 @@ export function IncomingPaymentListPage() {
     onError: (error) => toastApiError(error),
   })
 
-  const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
+  const rows = useMemo(() => {
+    const data = listQuery.data?.data ?? []
+    if (!sort) return data
+
+    const getter = SORTERS[sort.key]
+    if (!getter) return data
+
+    return [...data].sort((a, b) => {
+      const cmp = getter(a) - getter(b)
+      return sort.direction === 'asc' ? cmp : -cmp
+    })
+  }, [listQuery.data, sort])
+
+  const handleSortChange = (key: string) => {
+    setSort((prev) => (prev?.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }))
+  }
 
   const actionsFor = (receipt: ReceiptEntry): RowAction[] => {
     const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/finance/incoming/${receipt.id}`) }]
@@ -89,13 +110,14 @@ export function IncomingPaymentListPage() {
   }
 
   const columns: DataTableColumn<ReceiptEntry>[] = [
-    { header: 'Payment No', accessor: (row) => row.document_number ?? '—' },
+    { header: 'Document', accessor: (row) => row.document_number ?? '—' },
     { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
-    { header: 'Cash/Bank Account', accessor: (row) => row.cash_account?.name ?? '—' },
-    { header: 'Payment Date', accessor: (row) => formatDate(row.receipt_date) },
+    { header: 'Payment method', accessor: (row) => row.cash_account?.name ?? '—' },
+    { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },
     { header: 'Amount', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right' },
     {
       header: 'Unallocated',
+      sortKey: 'unallocated_amount',
       accessor: (row) =>
         row.status === 'submitted' ? (
           <span className={Number(row.unallocated_amount) > 0 ? 'text-amber-600' : undefined}>
@@ -114,14 +136,14 @@ export function IncomingPaymentListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo || filters.unallocatedOnly)
 
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="finance" />
 
       <PageHeader
-        title="Incoming Payment"
+        title="Official Receipt"
         description="Payments received from customers, settling outstanding Accounts Receivable."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} payments` : undefined}
         actions={
@@ -163,6 +185,8 @@ export function IncomingPaymentListPage() {
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No payments match your search or filters.' : 'No payments yet.'}
         onRowClick={(row) => navigate(`/finance/incoming/${row.id}`)}
+        sort={sort}
+        onSortChange={handleSortChange}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}

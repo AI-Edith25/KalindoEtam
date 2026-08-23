@@ -34,6 +34,9 @@ class ReceiptEntryRepository extends BaseRepository
                 fn ($q) => $q->where('document_number', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($sq) => $sq->where('customer_name', 'like', "%{$search}%"))
             ))
+            ->when($filters['unallocated_only'] ?? null, fn ($query) => $query
+                ->where('status', 'submitted')
+                ->whereColumn('allocated_amount', '<', 'total_amount'))
             ->latest('receipt_date')
             ->paginate($perPage);
     }

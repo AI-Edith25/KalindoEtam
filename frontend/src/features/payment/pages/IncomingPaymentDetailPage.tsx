@@ -79,8 +79,8 @@ export function IncomingPaymentDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={receipt.document_number ?? 'Incoming Payment'}
-        description="Incoming payment details."
+        title={receipt.document_number ?? 'Official Receipt'}
+        description="Official receipt details."
         actions={
           receipt.status === 'draft' ? (
             <div className="flex items-center gap-2">

@@ -9,6 +9,7 @@ export interface ReceiptEntryListParams {
   customer_id?: string
   date_from?: string
   date_to?: string
+  unallocated_only?: boolean
   per_page?: number
 }
 

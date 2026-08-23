@@ -203,7 +203,7 @@ export function IncomingPaymentEditorPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={isEdit ? `Edit ${receiptQuery.data?.document_number ?? 'Payment'}` : 'New Incoming Payment'}
+        title={isEdit ? `Edit ${receiptQuery.data?.document_number ?? 'Payment'}` : 'New Official Receipt'}
         description="Record a payment received from a customer, and optionally allocate it to their outstanding invoices in the same step."
       />
 

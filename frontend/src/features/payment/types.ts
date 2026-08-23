@@ -150,4 +150,5 @@ export interface ReceiptEntryFilterValues {
   status: DocumentStatus | null
   dateFrom: string
   dateTo: string
+  unallocatedOnly: boolean
 }

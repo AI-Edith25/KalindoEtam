@@ -106,7 +106,7 @@ export const navTree: NavGroup[] = [
     icon: Wallet,
     pages: [
       { key: 'outgoing_payment', label: 'Outgoing Payment', path: '/finance/outgoing', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'incoming_payment', label: 'Incoming Payment', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'incoming_payment', label: 'Official Receipt', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete'] },
       {
         key: 'journal_entries',
         label: 'General Journal',
