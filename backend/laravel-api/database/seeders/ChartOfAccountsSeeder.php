@@ -20,6 +20,7 @@ class ChartOfAccountsSeeder extends Seeder
             // Assets
             ['code' => '1100', 'name' => 'Cash and Bank', 'account_type' => AccountType::ASSET, 'is_cash_bank' => true],
             ['code' => '1200', 'name' => 'Accounts Receivable', 'account_type' => AccountType::ASSET],
+            ['code' => '1250', 'name' => 'Advance to Suppliers', 'account_type' => AccountType::ASSET],
             ['code' => '1300', 'name' => 'Inventory', 'account_type' => AccountType::ASSET],
             // Liabilities
             ['code' => '1150', 'name' => 'Unapplied Customer Payments', 'account_type' => AccountType::LIABILITY],

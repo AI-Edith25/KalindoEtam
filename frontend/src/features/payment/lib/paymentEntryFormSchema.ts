@@ -1,21 +1,20 @@
 import { z } from 'zod'
 
 /**
- * outstandingAmount is a client-side snapshot taken when the source
- * document is picked (not sent to the API) — used only so `amount` can be
- * refined against it here, same "editable string field + read-only
- * snapshot number" shape as goodsReceiptFormSchema's `remaining`.
+ * Paying money only — payment_type-specific header fields and an amount.
+ * Payable selection/allocation (mirrors receiptEntryFormSchema.ts's Invoice
+ * selection) lives as separate, un-validated component state on
+ * OutgoingPaymentEditorPage, not here — it's optional and doesn't shape
+ * what a valid Payment Entry itself is.
  *
- * One schema, two branches by payment_type — Supplier keeps every existing
- * rule unchanged; General Expense (Category + Description, no
- * Supplier/Source Document) is new.
+ * One schema, two branches by payment_type — Supplier requires
+ * supplier_id + amount; General Expense requires Category + Description +
+ * amount.
  */
 export const paymentEntryFormSchema = z
   .object({
     payment_type: z.enum(['supplier', 'general_expense']),
     supplier_id: z.string(),
-    accounts_payable_id: z.string(),
-    outstandingAmount: z.number(),
     expense_account_id: z.string(),
     description: z.string(),
     amount: z.string(),
@@ -36,16 +35,6 @@ export const paymentEntryFormSchema = z
     if (values.payment_type === 'supplier') {
       if (!values.supplier_id) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Supplier is required', path: ['supplier_id'] })
-      }
-      if (!values.accounts_payable_id) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Select a source document', path: ['accounts_payable_id'] })
-      }
-      if (amount > values.outstandingAmount) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Cannot exceed outstanding (${values.outstandingAmount})`,
-          path: ['amount'],
-        })
       }
     } else {
       if (!values.expense_account_id) {

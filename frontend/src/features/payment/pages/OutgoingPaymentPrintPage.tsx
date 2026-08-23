@@ -18,12 +18,14 @@ import { useCompanyBranding } from '@/features/administration/hooks/useCompany'
 import { fetchPaymentEntry } from '../api/paymentEntryApi'
 
 /**
- * Same bordered "cetak" shell as IncomingPaymentPrintPage. Branches on
- * payment_type exactly like OutgoingPaymentDetailPage: general_expense has
- * no supplier/allocation context at all (Category + Description instead),
- * supplier lists every settled Accounts Payable line (not just items[0]
- * like the detail page truncates to). No Unallocated concept — Outgoing
- * settles an AP directly, there's no fan-out/remainder.
+ * Same bordered "cetak" shell as IncomingPaymentPrintPage, including its
+ * Amount Paid/Allocated/Unallocated breakdown and reversed-allocation
+ * exclusion (allocated_amount already nets out reversals — see
+ * PaymentEntryAllocationService::reverse() — so including reversed rows
+ * here would make the list not foot to the Allocated total printed above
+ * it). Branches on payment_type exactly like OutgoingPaymentDetailPage:
+ * general_expense has no supplier/allocation context at all (Category +
+ * Description instead).
  */
 export function OutgoingPaymentPrintPage() {
   const { id } = useParams<{ id: string }>()
@@ -58,6 +60,8 @@ export function OutgoingPaymentPrintPage() {
   const compact = printOptions.paperType === 'continuous'
   const pageCss = PRINT_PAPER_PAGE_CSS[printOptions.paperType]
   const isSupplierPayment = payment.payment_type === 'supplier'
+  const activeItems = payment.items.filter((item) => !item.is_reversed)
+  const unallocated = Number(payment.unallocated_amount)
 
   return (
     <div
@@ -119,11 +123,11 @@ export function OutgoingPaymentPrintPage() {
               </tr>
             </thead>
             <tbody>
-              {payment.items.length > 0 ? (
-                payment.items.map((item) => (
+              {activeItems.length > 0 ? (
+                activeItems.map((item) => (
                   <tr key={item.id} className="border-b border-foreground/30">
                     <td className="border-r-2 border-foreground/80 p-2">{item.accounts_payable.reference_number}</td>
-                    <td className="p-2 text-right">{formatMoney(item.paid_amount, printOptions.amountDecimals)}</td>
+                    <td className="p-2 text-right">{formatMoney(item.allocated_amount, printOptions.amountDecimals)}</td>
                   </tr>
                 ))
               ) : (
@@ -138,10 +142,24 @@ export function OutgoingPaymentPrintPage() {
         )}
 
         <div className="flex flex-col items-end gap-1 border-t-2 border-foreground/80 p-3">
-          <div className="flex w-64 justify-between text-base font-semibold">
+          <div className="flex w-64 justify-between">
             <span>Amount Paid</span>
             <span>{formatMoney(payment.total_amount, printOptions.amountDecimals)}</span>
           </div>
+          {isSupplierPayment && (
+            <>
+              <div className="flex w-64 justify-between text-base font-semibold">
+                <span>Allocated</span>
+                <span>{formatMoney(payment.allocated_amount, printOptions.amountDecimals)}</span>
+              </div>
+              {unallocated > 0 && (
+                <div className="flex w-64 justify-between border-t border-foreground/80 pt-1 font-medium">
+                  <span>Unallocated</span>
+                  <span>{formatMoney(unallocated, printOptions.amountDecimals)}</span>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {payment.remarks && (

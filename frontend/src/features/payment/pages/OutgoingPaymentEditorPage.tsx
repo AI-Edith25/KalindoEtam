@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,22 +10,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatCurrency } from '@/lib/utils'
 import { fetchBranches, fetchSuppliersLookup, fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
 import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymentEntry, type PaymentEntryPayload } from '../api/paymentEntryApi'
-import { OutstandingPayableSelect } from '../components/OutstandingPayableSelect'
+import { fetchAccountsPayables } from '../api/accountsPayableApi'
+import { allocatePaymentEntry } from '../api/paymentEntryAllocationApi'
+import { OutstandingPayablesTable } from '../components/OutstandingPayablesTable'
 import { paymentEntryFormSchema, type PaymentEntryEditorValues } from '../lib/paymentEntryFormSchema'
-import type { AccountsPayable, PaymentEntryType } from '../types'
+import type { PaymentEntryType } from '../types'
 
 const emptyValues: PaymentEntryEditorValues = {
   payment_type: 'supplier',
   supplier_id: '',
-  accounts_payable_id: '',
-  outstandingAmount: 0,
   expense_account_id: '',
   description: '',
   amount: '',
@@ -41,8 +40,6 @@ export function OutgoingPaymentEditorPage() {
   const isEdit = !!id
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-
-  const [selectedPayable, setSelectedPayable] = useState<AccountsPayable | null>(null)
 
   const paymentQuery = useQuery({
     queryKey: ['payment-entries', id],
@@ -61,6 +58,51 @@ export function OutgoingPaymentEditorPage() {
     defaultValues: emptyValues,
   })
 
+  const supplierId = form.watch('supplier_id')
+  const paymentType = form.watch('payment_type')
+  const isSupplierType = paymentType === 'supplier'
+
+  // Payable -> user-entered "To Allocate" amount. Checked and "has an entry in this
+  // map" are the same fact — Amount Paid below is derived as the sum of these, not
+  // typed directly, unless nothing is checked (an unapplied/advance payment). Mirrors
+  // IncomingPaymentEditorPage's allocations state exactly.
+  const [allocations, setAllocations] = useState<Map<string, number>>(new Map())
+
+  const outstandingQuery = useQuery({
+    queryKey: ['accounts-payables', supplierId],
+    queryFn: () => fetchAccountsPayables({ supplier_id: supplierId, per_page: 100 }),
+    enabled: !!supplierId && isSupplierType,
+  })
+
+  const outstandingPayables = useMemo(
+    () => (outstandingQuery.data?.data ?? []).filter((ap) => ap.status !== 'paid'),
+    [outstandingQuery.data],
+  )
+
+  function commitAllocations(next: Map<string, number>) {
+    setAllocations(next)
+    const total = Array.from(next.values()).reduce((sum, amt) => sum + amt, 0)
+    const rounded = Math.round(total * 100) / 100 // avoid float drift (0.1 + 0.2 etc.)
+    form.setValue('amount', rounded > 0 ? String(rounded) : '', { shouldValidate: form.formState.isSubmitted })
+  }
+
+  const togglePayable = (accountsPayableId: string, checked: boolean) => {
+    const next = new Map(allocations)
+    if (checked) {
+      const ap = outstandingPayables.find((row) => row.id === accountsPayableId)
+      next.set(accountsPayableId, ap ? Number(ap.outstanding_amount) : 0)
+    } else {
+      next.delete(accountsPayableId)
+    }
+    commitAllocations(next)
+  }
+
+  const updateAllocation = (accountsPayableId: string, amount: number) => {
+    const next = new Map(allocations)
+    next.set(accountsPayableId, amount)
+    commitAllocations(next)
+  }
+
   useEffect(() => {
     const payment = paymentQuery.data
     if (!payment) return
@@ -71,16 +113,12 @@ export function OutgoingPaymentEditorPage() {
       return
     }
 
-    const line = payment.items[0]
-    setSelectedPayable(line?.accounts_payable ?? null)
     form.reset({
       payment_type: payment.payment_type,
       supplier_id: payment.supplier_id ?? '',
-      accounts_payable_id: line?.accounts_payable_id ?? '',
-      outstandingAmount: line ? Number(line.accounts_payable.outstanding_amount) : 0,
       expense_account_id: payment.expense_account_id ?? '',
       description: payment.description ?? '',
-      amount: payment.payment_type === 'general_expense' ? String(payment.total_amount) : line ? String(line.paid_amount) : '',
+      amount: String(payment.total_amount),
       payment_date: payment.payment_date,
       cash_account_id: payment.cash_account_id ?? '',
       branch_id: payment.branch_id ?? '',
@@ -108,7 +146,7 @@ export function OutgoingPaymentEditorPage() {
           : {
               payment_type: 'supplier',
               supplier_id: values.supplier_id,
-              items: [{ accounts_payable_id: values.accounts_payable_id, paid_amount: Number(values.amount) }],
+              amount: Number(values.amount),
               payment_date: values.payment_date,
               cash_account_id: values.cash_account_id,
               branch_id: values.branch_id || null,
@@ -127,19 +165,44 @@ export function OutgoingPaymentEditorPage() {
   })
 
   const submitMutation = useMutation({
-    mutationFn: () => submitPaymentEntry(id!),
-    onSuccess: (payment) => {
+    mutationFn: async () => {
+      const payment = await submitPaymentEntry(id!)
+
+      const lines = Array.from(allocations.entries())
+        .filter(([, amount]) => amount > 0)
+        .map(([accounts_payable_id, amount]) => ({ accounts_payable_id, amount }))
+      if (lines.length === 0) {
+        return { payment, allocationError: null as unknown }
+      }
+
+      // The payment is already made at this point — an allocation failure here (e.g. a
+      // bill got settled elsewhere in the meantime) must not look like the whole submit
+      // failed. It's reported separately; the existing "Allocate Payment" action on the
+      // detail page remains available to finish it.
+      try {
+        await allocatePaymentEntry(payment.id, lines)
+        return { payment, allocationError: null as unknown }
+      } catch (error) {
+        return { payment, allocationError: error }
+      }
+    },
+    onSuccess: ({ payment, allocationError }) => {
       queryClient.invalidateQueries({ queryKey: ['payment-entries'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
-      toast.success('Payment confirmed.')
+
+      if (allocationError) {
+        toast.success('Payment confirmed.')
+        toastApiError(allocationError)
+      } else if (allocations.size > 0) {
+        toast.success('Payment confirmed and allocated to the selected bill(s).')
+      } else {
+        toast.success('Payment confirmed. Allocate it to a bill from the detail page.')
+      }
+
       navigate(`/finance/outgoing/${payment.id}`)
     },
     onError: (error) => toastApiError(error),
   })
-
-  const supplierId = form.watch('supplier_id')
-  const paymentType = form.watch('payment_type')
-  const isSupplierType = paymentType === 'supplier'
 
   if (isEdit && paymentQuery.isLoading) {
     return (
@@ -152,7 +215,7 @@ export function OutgoingPaymentEditorPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={isEdit ? `Edit ${paymentQuery.data?.document_number ?? 'Payment'}` : 'New Outgoing Payment'}
+        title={isEdit ? `Edit ${paymentQuery.data?.document_number ?? 'Payment'}` : 'New Payment Voucher'}
         description="Record a payment to a supplier, or a general office expense with no supplier/source document."
       />
 
@@ -175,12 +238,10 @@ export function OutgoingPaymentEditorPage() {
                       onValueChange={(next) => {
                         field.onChange(next as PaymentEntryType)
                         form.setValue('supplier_id', '')
-                        form.setValue('accounts_payable_id', '')
-                        form.setValue('outstandingAmount', 0)
                         form.setValue('expense_account_id', '')
                         form.setValue('description', '')
                         form.setValue('amount', '')
-                        setSelectedPayable(null)
+                        commitAllocations(new Map())
                       }}
                       disabled={isEdit}
                     >
@@ -200,63 +261,40 @@ export function OutgoingPaymentEditorPage() {
               />
 
               {isSupplierType ? (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="supplier_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Supplier</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={(next) => {
-                            field.onChange(next)
-                            form.setValue('accounts_payable_id', '')
-                            form.setValue('outstandingAmount', 0)
-                            form.setValue('amount', '')
-                            setSelectedPayable(null)
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'Select supplier'} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {suppliers.data?.map((supplier) => (
-                              <SelectItem key={supplier.id} value={supplier.id}>
-                                {supplier.supplier_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="accounts_payable_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Source Document</FormLabel>
+                <FormField
+                  control={form.control}
+                  name="supplier_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(next) => {
+                          field.onChange(next)
+                          // A supplier switch invalidates any payable selection made for the
+                          // previous one. Scoped to this handler (not a supplierId-watching
+                          // effect) so it never fires from form.reset() restoring an existing
+                          // draft's supplier_id/amount on edit-mode load.
+                          commitAllocations(new Map())
+                        }}
+                      >
                         <FormControl>
-                          <OutstandingPayableSelect
-                            supplierId={supplierId || null}
-                            value={field.value || null}
-                            onChange={(ap) => {
-                              field.onChange(ap.id)
-                              form.setValue('outstandingAmount', Number(ap.outstanding_amount))
-                              form.setValue('amount', String(ap.outstanding_amount))
-                              setSelectedPayable(ap)
-                            }}
-                          />
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'Select supplier'} />
+                          </SelectTrigger>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
+                        <SelectContent>
+                          {suppliers.data?.map((supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id}>
+                              {supplier.supplier_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               ) : (
                 <>
                   <FormField
@@ -365,14 +403,16 @@ export function OutgoingPaymentEditorPage() {
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount</FormLabel>
+                    <FormLabel>{isSupplierType ? 'Amount Paid' : 'Amount'}</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="0" {...field} />
+                      <Input type="number" step="0.01" placeholder="0" disabled={isSupplierType && allocations.size > 0} {...field} />
                     </FormControl>
-                    {isSupplierType && selectedPayable && (
-                      <p className="text-xs text-muted-foreground">
-                        Max: {formatCurrency(selectedPayable.outstanding_amount)}
-                      </p>
+                    {isSupplierType && (
+                      <FormDescription>
+                        {allocations.size > 0
+                          ? 'Calculated automatically from the bills checked below.'
+                          : 'Type an amount to record an unapplied payment, or check a bill below to allocate directly.'}
+                      </FormDescription>
                     )}
                     <FormMessage />
                   </FormItem>
@@ -407,28 +447,19 @@ export function OutgoingPaymentEditorPage() {
             </CardContent>
           </Card>
 
-          {isSupplierType && selectedPayable && (
+          {isSupplierType && supplierId && (
             <Card>
               <CardHeader>
-                <CardTitle>Purchase Summary</CardTitle>
+                <CardTitle>Outstanding Payables</CardTitle>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">Grand Total</span>
-                  <span className="text-sm font-medium">{formatCurrency(selectedPayable.amount)}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">Paid Amount</span>
-                  <span className="text-sm font-medium">{formatCurrency(selectedPayable.paid_amount)}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">Outstanding</span>
-                  <span className="text-sm font-medium">{formatCurrency(selectedPayable.outstanding_amount)}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">Payment Status</span>
-                  <StatusBadge status={selectedPayable.status} />
-                </div>
+              <CardContent>
+                <OutstandingPayablesTable
+                  payables={outstandingPayables}
+                  isLoading={outstandingQuery.isLoading}
+                  allocations={allocations}
+                  onToggle={togglePayable}
+                  onAllocationChange={updateAllocation}
+                />
               </CardContent>
             </Card>
           )}
@@ -436,7 +467,9 @@ export function OutgoingPaymentEditorPage() {
           <p className="text-right text-sm text-muted-foreground">
             {isEdit && paymentQuery.data?.status === 'draft'
               ? isSupplierType
-                ? 'Saving records the payment. Confirming settles it against the payable — this cannot be undone.'
+                ? allocations.size > 0
+                  ? 'Confirming marks the money as paid and allocates it to the bills checked above.'
+                  : 'Saving records the payment. Confirming marks the money as paid — allocate it to a bill afterward.'
                 : 'Saving records the payment. Confirming posts it to the ledger — this cannot be undone.'
               : 'Saving records the payment as a draft — nothing is posted until you confirm it.'}
           </p>

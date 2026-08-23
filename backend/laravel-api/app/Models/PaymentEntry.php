@@ -74,17 +74,33 @@ class PaymentEntry extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(PaymentEntryItem::class);
+        return $this->hasMany(PaymentEntryAllocation::class);
     }
 
     /**
-     * Cr Cash/Bank always; Dr side depends on payment_type — Accounts
-     * Payable for a Supplier payment (settling a payable already posted by
-     * GoodsReceipt::journalLines()), or the chosen Expense account for a
-     * General Expense payment (no Supplier/PO involved at all). For
-     * AccountingService::postForDocument() to post (see
-     * PaymentEntryService::submit()). Same shape/purpose as
-     * ReceiptEntry::journalLines().
+     * Cache-derived, computed not stored — see allocated_amount's column
+     * comment. Mirrors ReceiptEntry::unallocatedAmount() exactly. Only
+     * meaningful for payment_type=supplier; General Expense payments never
+     * accumulate allocated_amount (there's no payable to allocate against),
+     * so this would just always equal total_amount for them — callers
+     * (PaymentEntryResource, the list page) gate on payment_type/status
+     * themselves rather than this method special-casing it.
+     */
+    public function unallocatedAmount(): float
+    {
+        return (float) $this->total_amount - (float) $this->allocated_amount;
+    }
+
+    /**
+     * Cr Cash/Bank always; Dr side depends on payment_type — Advance to
+     * Suppliers (1250, a suspense asset) for a Supplier payment, or the
+     * chosen Expense account for a General Expense payment (no
+     * Supplier/PO involved at all, so no suspense leg either — it's posted
+     * straight to the expense). For AccountingService::postForDocument()
+     * to post (see PaymentEntryService::submit()). Same shape/purpose as
+     * ReceiptEntry::journalLines(): paying and applying to a specific bill
+     * are separate operations now; see PaymentEntryAllocation::
+     * journalLines() for the second leg.
      */
     public function journalLines(): array
     {
@@ -96,7 +112,7 @@ class PaymentEntry extends Model
         }
 
         return [
-            ['account' => '2000', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Accounts Payable
+            ['account' => '1250', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Advance to Suppliers
             ['account' => $this->cashAccount->code, 'type' => 'credit', 'amount' => (float) $this->total_amount],
         ];
     }

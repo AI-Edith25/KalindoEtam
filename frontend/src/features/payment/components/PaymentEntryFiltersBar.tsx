@@ -1,6 +1,8 @@
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { emptyPaymentEntryFilters, hasActivePaymentEntryFilters } from '../lib/paymentEntryFilters'
 import type { DocumentStatus, PaymentEntryFilterValues } from '../types'
 
@@ -48,6 +50,16 @@ export function PaymentEntryFiltersBar({ value, onChange }: PaymentEntryFiltersB
           value={value.dateTo}
           onChange={(event) => onChange({ ...value, dateTo: event.target.value })}
         />
+      </div>
+      <div className="flex items-center gap-2 rounded-md border p-2">
+        <Switch
+          id="unallocated-only"
+          checked={value.unallocatedOnly}
+          onCheckedChange={(checked) => onChange({ ...value, unallocatedOnly: checked })}
+        />
+        <Label htmlFor="unallocated-only" className="cursor-pointer text-sm font-normal">
+          Unallocated only
+        </Label>
       </div>
     </FilterPanel>
   )

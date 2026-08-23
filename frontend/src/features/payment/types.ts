@@ -21,11 +21,15 @@ export interface AccountsPayable {
   created_at: string
 }
 
-export interface PaymentEntryItem {
+/** Evolves PaymentEntryItem — a specific amount of a specific Payment applied to a specific supplier bill's payable, on a specific date. Mirrors PaymentAllocation (Official Receipt's AR side) field-for-field. */
+export interface PaymentEntryAllocation {
   id: string
+  payment_entry_id: string
   accounts_payable_id: string
   accounts_payable: AccountsPayable
-  paid_amount: string | number
+  allocated_amount: string | number
+  allocation_date: string | null
+  is_reversed: boolean
 }
 
 export interface PaymentEntry {
@@ -47,7 +51,9 @@ export interface PaymentEntry {
   reference_number: string | null
   remarks: string | null
   total_amount: string | number
-  items: PaymentEntryItem[]
+  allocated_amount: string | number
+  unallocated_amount: string | number
+  items: PaymentEntryAllocation[]
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string
@@ -57,6 +63,7 @@ export interface PaymentEntryFilterValues {
   status: DocumentStatus | null
   dateFrom: string
   dateTo: string
+  unallocatedOnly: boolean
 }
 
 export interface AccountsReceivable {

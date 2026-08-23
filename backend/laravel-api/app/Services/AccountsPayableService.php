@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AccountsPayableStatus;
+use App\Exceptions\BusinessException;
 use App\Models\AccountsPayable;
 use App\Models\GoodsReceipt;
 use App\Repositories\AccountsPayableRepository;
@@ -55,5 +56,47 @@ class AccountsPayableService
 
             return $accountsPayable->fresh();
         });
+    }
+
+    /**
+     * Symmetric to settle() — called only by PaymentEntryAllocationService::reverse()
+     * to undo one settlement line and recompute status. Amount is clamped at
+     * 0 rather than going negative; a reversal can never undo more than was
+     * ever settled, so this is a defensive floor, not a real-world branch.
+     * Mirrors AccountsReceivableService::unsettle().
+     */
+    public function unsettle(AccountsPayable $accountsPayable, float $amount): AccountsPayable
+    {
+        return DB::transaction(function () use ($accountsPayable, $amount) {
+            $newPaidAmount = max(0, $accountsPayable->paid_amount - $amount);
+            $newStatus = AccountsPayableStatus::from(
+                SettlementStatus::resolve((float) $accountsPayable->amount, $newPaidAmount)
+            );
+
+            $this->accountsPayableRepository->applySettlement($accountsPayable, $newPaidAmount, $newStatus);
+
+            return $accountsPayable->fresh();
+        });
+    }
+
+    /**
+     * Shared by PaymentEntryService and PaymentEntryAllocationService — the
+     * one place "can this much be applied to this payable" is decided, so
+     * both callers stay consistent instead of each re-deriving the math.
+     * Moved here from PaymentEntryService (was private, inline) now that
+     * both services need it. Mirrors AccountsReceivableService::
+     * assertWithinOutstanding().
+     */
+    public function assertWithinOutstanding(AccountsPayable $accountsPayable, float $amount): void
+    {
+        if ($amount <= 0) {
+            throw new BusinessException('Amount must be greater than zero.');
+        }
+
+        $outstanding = (float) $accountsPayable->amount - (float) $accountsPayable->paid_amount;
+
+        if ($amount > $outstanding) {
+            throw new BusinessException("Amount ({$amount}) exceeds outstanding payable ({$outstanding}) for {$accountsPayable->reference_number}.");
+        }
     }
 }

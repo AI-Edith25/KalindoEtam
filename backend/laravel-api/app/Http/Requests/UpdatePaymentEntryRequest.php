@@ -30,9 +30,6 @@ class UpdatePaymentEntryRequest extends FormRequest
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
             'reference_number' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
-            'items' => ['sometimes', 'array', 'min:1'],
-            'items.*.accounts_payable_id' => ['required_with:items', 'uuid', 'exists:accounts_payables,id'],
-            'items.*.paid_amount' => ['required_with:items', 'numeric', 'gt:0'],
         ];
     }
 }

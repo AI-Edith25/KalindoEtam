@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Download, Eye, ExternalLink, Pencil, Plus, RotateCw, Send, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
-import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
+import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
@@ -23,7 +23,12 @@ import { emptyPaymentEntryFilters } from '../lib/paymentEntryFilters'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 import type { PaymentEntry, PaymentEntryFilterValues } from '../types'
 
-/** Outgoing Payment — either settles Accounts Payable created by Goods Receipt, or posts a General Expense (no Supplier/PO) directly to an Expense account. Never touches stock. */
+const SORTERS: Record<string, (payment: PaymentEntry) => number> = {
+  unallocated_amount: (payment) =>
+    payment.payment_type === 'supplier' && payment.status === 'submitted' ? Number(payment.unallocated_amount) : 0,
+}
+
+/** Payment Voucher — either settles Accounts Payable created by Goods Receipt, or posts a General Expense (no Supplier/PO) directly to an Expense account. Never touches stock. */
 export function OutgoingPaymentListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -35,9 +40,10 @@ export function OutgoingPaymentListPage() {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<PaymentEntryFilterValues>(emptyPaymentEntryFilters)
   const [deletingPayment, setDeletingPayment] = useState<PaymentEntry | null>(null)
+  const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
 
   const listQuery = useQuery({
-    queryKey: ['payment-entries', page, search, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: ['payment-entries', page, search, filters.status, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
     queryFn: () =>
       fetchPaymentEntries({
         page,
@@ -45,11 +51,12 @@ export function OutgoingPaymentListPage() {
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+        ...(filters.unallocatedOnly ? { unallocated_only: true } : {}),
       }),
     placeholderData: (previous) => previous,
   })
 
-  // PaymentEntryItem.accounts_payable exposes purchase_order_id only, not a nested object — same lookup-join pattern as GoodsReceiptListPage.
+  // PaymentEntryAllocation.accounts_payable exposes purchase_order_id only, not a nested object — same lookup-join pattern as GoodsReceiptListPage.
   const purchaseOrdersLookup = useQuery({
     queryKey: ['purchase-orders-lookup'],
     queryFn: () => fetchPurchaseOrders({ page: 1, per_page: 100 }),
@@ -78,7 +85,22 @@ export function OutgoingPaymentListPage() {
     onError: (error) => toastApiError(error),
   })
 
-  const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
+  const rows = useMemo(() => {
+    const data = listQuery.data?.data ?? []
+    if (!sort) return data
+
+    const getter = SORTERS[sort.key]
+    if (!getter) return data
+
+    return [...data].sort((a, b) => {
+      const cmp = getter(a) - getter(b)
+      return sort.direction === 'asc' ? cmp : -cmp
+    })
+  }, [listQuery.data, sort])
+
+  const handleSortChange = (key: string) => {
+    setSort((prev) => (prev?.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }))
+  }
 
   const actionsFor = (payment: PaymentEntry): RowAction[] => {
     const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/finance/outgoing/${payment.id}`) }]
@@ -100,31 +122,41 @@ export function OutgoingPaymentListPage() {
   }
 
   const columns: DataTableColumn<PaymentEntry>[] = [
-    { header: 'Payment No', accessor: (row) => row.document_number ?? '—' },
+    { header: 'Document', accessor: (row) => row.document_number ?? '—' },
     { header: 'Type', accessor: (row) => <StatusBadge status={row.payment_type} /> },
     {
-      header: 'Source Document',
+      header: 'Reference',
       accessor: (row) => {
         if (row.payment_type === 'general_expense') {
           return <span className="text-muted-foreground">General Expense</span>
         }
 
-        const line = row.items[0]
-        if (!line) return '—'
+        // Allocation is now a separate step from paying — a payment can exist with no
+        // allocation lines yet (advance payment), exactly one (the common immediate case,
+        // still clickable through to the PO), or several (one payment, many bills).
+        if (row.items.length === 0) {
+          return <span className="text-muted-foreground">Unallocated</span>
+        }
 
-        return (
-          <Button
-            variant="link"
-            className="h-auto p-0"
-            onClick={(event) => {
-              event.stopPropagation()
-              navigate(resolveSourceDocumentLink('purchase_order', line.accounts_payable.purchase_order_id))
-            }}
-          >
-            {purchaseOrderNumber(line.accounts_payable.purchase_order_id)}
-            <ExternalLink className="size-3.5" />
-          </Button>
-        )
+        if (row.items.length === 1) {
+          const line = row.items[0]
+
+          return (
+            <Button
+              variant="link"
+              className="h-auto p-0"
+              onClick={(event) => {
+                event.stopPropagation()
+                navigate(resolveSourceDocumentLink('purchase_order', line.accounts_payable.purchase_order_id))
+              }}
+            >
+              {purchaseOrderNumber(line.accounts_payable.purchase_order_id)}
+              <ExternalLink className="size-3.5" />
+            </Button>
+          )
+        }
+
+        return row.items.map((line) => purchaseOrderNumber(line.accounts_payable.purchase_order_id)).join(', ')
       },
     },
     {
@@ -132,8 +164,21 @@ export function OutgoingPaymentListPage() {
       accessor: (row) => (row.payment_type === 'general_expense' ? (row.expense_account?.name ?? '—') : (row.supplier?.supplier_name ?? '—')),
     },
     { header: 'Payment Method', accessor: (row) => row.cash_account?.name ?? '—' },
-    { header: 'Payment Date', accessor: (row) => formatDate(row.payment_date) },
+    { header: 'Date', accessor: (row) => formatDate(row.payment_date) },
     { header: 'Amount', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right' },
+    {
+      header: 'Unallocated',
+      sortKey: 'unallocated_amount',
+      accessor: (row) =>
+        row.payment_type === 'supplier' && row.status === 'submitted' ? (
+          <span className={Number(row.unallocated_amount) > 0 ? 'text-amber-600' : undefined}>
+            {formatCurrency(row.unallocated_amount)}
+          </span>
+        ) : (
+          '—'
+        ),
+      className: 'text-right',
+    },
     {
       header: 'Status',
       accessor: (row) =>
@@ -150,14 +195,14 @@ export function OutgoingPaymentListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo || filters.unallocatedOnly)
 
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="finance" />
 
       <PageHeader
-        title="Outgoing Payment"
+        title="Payment Voucher"
         description="Payments to suppliers (settling Accounts Payable) and general office expenses, in one list."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} payments` : undefined}
         actions={
@@ -199,6 +244,8 @@ export function OutgoingPaymentListPage() {
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No payments match your search or filters.' : 'No payments yet.'}
         onRowClick={(row) => navigate(`/finance/outgoing/${row.id}`)}
+        sort={sort}
+        onSortChange={handleSortChange}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}

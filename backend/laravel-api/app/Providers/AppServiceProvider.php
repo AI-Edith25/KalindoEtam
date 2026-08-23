@@ -9,6 +9,7 @@ use App\Models\GoodsReceipt;
 use App\Models\Invoice;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentEntry;
+use App\Models\PaymentEntryAllocation;
 use App\Models\ReceiptEntry;
 use App\Services\DocumentNumberGeneratorService;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -45,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
             'debit_note' => DebitNote::class,
             'goods_receipt' => GoodsReceipt::class,
             'payment_entry' => PaymentEntry::class,
+            'payment_entry_allocation' => PaymentEntryAllocation::class,
         ]);
     }
 }

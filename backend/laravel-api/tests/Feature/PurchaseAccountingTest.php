@@ -106,7 +106,29 @@ class PurchaseAccountingTest extends TestCase
         $this->assertEquals(100000.0, $accountsPayable['credit']);
     }
 
-    public function test_supplier_payment_entry_posts_accounts_payable_debit_and_cash_credit(): void
+    public function test_supplier_payment_entry_posts_advance_to_suppliers_debit_and_cash_credit(): void
+    {
+        $this->submittedGoodsReceipt(qty: 5, rate: 20000); // 100000, unused here beyond seeding AP
+
+        $paymentEntry = $this->paymentEntryService->create([
+            'payment_type' => 'supplier',
+            'supplier_id' => $this->supplier->id,
+            'payment_date' => now()->toDateString(),
+            'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
+            'amount' => 40000,
+        ]);
+        $this->paymentEntryService->submit($paymentEntry);
+
+        $result = $this->trialBalanceService->summarize([]);
+        $advanceToSuppliersRow = collect($result['rows'])->firstWhere('account.code', '1250');
+        $cashRow = collect($result['rows'])->firstWhere('account.code', '1100');
+
+        // Paying money out (not yet allocated to a bill) debits the suspense asset, not AP directly.
+        $this->assertEquals(40000.0, $advanceToSuppliersRow['debit']);
+        $this->assertEquals(40000.0, $cashRow['credit']);
+    }
+
+    public function test_allocating_a_supplier_payment_settles_accounts_payable_and_nets_the_suspense_account(): void
     {
         $goodsReceipt = $this->submittedGoodsReceipt(qty: 5, rate: 20000); // 100000
         $accountsPayable = \App\Models\AccountsPayable::query()->where('goods_receipt_id', $goodsReceipt->id)->firstOrFail();
@@ -116,17 +138,22 @@ class PurchaseAccountingTest extends TestCase
             'supplier_id' => $this->supplier->id,
             'payment_date' => now()->toDateString(),
             'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
-            'items' => [['accounts_payable_id' => $accountsPayable->id, 'paid_amount' => 40000]],
+            'amount' => 40000,
         ]);
-        $this->paymentEntryService->submit($paymentEntry);
+        $paymentEntry = $this->paymentEntryService->submit($paymentEntry);
+
+        app(\App\Services\PaymentEntryAllocationService::class)->allocateBatch($paymentEntry, [
+            ['accounts_payable_id' => $accountsPayable->id, 'amount' => 40000],
+        ]);
 
         $result = $this->trialBalanceService->summarize([]);
         $accountsPayableRow = collect($result['rows'])->firstWhere('account.code', '2000');
-        $cashRow = collect($result['rows'])->firstWhere('account.code', '1100');
+        $advanceToSuppliersRow = collect($result['rows'])->firstWhere('account.code', '1250');
 
-        // Net AP: 100000 credit (Goods Receipt) - 40000 debit (payment) = 60000 credit remaining.
+        // Net AP: 100000 credit (Goods Receipt) - 40000 debit (allocation) = 60000 credit remaining.
         $this->assertEqualsWithDelta(60000.0, $accountsPayableRow['credit'], 0.001);
-        $this->assertEquals(40000.0, $cashRow['credit']);
+        // 1250 nets to zero: 40000 debit (payment) - 40000 credit (allocation).
+        $this->assertEqualsWithDelta(0.0, $advanceToSuppliersRow['debit'] - $advanceToSuppliersRow['credit'], 0.001);
     }
 
     public function test_general_expense_payment_entry_posts_expense_debit_and_cash_credit_not_accounts_payable(): void

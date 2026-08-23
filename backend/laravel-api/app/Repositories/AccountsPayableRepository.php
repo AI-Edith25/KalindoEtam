@@ -5,12 +5,29 @@ namespace App\Repositories;
 use App\Enums\AccountsPayableStatus;
 use App\Models\AccountsPayable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 class AccountsPayableRepository extends BaseRepository
 {
     public function __construct(AccountsPayable $model)
     {
         parent::__construct($model);
+    }
+
+    /**
+     * Locks every targeted row for PaymentEntryAllocationService::
+     * allocateBatch()'s transaction, ordered by id so two concurrent
+     * batches touching an overlapping set always acquire their locks in
+     * the same order — prevents a deadlock instead of just detecting one.
+     * Mirrors AccountsReceivableRepository::lockManyForUpdate().
+     */
+    public function lockManyForUpdate(array $ids): Collection
+    {
+        return $this->model->query()
+            ->whereIn('id', array_unique($ids))
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
     }
 
     public function applySettlement(AccountsPayable $accountsPayable, float $paidAmount, AccountsPayableStatus $status): void

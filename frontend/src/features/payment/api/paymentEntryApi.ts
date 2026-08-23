@@ -9,19 +9,22 @@ export interface PaymentEntryListParams {
   supplier_id?: string
   date_from?: string
   date_to?: string
+  unallocated_only?: boolean
   per_page?: number
 }
 
 /**
- * Covers both branches — Supplier fields (supplier_id/items) and General
- * Expense fields (expense_account_id/description/amount) are each optional
- * here since only one branch's fields are ever sent per payment_type; the
- * backend's StorePaymentEntryRequest enforces which are actually required.
+ * Covers both branches — Supplier fields (supplier_id) and General Expense
+ * fields (expense_account_id/description) are each optional here since
+ * only one branch's fields are ever sent per payment_type; the backend's
+ * StorePaymentEntryRequest enforces which are actually required. `amount`
+ * is shared by both branches — for Supplier it's the amount paid,
+ * independent of which bill(s) (if any) it ends up allocated to; see
+ * paymentEntryAllocationApi.ts for that separate step.
  */
 export interface PaymentEntryPayload {
   payment_type: PaymentEntryType
   supplier_id?: string | null
-  items?: { accounts_payable_id: string; paid_amount: number }[]
   expense_account_id?: string | null
   description?: string | null
   amount?: number

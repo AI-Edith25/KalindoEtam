@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\JournalEntryController;
 use App\Http\Controllers\Api\V1\JournalListController;
 use App\Http\Controllers\Api\V1\NamingSeriesController;
 use App\Http\Controllers\Api\V1\PaymentAllocationController;
+use App\Http\Controllers\Api\V1\PaymentEntryAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
@@ -244,6 +245,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // outstanding Invoices' receivables — a separate step from receiving the money itself.
     Route::post('receipt-entries/{receiptEntry}/allocate', [PaymentAllocationController::class, 'store'])->middleware('permission:finance.payment_allocation.create');
     Route::post('payment-allocations/{paymentAllocation}/reverse', [PaymentAllocationController::class, 'reverse'])->middleware('permission:finance.payment_allocation.update');
+
+    // AP Payment Allocation: applies an already-paid Payment Entry to one or more outstanding
+    // supplier bills' payables — the payable-side mirror of Payment Allocation above.
+    Route::post('payment-entries/{paymentEntry}/allocate', [PaymentEntryAllocationController::class, 'store'])->middleware('permission:finance.ap_payment_allocation.create');
+    Route::post('payment-entry-allocations/{paymentEntryAllocation}/reverse', [PaymentEntryAllocationController::class, 'reverse'])->middleware('permission:finance.ap_payment_allocation.update');
 
     // Accounting Engine (Sprint 11): Invoice/Receipt Entry -> Accounting Service -> Journal Entry -> General Ledger.
     $withPagePermissions(Route::apiResource('chart-of-accounts', ChartOfAccountController::class), 'master.chart_of_accounts');

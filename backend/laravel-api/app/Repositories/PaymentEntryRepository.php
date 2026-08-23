@@ -34,6 +34,13 @@ class PaymentEntryRepository extends BaseRepository
                 fn ($q) => $q->where('document_number', 'like', "%{$search}%")
                     ->orWhereHas('supplier', fn ($sq) => $sq->where('supplier_name', 'like', "%{$search}%"))
             ))
+            // Only payment_type=supplier rows carry a meaningful allocated_amount — General
+            // Expense payments never accumulate one (nothing to allocate against), so they're
+            // excluded rather than showing up as nonsensically "always fully unallocated".
+            ->when($filters['unallocated_only'] ?? null, fn ($query) => $query
+                ->where('status', 'submitted')
+                ->where('payment_type', 'supplier')
+                ->whereColumn('allocated_amount', '<', 'total_amount'))
             ->latest('payment_date')
             ->paginate($perPage);
     }
@@ -46,5 +53,11 @@ class PaymentEntryRepository extends BaseRepository
     public function recent(int $limit): Collection
     {
         return $this->model->query()->latest('created_at')->limit($limit)->get();
+    }
+
+    /** Same row-locking convention as ReceiptEntryRepository::lockForUpdate() — held for PaymentEntryAllocationService's transaction. */
+    public function lockForUpdate(string $id): PaymentEntry
+    {
+        return $this->model->query()->where('id', $id)->lockForUpdate()->firstOrFail();
     }
 }
