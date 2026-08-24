@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\PaymentAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\ProductSalesController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\RoleController;
@@ -181,6 +182,13 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
 
     $withPagePermissions(Route::apiResource('deliveries', DeliveryController::class), 'sales.deliveries', 'reports.deliveries.view');
     Route::post('deliveries/{delivery}/complete', [DeliveryController::class, 'complete'])->middleware('permission:sales.deliveries.update');
+
+    // Sales Report rework — 4 tabs, each a DB-level aggregate (never fetch-all-then-sum-in-PHP), so
+    // KPIs always reflect the full filtered set, not just the loaded page. Product Sales is the
+    // first tab shipped; Customer/Open Orders/Listing land in their own follow-up commits.
+    Route::get('reports/sales/products', [ProductSalesController::class, 'index'])->middleware('permission:reports.sales.view');
+    Route::get('reports/sales/products/export', [ProductSalesController::class, 'export'])->middleware('permission:reports.sales.view');
+    Route::get('reports/sales/products/{itemId}/customers', [ProductSalesController::class, 'customers'])->middleware('permission:reports.sales.view');
 
     // Invoice Workflow (Sprint 10): Delivery -> Invoice -> Accounts Receivable -> Receipt Entry.
     // Registered before apiResource('invoices', ...) below — its GET invoices/{invoice} (show)

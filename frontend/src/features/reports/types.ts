@@ -1,5 +1,4 @@
 import type { DocumentStatus as PurchaseDocumentStatus } from '@/features/purchase/types'
-import type { SalesOrderStatus } from '@/features/sales/types'
 import type { SettlementStatus } from '@/features/payment/types'
 
 /**
@@ -25,14 +24,58 @@ export interface GoodsReceiptReportFilterValues {
   dateTo: string
 }
 
+/**
+ * Sales Report rework — one shared filter shape across all 4 tabs (Product/Customer/Open Orders/
+ * Listing); each tab's panel only shows the filter fields it actually uses. `status` is a plain
+ * string rather than one specific enum since Product/Customer/Listing filter Invoice's
+ * DocumentStatus (draft/submitted/cancelled) while Open Orders filters SalesOrderStatus
+ * (submitted/approved/cancelled) — different value sets, so each panel supplies its own status
+ * options to SalesReportFiltersBar rather than the shared type picking one.
+ */
 export interface SalesReportFilterValues {
   customer_id: string
   item_id: string
+  item_group_id: string
   sales_person_id: string
   branch_id: string
-  status: SalesOrderStatus | null
+  status: string | null
   dateFrom: string
   dateTo: string
+}
+
+/** Product Sales tab — one row per item (or per Item Group, when grouped). */
+export type SalesReportGroupBy = 'item' | 'item_group'
+
+export interface ProductSalesRow {
+  id: string
+  is_group: boolean
+  item_code: string | null
+  item_name: string
+  item_group_name: string | null
+  uom_name: string | null
+  sku_count: number | null
+  qty: number
+  amount: number
+  tax_amount: number
+  amount_incl_tax: number
+}
+
+export interface ProductSalesKpis {
+  total_qty: number
+  total_revenue: number
+  total_tax: number
+  total_incl_tax: number
+  sku_count: number
+  top_item_name: string | null
+  top_item_amount: number
+}
+
+export interface ProductSalesCustomerRow {
+  customer_id: string
+  customer_code: string
+  customer_name: string
+  qty: number
+  amount: number
 }
 
 export interface DeliveryReportFilterValues {

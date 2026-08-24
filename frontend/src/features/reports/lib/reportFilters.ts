@@ -23,25 +23,33 @@ export function hasActiveGoodsReceiptReportFilters(filters: GoodsReceiptReportFi
   return filters.warehouse_id !== '' || filters.dateFrom !== '' || filters.dateTo !== ''
 }
 
-export const emptySalesReportFilters: SalesReportFilterValues = {
-  customer_id: '',
-  item_id: '',
-  sales_person_id: '',
-  branch_id: '',
-  status: null,
-  dateFrom: '',
-  dateTo: '',
+/** Date range defaults to the last 30 days per the Sales Report ticket. */
+export function emptySalesReportFilters(): SalesReportFilterValues {
+  const to = new Date()
+  const from = new Date()
+  from.setDate(from.getDate() - 30)
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+
+  return {
+    customer_id: '',
+    item_id: '',
+    item_group_id: '',
+    sales_person_id: '',
+    branch_id: '',
+    status: null,
+    dateFrom: iso(from),
+    dateTo: iso(to),
+  }
 }
 
 export function hasActiveSalesReportFilters(filters: SalesReportFilterValues): boolean {
   return (
     filters.customer_id !== '' ||
     filters.item_id !== '' ||
+    filters.item_group_id !== '' ||
     filters.sales_person_id !== '' ||
     filters.branch_id !== '' ||
-    filters.status !== null ||
-    filters.dateFrom !== '' ||
-    filters.dateTo !== ''
+    filters.status !== null
   )
 }
 
