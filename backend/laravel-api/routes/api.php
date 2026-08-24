@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\CompanyController;
 use App\Http\Controllers\Api\V1\CreditNoteController;
 use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\CustomerSalesController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DebitNoteController;
 use App\Http\Controllers\Api\V1\DeliveryController;
@@ -184,11 +185,15 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('deliveries/{delivery}/complete', [DeliveryController::class, 'complete'])->middleware('permission:sales.deliveries.update');
 
     // Sales Report rework — 4 tabs, each a DB-level aggregate (never fetch-all-then-sum-in-PHP), so
-    // KPIs always reflect the full filtered set, not just the loaded page. Product Sales is the
-    // first tab shipped; Customer/Open Orders/Listing land in their own follow-up commits.
+    // KPIs always reflect the full filtered set, not just the loaded page. Product + Customer Sales
+    // are shipped; Open Orders/Listing land in their own follow-up commits.
     Route::get('reports/sales/products', [ProductSalesController::class, 'index'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/products/export', [ProductSalesController::class, 'export'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/products/{itemId}/customers', [ProductSalesController::class, 'customers'])->middleware('permission:reports.sales.view');
+    Route::get('reports/sales/customers', [CustomerSalesController::class, 'index'])->middleware('permission:reports.sales.view');
+    Route::get('reports/sales/customers/export', [CustomerSalesController::class, 'export'])->middleware('permission:reports.sales.view');
+    Route::get('reports/sales/customers/{customerId}/documents', [CustomerSalesController::class, 'documents'])->middleware('permission:reports.sales.view');
+    Route::get('reports/sales/achievement', [CustomerSalesController::class, 'achievement'])->middleware('permission:reports.sales.view');
 
     // Invoice Workflow (Sprint 10): Delivery -> Invoice -> Accounts Receivable -> Receipt Entry.
     // Registered before apiResource('invoices', ...) below — its GET invoices/{invoice} (show)

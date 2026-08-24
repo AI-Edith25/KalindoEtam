@@ -78,6 +78,54 @@ export interface ProductSalesCustomerRow {
   amount: number
 }
 
+/** Customer Sales tab — one row per customer; branch_name/sales_person_name are null ("Multiple") when a customer's invoices don't all agree on one value. */
+export interface CustomerSalesRow {
+  id: string
+  customer_code: string
+  customer_name: string
+  branch_name: string | null
+  sales_person_name: string | null
+  transaction_count: number
+  qty: number
+  amount: number
+  tax_amount: number
+  amount_incl_tax: number
+  last_transaction_date: string | null
+}
+
+export interface CustomerSalesKpis {
+  total_customers: number
+  total_revenue: number
+  total_tax: number
+  total_incl_tax: number
+  avg_per_customer: number
+  top_customer_name: string | null
+  top_customer_amount: number
+}
+
+export interface CustomerSalesDocumentRow {
+  id: string
+  date: string | null
+  document_number: string | null
+  reference_so_number: string | null
+  type: string | null
+  amount: number
+  tax_amount: number
+  amount_incl_tax: number
+}
+
+export interface CustomerSalesDocuments {
+  documents: CustomerSalesDocumentRow[]
+  subtotal: { amount: number; tax_amount: number; amount_incl_tax: number }
+}
+
+export interface SalesAchievementRow {
+  sales_person_id: string | null
+  sales_person_name: string
+  qty: number
+  amount: number
+}
+
 export interface DeliveryReportFilterValues {
   customer_id: string
   item_id: string

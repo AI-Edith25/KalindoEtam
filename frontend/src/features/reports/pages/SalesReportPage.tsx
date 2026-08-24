@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { ProductSalesPanel } from '../components/ProductSalesPanel'
+import { CustomerSalesPanel } from '../components/CustomerSalesPanel'
 import { emptySalesReportFilters } from '../lib/reportFilters'
 import type { SalesReportFilterValues } from '../types'
 
@@ -10,7 +11,7 @@ type SalesReportTab = 'products' | 'customers' | 'open-orders' | 'listing'
 
 const TABS: { value: SalesReportTab; label: string; enabled: boolean }[] = [
   { value: 'products', label: 'Product Sales', enabled: true },
-  { value: 'customers', label: 'Customer Sales', enabled: false },
+  { value: 'customers', label: 'Customer Sales', enabled: true },
   { value: 'open-orders', label: 'Open Orders', enabled: false },
   { value: 'listing', label: 'Sales Listing', enabled: false },
 ]
@@ -18,9 +19,9 @@ const TABS: { value: SalesReportTab; label: string; enabled: boolean }[] = [
 /**
  * Sales Report — 4 tabs (Product Sales, Customer Sales, Open Orders, Sales Listing), each its own
  * server-side aggregate so KPIs always reflect the full filtered set, never just the loaded page
- * (the bug the old single-table page had — see git history). Only Product Sales is built this
- * commit; the other 3 land in their own follow-up commits, same "ship the final tab shape early"
- * pattern as Journal List (frontend/src/features/accounting/pages/JournalListPage.tsx).
+ * (the bug the old single-table page had — see git history). Product + Customer Sales are built;
+ * the other 2 land in their own follow-up commits, same "ship the final tab shape early" pattern
+ * as Journal List (frontend/src/features/accounting/pages/JournalListPage.tsx).
  *
  * All URL-synced state (tab, filters, page) is owned here via useSearchParams directly — same
  * reasoning as JournalListPage: this is the only page that needs it, so no shared hook.
@@ -89,6 +90,7 @@ export function SalesReportPage() {
       </div>
 
       {tab === 'products' && <ProductSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'customers' && <CustomerSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
     </div>
   )
 }
