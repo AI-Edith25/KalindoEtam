@@ -121,7 +121,7 @@ export function SalesReportPrintPage() {
               <tr className="border-b-2 border-foreground/80 text-left">
                 <th className="border-r-2 border-foreground/80 p-2">Customer Code</th>
                 <th className="border-r-2 border-foreground/80 p-2">Customer Name</th>
-                <th className="border-r-2 border-foreground/80 p-2 text-right"># Trx</th>
+                <th className="border-r-2 border-foreground/80 p-2 text-right">Trx</th>
                 <th className="border-r-2 border-foreground/80 p-2 text-right">Qty</th>
                 <th className="border-r-2 border-foreground/80 p-2 text-right">Amount Excl. Tax</th>
                 <th className="p-2 text-right">Amount Incl. Tax</th>

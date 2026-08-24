@@ -63,7 +63,7 @@ class CustomerSalesService
         $kpis = $this->kpis($filters);
         $totalRevenue = $kpis['total_revenue'] ?: 1;
 
-        $headingRow = ['CUSTOMER CODE', 'CUSTOMER NAME', 'BRANCH', 'SALES PERSON', '# TRANSACTIONS', 'TOTAL QTY', 'AMOUNT EXCL. TAX', 'TAX', 'AMOUNT INCL. TAX', '% OF REVENUE', 'LAST TRANSACTION'];
+        $headingRow = ['CUSTOMER CODE', 'CUSTOMER NAME', 'BRANCH', 'SALES PERSON', 'TRANSACTIONS', 'TOTAL QTY', 'AMOUNT EXCL. TAX', 'TAX', 'AMOUNT INCL. TAX', '% OF REVENUE', 'LAST TRANSACTION'];
 
         $bodyRows = $rows->map(function ($row) use ($totalRevenue) {
             $amount = (float) $row->amount;

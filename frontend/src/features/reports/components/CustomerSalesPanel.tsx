@@ -86,7 +86,7 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
     { header: 'Customer Name', accessor: (row) => row.customer_name, sortKey: 'customer_name' },
     { header: 'Branch', accessor: (row) => row.branch_name ?? 'Multiple' },
     { header: 'Sales Person', accessor: (row) => row.sales_person_name ?? 'Multiple' },
-    { header: '# Transactions', accessor: (row) => formatNumber(row.transaction_count), className: 'text-right', sortKey: 'transaction_count' },
+    { header: 'Transactions', accessor: (row) => formatNumber(row.transaction_count), className: 'text-right', sortKey: 'transaction_count' },
     { header: 'Total Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right', sortKey: 'qty' },
     { header: 'Amount Excl. Tax', accessor: (row) => formatCurrency(row.amount), className: 'text-right', sortKey: 'amount' },
     { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
