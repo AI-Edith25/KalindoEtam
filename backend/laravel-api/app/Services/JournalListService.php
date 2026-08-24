@@ -18,6 +18,13 @@ class JournalListService
         'payment' => 'Cash Book-Payment',
     ];
 
+    /** Sub-page segment for the downloaded filename ("JournalList-{segment}-ddmmyyyy.xlsx"). */
+    protected const FILE_NAME_SEGMENTS = [
+        'all' => 'Cashbook',
+        'receipt' => 'OfficialReceipt',
+        'payment' => 'PaymentVoucher',
+    ];
+
     public function __construct(protected JournalListRepository $journalListRepository) {}
 
     public function exportQuery(array $filters, string $view): Builder
@@ -28,5 +35,10 @@ class JournalListService
     public function groupLabel(string $view): string
     {
         return self::GROUP_LABELS[$view] ?? self::GROUP_LABELS['all'];
+    }
+
+    public function fileNameSegment(string $view): string
+    {
+        return self::FILE_NAME_SEGMENTS[$view] ?? self::FILE_NAME_SEGMENTS['all'];
     }
 }

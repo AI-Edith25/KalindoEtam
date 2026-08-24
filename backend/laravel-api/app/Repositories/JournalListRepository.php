@@ -32,7 +32,6 @@ class JournalListRepository
 
         return JournalEntry::query()
             ->select('journal_entries.*')
-            ->selectRaw('COALESCE(receipt_entries.branch_id, payment_entries.branch_id) as resolved_branch_id')
             ->selectRaw('COALESCE(receipt_entries.reference_number, payment_entries.reference_number) as resolved_reference_number')
             // "Transaction" is the source document's own number (e.g. the Official Receipt/Payment
             // Voucher number), not journal_entries.document_number — confirmed against the legacy

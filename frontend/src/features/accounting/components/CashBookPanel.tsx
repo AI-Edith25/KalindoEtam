@@ -12,7 +12,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchCashBook } from '../api/cashBookApi'
-import { exportJournalList } from '../api/journalListApi'
+import { exportJournalList, journalListFileName } from '../api/journalListApi'
 import { CashBookFiltersBar } from './CashBookFiltersBar'
 import type { CashBookFilterValues, CashBookRow, CashBookView } from '../types'
 
@@ -62,7 +62,7 @@ export function CashBookPanel({ view, onViewChange, search, onSearchChange, filt
     setIsExporting(true)
     try {
       const blob = await exportJournalList({ ...activeParams, format })
-      downloadBlob(`journal-list.${format}`, blob)
+      downloadBlob(journalListFileName(view, format), blob)
     } catch (error) {
       toastApiError(error)
     } finally {

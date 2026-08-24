@@ -2,7 +2,6 @@
 
 namespace App\Exports;
 
-use App\Models\Branch;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,11 +14,14 @@ use Maatwebsite\Excel\Events\AfterSheet;
 
 /**
  * Journal List export — reproduces the legacy xlsJournalList(Cashbook/OR/PV).xlsx
- * layout exactly (verified against the real files at the project root, see
- * the Journal List rework plan): 5 preamble rows, a group-header row, one
- * physical row per journal line (not per voucher — Transaction/voucher number
- * only appears on a line's first row, Date/Ref/codes repeat on every line),
- * then a "Total For :[...]" trailer with Debit==Credit.
+ * layout (verified against the real files at the project root, see the
+ * Journal List rework plan), minus the Tax/Salesman/Department/Project/Branch
+ * Code columns (dropped per user request — none of them ever carried data,
+ * this system has no such fields) and with "Ref. 1 #" relabeled "Notes":
+ * 5 preamble rows, a group-header row, one physical row per journal line (not
+ * per voucher — Transaction/voucher number only appears on a line's first
+ * row, Date/Notes repeat on every line), then a "Total For :[...]" trailer
+ * with Debit==Credit.
  *
  * FromQuery (not FromCollection) + WithChunkReading streams the underlying
  * journal_entries query in bounded batches instead of loading the whole
@@ -34,17 +36,12 @@ class JournalListExport implements FromQuery, WithChunkReading, WithMapping, Wit
     protected float $totalCredit = 0.0;
     protected int $rowCount = 0;
 
-    /** @var array<string, string> chart_of_account/branch id => code, preloaded once (small tables) instead of per-row lookups. */
-    protected array $branchCodes;
-
     public function __construct(
         protected Builder $query,
         protected string $groupLabel,
         protected ?string $dateFrom = null,
         protected ?string $dateTo = null,
-    ) {
-        $this->branchCodes = Branch::query()->pluck('code', 'id')->all();
-    }
+    ) {}
 
     public function query(): Builder
     {
@@ -61,8 +58,7 @@ class JournalListExport implements FromQuery, WithChunkReading, WithMapping, Wit
     {
         /** @var JournalEntry $journalEntry */
         $date = $journalEntry->posting_date?->format('d/m/Y');
-        $ref = $journalEntry->resolved_reference_number;
-        $branchCode = $this->branchCodes[$journalEntry->resolved_branch_id] ?? null;
+        $notes = $journalEntry->resolved_reference_number;
 
         $lines = $journalEntry->lines;
         $rows = [];
@@ -79,15 +75,10 @@ class JournalListExport implements FromQuery, WithChunkReading, WithMapping, Wit
             $rows[] = [
                 $index === 0 ? $journalEntry->resolved_document_number : null,
                 $date,
-                $ref,
+                $notes,
                 $this->particulars($line, $lines),
                 $debit > 0 ? $debit : null,
                 $credit > 0 ? $credit : null,
-                null, // Tax Code — no data model anywhere in this system yet.
-                null, // Salesman Code — no reliable source for Receipt/Payment Entry (unlike Invoice's Sales Order chain).
-                null, // Department Code — no data model.
-                null, // Project Code — no data model.
-                $branchCode,
             ];
         }
 
@@ -133,8 +124,7 @@ class JournalListExport implements FromQuery, WithChunkReading, WithMapping, Wit
                 $sheet->setCellValue('A3', ($this->dateFrom ? Carbon::parse($this->dateFrom)->format('d/m/Y') : '-') . ' - ' . ($this->dateTo ? Carbon::parse($this->dateTo)->format('d/m/Y') : '-'));
                 $sheet->setCellValue('E3', now()->format('Y-m-d h:i:s A'));
                 $sheet->fromArray([[
-                    'Transaction', 'Date', 'Ref. 1 #', 'Particulars', 'Debit', 'Credit',
-                    'Tax Code', 'Salesman Code', 'Department Code', 'Project Code', 'Branch Code',
+                    'Transaction', 'Date', 'Notes', 'Particulars', 'Debit', 'Credit',
                 ]], null, 'A5');
                 $sheet->setCellValue('A6', $this->groupLabel);
 

@@ -87,8 +87,10 @@ class JournalListExportTest extends TestCase
         $this->assertEquals('01/01/2026 - 31/01/2026', $sheet->getCell('A3')->getValue());
         $this->assertNotNull($sheet->getCell('E3')->getValue());
         $this->assertEquals('Transaction', $sheet->getCell('A5')->getValue());
-        $this->assertEquals('Ref. 1 #', $sheet->getCell('C5')->getValue());
-        $this->assertEquals('Branch Code', $sheet->getCell('K5')->getValue());
+        $this->assertEquals('Notes', $sheet->getCell('C5')->getValue());
+        $this->assertEquals('Debit', $sheet->getCell('E5')->getValue());
+        $this->assertEquals('Credit', $sheet->getCell('F5')->getValue());
+        $this->assertNull($sheet->getCell('G5')->getValue());
         $this->assertEquals('Cash Book-Receipt', $sheet->getCell('A6')->getValue());
     }
 
@@ -114,8 +116,6 @@ class JournalListExportTest extends TestCase
         $this->assertEquals('15/01/2026', $sheet->getCell('B8')->getValue());
         $this->assertEquals('BCA KE', $sheet->getCell('C7')->getValue());
         $this->assertEquals('BCA KE', $sheet->getCell('C8')->getValue());
-        $this->assertEquals('HO', $sheet->getCell('K7')->getValue());
-        $this->assertEquals('HO', $sheet->getCell('K8')->getValue());
 
         // Debit/credit: the relevant side holds the amount, the other side is genuinely blank (null), never 0.
         $this->assertEquals(50000, $sheet->getCell('E7')->getValue());
@@ -173,6 +173,23 @@ class JournalListExportTest extends TestCase
         $this->assertEquals('Total For :[Cash Book Transaction]', $sheet->getCell('A11')->getValue());
         $this->assertEquals(55000, $sheet->getCell('E11')->getValue());
         $this->assertEquals(55000, $sheet->getCell('F11')->getValue());
+    }
+
+    public function test_download_filename_follows_journallist_segment_ddmmyyyy_pattern(): void
+    {
+        $today = now()->format('dmY');
+
+        $this->get('/api/v1/journal-list/export?view=all')
+            ->assertOk()
+            ->assertHeader('content-disposition', "attachment; filename=JournalList-Cashbook-{$today}.xlsx");
+
+        $this->get('/api/v1/journal-list/export?view=receipt&format=csv')
+            ->assertOk()
+            ->assertHeader('content-disposition', "attachment; filename=JournalList-OfficialReceipt-{$today}.csv");
+
+        $this->get('/api/v1/journal-list/export?view=payment')
+            ->assertOk()
+            ->assertHeader('content-disposition', "attachment; filename=JournalList-PaymentVoucher-{$today}.xlsx");
     }
 
     public function test_csv_format_produces_the_same_group_header_and_trailer(): void

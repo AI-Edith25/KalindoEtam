@@ -31,6 +31,8 @@ class JournalListController extends Controller
             $filters['date_to'] ?? null,
         );
 
-        return Excel::download($export, "journal-list.{$format}");
+        $fileName = 'JournalList-' . $this->journalListService->fileNameSegment($view) . '-' . now()->format('dmY') . ".{$format}";
+
+        return Excel::download($export, $fileName);
     }
 }
