@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\ApprovalController;
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BranchController;
+use App\Http\Controllers\Api\V1\CashBookController;
 use App\Http\Controllers\Api\V1\ChartOfAccountController;
 use App\Http\Controllers\Api\V1\CompanyController;
 use App\Http\Controllers\Api\V1\CreditNoteController;
@@ -275,12 +276,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('general-ledger/accounts', [GeneralLedgerController::class, 'accounts'])->middleware('permission:accounting.general_ledger.view');
     Route::get('general-ledger/accounts/{chartOfAccount}', [GeneralLedgerController::class, 'ledger'])->middleware('permission:accounting.general_ledger.view');
 
-    // Journal List: cash/bank journal lines grouped by transaction type (Petty Cash/Cash Book x
-    // Receipt/Payment), with a subtotal per group and a Branch filter resolved via the source
-    // Receipt/Payment Entry's own branch_id (journal_entry_lines.branch_id stays unpopulated,
-    // same as General Ledger's — this report deliberately doesn't touch it or General Ledger).
-    Route::get('journal-list', [JournalListController::class, 'index'])->middleware('permission:accounting.journal_list.view');
-    Route::get('journal-list/export', [JournalListController::class, 'exportXlsx'])->middleware('permission:accounting.journal_list.view');
+    // Journal List: Cash Book Transaction (Official Receipt + Payment Voucher, unioned) and General
+    // Journal, each paginated + exportable. Screen data is document-level (CashBookController, one
+    // row per Receipt/Payment Entry); export is journal-line-level, matching the legacy
+    // xlsJournalList(Cashbook/OR/PV).xlsx files exactly (JournalListController). Branch filter
+    // resolves via the source Receipt/Payment Entry's own branch_id (journal_entry_lines.branch_id
+    // stays unpopulated, same as General Ledger's — this report deliberately doesn't touch it).
+    Route::get('cash-book', [CashBookController::class, 'index'])->middleware('permission:accounting.journal_list.view');
+    Route::get('journal-list/export', [JournalListController::class, 'export'])->middleware('permission:accounting.journal_list.view');
 
     // Trial Balance (Sprint 16A): a presentation layer over GeneralLedgerService::listAccounts()
     // — no new balance calculation, no new accounting table. See docs/TRIAL_BALANCE_DESIGN.md.

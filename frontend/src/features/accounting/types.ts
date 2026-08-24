@@ -130,33 +130,32 @@ export interface TrialBalanceData {
 }
 
 /**
- * Journal List — cash/bank journal lines grouped by transaction type (e.g.
- * "Petty Cash-Receipt", "Cash Book-Payment"), a presentation layer over
- * journal_entries/journal_entry_lines like every other Accounting Report.
+ * Journal List's Cash Book Transaction — document-level, one row per Official
+ * Receipt or Payment Voucher, same column shape regardless of which view
+ * (all/receipt/payment) is active. See docs/GENERAL_LEDGER_DESIGN.md and the
+ * Journal List rework plan for why the export (journal-line level) is a
+ * different shape entirely — CashBookRow is screen-only.
  */
-export interface JournalListLine {
-  transaction: string | null
-  date: string | null
-  ref_no: string | null
-  particulars: string
-  debit: string | number
-  credit: string | number
+export type CashBookView = 'all' | 'receipt' | 'payment'
+
+export interface CashBookRow {
+  id: string
+  type: 'receipt' | 'payment'
+  document_number: string | null
+  party_name: string | null
+  payment_method_name: string | null
+  date: string
+  debit: number
+  credit: number
+  status: string
+  branch_id: string | null
+  unallocated: number
+  reference_number: string | null
 }
 
-export interface JournalListGroup {
-  key: string
-  label: string
-  rows: JournalListLine[]
-  subtotal: { debit: string | number; credit: string | number }
-}
-
-export interface JournalListData {
-  groups: JournalListGroup[]
-  grand_total: { debit: string | number; credit: string | number }
-}
-
-export interface JournalListFilterValues {
+export interface CashBookFilterValues {
   branchId: string | null
+  status: string | null
   dateFrom: string
   dateTo: string
 }

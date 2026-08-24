@@ -2,21 +2,35 @@ import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { useBranchesLookup } from '@/features/master/hooks/useLookups'
-import { emptyJournalListFilters, hasActiveJournalListFilters } from '../lib/journalListFilters'
-import type { JournalListFilterValues } from '../types'
+import { emptyCashBookFilters, hasActiveCashBookFilters } from '../lib/cashBookFilters'
+import type { CashBookFilterValues } from '../types'
 
 const ALL = '__all__'
 
-interface JournalListFiltersBarProps {
-  value: JournalListFilterValues
-  onChange: (value: JournalListFilterValues) => void
+interface CashBookFiltersBarProps {
+  value: CashBookFilterValues
+  onChange: (value: CashBookFilterValues) => void
 }
 
-export function JournalListFiltersBar({ value, onChange }: JournalListFiltersBarProps) {
+export function CashBookFiltersBar({ value, onChange }: CashBookFiltersBarProps) {
   const branches = useBranchesLookup()
 
   return (
-    <FilterPanel onClear={() => onChange(emptyJournalListFilters)} hasActiveFilters={hasActiveJournalListFilters(value)}>
+    <FilterPanel onClear={() => onChange(emptyCashBookFilters)} hasActiveFilters={hasActiveCashBookFilters(value)}>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Status</span>
+        <Select value={value.status ?? ALL} onValueChange={(next) => onChange({ ...value, status: next === ALL ? null : next })}>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All statuses</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="submitted">Submitted</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Branch</span>
         <Select value={value.branchId ?? ALL} onValueChange={(next) => onChange({ ...value, branchId: next === ALL ? null : next })}>

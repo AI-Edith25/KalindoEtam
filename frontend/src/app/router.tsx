@@ -70,8 +70,7 @@ import { JournalEntryListPage } from '@/features/accounting/pages/JournalEntryLi
 import { JournalEntryEditorPage } from '@/features/accounting/pages/JournalEntryEditorPage'
 import { JournalEntryDetailPage } from '@/features/accounting/pages/JournalEntryDetailPage'
 import { JournalEntryPrintPage } from '@/features/accounting/pages/JournalEntryPrintPage'
-import { JournalListListPage } from '@/features/accounting/pages/JournalListListPage'
-import { JournalListPrintPage } from '@/features/accounting/pages/JournalListPrintPage'
+import { JournalListPage } from '@/features/accounting/pages/JournalListPage'
 import { GeneralLedgerListPage } from '@/features/accounting/pages/GeneralLedgerListPage'
 import { GeneralLedgerDetailPage } from '@/features/accounting/pages/GeneralLedgerDetailPage'
 import { TrialBalanceListPage } from '@/features/accounting/pages/TrialBalanceListPage'
@@ -186,8 +185,7 @@ export function AppRouter() {
         <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/:accountId" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerDetailPage /></ProtectedRoute>} />
-        <Route path="/reports/general-ledger/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListListPage /></ProtectedRoute>} />
-        <Route path="/reports/general-ledger/journal-list/print" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/general-ledger/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/trial-balance" element={<ProtectedRoute permission="accounting.trial_balance.view"><TrialBalanceListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/profit-loss" element={<ProtectedRoute permission="accounting.profit_loss.view"><ProfitLossListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/balance-sheet" element={<ProtectedRoute permission="accounting.balance_sheet.view"><BalanceSheetListPage /></ProtectedRoute>} />

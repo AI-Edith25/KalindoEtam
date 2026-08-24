@@ -3,42 +3,34 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Exports\JournalListExport;
-use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexJournalListRequest;
-use App\Http\Resources\JournalListLineResource;
 use App\Services\JournalListService;
-use Illuminate\Http\JsonResponse;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-/** Read-only — no store/update/destroy. Cash/bank journal lines grouped by transaction type, with a subtotal per group. */
+/**
+ * Journal List's export only — journal-line-level, matching the legacy
+ * xlsJournalList(*).xlsx files (see JournalListExport). Screen data (one row
+ * per document) lives on CashBookController instead.
+ */
 class JournalListController extends Controller
 {
-    use ApiResponse;
-
     public function __construct(protected JournalListService $journalListService) {}
 
-    public function index(IndexJournalListRequest $request): JsonResponse
+    public function export(IndexJournalListRequest $request): BinaryFileResponse
     {
-        $result = $this->journalListService->summarize($request->validated());
+        $filters = $request->validated();
+        $view = $filters['view'] ?? 'all';
+        $format = $filters['format'] ?? 'xlsx';
 
-        return $this->success([
-            'groups' => array_map(fn (array $group) => [
-                'key' => $group['key'],
-                'label' => $group['label'],
-                'rows' => JournalListLineResource::collection($group['rows']),
-                'subtotal' => $group['subtotal'],
-            ], $result['groups']),
-            'grand_total' => $result['grand_total'],
-        ]);
-    }
+        $export = new JournalListExport(
+            $this->journalListService->exportQuery($filters, $view),
+            $this->journalListService->groupLabel($view),
+            $filters['date_from'] ?? null,
+            $filters['date_to'] ?? null,
+        );
 
-    /** E1 (UAT review 2026-08-12) — XLSX export, same filters/shape as index(). CSV stays client-side (journalListCsv.ts), already working. */
-    public function exportXlsx(IndexJournalListRequest $request): BinaryFileResponse
-    {
-        $result = $this->journalListService->summarize($request->validated());
-
-        return Excel::download(new JournalListExport($result), 'journal-list.xlsx');
+        return Excel::download($export, "journal-list.{$format}");
     }
 }
