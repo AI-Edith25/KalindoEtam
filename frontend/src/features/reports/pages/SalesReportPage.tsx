@@ -4,6 +4,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { ProductSalesPanel } from '../components/ProductSalesPanel'
 import { CustomerSalesPanel } from '../components/CustomerSalesPanel'
+import { OpenOrdersPanel } from '../components/OpenOrdersPanel'
 import { emptySalesReportFilters } from '../lib/reportFilters'
 import type { SalesReportFilterValues } from '../types'
 
@@ -12,16 +13,16 @@ type SalesReportTab = 'products' | 'customers' | 'open-orders' | 'listing'
 const TABS: { value: SalesReportTab; label: string; enabled: boolean }[] = [
   { value: 'products', label: 'Product Sales', enabled: true },
   { value: 'customers', label: 'Customer Sales', enabled: true },
-  { value: 'open-orders', label: 'Open Orders', enabled: false },
+  { value: 'open-orders', label: 'Open Orders', enabled: true },
   { value: 'listing', label: 'Sales Listing', enabled: false },
 ]
 
 /**
  * Sales Report — 4 tabs (Product Sales, Customer Sales, Open Orders, Sales Listing), each its own
  * server-side aggregate so KPIs always reflect the full filtered set, never just the loaded page
- * (the bug the old single-table page had — see git history). Product + Customer Sales are built;
- * the other 2 land in their own follow-up commits, same "ship the final tab shape early" pattern
- * as Journal List (frontend/src/features/accounting/pages/JournalListPage.tsx).
+ * (the bug the old single-table page had — see git history). Product/Customer/Open Orders are
+ * built; Sales Listing lands in its own follow-up commit, same "ship the final tab shape early"
+ * pattern as Journal List (frontend/src/features/accounting/pages/JournalListPage.tsx).
  *
  * All URL-synced state (tab, filters, page) is owned here via useSearchParams directly — same
  * reasoning as JournalListPage: this is the only page that needs it, so no shared hook.
@@ -55,7 +56,10 @@ export function SalesReportPage() {
     })
   }
 
-  const setTab = (next: SalesReportTab) => update({ tab: next === 'products' ? null : next, page: null })
+  // status is cleared on tab change — Product/Customer/Listing filter Invoice's DocumentStatus
+  // (draft/submitted/cancelled) while Open Orders filters SalesOrderStatus (submitted/approved
+  // only); carrying a value across would 422 against whichever tab doesn't recognize it.
+  const setTab = (next: SalesReportTab) => update({ tab: next === 'products' ? null : next, page: null, status: null })
   const setPage = (next: number) => update({ page: next > 1 ? String(next) : null })
   const setFilters = (next: SalesReportFilterValues) =>
     update({
@@ -91,6 +95,7 @@ export function SalesReportPage() {
 
       {tab === 'products' && <ProductSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
       {tab === 'customers' && <CustomerSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'open-orders' && <OpenOrdersPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
     </div>
   )
 }

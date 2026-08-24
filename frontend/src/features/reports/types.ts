@@ -126,6 +126,45 @@ export interface SalesAchievementRow {
   amount: number
 }
 
+/**
+ * Open Orders tab — one row per Sales Order line still outstanding. delivery_status/invoice_status
+ * are two independent labels (a line can be, say, fully delivered but only partially invoiced) —
+ * see OpenOrdersRowResource on the backend for why "outstanding" is defined off qty_invoiced, not
+ * qty_delivered.
+ */
+export type DeliveryLineStatus = 'not_delivered' | 'partially_delivered' | 'fully_delivered'
+export type InvoiceLineStatus = 'not_invoiced' | 'partially_invoiced' | 'fully_invoiced'
+export type AgingBucket = '0-7' | '8-30' | '31-60' | 'over_60'
+
+export interface OpenOrdersRow {
+  id: string
+  sales_order_id: string
+  document_number: string | null
+  order_date: string
+  expected_delivery_date: string | null
+  customer_name: string
+  sales_person_name: string
+  branch_name: string | null
+  item_code: string | null
+  item_name: string
+  qty_ordered: number
+  qty_delivered: number
+  qty_invoiced: number
+  qty_outstanding: number
+  outstanding_value: number
+  delivery_status: DeliveryLineStatus
+  invoice_status: InvoiceLineStatus
+  age_in_days: number
+  is_overdue: boolean
+}
+
+export interface OpenOrdersKpis {
+  total_outstanding_value: number
+  open_so_count: number
+  overdue_value: number
+  avg_age_days: number
+}
+
 export interface DeliveryReportFilterValues {
   customer_id: string
   item_id: string

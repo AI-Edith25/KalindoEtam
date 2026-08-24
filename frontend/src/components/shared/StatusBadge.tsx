@@ -42,6 +42,11 @@ const STATUS_STYLES: Record<string, string> = {
   fully_delivered: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
   not_invoiced: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
   invoiced: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
+  // Open Orders tab (Sales Report rework) — delivery/invoice status shown as two separate badges per row.
+  not_delivered: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
+  partially_delivered: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
+  partially_invoiced: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
+  fully_invoiced: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
 }
 
 function formatLabel(status: string): string {
