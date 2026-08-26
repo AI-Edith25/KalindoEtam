@@ -73,7 +73,7 @@ export function GoodsReceiptReportPage() {
     { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },
     {
       header: 'Received Qty',
-      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + line.qty, 0)),
+      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + Number(line.qty), 0)),
       className: 'text-right',
     },
   ]

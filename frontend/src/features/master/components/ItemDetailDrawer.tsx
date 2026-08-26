@@ -27,7 +27,7 @@ export function ItemDetailDrawer({ open, onOpenChange, item, onEdit }: ItemDetai
       onOpenChange={onOpenChange}
       title={item.item_name}
       subtitle={item.item_code}
-      badge={<StatusBadge status={item.current_stock > 0 ? 'in_stock' : 'out_of_stock'} />}
+      badge={<StatusBadge status={Number(item.current_stock) > 0 ? 'in_stock' : 'out_of_stock'} />}
       primaryAction={{ label: 'Edit Item', icon: Pencil, onClick: () => onEdit(item) }}
     >
       <DetailSection>
