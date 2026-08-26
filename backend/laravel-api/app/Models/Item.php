@@ -22,11 +22,13 @@ class Item extends Model
         'current_stock',
         'purchase_tax_id',
         'sales_tax_id',
+        'allow_over_receipt',
     ];
 
     protected $casts = [
         'standard_rate' => 'decimal:2',
-        'current_stock' => 'integer',
+        'current_stock' => 'decimal:2',
+        'allow_over_receipt' => 'boolean',
     ];
 
     public function itemGroup(): BelongsTo

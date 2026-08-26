@@ -29,7 +29,7 @@ class StockLedgerService
         StockTransactionType $transactionType,
         StockVoucherType $voucherType,
         string $voucherId,
-        int $qtyChange,
+        int|float $qtyChange,
         DateTimeInterface $postingDatetime,
         ?string $referenceNo = null,
         ?string $remarks = null,
@@ -91,7 +91,7 @@ class StockLedgerService
      * this service (not the repository directly) so every stock read, not
      * just every stock write, has a single gateway.
      */
-    public function getCurrentBalance(string $itemId, string $warehouseId): int
+    public function getCurrentBalance(string $itemId, string $warehouseId): float
     {
         return $this->stockLedgerRepository->latestBalance($itemId, $warehouseId);
     }
@@ -102,7 +102,7 @@ class StockLedgerService
      * snapshot) that must never hold a row lock. Never use this to decide
      * what to actually write to the ledger; see recordToBalance().
      */
-    public function peekBalance(string $itemId, string $warehouseId): int
+    public function peekBalance(string $itemId, string $warehouseId): float
     {
         return $this->stockLedgerRepository->latestBalanceUnlocked($itemId, $warehouseId);
     }
@@ -127,7 +127,7 @@ class StockLedgerService
     public function recordToBalance(
         string $itemId,
         string $warehouseId,
-        int $targetBalance,
+        int|float $targetBalance,
         StockTransactionType $transactionType,
         StockVoucherType $voucherType,
         string $voucherId,
@@ -149,7 +149,9 @@ class StockLedgerService
             $lastBalance = $this->stockLedgerRepository->latestBalance($itemId, $warehouseId);
             $qtyChange = $targetBalance - $lastBalance;
 
-            if ($qtyChange === 0) {
+            // Epsilon, not === 0: $lastBalance round-trips through a decimal:2 cast,
+            // so float arithmetic here can leave a residue like 0.00000000001.
+            if (abs($qtyChange) < 0.005) {
                 return null;
             }
 

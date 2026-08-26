@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -35,6 +36,7 @@ const itemFormSchema = z.object({
     .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0, 'Must be zero or greater'),
   purchase_tax_id: z.string(),
   sales_tax_id: z.string(),
+  allow_over_receipt: z.boolean(),
 })
 
 type ItemFormSchemaValues = z.infer<typeof itemFormSchema>
@@ -47,6 +49,7 @@ const emptyValues: ItemFormSchemaValues = {
   standard_rate: '0',
   purchase_tax_id: '',
   sales_tax_id: '',
+  allow_over_receipt: false,
 }
 
 interface ItemFormDrawerProps {
@@ -78,6 +81,7 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
             standard_rate: String(item.standard_rate),
             purchase_tax_id: item.purchase_tax_id ?? '',
             sales_tax_id: item.sales_tax_id ?? '',
+            allow_over_receipt: item.allow_over_receipt,
           }
         : emptyValues,
     )
@@ -208,6 +212,20 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
                       <Input type="number" min={0} step="0.01" {...field} />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="allow_over_receipt"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Allow Over-Receipt (Goods Receipt qty may exceed the Purchase Order)
+                    </FormLabel>
                   </FormItem>
                 )}
               />

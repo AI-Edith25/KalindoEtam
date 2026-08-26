@@ -29,6 +29,7 @@ class StoreItemRequest extends FormRequest
             'standard_rate' => ['sometimes', 'numeric', 'min:0'],
             'purchase_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'purchase')],
             'sales_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'sales')],
+            'allow_over_receipt' => ['sometimes', 'boolean'],
         ];
     }
 }

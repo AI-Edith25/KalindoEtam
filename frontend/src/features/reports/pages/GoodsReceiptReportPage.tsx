@@ -52,19 +52,22 @@ export function GoodsReceiptReportPage() {
     { header: 'Receipt No', accessor: (row) => row.document_number ?? '—' },
     {
       header: 'Purchase No',
-      accessor: (row) => (
-        <Button
-          variant="link"
-          className="h-auto p-0"
-          onClick={(event) => {
-            event.stopPropagation()
-            navigate(`/purchase/orders/${row.purchase_order_id}`)
-          }}
-        >
-          {purchaseOrderNumber(row.purchase_order_id)}
-          <ExternalLink className="size-3.5" />
-        </Button>
-      ),
+      accessor: (row) =>
+        row.purchase_order_id === null ? (
+          <span className="text-muted-foreground">Direct Receipt</span>
+        ) : (
+          <Button
+            variant="link"
+            className="h-auto p-0"
+            onClick={(event) => {
+              event.stopPropagation()
+              navigate(`/purchase/orders/${row.purchase_order_id}`)
+            }}
+          >
+            {purchaseOrderNumber(row.purchase_order_id)}
+            <ExternalLink className="size-3.5" />
+          </Button>
+        ),
     },
     { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
     { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },

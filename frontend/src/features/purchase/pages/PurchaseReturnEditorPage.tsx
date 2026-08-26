@@ -358,7 +358,7 @@ export function PurchaseReturnEditorPage() {
                               type="number"
                               min={0}
                               max={capQty}
-                              step="1"
+                              step="0.01"
                               placeholder="0"
                               disabled={!quantityAllowed}
                               value={existing?.qtyReturned ?? ''}

@@ -234,7 +234,7 @@ class PurchaseReturnService
     }
 
     /**
-     * @param  array<int, array{purchase_invoice_item_id: string, qty_returned?: int, amount: float}>  $lines
+     * @param  array<int, array{purchase_invoice_item_id: string, qty_returned?: float, amount: float}>  $lines
      * @return array{0: float, 1: float} [subtotal, total_amount]
      */
     protected function validateAgainstPurchaseInvoice(PurchaseInvoice $purchaseInvoice, array $lines, array $data): array
@@ -258,7 +258,7 @@ class PurchaseReturnService
                 throw new BusinessException('One or more lines do not belong to the selected Purchase Invoice.');
             }
 
-            $qtyReturned = (int) ($line['qty_returned'] ?? 0);
+            $qtyReturned = (float) ($line['qty_returned'] ?? 0);
             $amount = (float) $line['amount'];
 
             if ($qtyReturned < 0 || $amount < 0) {
@@ -267,7 +267,7 @@ class PurchaseReturnService
 
             $priorTotals = $this->purchaseReturnItemRepository->returnedTotalsForPurchaseInvoiceItem($invoiceItem->id);
 
-            $remainingQty = (int) $invoiceItem->qty - $priorTotals['qty'];
+            $remainingQty = (float) $invoiceItem->qty - $priorTotals['qty'];
             if ($qtyReturned > $remainingQty) {
                 throw new BusinessException("Returned quantity ({$qtyReturned}) exceeds what remains returnable ({$remainingQty}) for {$invoiceItem->item_name}.");
             }

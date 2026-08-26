@@ -109,14 +109,18 @@ export function GoodsReceiptDetailPage() {
             <DetailField
               label="Purchase Order"
               value={
-                <Button
-                  variant="link"
-                  className="h-auto p-0"
-                  onClick={() => navigate(`/purchase/orders/${receipt.purchase_order_id}`)}
-                >
-                  View Purchase Order
-                  <ExternalLink className="size-3.5" />
-                </Button>
+                receipt.purchase_order_id === null ? (
+                  'Direct Receipt'
+                ) : (
+                  <Button
+                    variant="link"
+                    className="h-auto p-0"
+                    onClick={() => navigate(`/purchase/orders/${receipt.purchase_order_id}`)}
+                  >
+                    View Purchase Order
+                    <ExternalLink className="size-3.5" />
+                  </Button>
+                )
               }
             />
             <DetailField label="Supplier" value={receipt.supplier?.supplier_name ?? '—'} />

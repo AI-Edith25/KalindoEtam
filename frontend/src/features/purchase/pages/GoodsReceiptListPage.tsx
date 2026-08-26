@@ -124,26 +124,29 @@ export function GoodsReceiptListPage() {
     { header: 'Document Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
     {
       header: 'Purchase Order',
-      accessor: (row) => (
-        <Button
-          variant="link"
-          className="h-auto p-0"
-          onClick={(event) => {
-            event.stopPropagation()
-            navigate(`/purchase/orders/${row.purchase_order_id}`)
-          }}
-        >
-          {purchaseOrderNumber(row.purchase_order_id)}
-          <ExternalLink className="size-3.5" />
-        </Button>
-      ),
+      accessor: (row) =>
+        row.purchase_order_id === null ? (
+          <span className="text-muted-foreground">Direct Receipt</span>
+        ) : (
+          <Button
+            variant="link"
+            className="h-auto p-0"
+            onClick={(event) => {
+              event.stopPropagation()
+              navigate(`/purchase/orders/${row.purchase_order_id}`)
+            }}
+          >
+            {purchaseOrderNumber(row.purchase_order_id)}
+            <ExternalLink className="size-3.5" />
+          </Button>
+        ),
     },
     { header: 'Supplier', accessor: (row) => row.supplier?.supplier_name ?? '—' },
     { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
     { header: 'Receipt Date', accessor: (row) => formatDate(row.receipt_date), sortKey: 'receipt_date' },
     {
       header: 'Qty Received',
-      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + line.qty, 0)),
+      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + Number(line.qty), 0)),
       className: 'text-right',
     },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },

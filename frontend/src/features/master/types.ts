@@ -85,11 +85,13 @@ export interface Item {
   uom_id: string
   uom: Uom | null
   standard_rate: string | number
-  current_stock: number
+  current_stock: string | number
   purchase_tax_id: string | null
   purchase_tax: Tax | null
   sales_tax_id: string | null
   sales_tax: Tax | null
+  /** Lets a Goods Receipt line for this item exceed the PO's outstanding qty — bulk items (cement) received by truck-scale weight. */
+  allow_over_receipt: boolean
   created_at: string
   updated_at: string
 }

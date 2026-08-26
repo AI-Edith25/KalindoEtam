@@ -25,7 +25,7 @@ class GoodsReceiptItem extends Model
     ];
 
     protected $casts = [
-        'qty' => 'integer',
+        'qty' => 'decimal:2',
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
     ];

@@ -84,12 +84,12 @@ export function StockLedgerListPage() {
     { header: 'Movement Type', accessor: (row) => <StatusBadge status={row.transaction_type} /> },
     {
       header: 'Qty In',
-      accessor: (row) => (row.qty_change > 0 ? formatNumber(row.qty_change) : '—'),
+      accessor: (row) => (Number(row.qty_change) > 0 ? formatNumber(row.qty_change) : '—'),
       className: 'text-right',
     },
     {
       header: 'Qty Out',
-      accessor: (row) => (row.qty_change < 0 ? formatNumber(Math.abs(row.qty_change)) : '—'),
+      accessor: (row) => (Number(row.qty_change) < 0 ? formatNumber(Math.abs(Number(row.qty_change))) : '—'),
       className: 'text-right',
     },
     { header: 'Running Balance', accessor: (row) => formatNumber(row.balance_qty), className: 'text-right font-medium' },

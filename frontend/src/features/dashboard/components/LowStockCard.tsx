@@ -15,7 +15,7 @@ const columns: DataTableColumn<LowStockItem>[] = [
   {
     header: 'Stock',
     accessor: (row) => (
-      <span className={row.current_stock === 0 ? 'font-medium text-destructive' : 'font-medium text-amber-600'}>
+      <span className={Number(row.current_stock) === 0 ? 'font-medium text-destructive' : 'font-medium text-amber-600'}>
         {formatNumber(row.current_stock)} {row.uom?.symbol ?? row.uom?.name ?? ''}
       </span>
     ),

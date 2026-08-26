@@ -30,8 +30,8 @@ class StockLedger extends Model
     protected $casts = [
         'transaction_type' => StockTransactionType::class,
         'voucher_type' => StockVoucherType::class,
-        'qty_change' => 'integer',
-        'balance_qty' => 'integer',
+        'qty_change' => 'decimal:2',
+        'balance_qty' => 'decimal:2',
         'posting_datetime' => 'datetime',
     ];
 

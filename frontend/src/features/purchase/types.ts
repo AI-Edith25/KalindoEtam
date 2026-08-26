@@ -7,14 +7,16 @@ export interface PurchaseOrderItem {
   item_id: string
   item_code: string | null
   item_name: string | null
-  qty: number
+  qty: string | number
   rate: string | number
   amount: string | number
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
-  received_qty: number
-  outstanding_qty: number
+  received_qty: string | number
+  outstanding_qty: string | number
+  /** From the line's Item — lets GoodsReceiptLineItemTable allow "Receive Now" to exceed Remaining. */
+  allow_over_receipt?: boolean
 }
 
 export interface PurchaseOrder {
@@ -65,12 +67,12 @@ export interface PurchaseOrderFilterValues {
 
 export interface GoodsReceiptItem {
   id: string
-  purchase_order_item_id: string
+  purchase_order_item_id: string | null
   item_id: string
   item_code: string
   item_name: string
   uom: string
-  qty: number
+  qty: string | number
   rate: string | number
   amount: string | number
 }
@@ -80,7 +82,8 @@ export interface GoodsReceipt {
   document_number: string | null
   status: DocumentStatus
   revision: number
-  purchase_order_id: string
+  /** Null for a standalone/direct receipt with no source Purchase Order. */
+  purchase_order_id: string | null
   supplier_id: string
   supplier: { id: string; supplier_code: string; supplier_name: string } | null
   warehouse_id: string
@@ -96,12 +99,15 @@ export interface GoodsReceipt {
 }
 
 export interface GoodsReceiptFormValues {
-  purchase_order_id: string
+  /** Omitted/null for a standalone/direct receipt — supplier_id is required instead. */
+  purchase_order_id?: string | null
+  supplier_id?: string
   warehouse_id: string
   receipt_date: string
   due_date: string
   remarks: string | null
-  items: { purchase_order_item_id: string; qty: number }[]
+  /** From-PO lines carry purchase_order_item_id; direct-mode lines carry item_id + rate instead. */
+  items: { purchase_order_item_id?: string; item_id?: string; rate?: number; qty: number }[]
 }
 
 export interface GoodsReceiptFilterValues {
@@ -120,11 +126,11 @@ export interface PurchaseInvoiceItem {
   item_name: string
   uom: string
   rate: string | number
-  qty: number
+  qty: string | number
   amount: string | number
-  returned_qty: number
+  returned_qty: string | number
   returned_amount: string | number
-  returnable_qty: number
+  returnable_qty: string | number
   returnable_amount: string | number
 }
 
@@ -201,7 +207,7 @@ export interface PurchaseReturnItem {
   item_code: string
   item_name: string
   uom: string
-  qty_returned: number
+  qty_returned: string | number
   rate: string | number
   amount: string | number
 }

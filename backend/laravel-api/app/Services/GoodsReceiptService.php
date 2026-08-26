@@ -7,9 +7,11 @@ use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
 use App\Models\GoodsReceipt;
+use App\Models\Item;
 use App\Models\PurchaseOrderItem;
 use App\Repositories\GoodsReceiptItemRepository;
 use App\Repositories\GoodsReceiptRepository;
+use App\Repositories\ItemRepository;
 use App\Repositories\PurchaseOrderItemRepository;
 use App\Repositories\PurchaseOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -22,6 +24,7 @@ class GoodsReceiptService
         protected GoodsReceiptItemRepository $goodsReceiptItemRepository,
         protected PurchaseOrderRepository $purchaseOrderRepository,
         protected PurchaseOrderItemRepository $purchaseOrderItemRepository,
+        protected ItemRepository $itemRepository,
         protected StockLedgerService $stockLedgerService,
         protected AuditLogService $auditLogService,
     ) {}
@@ -34,6 +37,10 @@ class GoodsReceiptService
     public function create(array $data): GoodsReceipt
     {
         return DB::transaction(function () use ($data) {
+            if (empty($data['purchase_order_id'])) {
+                return $this->createDirect($data);
+            }
+
             $purchaseOrder = $this->purchaseOrderRepository->findOrFail($data['purchase_order_id']);
 
             if ($purchaseOrder->status !== DocumentStatus::SUBMITTED) {
@@ -75,6 +82,51 @@ class GoodsReceiptService
         });
     }
 
+    /**
+     * Standalone receipt with no source Purchase Order — items are typed
+     * directly (item/qty/rate) instead of copied from PO lines, so there's
+     * no assertWithinOutstanding()/incrementReceivedQty() to run (nothing
+     * to check against). Only reachable from create(), always inside its
+     * transaction.
+     */
+    protected function createDirect(array $data): GoodsReceipt
+    {
+        $goodsReceipt = $this->goodsReceiptRepository->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $data['supplier_id'],
+            'warehouse_id' => $data['warehouse_id'],
+            'receipt_date' => $data['receipt_date'],
+            'due_date' => $data['due_date'],
+            'remarks' => $data['remarks'] ?? null,
+        ]);
+
+        foreach ($data['items'] as $line) {
+            $this->createDirectLine($goodsReceipt, $line);
+        }
+
+        $goodsReceipt = $goodsReceipt->fresh(['supplier', 'warehouse', 'items']);
+        $this->auditLogService->record('created', 'goods_receipt', "Created Goods Receipt \"{$goodsReceipt->document_number}\".");
+
+        return $goodsReceipt;
+    }
+
+    protected function createDirectLine(GoodsReceipt $goodsReceipt, array $line): void
+    {
+        $item = $this->itemRepository->findOrFail($line['item_id']);
+
+        $this->goodsReceiptItemRepository->create([
+            'goods_receipt_id' => $goodsReceipt->id,
+            'purchase_order_item_id' => null,
+            'item_id' => $item->id,
+            'item_code' => $item->item_code,
+            'item_name' => $item->item_name,
+            'uom' => $item->uom->name,
+            'qty' => $line['qty'],
+            'rate' => $line['rate'],
+            'amount' => $line['qty'] * $line['rate'],
+        ]);
+    }
+
     public function update(GoodsReceipt $goodsReceipt, array $data): GoodsReceipt
     {
         return DB::transaction(function () use ($goodsReceipt, $data) {
@@ -86,6 +138,12 @@ class GoodsReceiptService
                 $goodsReceipt->items()->delete();
 
                 foreach ($data['items'] as $line) {
+                    if ($goodsReceipt->purchase_order_id === null) {
+                        $this->createDirectLine($goodsReceipt, $line);
+
+                        continue;
+                    }
+
                     $poItem = $this->resolvePurchaseOrderItem($goodsReceipt->purchase_order_id, $line['purchase_order_item_id']);
                     $this->assertWithinOutstanding($poItem, $line['qty']);
 
@@ -134,14 +192,16 @@ class GoodsReceiptService
     public function submit(GoodsReceipt $goodsReceipt): GoodsReceipt
     {
         return DB::transaction(function () use ($goodsReceipt) {
-            $goodsReceipt->load(['items.purchaseOrderItem', 'purchaseOrder']);
+            $goodsReceipt->load(['items.purchaseOrderItem.item', 'purchaseOrder']);
 
-            if ($goodsReceipt->purchaseOrder->status !== DocumentStatus::SUBMITTED) {
-                throw new BusinessException('Purchase Order is no longer submitted; cannot receive goods against it.');
-            }
+            if ($goodsReceipt->purchase_order_id !== null) {
+                if ($goodsReceipt->purchaseOrder->status !== DocumentStatus::SUBMITTED) {
+                    throw new BusinessException('Purchase Order is no longer submitted; cannot receive goods against it.');
+                }
 
-            foreach ($goodsReceipt->items as $line) {
-                $this->assertWithinOutstanding($line->purchaseOrderItem, $line->qty);
+                foreach ($goodsReceipt->items as $line) {
+                    $this->assertWithinOutstanding($line->purchaseOrderItem, $line->qty);
+                }
             }
 
             foreach ($goodsReceipt->items as $line) {
@@ -157,7 +217,9 @@ class GoodsReceiptService
                     remarks: "Goods Receipt {$goodsReceipt->document_number}",
                 );
 
-                $this->purchaseOrderItemRepository->incrementReceivedQty($line->purchaseOrderItem, $line->qty);
+                if ($line->purchaseOrderItem !== null) {
+                    $this->purchaseOrderItemRepository->incrementReceivedQty($line->purchaseOrderItem, $line->qty);
+                }
             }
 
             $goodsReceipt->submit();
@@ -180,11 +242,11 @@ class GoodsReceiptService
         return $poItem;
     }
 
-    protected function assertWithinOutstanding(PurchaseOrderItem $poItem, int $qty): void
+    protected function assertWithinOutstanding(PurchaseOrderItem $poItem, int|float $qty): void
     {
         $outstanding = $poItem->qty - $poItem->received_qty;
 
-        if ($qty > $outstanding) {
+        if ($qty > $outstanding && ! $poItem->item->allow_over_receipt) {
             throw new BusinessException("Received qty ({$qty}) exceeds outstanding qty ({$outstanding}) for item {$poItem->item->item_code}.");
         }
     }

@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+/** True when `value` has no more than 2 decimal places (bulk items like cement are ordered/received by truck-scale weight, e.g. 50.65). */
+function hasAtMostTwoDecimals(value: number): boolean {
+  return Math.abs(Math.round(value * 100) - value * 100) < 1e-6
+}
+
 /**
  * Qty/rate are kept as strings and converted to numbers only when
  * building the API payload (see PurchaseOrderEditorPage's onSubmit) —
@@ -12,7 +17,10 @@ export const lineItemFormSchema = z.object({
   qty: z
     .string()
     .min(1, 'Qty is required')
-    .refine((value) => Number.isInteger(Number(value)) && Number(value) >= 1, 'Must be at least 1'),
+    .refine((value) => {
+      const num = Number(value)
+      return !Number.isNaN(num) && hasAtMostTwoDecimals(num) && num > 0
+    }, 'Must be greater than 0, at most 2 decimal places'),
   rate: z
     .string()
     .min(1, 'Rate is required')

@@ -9,8 +9,8 @@ export interface ReceivingTotals {
 }
 
 export function computeReceivingTotals(order: PurchaseOrder): ReceivingTotals {
-  const ordered = order.items.reduce((sum, item) => sum + item.qty, 0)
-  const received = order.items.reduce((sum, item) => sum + item.received_qty, 0)
+  const ordered = order.items.reduce((sum, item) => sum + Number(item.qty), 0)
+  const received = order.items.reduce((sum, item) => sum + Number(item.received_qty), 0)
   const percentage = ordered > 0 ? (received / ordered) * 100 : 0
 
   return { ordered, received, percentage }

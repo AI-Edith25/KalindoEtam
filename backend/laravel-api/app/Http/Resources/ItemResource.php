@@ -19,6 +19,7 @@ class ItemResource extends JsonResource
             'uom' => new UomResource($this->whenLoaded('uom')),
             'standard_rate' => $this->standard_rate,
             'current_stock' => $this->current_stock,
+            'allow_over_receipt' => $this->allow_over_receipt,
             'purchase_tax_id' => $this->purchase_tax_id,
             'purchase_tax' => new TaxResource($this->whenLoaded('purchaseTax')),
             'sales_tax_id' => $this->sales_tax_id,

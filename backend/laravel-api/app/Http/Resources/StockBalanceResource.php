@@ -14,7 +14,7 @@ class StockBalanceResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $currentQty = (int) $this->current_qty;
+        $currentQty = (float) $this->current_qty;
 
         return [
             'item_id' => $this->item_id,

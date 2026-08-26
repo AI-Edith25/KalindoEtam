@@ -33,7 +33,7 @@ const lineColumns: DataTableColumn<PurchaseOrderItem>[] = [
 ]
 
 function goodsReceiptQty(receipt: GoodsReceipt): number {
-  return receipt.items.reduce((sum, line) => sum + line.qty, 0)
+  return receipt.items.reduce((sum, line) => sum + Number(line.qty), 0)
 }
 
 const goodsReceiptColumns = (onNavigate: (id: string) => void): DataTableColumn<GoodsReceipt>[] => [

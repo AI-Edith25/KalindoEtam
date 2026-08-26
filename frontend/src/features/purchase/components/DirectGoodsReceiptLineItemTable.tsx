@@ -7,31 +7,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatCurrency } from '@/lib/utils'
-import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
-import type { PurchaseOrderEditorValues } from '../lib/purchaseOrderFormSchema'
-import type { Item, Tax } from '@/features/master/types'
+import { lineAmount } from '@/shared/lib/documentTotals'
+import type { DirectGoodsReceiptEditorValues } from '../lib/goodsReceiptFormSchema'
+import type { Item } from '@/features/master/types'
 
-const NO_TAX = '__none__'
-
-interface PurchaseOrderLineItemTableProps {
-  form: UseFormReturn<PurchaseOrderEditorValues>
+interface DirectGoodsReceiptLineItemTableProps {
+  form: UseFormReturn<DirectGoodsReceiptEditorValues>
   items: Item[]
   itemsLoading: boolean
-  taxes: Tax[]
   disabled?: boolean
 }
 
 /**
- * The editable grid at the center of the Purchase Editor — Add/Remove
- * row, an Item lookup that autofills Unit Price from the item's
- * standard_rate and Tax from the item's purchase_tax_id, and a live
- * per-row Amount/Tax. Tax stays editable per line afterward — the Item
- * default is only a starting point. Deliberately not built on the shared
- * DataTable (that component is for read-only, sortable lists; this is an
- * editable react-hook-form field array with a different interaction
- * model entirely).
+ * Standalone/direct receipt (no source Purchase Order) — Add/Remove row,
+ * item lookup autofilling Unit Price from standard_rate. Mirrors
+ * PurchaseOrderLineItemTable minus the Tax column (GoodsReceiptItem
+ * carries no tax fields).
  */
-export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, disabled }: PurchaseOrderLineItemTableProps) {
+export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, disabled }: DirectGoodsReceiptLineItemTableProps) {
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
@@ -41,8 +34,9 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
 
     const selected = items.find((item) => item.id === itemId)
     if (selected) {
+      setValue(`items.${index}.item_code`, selected.item_code)
+      setValue(`items.${index}.item_name`, selected.item_name)
       setValue(`items.${index}.rate`, String(selected.standard_rate), { shouldValidate: true })
-      setValue(`items.${index}.tax_id`, selected.purchase_tax_id ?? '', { shouldValidate: true })
     }
   }
 
@@ -54,18 +48,16 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
             <TableRow>
               <TableHead>Item</TableHead>
               <TableHead className="w-28">Qty</TableHead>
-              <TableHead className="w-36">Unit Price</TableHead>
-              <TableHead className="w-44">Tax</TableHead>
+              <TableHead className="w-36">Rate</TableHead>
               <TableHead className="w-36 text-right">Amount</TableHead>
-              <TableHead className="w-32 text-right">Tax Amount</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="p-0">
-                  <EmptyState message="No line items yet." description="Use Add Row to start building this order." />
+                <TableCell colSpan={5} className="p-0">
+                  <EmptyState message="No line items yet." description="Use Add Row to start building this receipt." />
                 </TableCell>
               </TableRow>
             ) : (
@@ -118,44 +110,8 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
                       )}
                     />
                   </TableCell>
-                  <TableCell>
-                    <FormField
-                      control={control}
-                      name={`items.${index}.tax_id`}
-                      render={({ field: taxField }) => (
-                        <FormItem className="gap-0">
-                          <Select
-                            value={taxField.value || NO_TAX}
-                            onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
-                            disabled={disabled}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="No tax" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={NO_TAX}>No tax</SelectItem>
-                              {taxes.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>
-                                  {t.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(lineAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }))}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatCurrency(
-                      lineTaxAmount(
-                        lineAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }),
-                        taxes.find((t) => t.id === watchedItems?.[index]?.tax_id),
-                      ),
-                    )}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -182,7 +138,7 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', qty: '1', rate: '0', tax_id: '' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qty: '1', rate: '0' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

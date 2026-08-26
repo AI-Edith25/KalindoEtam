@@ -19,8 +19,13 @@ class UpdateGoodsReceiptRequest extends FormRequest
             'due_date' => ['sometimes', 'required', 'date', 'after_or_equal:receipt_date'],
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array', 'min:1'],
-            'items.*.purchase_order_item_id' => ['required_with:items', 'uuid', 'exists:purchase_order_items,id'],
-            'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
+            // purchase_order_id is immutable post-create (not accepted here) — whether a line
+            // needs purchase_order_item_id vs item_id/rate is resolved server-side from the
+            // existing Goods Receipt's own purchase_order_id, not from this request's input.
+            'items.*.purchase_order_item_id' => ['nullable', 'uuid', 'exists:purchase_order_items,id'],
+            'items.*.item_id' => ['nullable', 'uuid', 'exists:items,id'],
+            'items.*.rate' => ['nullable', 'numeric', 'min:0'],
+            'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
         ];
     }
 }

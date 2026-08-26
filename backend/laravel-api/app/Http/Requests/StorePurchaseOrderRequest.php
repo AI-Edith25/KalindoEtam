@@ -21,7 +21,7 @@ class StorePurchaseOrderRequest extends FormRequest
             'remarks' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'uuid', 'exists:items,id'],
-            'items.*.qty' => ['required', 'integer', 'min:1'],
+            'items.*.qty' => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
             'items.*.rate' => ['required', 'numeric', 'min:0'],
             'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
             // Header tax_id is now display-only — the "last bulk-applied tax" marker. See docs/TAX_ENGINE_DESIGN.md §6.
