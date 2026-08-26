@@ -176,7 +176,15 @@ export function OutgoingPaymentDetailPage() {
                     <Button
                       variant="link"
                       className="h-auto p-0"
-                      onClick={() => navigate(resolveSourceDocumentLink('purchase_invoice', item.accounts_payable.invoice_id!))}
+                      onClick={() =>
+                        navigate(
+                          // Pre-Purchase-Invoice payables (created straight from a Goods Receipt,
+                          // before 65bc42a) have no invoice_id — fall back to their Goods Receipt.
+                          item.accounts_payable.invoice_id
+                            ? resolveSourceDocumentLink('purchase_invoice', item.accounts_payable.invoice_id)
+                            : resolveSourceDocumentLink('goods_receipt', item.accounts_payable.goods_receipt_id),
+                        )
+                      }
                     >
                       {item.accounts_payable.reference_number}
                       <ExternalLink className="size-3.5" />

@@ -138,7 +138,13 @@ export function OutgoingPaymentListPage() {
               className="h-auto p-0"
               onClick={(event) => {
                 event.stopPropagation()
-                navigate(resolveSourceDocumentLink('purchase_invoice', line.accounts_payable.invoice_id!))
+                // Pre-Purchase-Invoice payables (created straight from a Goods Receipt,
+                // before 65bc42a) have no invoice_id — fall back to their Goods Receipt.
+                navigate(
+                  line.accounts_payable.invoice_id
+                    ? resolveSourceDocumentLink('purchase_invoice', line.accounts_payable.invoice_id)
+                    : resolveSourceDocumentLink('goods_receipt', line.accounts_payable.goods_receipt_id),
+                )
               }}
             >
               {line.accounts_payable.reference_number}

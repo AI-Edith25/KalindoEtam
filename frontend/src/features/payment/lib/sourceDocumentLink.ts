@@ -7,9 +7,13 @@
  * the source document to a future Invoice only touches the caller that
  * decides which kind/id to pass in — this function's contract doesn't change.
  */
-export function resolveSourceDocumentLink(kind: 'purchase_order' | 'purchase_invoice' | 'sales_order' | 'invoice', id: string): string {
+export function resolveSourceDocumentLink(
+  kind: 'purchase_order' | 'purchase_invoice' | 'goods_receipt' | 'sales_order' | 'invoice',
+  id: string,
+): string {
   if (kind === 'purchase_order') return `/purchase/orders/${id}`
   if (kind === 'purchase_invoice') return `/purchase/invoices/${id}`
+  if (kind === 'goods_receipt') return `/purchase/goods-receipts/${id}`
   if (kind === 'invoice') return `/sales/invoices/${id}`
   return `/sales/orders/${id}`
 }
