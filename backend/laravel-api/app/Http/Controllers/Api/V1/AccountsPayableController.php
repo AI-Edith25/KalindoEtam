@@ -12,7 +12,7 @@ use Illuminate\Http\JsonResponse;
 
 /**
  * Read-only — Accounts Payable rows are only ever created as a side
- * effect of GoodsReceiptService::submit(). No store/update/destroy.
+ * effect of PurchaseInvoiceService::submit(). No store/update/destroy.
  */
 class AccountsPayableController extends Controller
 {

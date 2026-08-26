@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -6,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
 import type { AccountsPayable } from '../types'
 
 interface OutstandingPayablesTableProps {
@@ -18,7 +16,9 @@ interface OutstandingPayablesTableProps {
 }
 
 /**
- * AP mirror of OutstandingInvoicesTable — shown once a Supplier is picked
+ * AP mirror of OutstandingInvoicesTable — reference_number is already the
+ * Purchase Invoice's document number (see AccountsPayableService::
+ * createFromInvoice()), no separate lookup needed. Shown once a Supplier is picked
  * on the Payment Voucher form, listing every Unpaid/Partially Paid bill for
  * them. Checking a row defaults its "To Allocate" to that bill's full
  * outstanding balance, editable from there — "Amount Paid" above is
@@ -33,14 +33,6 @@ export function OutstandingPayablesTable({
   onToggle,
   onAllocationChange,
 }: OutstandingPayablesTableProps) {
-  // AccountsPayable exposes purchase_order_id only, not a nested object — same lookup-join pattern as OutstandingPayableSelect.
-  const purchaseOrdersLookup = useQuery({
-    queryKey: ['purchase-orders-lookup'],
-    queryFn: () => fetchPurchaseOrders({ page: 1, per_page: 100 }),
-  })
-  const purchaseOrderNumber = (purchaseOrderId: string) =>
-    purchaseOrdersLookup.data?.data.find((po) => po.id === purchaseOrderId)?.document_number ?? '—'
-
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -69,7 +61,7 @@ export function OutstandingPayablesTable({
                   aria-label="Select all outstanding payables"
                 />
               </TableHead>
-              <TableHead>Purchase Order</TableHead>
+              <TableHead>Purchase Invoice</TableHead>
               <TableHead>Due Date</TableHead>
               <TableHead className="text-right">Total Bill</TableHead>
               <TableHead className="text-right">Amount Paid</TableHead>
@@ -90,10 +82,10 @@ export function OutstandingPayablesTable({
                     <Checkbox
                       checked={checked}
                       onCheckedChange={(value) => onToggle(ap.id, value === true)}
-                      aria-label={`Select ${purchaseOrderNumber(ap.purchase_order_id)}`}
+                      aria-label={`Select ${ap.reference_number}`}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{purchaseOrderNumber(ap.purchase_order_id)}</TableCell>
+                  <TableCell className="font-medium">{ap.reference_number}</TableCell>
                   <TableCell>{formatDate(ap.due_date)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(ap.amount)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(ap.paid_amount)}</TableCell>
@@ -110,7 +102,7 @@ export function OutstandingPayablesTable({
                         max={outstanding}
                         value={amount}
                         className="ml-auto w-32 text-right"
-                        aria-label={`To allocate for ${purchaseOrderNumber(ap.purchase_order_id)}`}
+                        aria-label={`To allocate for ${ap.reference_number}`}
                         onChange={(e) => {
                           const raw = e.target.value === '' ? 0 : Number(e.target.value)
                           onAllocationChange(ap.id, Math.min(Math.max(raw, 0), outstanding))

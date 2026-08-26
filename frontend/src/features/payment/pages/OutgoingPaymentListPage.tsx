@@ -17,7 +17,6 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deletePaymentEntry, fetchPaymentEntries, submitPaymentEntry } from '../api/paymentEntryApi'
-import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
 import { PaymentEntryFiltersBar } from '../components/PaymentEntryFiltersBar'
 import { emptyPaymentEntryFilters } from '../lib/paymentEntryFilters'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
@@ -55,14 +54,6 @@ export function OutgoingPaymentListPage() {
       }),
     placeholderData: (previous) => previous,
   })
-
-  // PaymentEntryAllocation.accounts_payable exposes purchase_order_id only, not a nested object — same lookup-join pattern as GoodsReceiptListPage.
-  const purchaseOrdersLookup = useQuery({
-    queryKey: ['purchase-orders-lookup'],
-    queryFn: () => fetchPurchaseOrders({ page: 1, per_page: 100 }),
-  })
-  const purchaseOrderNumber = (purchaseOrderId: string) =>
-    purchaseOrdersLookup.data?.data.find((po) => po.id === purchaseOrderId)?.document_number ?? '—'
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['payment-entries'] })
 
@@ -133,7 +124,7 @@ export function OutgoingPaymentListPage() {
 
         // Allocation is now a separate step from paying — a payment can exist with no
         // allocation lines yet (advance payment), exactly one (the common immediate case,
-        // still clickable through to the PO), or several (one payment, many bills).
+        // still clickable through to the PI), or several (one payment, many bills).
         if (row.items.length === 0) {
           return <span className="text-muted-foreground">Unallocated</span>
         }
@@ -147,16 +138,16 @@ export function OutgoingPaymentListPage() {
               className="h-auto p-0"
               onClick={(event) => {
                 event.stopPropagation()
-                navigate(resolveSourceDocumentLink('purchase_order', line.accounts_payable.purchase_order_id))
+                navigate(resolveSourceDocumentLink('purchase_invoice', line.accounts_payable.invoice_id!))
               }}
             >
-              {purchaseOrderNumber(line.accounts_payable.purchase_order_id)}
+              {line.accounts_payable.reference_number}
               <ExternalLink className="size-3.5" />
             </Button>
           )
         }
 
-        return row.items.map((line) => purchaseOrderNumber(line.accounts_payable.purchase_order_id)).join(', ')
+        return row.items.map((line) => line.accounts_payable.reference_number).join(', ')
       },
     },
     {

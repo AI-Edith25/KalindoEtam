@@ -176,7 +176,7 @@ export function OutgoingPaymentDetailPage() {
                     <Button
                       variant="link"
                       className="h-auto p-0"
-                      onClick={() => navigate(resolveSourceDocumentLink('purchase_order', item.accounts_payable.purchase_order_id))}
+                      onClick={() => navigate(resolveSourceDocumentLink('purchase_invoice', item.accounts_payable.invoice_id!))}
                     >
                       {item.accounts_payable.reference_number}
                       <ExternalLink className="size-3.5" />

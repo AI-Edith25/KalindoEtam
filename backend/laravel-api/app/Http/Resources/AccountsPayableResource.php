@@ -13,6 +13,7 @@ class AccountsPayableResource extends JsonResource
             'id' => $this->id,
             'supplier_id' => $this->supplier_id,
             'supplier' => new SupplierResource($this->whenLoaded('supplier')),
+            'invoice_id' => $this->invoice_id,
             'purchase_order_id' => $this->purchase_order_id,
             'goods_receipt_id' => $this->goods_receipt_id,
             'reference_number' => $this->reference_number,

@@ -14,9 +14,11 @@ use App\Models\ItemGroup;
 use App\Models\JournalEntry;
 use App\Models\PaymentEntry;
 use App\Models\PaymentEntryAllocation;
+use App\Models\Permission;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\UnitOfMeasurement;
+use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\GoodsReceiptService;
 use App\Services\PaymentEntryAllocationService;
@@ -480,5 +482,29 @@ class PaymentEntryAllocationTest extends TestCase
         $this->assertEquals(40000, (float) $accountsPayable->fresh()->paid_amount);
         $this->assertEquals(0, (float) $paymentTwo->fresh()->allocated_amount);
         $this->assertCount(1, PaymentEntryAllocation::all());
+    }
+
+    /**
+     * Payment Voucher's "Reference" must point at the Purchase Invoice, not the
+     * Purchase Order that predates it — see AccountsPayableService::createFromInvoice().
+     * Guards AccountsPayableResource against dropping invoice_id/reference_number
+     * back to a PO-only shape.
+     */
+    public function test_accounts_payable_api_exposes_the_purchase_invoice_as_the_reference(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 5, rate: 20000);
+        $accountsPayable = AccountsPayable::query()->where('goods_receipt_id', $goodsReceipt->id)->firstOrFail();
+        $purchaseInvoice = \App\Models\PurchaseInvoice::query()->findOrFail($accountsPayable->invoice_id);
+
+        Permission::query()->firstOrCreate(['name' => 'finance.accounts_payable.view', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->givePermissionTo('finance.accounts_payable.view');
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+
+        $response = $this->getJson("/api/v1/accounts-payables/{$accountsPayable->id}");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.invoice_id', $purchaseInvoice->id);
+        $response->assertJsonPath('data.reference_number', $purchaseInvoice->document_number);
     }
 }

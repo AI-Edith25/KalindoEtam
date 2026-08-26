@@ -10,6 +10,7 @@ export interface AccountsPayable {
   id: string
   supplier_id: string
   supplier: Supplier | null
+  invoice_id: string | null
   purchase_order_id: string
   goods_receipt_id: string
   reference_number: string
