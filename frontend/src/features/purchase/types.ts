@@ -89,6 +89,7 @@ export interface GoodsReceipt {
   due_date: string
   remarks: string | null
   items: GoodsReceiptItem[]
+  is_invoiced: boolean | null
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string
@@ -105,6 +106,141 @@ export interface GoodsReceiptFormValues {
 
 export interface GoodsReceiptFilterValues {
   status: DocumentStatus | null
+  dateFrom: string
+  dateTo: string
+}
+
+export type PurchaseInvoiceDisplayStatus = 'draft' | 'unpaid' | 'partial' | 'paid' | 'cancelled'
+
+export interface PurchaseInvoiceItem {
+  id: string
+  goods_receipt_item_id: string
+  item_id: string
+  item_code: string
+  item_name: string
+  uom: string
+  rate: string | number
+  qty: number
+  amount: string | number
+  returned_qty: number
+  returned_amount: string | number
+  returnable_qty: number
+  returnable_amount: string | number
+}
+
+export interface PurchaseInvoicePurchaseReturnHistoryLine {
+  id: string
+  document_number: string | null
+  return_date: string | null
+  reason: PurchaseReturnReason
+  total_amount: string | number
+  status: DocumentStatus
+  is_reversed: boolean
+}
+
+export interface PurchaseInvoice {
+  id: string
+  document_number: string | null
+  status: DocumentStatus
+  display_status: PurchaseInvoiceDisplayStatus
+  revision: number
+  goods_receipt_id: string
+  goods_receipt: { id: string; document_number: string | null; warehouse: { id: string; name: string; code: string } | null } | null
+  goods_receipts: { id: string; document_number: string | null }[]
+  purchase_order_id: string
+  purchase_orders: { id: string; document_number: string | null }[]
+  supplier_id: string
+  supplier: { id: string; supplier_code: string; supplier_name: string } | null
+  invoice_date: string
+  due_date: string
+  subtotal: string | number
+  tax_amount: string | number
+  grand_total: string | number
+  paid_amount: string | number
+  outstanding_amount: string | number
+  credited_amount: string | number
+  returnable_amount: string | number
+  reference_number: string | null
+  remarks: string | null
+  items: PurchaseInvoiceItem[]
+  purchase_return_history: PurchaseInvoicePurchaseReturnHistoryLine[]
+  submitted_at: string | null
+  cancelled_at: string | null
+  created_at: string
+}
+
+export interface PurchaseInvoiceFormValues {
+  goods_receipt_ids?: string[]
+  invoice_date: string
+  due_date: string
+  tax_amount: number | null
+  reference_number: string | null
+  remarks: string | null
+}
+
+export interface PurchaseInvoiceFilterValues {
+  status: DocumentStatus | null
+  dateFrom: string
+  dateTo: string
+}
+
+/**
+ * Sprint (Purchase Invoices & Returns): the only accounting-correction path
+ * for a posted Purchase Invoice — PurchaseInvoiceService::cancel()
+ * deliberately never touches the ledger/stock. Single document type
+ * (no Purchase Debit Note equivalent — see plan Context), reason is a
+ * classification only, mirrors CreditNoteReason's shape.
+ */
+export type PurchaseReturnReason = 'damaged_goods' | 'wrong_item' | 'quantity_discrepancy' | 'price_correction' | 'late_delivery'
+
+export interface PurchaseReturnItem {
+  id: string
+  purchase_invoice_item_id: string
+  item_id: string
+  warehouse_id: string
+  item_code: string
+  item_name: string
+  uom: string
+  qty_returned: number
+  rate: string | number
+  amount: string | number
+}
+
+export interface PurchaseReturn {
+  id: string
+  document_number: string | null
+  status: DocumentStatus
+  revision: number
+  purchase_invoice_id: string
+  purchase_invoice: { id: string; document_number: string | null; grand_total: string | number } | null
+  supplier_id: string
+  supplier: { id: string; supplier_code: string; supplier_name: string } | null
+  return_date: string
+  reason: PurchaseReturnReason
+  subtotal: string | number
+  tax_amount: string | number
+  total_amount: string | number
+  remarks: string | null
+  is_reversed: boolean
+  reversed_at: string | null
+  items: PurchaseReturnItem[]
+  submitted_at: string | null
+  cancelled_at: string | null
+  created_at: string
+}
+
+export interface PurchaseReturnFormValues {
+  purchase_invoice_id: string
+  return_date: string
+  reason: PurchaseReturnReason
+  tax_amount: number | null
+  remarks: string | null
+  items: { purchase_invoice_item_id: string; qty_returned: number; amount: number }[]
+}
+
+export interface PurchaseReturnFilterValues {
+  status: DocumentStatus | null
+  reason: PurchaseReturnReason | null
   dateFrom: string
   dateTo: string
 }

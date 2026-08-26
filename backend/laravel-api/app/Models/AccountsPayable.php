@@ -20,11 +20,13 @@ class AccountsPayable extends Model
 
     protected $fillable = [
         'supplier_id',
+        'invoice_id',
         'purchase_order_id',
         'goods_receipt_id',
         'reference_number',
         'amount',
         'paid_amount',
+        'credited_amount',
         'due_date',
         'status',
     ];
@@ -32,6 +34,7 @@ class AccountsPayable extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
+        'credited_amount' => 'decimal:2',
         'due_date' => 'date',
         'status' => AccountsPayableStatus::class,
     ];
@@ -39,6 +42,11 @@ class AccountsPayable extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function purchaseInvoice(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseInvoice::class, 'invoice_id');
     }
 
     public function purchaseOrder(): BelongsTo

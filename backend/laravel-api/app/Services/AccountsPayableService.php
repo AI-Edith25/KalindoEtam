@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Enums\AccountsPayableStatus;
 use App\Exceptions\BusinessException;
 use App\Models\AccountsPayable;
-use App\Models\GoodsReceipt;
+use App\Models\PurchaseInvoice;
 use App\Repositories\AccountsPayableRepository;
 use App\Support\SettlementStatus;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -21,20 +21,26 @@ class AccountsPayableService
     }
 
     /**
-     * Called only by GoodsReceiptService::submit() — Accounts Payable is a
+     * Called only by PurchaseInvoiceService::submit() — Accounts Payable is a
      * system-generated side effect, never created directly by a user.
+     * Amount is the Purchase Invoice's grand_total (authoritative, includes
+     * tax), not re-derived from Goods Receipt lines. purchase_order_id/
+     * goods_receipt_id are populated from the Invoice's anchor columns —
+     * legacy fields kept for existing report queries, invoice_id is now the
+     * authoritative link.
      */
-    public function createFromGoodsReceipt(GoodsReceipt $goodsReceipt): AccountsPayable
+    public function createFromInvoice(PurchaseInvoice $purchaseInvoice): AccountsPayable
     {
-        return DB::transaction(function () use ($goodsReceipt) {
+        return DB::transaction(function () use ($purchaseInvoice) {
             return $this->accountsPayableRepository->create([
-                'supplier_id' => $goodsReceipt->supplier_id,
-                'purchase_order_id' => $goodsReceipt->purchase_order_id,
-                'goods_receipt_id' => $goodsReceipt->id,
-                'reference_number' => $goodsReceipt->document_number,
-                'amount' => $goodsReceipt->items->sum('amount'),
+                'supplier_id' => $purchaseInvoice->supplier_id,
+                'invoice_id' => $purchaseInvoice->id,
+                'purchase_order_id' => $purchaseInvoice->purchase_order_id,
+                'goods_receipt_id' => $purchaseInvoice->goods_receipt_id,
+                'reference_number' => $purchaseInvoice->document_number,
+                'amount' => $purchaseInvoice->grand_total,
                 'paid_amount' => 0,
-                'due_date' => $goodsReceipt->due_date,
+                'due_date' => $purchaseInvoice->due_date,
                 'status' => AccountsPayableStatus::UNPAID,
             ]);
         });
@@ -97,6 +103,66 @@ class AccountsPayableService
 
         if ($amount > $outstanding) {
             throw new BusinessException("Amount ({$amount}) exceeds outstanding payable ({$outstanding}) for {$accountsPayable->reference_number}.");
+        }
+    }
+
+    /**
+     * Reduces the payable's face amount — called only by
+     * PurchaseReturnService::submit(). Distinct from settle()/unsettle(),
+     * which only ever move paid_amount: a Purchase Return changes what's
+     * actually owed, not how much of it has been paid. Mirrors
+     * AccountsReceivableService::writeDown().
+     */
+    public function writeDown(AccountsPayable $accountsPayable, float $amount): AccountsPayable
+    {
+        return DB::transaction(function () use ($accountsPayable, $amount) {
+            $newAmount = (float) $accountsPayable->amount - $amount;
+            $newCreditedAmount = (float) $accountsPayable->credited_amount + $amount;
+            $newStatus = AccountsPayableStatus::from(
+                SettlementStatus::resolve($newAmount, (float) $accountsPayable->paid_amount)
+            );
+
+            $this->accountsPayableRepository->applyWriteDown($accountsPayable, $newAmount, $newCreditedAmount, $newStatus);
+
+            return $accountsPayable->fresh();
+        });
+    }
+
+    /** Symmetric to writeDown() — called only by PurchaseReturnService::reverse(). */
+    public function restoreWriteDown(AccountsPayable $accountsPayable, float $amount): AccountsPayable
+    {
+        return DB::transaction(function () use ($accountsPayable, $amount) {
+            $newAmount = (float) $accountsPayable->amount + $amount;
+            $newCreditedAmount = max(0, (float) $accountsPayable->credited_amount - $amount);
+            $newStatus = AccountsPayableStatus::from(
+                SettlementStatus::resolve($newAmount, (float) $accountsPayable->paid_amount)
+            );
+
+            $this->accountsPayableRepository->applyWriteDown($accountsPayable, $newAmount, $newCreditedAmount, $newStatus);
+
+            return $accountsPayable->fresh();
+        });
+    }
+
+    /**
+     * The Purchase Return equivalent of assertWithinOutstanding() — caps
+     * against what's still returnable. `amount` is already net of every
+     * prior return (writeDown() subtracts from it directly), so the
+     * current `amount` field *is* the remaining returnable balance —
+     * `credited_amount` is a separate cumulative cache for display only
+     * and must not be subtracted again here. Mirrors
+     * AccountsReceivableService::assertWithinCreditableBalance().
+     */
+    public function assertWithinCreditableBalance(AccountsPayable $accountsPayable, float $amount): void
+    {
+        if ($amount <= 0) {
+            throw new BusinessException('Amount must be greater than zero.');
+        }
+
+        $creditable = (float) $accountsPayable->amount;
+
+        if ($amount > $creditable) {
+            throw new BusinessException("Amount ({$amount}) exceeds the remaining returnable balance ({$creditable}) for {$accountsPayable->reference_number}.");
         }
     }
 }

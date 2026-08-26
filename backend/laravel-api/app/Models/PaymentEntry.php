@@ -35,6 +35,7 @@ class PaymentEntry extends Model
         'reference_number',
         'remarks',
         'total_amount',
+        'allocated_amount',
     ];
 
     protected $casts = [
@@ -43,6 +44,7 @@ class PaymentEntry extends Model
         'payment_method' => PaymentMethod::class,
         'payment_date' => 'date',
         'total_amount' => 'decimal:2',
+        'allocated_amount' => 'decimal:2',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];

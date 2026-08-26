@@ -21,6 +21,7 @@ use App\Models\Warehouse;
 use App\Services\GoodsReceiptService;
 use App\Services\PaymentEntryAllocationService;
 use App\Services\PaymentEntryService;
+use App\Services\PurchaseInvoiceService;
 use App\Services\PurchaseOrderService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\DocumentEngineSeeder;
@@ -38,6 +39,7 @@ class PaymentEntryAllocationTest extends TestCase
 
     protected PurchaseOrderService $purchaseOrderService;
     protected GoodsReceiptService $goodsReceiptService;
+    protected PurchaseInvoiceService $purchaseInvoiceService;
     protected PaymentEntryService $paymentEntryService;
     protected PaymentEntryAllocationService $paymentEntryAllocationService;
     protected Supplier $supplier;
@@ -53,6 +55,7 @@ class PaymentEntryAllocationTest extends TestCase
 
         $this->purchaseOrderService = app(PurchaseOrderService::class);
         $this->goodsReceiptService = app(GoodsReceiptService::class);
+        $this->purchaseInvoiceService = app(PurchaseInvoiceService::class);
         $this->paymentEntryService = app(PaymentEntryService::class);
         $this->paymentEntryAllocationService = app(PaymentEntryAllocationService::class);
 
@@ -68,6 +71,14 @@ class PaymentEntryAllocationTest extends TestCase
         ]);
     }
 
+    /**
+     * Goods Receipt submit is stock-only (Accounts Payable/GL moved to
+     * Purchase Invoice — see PurchaseInvoiceService::submit()); this helper
+     * carries every caller through the full GR -> Purchase Invoice -> AP
+     * chain so `AccountsPayable::where('goods_receipt_id', ...)` (still
+     * populated from the Invoice's anchor column) keeps resolving exactly
+     * like it did when Goods Receipt created AP directly.
+     */
     protected function submittedGoodsReceipt(int $qty, float $rate): GoodsReceipt
     {
         $purchaseOrder = $this->purchaseOrderService->create([
@@ -85,8 +96,16 @@ class PaymentEntryAllocationTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => $qty]],
         ]);
+        $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt);
 
-        return $this->goodsReceiptService->submit($goodsReceipt);
+        $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $this->purchaseInvoiceService->submit($purchaseInvoice);
+
+        return $goodsReceipt;
     }
 
     protected function accountId(string $code): string
@@ -234,7 +253,7 @@ class PaymentEntryAllocationTest extends TestCase
         $this->assertEquals(40000, (float) $ap1->fresh()->paid_amount);
         $this->assertEquals(60000, (float) $ap2->fresh()->paid_amount);
         $this->assertEquals(100000, (float) $payment->fresh()->allocated_amount);
-        $this->assertDatabaseCount('journal_entries', 4); // 2 goods receipt journals + 2 allocation journals
+        $this->assertDatabaseCount('journal_entries', 4); // 2 purchase invoice journals + 2 allocation journals
     }
 
     public function test_allocate_batch_rejects_amount_exceeding_payment_unallocated_balance(): void
@@ -435,7 +454,7 @@ class PaymentEntryAllocationTest extends TestCase
         $this->assertDatabaseCount('payment_entry_allocations', 0);
         $this->assertEquals(0, (float) $accountsPayable->fresh()->paid_amount);
         $this->assertEquals(0, (float) $payment->fresh()->allocated_amount);
-        // Only the Goods Receipt's own journal from submittedGoodsReceipt() should exist — none for the failed allocation.
+        // Only the Purchase Invoice's own journal from submittedGoodsReceipt() should exist — none for the failed allocation.
         $this->assertDatabaseCount('journal_entries', 1);
     }
 

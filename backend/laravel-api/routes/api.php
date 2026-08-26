@@ -38,11 +38,14 @@ use App\Http\Controllers\Api\V1\PaymentEntryAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\ProductSalesController;
+use App\Http\Controllers\Api\V1\PurchaseInvoiceController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
+use App\Http\Controllers\Api\V1\PurchaseReturnController;
 use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
 use App\Http\Controllers\Api\V1\SalesPersonController;
+use App\Http\Controllers\Api\V1\SalesListingController;
 use App\Http\Controllers\Api\V1\SalesReportController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockTransferController;
@@ -170,6 +173,19 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('goods-receipts', GoodsReceiptController::class), 'purchase.goods_receipts', 'reports.goods_receipts.view');
     Route::post('goods-receipts/{goodsReceipt}/submit', [GoodsReceiptController::class, 'submit'])->middleware('permission:purchase.goods_receipts.update');
 
+    // Purchase Invoices/Returns: Goods Receipt -> Purchase Invoice -> Accounts Payable -> Purchase Return.
+    // Registered before apiResource('purchase-invoices', ...) below — same GET/{id}-swallowing-order
+    // trick as invoices/export/sales-report.
+    Route::get('purchase-invoices/export', [PurchaseInvoiceController::class, 'export'])->middleware('permission:purchase.invoices.view');
+    $withPagePermissions(Route::apiResource('purchase-invoices', PurchaseInvoiceController::class), 'purchase.invoices');
+    Route::post('purchase-invoices/{purchaseInvoice}/submit', [PurchaseInvoiceController::class, 'submit'])->middleware('permission:purchase.invoices.update');
+    Route::post('purchase-invoices/{purchaseInvoice}/cancel', [PurchaseInvoiceController::class, 'cancel'])->middleware('permission:purchase.invoices.update');
+
+    Route::get('purchase-returns/export', [PurchaseReturnController::class, 'export'])->middleware('permission:purchase.returns.view');
+    $withPagePermissions(Route::apiResource('purchase-returns', PurchaseReturnController::class), 'purchase.returns');
+    Route::post('purchase-returns/{purchaseReturn}/submit', [PurchaseReturnController::class, 'submit'])->middleware('permission:purchase.returns.update');
+    Route::post('purchase-returns/{purchaseReturn}/reverse', [PurchaseReturnController::class, 'reverse'])->middleware('permission:purchase.returns.update');
+
     Route::get('accounts-payables', [AccountsPayableController::class, 'index'])->middleware('permission:finance.accounts_payable.view');
     Route::get('accounts-payables/{accountsPayable}', [AccountsPayableController::class, 'show'])->middleware('permission:finance.accounts_payable.view');
 
@@ -186,8 +202,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('deliveries/{delivery}/complete', [DeliveryController::class, 'complete'])->middleware('permission:sales.deliveries.update');
 
     // Sales Report rework — 4 tabs, each a DB-level aggregate (never fetch-all-then-sum-in-PHP), so
-    // KPIs always reflect the full filtered set, not just the loaded page. Product/Customer/Open
-    // Orders are shipped; Sales Listing lands in its own follow-up commit.
+    // KPIs always reflect the full filtered set, not just the loaded page. All 4 tabs are shipped.
     Route::get('reports/sales/products', [ProductSalesController::class, 'index'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/products/export', [ProductSalesController::class, 'export'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/products/{itemId}/customers', [ProductSalesController::class, 'customers'])->middleware('permission:reports.sales.view');
@@ -197,6 +212,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('reports/sales/achievement', [CustomerSalesController::class, 'achievement'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/open-orders', [OpenOrdersController::class, 'index'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/open-orders/export', [OpenOrdersController::class, 'export'])->middleware('permission:reports.sales.view');
+    Route::get('reports/sales/listing', [SalesListingController::class, 'index'])->middleware('permission:reports.sales.view');
+    Route::get('reports/sales/listing/export', [SalesListingController::class, 'export'])->middleware('permission:reports.sales.view');
 
     // Invoice Workflow (Sprint 10): Delivery -> Invoice -> Accounts Receivable -> Receipt Entry.
     // Registered before apiResource('invoices', ...) below — its GET invoices/{invoice} (show)

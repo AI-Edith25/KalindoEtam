@@ -35,6 +35,12 @@ class AccountsPayableRepository extends BaseRepository
         $accountsPayable->update(['paid_amount' => $paidAmount, 'status' => $status]);
     }
 
+    /** Used by PurchaseReturnService (via AccountsPayableService::writeDown()/restoreWriteDown()) — reduces/restores the payable's face amount, distinct from paid_amount. Mirrors AccountsReceivableRepository::applyWriteDown(). */
+    public function applyWriteDown(AccountsPayable $accountsPayable, float $amount, float $creditedAmount, AccountsPayableStatus $status): void
+    {
+        $accountsPayable->update(['amount' => $amount, 'credited_amount' => $creditedAmount, 'status' => $status]);
+    }
+
     public function search(array $filters, int $perPage = 15): LengthAwarePaginator
     {
         return $this->model->query()

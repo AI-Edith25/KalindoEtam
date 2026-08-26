@@ -9,6 +9,7 @@ use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -63,30 +64,20 @@ class GoodsReceipt extends Model
         return $this->hasMany(GoodsReceiptItem::class);
     }
 
-    /**
-     * Dr Purchase Expense, Cr Accounts Payable — for AccountingService::
-     * postForDocument() to post (see GoodsReceiptService::submit()). Same
-     * shape/purpose as Invoice::journalLines(). Amount matches
-     * AccountsPayableService::createFromGoodsReceipt()'s own computation
-     * exactly (same source: items.sum('amount')), so the AP row and this
-     * journal never diverge.
-     */
-    public function journalLines(): array
+    /** Every Purchase Invoice this Goods Receipt has been billed on — used to guard against invoicing it twice. */
+    public function purchaseInvoices(): BelongsToMany
     {
-        $amount = (float) $this->items->sum('amount');
-
-        return [
-            ['account' => '5100', 'type' => 'debit', 'amount' => $amount], // Purchase Expense
-            ['account' => '2000', 'type' => 'credit', 'amount' => $amount], // Accounts Payable
-        ];
+        return $this->belongsToMany(PurchaseInvoice::class, 'purchase_invoice_goods_receipts');
     }
 
     /**
-     * A submitted Goods Receipt has already moved stock and created an
-     * Accounts Payable record. Reversing that safely means a Return
-     * workflow (compensating stock + AP entries), which does not exist
-     * yet. Cancel is therefore forbidden outright rather than left as a
-     * status flip that would silently desynchronize inventory.
+     * A submitted Goods Receipt has already moved stock. Reversing that
+     * safely (decrementing stock + the source Purchase Order's
+     * received_qty) has no dedicated workflow yet — Purchase Return
+     * corrects a posted Purchase Invoice, not a Goods Receipt directly, so
+     * it cannot be used to unwind a GR that hasn't been invoiced. Cancel is
+     * therefore forbidden outright rather than left as a status flip that
+     * would silently desynchronize inventory.
      */
     public function cancel(): static
     {

@@ -20,6 +20,12 @@ import { PurchaseOrderDetailPage } from '@/features/purchase/pages/PurchaseOrder
 import { GoodsReceiptListPage } from '@/features/purchase/pages/GoodsReceiptListPage'
 import { GoodsReceiptEditorPage } from '@/features/purchase/pages/GoodsReceiptEditorPage'
 import { GoodsReceiptDetailPage } from '@/features/purchase/pages/GoodsReceiptDetailPage'
+import { PurchaseInvoiceListPage } from '@/features/purchase/pages/PurchaseInvoiceListPage'
+import { PurchaseInvoiceEditorPage } from '@/features/purchase/pages/PurchaseInvoiceEditorPage'
+import { PurchaseInvoiceDetailPage } from '@/features/purchase/pages/PurchaseInvoiceDetailPage'
+import { PurchaseReturnListPage } from '@/features/purchase/pages/PurchaseReturnListPage'
+import { PurchaseReturnEditorPage } from '@/features/purchase/pages/PurchaseReturnEditorPage'
+import { PurchaseReturnDetailPage } from '@/features/purchase/pages/PurchaseReturnDetailPage'
 import { SalesOrderListPage } from '@/features/sales/pages/SalesOrderListPage'
 import { SalesOrderEditorPage } from '@/features/sales/pages/SalesOrderEditorPage'
 import { SalesOrderDetailPage } from '@/features/sales/pages/SalesOrderDetailPage'
@@ -120,6 +126,14 @@ export function AppRouter() {
         <Route path="/purchase/goods-receipts/new" element={<ProtectedRoute permission="purchase.goods_receipts.view"><GoodsReceiptEditorPage /></ProtectedRoute>} />
         <Route path="/purchase/goods-receipts/:id/edit" element={<ProtectedRoute permission="purchase.goods_receipts.view"><GoodsReceiptEditorPage /></ProtectedRoute>} />
         <Route path="/purchase/goods-receipts/:id" element={<ProtectedRoute permission="purchase.goods_receipts.view"><GoodsReceiptDetailPage /></ProtectedRoute>} />
+        <Route path="/purchase/invoices" element={<ProtectedRoute permission="purchase.invoices.view"><PurchaseInvoiceListPage /></ProtectedRoute>} />
+        <Route path="/purchase/invoices/new" element={<ProtectedRoute permission="purchase.invoices.view"><PurchaseInvoiceEditorPage /></ProtectedRoute>} />
+        <Route path="/purchase/invoices/:id/edit" element={<ProtectedRoute permission="purchase.invoices.view"><PurchaseInvoiceEditorPage /></ProtectedRoute>} />
+        <Route path="/purchase/invoices/:id" element={<ProtectedRoute permission="purchase.invoices.view"><PurchaseInvoiceDetailPage /></ProtectedRoute>} />
+        <Route path="/purchase/returns" element={<ProtectedRoute permission="purchase.returns.view"><PurchaseReturnListPage /></ProtectedRoute>} />
+        <Route path="/purchase/returns/new" element={<ProtectedRoute permission="purchase.returns.view"><PurchaseReturnEditorPage /></ProtectedRoute>} />
+        <Route path="/purchase/returns/:id/edit" element={<ProtectedRoute permission="purchase.returns.view"><PurchaseReturnEditorPage /></ProtectedRoute>} />
+        <Route path="/purchase/returns/:id" element={<ProtectedRoute permission="purchase.returns.view"><PurchaseReturnDetailPage /></ProtectedRoute>} />
         <Route path="/sales/orders" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPage /></ProtectedRoute>} />
         <Route path="/sales/orders/outstanding" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPage /></ProtectedRoute>} />
         <Route path="/sales/orders/new" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderEditorPage /></ProtectedRoute>} />

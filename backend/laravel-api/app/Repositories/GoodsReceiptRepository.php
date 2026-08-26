@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class GoodsReceiptRepository extends BaseRepository
 {
-    protected const EAGER = ['supplier', 'warehouse', 'purchaseOrder', 'items'];
+    protected const EAGER = ['supplier', 'warehouse', 'purchaseOrder', 'items', 'purchaseInvoices'];
 
     public function __construct(GoodsReceipt $model)
     {

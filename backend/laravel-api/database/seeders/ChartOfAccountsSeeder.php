@@ -37,6 +37,7 @@ class ChartOfAccountsSeeder extends Seeder
             // Expense
             ['code' => '4900', 'name' => 'Discount Given', 'account_type' => AccountType::EXPENSE],
             ['code' => '5000', 'name' => 'Cost of Goods Sold', 'account_type' => AccountType::EXPENSE],
+            ['code' => '5050', 'name' => 'Purchase Returns and Allowances', 'account_type' => AccountType::EXPENSE],
             ['code' => '5100', 'name' => 'Purchase Expense', 'account_type' => AccountType::EXPENSE],
             ['code' => '6000', 'name' => 'Operating Expenses', 'account_type' => AccountType::EXPENSE],
             // General Expense (Outgoing Payment, non-PO office spending) — granular categories under 6000's catch-all.

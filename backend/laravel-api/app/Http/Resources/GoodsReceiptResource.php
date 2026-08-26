@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\DocumentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -23,6 +24,9 @@ class GoodsReceiptResource extends JsonResource
             'due_date' => $this->due_date?->format('Y-m-d'),
             'remarks' => $this->remarks,
             'items' => GoodsReceiptItemResource::collection($this->whenLoaded('items')),
+            // Mirrors DeliveryResource::is_invoiced — only meaningful once submitted (stock has
+            // moved by then), used by Purchase Invoice's "eligible Goods Receipts" picker.
+            'is_invoiced' => $this->whenLoaded('purchaseInvoices', fn () => $this->status === DocumentStatus::SUBMITTED ? $this->purchaseInvoices->isNotEmpty() : null),
             'submitted_at' => $this->submitted_at,
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,

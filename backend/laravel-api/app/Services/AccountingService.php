@@ -91,11 +91,14 @@ class AccountingService
         '1100' => 'Kas/Bank',
         '1150' => 'Uang Muka Pelanggan',
         '1200' => 'Piutang Usaha',
+        '2000' => 'Utang Usaha',
         '2100' => 'Pajak',
         '4000' => 'Pendapatan Penjualan',
         '4050' => 'Retur Penjualan',
         '4100' => 'Pendapatan Lain-lain',
         '4900' => 'Diskon',
+        '5050' => 'Retur Pembelian',
+        '5100' => 'Beban Pembelian',
     ];
 
     /** Maps journalLines()' {account: code, type: debit|credit, amount} shape onto {chart_of_account_id, debit, credit}. */

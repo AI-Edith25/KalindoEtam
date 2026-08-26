@@ -18,6 +18,8 @@ class DocumentEngineSeeder extends Seeder
         $series = [
             ['module' => 'purchase', 'document_type' => 'purchase', 'prefix' => 'PO-'],
             ['module' => 'purchase', 'document_type' => 'goods_receipt', 'prefix' => 'GR-'],
+            ['module' => 'purchase', 'document_type' => 'purchase_invoice', 'prefix' => 'PI-'],
+            ['module' => 'purchase', 'document_type' => 'purchase_return', 'prefix' => 'PRT-'],
             // UAT follow-up (2026-08-15): format moved to SO/KE/#####/MM/YYYY and DO/KE/#####/MM/YYYY,
             // matching invoice_goods/invoice_transportation below.
             ['module' => 'sales', 'document_type' => 'sales', 'prefix' => 'SO/KE/', 'suffix' => '/{MM}/{YYYY}'],

@@ -86,6 +86,8 @@ export const navTree: NavGroup[] = [
     pages: [
       { key: 'orders', label: 'Orders', path: '/purchase/orders', actions: ['view', 'create', 'update', 'delete', 'approve'] },
       { key: 'goods_receipts', label: 'Goods Receipts', path: '/purchase/goods-receipts', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'invoices', label: 'Invoices', path: '/purchase/invoices', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'returns', label: 'Returns', path: '/purchase/returns', actions: ['view', 'create', 'update', 'delete'] },
     ],
   },
   {

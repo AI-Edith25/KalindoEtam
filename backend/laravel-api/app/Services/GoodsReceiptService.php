@@ -23,8 +23,6 @@ class GoodsReceiptService
         protected PurchaseOrderRepository $purchaseOrderRepository,
         protected PurchaseOrderItemRepository $purchaseOrderItemRepository,
         protected StockLedgerService $stockLedgerService,
-        protected AccountsPayableService $accountsPayableService,
-        protected AccountingService $accountingService,
         protected AuditLogService $auditLogService,
     ) {}
 
@@ -128,8 +126,10 @@ class GoodsReceiptService
 
     /**
      * The workflow: validate PO, move stock (StockLedgerService only),
-     * advance the PO's received_qty, flip status via Documentable, then
-     * create the Accounts Payable record.
+     * advance the PO's received_qty, flip status via Documentable. Stock-
+     * only — Accounts Payable and the GL posting no longer happen here,
+     * they're created when a Purchase Invoice billed against this Goods
+     * Receipt is submitted (PurchaseInvoiceService::submit()).
      */
     public function submit(GoodsReceipt $goodsReceipt): GoodsReceipt
     {
@@ -161,14 +161,6 @@ class GoodsReceiptService
             }
 
             $goodsReceipt->submit();
-
-            $this->accountsPayableService->createFromGoodsReceipt($goodsReceipt);
-            $this->accountingService->postForDocument(
-                $goodsReceipt,
-                $goodsReceipt->journalLines(),
-                "Goods Receipt {$goodsReceipt->document_number}",
-                $goodsReceipt->receipt_date->toDateString(),
-            );
 
             $goodsReceipt = $goodsReceipt->fresh(['supplier', 'warehouse', 'purchaseOrder', 'items']);
             $this->auditLogService->record('submitted', 'goods_receipt', "Submitted Goods Receipt \"{$goodsReceipt->document_number}\".");

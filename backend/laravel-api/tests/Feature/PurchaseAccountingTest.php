@@ -17,6 +17,7 @@ use App\Services\AccountsPayableService;
 use App\Services\GeneralLedgerService;
 use App\Services\GoodsReceiptService;
 use App\Services\PaymentEntryService;
+use App\Services\PurchaseInvoiceService;
 use App\Services\PurchaseOrderService;
 use App\Services\TrialBalanceService;
 use Database\Seeders\ChartOfAccountsSeeder;
@@ -38,6 +39,7 @@ class PurchaseAccountingTest extends TestCase
 
     protected PurchaseOrderService $purchaseOrderService;
     protected GoodsReceiptService $goodsReceiptService;
+    protected PurchaseInvoiceService $purchaseInvoiceService;
     protected PaymentEntryService $paymentEntryService;
     protected AccountsPayableService $accountsPayableService;
     protected TrialBalanceService $trialBalanceService;
@@ -56,6 +58,7 @@ class PurchaseAccountingTest extends TestCase
 
         $this->purchaseOrderService = app(PurchaseOrderService::class);
         $this->goodsReceiptService = app(GoodsReceiptService::class);
+        $this->purchaseInvoiceService = app(PurchaseInvoiceService::class);
         $this->paymentEntryService = app(PaymentEntryService::class);
         $this->accountsPayableService = app(AccountsPayableService::class);
         $this->trialBalanceService = app(TrialBalanceService::class);
@@ -73,6 +76,14 @@ class PurchaseAccountingTest extends TestCase
         ]);
     }
 
+    /**
+     * Goods Receipt submit is stock-only (Accounts Payable/GL moved to
+     * Purchase Invoice — see PurchaseInvoiceService::submit()); this helper
+     * carries every caller through the full GR -> Purchase Invoice -> AP
+     * chain so `AccountsPayable::where('goods_receipt_id', ...)` (still
+     * populated from the Invoice's anchor column) keeps resolving exactly
+     * like it did when Goods Receipt created AP directly.
+     */
     protected function submittedGoodsReceipt(int $qty = 5, float $rate = 20000): GoodsReceipt
     {
         $purchaseOrder = $this->purchaseOrderService->create([
@@ -90,11 +101,43 @@ class PurchaseAccountingTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => $qty]],
         ]);
+        $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt);
 
-        return $this->goodsReceiptService->submit($goodsReceipt);
+        $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $this->purchaseInvoiceService->submit($purchaseInvoice);
+
+        return $goodsReceipt;
     }
 
-    public function test_goods_receipt_posts_purchase_expense_debit_and_accounts_payable_credit(): void
+    public function test_goods_receipt_submit_does_not_post_purchase_expense_or_accounts_payable(): void
+    {
+        $purchaseOrder = $this->purchaseOrderService->create([
+            'supplier_id' => $this->supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 20000]],
+        ]);
+        $this->approveDocument($purchaseOrder);
+        $purchaseOrder = $this->purchaseOrderService->submit($purchaseOrder);
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 5]],
+        ]);
+        $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt);
+
+        $this->assertDatabaseCount('accounts_payables', 0);
+        $this->assertDatabaseCount('journal_entries', 0);
+        $this->assertEquals(5, \App\Models\StockLedger::query()->where('voucher_id', $goodsReceipt->id)->sum('qty_change'));
+    }
+
+    public function test_purchase_invoice_submit_posts_purchase_expense_debit_and_accounts_payable_credit(): void
     {
         $this->submittedGoodsReceipt(qty: 5, rate: 20000); // 100000
 
