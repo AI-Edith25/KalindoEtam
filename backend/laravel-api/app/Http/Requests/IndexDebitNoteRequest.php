@@ -14,13 +14,23 @@ class IndexDebitNoteRequest extends FormRequest
         return true;
     }
 
+    /** A legacy singular ?status=x caller is normalized to the same array shape the new multi-select filter sends, so both validate and filter identically. */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('status') && ! is_array($this->status)) {
+            $this->merge(['status' => array_filter(explode(',', (string) $this->status))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
+            'status' => ['sometimes', 'nullable', 'array'],
+            'status.*' => [Rule::enum(DocumentStatus::class)],
             'reason' => ['sometimes', 'nullable', Rule::enum(DebitNoteReason::class)],
             'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
+            'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
             'invoice_id' => ['sometimes', 'nullable', 'uuid', 'exists:invoices,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],

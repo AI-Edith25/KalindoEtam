@@ -13,6 +13,14 @@ class IndexDeliveryRequest extends FormRequest
         return true;
     }
 
+    /** A legacy singular ?status=x caller (dashboard/eligible-list fetches elsewhere in the app) is normalized to the same array shape the new multi-select filter sends, so both validate and filter identically. */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('status') && ! is_array($this->status)) {
+            $this->merge(['status' => array_filter(explode(',', (string) $this->status))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -23,8 +31,10 @@ class IndexDeliveryRequest extends FormRequest
             // include "complete"/"pending" at all, so every status-filtered request 422'd:
             // New Invoice's eligible-deliveries fetch, this list's own Status filter, and the
             // Outstanding toggle all send status=complete/pending).
-            'status' => ['sometimes', 'nullable', Rule::enum(DeliveryStatus::class)],
+            'status' => ['sometimes', 'nullable', 'array'],
+            'status.*' => [Rule::enum(DeliveryStatus::class)],
             'warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
+            'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
             'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
             'item_id' => ['sometimes', 'nullable', 'uuid', 'exists:items,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],

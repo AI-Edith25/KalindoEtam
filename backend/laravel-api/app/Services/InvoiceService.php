@@ -14,6 +14,7 @@ use App\Repositories\InvoiceItemRepository;
 use App\Repositories\InvoiceRepository;
 use App\Repositories\TaxRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class InvoiceService
@@ -35,6 +36,12 @@ class InvoiceService
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->invoiceRepository->search($filters, $perPage);
+    }
+
+    /** Unpaginated, for bulk export/print — same filters as list(), plus an optional $ids override. */
+    public function listAll(array $filters = [], ?array $ids = null): Collection
+    {
+        return $this->invoiceRepository->searchAll($filters, $ids);
     }
 
     /**

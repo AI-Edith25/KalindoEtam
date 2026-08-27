@@ -13,6 +13,7 @@ use App\Repositories\DebitNoteRepository;
 use App\Repositories\InvoiceItemRepository;
 use App\Repositories\InvoiceRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -41,6 +42,12 @@ class DebitNoteService
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->debitNoteRepository->search($filters, $perPage);
+    }
+
+    /** Unpaginated, for bulk export/print — same filters as list(), plus an optional $ids override. */
+    public function listAll(array $filters = [], ?array $ids = null): Collection
+    {
+        return $this->debitNoteRepository->searchAll($filters, $ids);
     }
 
     public function create(array $data): DebitNote

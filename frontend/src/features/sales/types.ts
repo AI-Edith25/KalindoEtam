@@ -94,12 +94,6 @@ export interface CustomerCreditStatus {
   message: string
 }
 
-export interface SalesOrderFilterValues {
-  status: SalesOrderStatus | null
-  dateFrom: string
-  dateTo: string
-}
-
 export interface DeliveryItem {
   id: string
   sales_order_item_id: string

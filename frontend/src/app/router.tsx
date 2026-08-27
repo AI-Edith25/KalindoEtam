@@ -30,6 +30,8 @@ import { SalesOrderListPage } from '@/features/sales/pages/SalesOrderListPage'
 import { SalesOrderEditorPage } from '@/features/sales/pages/SalesOrderEditorPage'
 import { SalesOrderDetailPage } from '@/features/sales/pages/SalesOrderDetailPage'
 import { SalesOrderPrintPage } from '@/features/sales/pages/SalesOrderPrintPage'
+import { SalesOrderBulkPrintPage } from '@/features/sales/pages/SalesOrderBulkPrintPage'
+import { SalesOrderListPrintPage } from '@/features/sales/pages/SalesOrderListPrintPage'
 import { DeliveryListPage } from '@/features/sales/pages/DeliveryListPage'
 import { DeliveryEditorPage } from '@/features/sales/pages/DeliveryEditorPage'
 import { DeliveryDetailPage } from '@/features/sales/pages/DeliveryDetailPage'
@@ -141,6 +143,8 @@ export function AppRouter() {
         <Route path="/sales/orders/:id/edit" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderEditorPage /></ProtectedRoute>} />
         <Route path="/sales/orders/:id" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderDetailPage /></ProtectedRoute>} />
         <Route path="/sales/orders/:id/print" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/orders/print-bulk" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderBulkPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/orders/print-list" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPrintPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/outstanding" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/new" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryEditorPage /></ProtectedRoute>} />

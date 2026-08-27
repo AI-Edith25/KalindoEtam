@@ -198,12 +198,16 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Sales Workflow (Sprint 5): Customer -> SO -> Delivery -> Stock Ledger(-).
     // Delivery Report additionally reads Sales Orders client-side (to resolve each delivery's
     // sales_order_id -> document number), so this view gate must also accept reports.deliveries.view.
+    // Registered before apiResource('sales-orders', ...) below, same reason as invoices/export/sales-report — its
+    // GET sales-orders/{id} (show) would otherwise swallow this path first and try to resolve "export" as an id.
+    Route::get('sales-orders/export', [SalesOrderController::class, 'export'])->middleware('permission:sales.orders.view|reports.sales.view|reports.deliveries.view');
     $withPagePermissions(Route::apiResource('sales-orders', SalesOrderController::class), 'sales.orders', 'reports.sales.view|reports.deliveries.view');
     // Credit/overdue block's customer-select-time check — lives under customers/ but is a Sales Order screen concern, so it's gated by the page that owns it (sales.orders.create), not master.customers.*.
     Route::get('customers/{customer}/credit-status', [CustomerController::class, 'creditStatus'])->middleware('permission:sales.orders.create');
     Route::post('sales-orders/{salesOrder}/approve', [SalesOrderController::class, 'approve'])->middleware('permission:sales.orders.approve');
     Route::post('sales-orders/{salesOrder}/cancel', [SalesOrderController::class, 'cancel'])->middleware('permission:sales.orders.update');
 
+    Route::get('deliveries/export', [DeliveryController::class, 'export'])->middleware('permission:sales.deliveries.view|reports.deliveries.view');
     $withPagePermissions(Route::apiResource('deliveries', DeliveryController::class), 'sales.deliveries', 'reports.deliveries.view');
     Route::post('deliveries/{delivery}/complete', [DeliveryController::class, 'complete'])->middleware('permission:sales.deliveries.update');
 
@@ -225,6 +229,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Registered before apiResource('invoices', ...) below — its GET invoices/{invoice} (show)
     // would otherwise swallow this path first and try to resolve "export" as an invoice id.
     Route::get('invoices/export/sales-report', [SalesReportController::class, 'export'])->middleware('permission:sales.invoices.view');
+    Route::get('invoices/export', [InvoiceController::class, 'export'])->middleware('permission:sales.invoices.view');
     $withPagePermissions(Route::apiResource('invoices', InvoiceController::class), 'sales.invoices');
     Route::post('invoices/{invoice}/submit', [InvoiceController::class, 'submit'])->middleware('permission:sales.invoices.update');
     Route::post('invoices/{invoice}/cancel', [InvoiceController::class, 'cancel'])->middleware('permission:sales.invoices.update');
@@ -244,12 +249,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
 
     // Credit Note (Sprint 13B): the only accounting-correction path for a posted Invoice —
     // Invoice::cancel() deliberately never touches the ledger, see InvoiceService::cancel().
+    Route::get('credit-notes/export', [CreditNoteController::class, 'export'])->middleware('permission:sales.credit_notes.view');
     $withPagePermissions(Route::apiResource('credit-notes', CreditNoteController::class), 'sales.credit_notes');
     Route::post('credit-notes/{creditNote}/submit', [CreditNoteController::class, 'submit'])->middleware('permission:sales.credit_notes.update');
     Route::post('credit-notes/{creditNote}/reverse', [CreditNoteController::class, 'reverse'])->middleware('permission:sales.credit_notes.update');
 
     // Debit Note (Sprint 14B): the counterpart to Credit Note — increases a
     // customer's receivable after a posted Invoice. See docs/DEBIT_NOTE_DESIGN.md.
+    Route::get('debit-notes/export', [DebitNoteController::class, 'export'])->middleware('permission:sales.debit_notes.view');
     $withPagePermissions(Route::apiResource('debit-notes', DebitNoteController::class), 'sales.debit_notes');
     Route::post('debit-notes/{debitNote}/submit', [DebitNoteController::class, 'submit'])->middleware('permission:sales.debit_notes.update');
     Route::post('debit-notes/{debitNote}/reverse', [DebitNoteController::class, 'reverse'])->middleware('permission:sales.debit_notes.update');

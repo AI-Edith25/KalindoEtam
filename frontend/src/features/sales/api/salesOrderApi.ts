@@ -5,7 +5,7 @@ import type { CustomerCreditStatus, SalesOrder, SalesOrderFormValues } from '../
 export interface SalesOrderListParams {
   page: number
   search?: string
-  status?: string
+  status?: string | string[]
   customer_id?: string
   item_id?: string
   sales_person_id?: string
@@ -58,4 +58,22 @@ export async function fetchCustomerCreditStatus(customerId: string): Promise<Cus
 export async function cancelSalesOrder(id: string): Promise<SalesOrder> {
   const { data } = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/cancel`)
   return data.data
+}
+
+export interface SalesOrderExportParams {
+  format: 'xlsx' | 'csv'
+  columns?: string[]
+  ids?: string[]
+  search?: string
+  status?: string[]
+  customer_id?: string
+  sales_person_id?: string
+  date_from?: string
+  date_to?: string
+}
+
+/** Bulk export — same filter contract as fetchSalesOrders, plus `ids` (checked rows override the filter entirely) and `columns` (subset to include). See SalesOrderController::export(). */
+export async function exportSalesOrders(params: SalesOrderExportParams): Promise<Blob> {
+  const { data } = await apiClient.get('/sales-orders/export', { params, responseType: 'blob' })
+  return data
 }

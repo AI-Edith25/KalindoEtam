@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Concerns\ApiResponse;
+use App\Http\Controllers\Concerns\ExportsSalesList;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexInvoiceRequest;
 use App\Http\Requests\StoreInvoiceRequest;
@@ -12,10 +13,25 @@ use App\Http\Resources\InvoiceResource;
 use App\Models\Invoice;
 use App\Services\InvoiceService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class InvoiceController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, ExportsSalesList;
+
+    /** Ordered [columnKey => label] — mirrors InvoiceListPage.tsx's own table columns. */
+    protected const COLUMNS = [
+        'invoice_date' => 'Date',
+        'document_number' => 'Document',
+        'reference' => 'Reference',
+        'attention' => 'Attention',
+        'customer_name' => 'Customer Name',
+        'subtotal' => 'Gross Amount',
+        'tax_amount' => 'Tax',
+        'grand_total' => 'Amount',
+        'status' => 'Status',
+    ];
 
     public function __construct(protected InvoiceService $invoiceService) {}
 
@@ -76,5 +92,48 @@ class InvoiceController extends Controller
         $invoice = $this->invoiceService->updateBranch($invoice, $request->validated()['branch_id']);
 
         return $this->success(new InvoiceResource($invoice), 'Branch updated.');
+    }
+
+    /**
+     * Plain list bulk export — same contract as SalesOrderController::export(). Distinct from
+     * the existing invoices/export/sales-report (SalesReportController), which stays as-is for
+     * its own Summary/Detail report shape; this is the generic "export what's on screen" action.
+     */
+    public function export(IndexInvoiceRequest $request): BinaryFileResponse
+    {
+        $extra = $request->validate([
+            'format' => ['sometimes', Rule::in(['xlsx', 'csv'])],
+            'ids' => ['sometimes', 'array'],
+            'ids.*' => ['uuid'],
+            'columns' => ['sometimes', 'array'],
+            'columns.*' => [Rule::in(array_keys(self::COLUMNS))],
+        ]);
+
+        $filters = $request->validated();
+        unset($filters['per_page']);
+
+        $rows = $this->invoiceService->listAll($filters, $extra['ids'] ?? null);
+
+        return $this->exportSalesList(
+            $rows,
+            self::COLUMNS,
+            $extra['columns'] ?? null,
+            fn (Invoice $row, string $key) => match ($key) {
+                'invoice_date' => $row->invoice_date?->format('Y-m-d'),
+                'document_number' => $row->document_number,
+                'reference' => $row->deliveries->pluck('document_number')->filter()->implode(', '),
+                'attention' => $row->salesOrder?->attention,
+                'customer_name' => $row->customer?->customer_name,
+                'subtotal' => (float) $row->subtotal,
+                'tax_amount' => (float) $row->tax_amount,
+                'grand_total' => (float) $row->grand_total,
+                'status' => ucfirst($row->status?->value ?? ''),
+                default => null,
+            },
+            'invoices',
+            $filters['date_from'] ?? null,
+            $filters['date_to'] ?? null,
+            $extra['format'] ?? 'xlsx',
+        );
     }
 }

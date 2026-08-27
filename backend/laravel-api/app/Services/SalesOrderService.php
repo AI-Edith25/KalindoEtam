@@ -9,6 +9,7 @@ use App\Models\SalesOrder;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +26,12 @@ class SalesOrderService
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->salesOrderRepository->search($filters, $perPage);
+    }
+
+    /** Unpaginated, for bulk export/print — same filters as list(), plus an optional $ids override. */
+    public function listAll(array $filters = [], ?array $ids = null): Collection
+    {
+        return $this->salesOrderRepository->searchAll($filters, $ids);
     }
 
     public function create(array $data): SalesOrder

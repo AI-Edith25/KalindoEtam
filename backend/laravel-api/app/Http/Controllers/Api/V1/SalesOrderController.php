@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Concerns\ApiResponse;
+use App\Http\Controllers\Concerns\ExportsSalesList;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexSalesOrderRequest;
 use App\Http\Requests\StoreSalesOrderRequest;
@@ -12,10 +13,21 @@ use App\Models\SalesOrder;
 use App\Services\SalesOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SalesOrderController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, ExportsSalesList;
+
+    /** Ordered [columnKey => label] — every column bulk-export can produce, in display order. Mirrors SalesOrderListPage.tsx's own table columns. */
+    protected const COLUMNS = [
+        'order_date' => 'Date',
+        'document_number' => 'Document',
+        'customer_name' => 'Customer Name',
+        'total_amount' => 'Amount',
+        'status' => 'Status',
+    ];
 
     public function __construct(
         protected SalesOrderService $salesOrderService,
@@ -73,5 +85,44 @@ class SalesOrderController extends Controller
         $salesOrder = $this->salesOrderService->cancel($salesOrder);
 
         return $this->success(new SalesOrderResource($salesOrder), 'Sales Order cancelled.');
+    }
+
+    /**
+     * Bulk export — same filters as index() (via IndexSalesOrderRequest), plus `ids[]` (checked
+     * rows override the filter entirely, same contract as InvoiceRepository::searchAll()),
+     * `columns[]` (subset of self::COLUMNS to include, default all), and `format` (xlsx/csv).
+     */
+    public function export(IndexSalesOrderRequest $request): BinaryFileResponse
+    {
+        $extra = $request->validate([
+            'format' => ['sometimes', Rule::in(['xlsx', 'csv'])],
+            'ids' => ['sometimes', 'array'],
+            'ids.*' => ['uuid'],
+            'columns' => ['sometimes', 'array'],
+            'columns.*' => [Rule::in(array_keys(self::COLUMNS))],
+        ]);
+
+        $filters = $request->validated();
+        unset($filters['per_page']);
+
+        $rows = $this->salesOrderService->listAll($filters, $extra['ids'] ?? null);
+
+        return $this->exportSalesList(
+            $rows,
+            self::COLUMNS,
+            $extra['columns'] ?? null,
+            fn (SalesOrder $row, string $key) => match ($key) {
+                'order_date' => $row->order_date?->format('Y-m-d'),
+                'document_number' => $row->document_number,
+                'customer_name' => $row->customer?->customer_name,
+                'total_amount' => (float) $row->total_amount,
+                'status' => ucfirst($row->status?->value ?? ''),
+                default => null,
+            },
+            'sales_orders',
+            $filters['date_from'] ?? null,
+            $filters['date_to'] ?? null,
+            $extra['format'] ?? 'xlsx',
+        );
     }
 }
