@@ -324,4 +324,41 @@ class PurchaseReturnTest extends TestCase
         $this->assertEquals(2.50, (float) $line->qty_returned);
         $this->assertSame('weight', $line->qty_category->value);
     }
+
+    /**
+     * Unlike Goods Receipt (PO estimate vs. truck-scale actual), a Return's ceiling is the
+     * Invoice's own recorded qty — actual vs. actual, since the Invoice already carries the
+     * true over-received weight for a Weight-category item. There's no scale-variance case to
+     * tolerate here, so this stays a hard block for every category — only the native HTML `max`
+     * (a float-precision UX trap) was removed, not the business rule itself.
+     */
+    public function test_return_quantity_still_cannot_exceed_invoiced_qty_for_weight_category(): void
+    {
+        $this->item->update(['qty_category' => 'weight']);
+        $purchaseInvoice = $this->submittedPurchaseInvoice(qty: 50, rate: 20000);
+        $invoiceItem = $purchaseInvoice->items->first();
+
+        try {
+            $this->purchaseReturnService->create([
+                'purchase_invoice_id' => $purchaseInvoice->id,
+                'return_date' => now()->toDateString(),
+                'reason' => PurchaseReturnReason::QUANTITY_DISCREPANCY->value,
+                'items' => [['purchase_invoice_item_id' => $invoiceItem->id, 'qty_returned' => 50.3, 'amount' => 1006000]],
+            ]);
+            $this->fail('Expected returning more than the invoiced qty to throw even for a Weight-category item.');
+        } catch (BusinessException) {
+        }
+
+        $this->assertDatabaseCount('purchase_returns', 0);
+
+        // Exactly the invoiced qty is allowed.
+        $purchaseReturn = $this->purchaseReturnService->create([
+            'purchase_invoice_id' => $purchaseInvoice->id,
+            'return_date' => now()->toDateString(),
+            'reason' => PurchaseReturnReason::QUANTITY_DISCREPANCY->value,
+            'items' => [['purchase_invoice_item_id' => $invoiceItem->id, 'qty_returned' => 50, 'amount' => 1000000]],
+        ]);
+
+        $this->assertEquals(50, (float) $purchaseReturn->items->first()->qty_returned);
+    }
 }

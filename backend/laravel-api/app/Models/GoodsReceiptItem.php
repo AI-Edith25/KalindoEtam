@@ -21,6 +21,7 @@ class GoodsReceiptItem extends Model
         'item_name',
         'uom',
         'qty',
+        'over_receipt_qty',
         'qty_category',
         'rate',
         'amount',
@@ -28,6 +29,7 @@ class GoodsReceiptItem extends Model
 
     protected $casts = [
         'qty' => 'decimal:4',
+        'over_receipt_qty' => 'decimal:4',
         'qty_category' => QtyCategory::class,
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',

@@ -18,6 +18,7 @@ class UpdateGoodsReceiptRequest extends FormRequest
             'receipt_date' => ['sometimes', 'required', 'date'],
             'due_date' => ['sometimes', 'required', 'date', 'after_or_equal:receipt_date'],
             'remarks' => ['nullable', 'string'],
+            'confirm_over_receipt' => ['sometimes', 'boolean'],
             'items' => ['sometimes', 'array', 'min:1'],
             // purchase_order_id is immutable post-create (not accepted here) — whether a line
             // needs purchase_order_item_id vs item_id/rate is resolved server-side from the

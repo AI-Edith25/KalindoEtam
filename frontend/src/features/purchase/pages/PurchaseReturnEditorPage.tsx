@@ -360,13 +360,15 @@ export function PurchaseReturnEditorPage() {
                             <Input
                               type="number"
                               min={0}
-                              max={capQty}
                               step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
                               placeholder="0"
                               disabled={!quantityAllowed}
                               value={existing?.qtyReturned ?? ''}
                               onChange={(event) => setLine(line.id, { qtyReturned: event.target.value })}
                             />
+                            {ownQty > capQty && (
+                              <p className="mt-1 text-xs text-destructive">Exceeds returnable qty ({formatQty(capQty, qtyCategory)}).</p>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Input

@@ -73,8 +73,12 @@ export const goodsReceiptFormSchema = z.object({
     }
 
     // Same PO item can appear on multiple rows (different truck loads) — validate the combined
-    // total, not each row alone, against that item's remaining outstanding qty.
-    const groups = new Map<string, { total: number; remaining: number; allowOverReceipt: boolean; indexes: number[] }>()
+    // total, not each row alone, against that item's remaining outstanding qty. Weight-category
+    // items are never hard-blocked here: exceeding the PO's ordered qty is normal for a
+    // truck-scale result, only gated server-side by the tolerance setting (see
+    // GoodsReceiptEditorPage's confirm_over_receipt / 409 handling) — GoodsReceiptLineItemTable
+    // shows a non-blocking amber warning for these instead of a validation error.
+    const groups = new Map<string, { total: number; remaining: number; allowOverReceipt: boolean; qtyCategory: string; indexes: number[] }>()
     items.forEach((line, index) => {
       if (!line.purchase_order_item_id) return
       const value = parseLocaleQty(line.receiveNow || '0')
@@ -87,12 +91,15 @@ export const goodsReceiptFormSchema = z.object({
           total: value,
           remaining: line.remaining,
           allowOverReceipt: line.allowOverReceipt,
+          qtyCategory: line.qtyCategory,
           indexes: [index],
         })
       }
     })
 
-    groups.forEach(({ total, remaining, allowOverReceipt, indexes }) => {
+    groups.forEach(({ total, remaining, allowOverReceipt, qtyCategory, indexes }) => {
+      if (qtyCategory === 'weight') return
+
       if (total > remaining && !allowOverReceipt) {
         indexes.forEach((index) => {
           ctx.addIssue({

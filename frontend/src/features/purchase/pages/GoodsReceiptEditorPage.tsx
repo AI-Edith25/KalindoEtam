@@ -14,7 +14,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { toastApiError } from '@/shared/services/errorHandler'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
+import { getErrorMessage, isOverReceiptConfirmationRequired, toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { parseLocaleQty } from '@/shared/lib/qty'
 import { fetchItemsLookup, fetchSuppliersLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
@@ -58,6 +59,9 @@ export function GoodsReceiptEditorPage() {
 
   const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<string | null>(null)
   const [mode, setMode] = useState<ReceiptMode | null>(null)
+  // Set when the backend responds 409 requires_confirmation (Weight-category over-tolerance) —
+  // holds the values to resubmit with confirm_over_receipt:true if the user confirms.
+  const [overReceiptConfirm, setOverReceiptConfirm] = useState<{ message: string; values: GoodsReceiptEditorValues } | null>(null)
 
   const receiptQuery = useQuery({
     queryKey: ['goods-receipts', id],
@@ -179,7 +183,7 @@ export function GoodsReceiptEditorPage() {
   }, [isDirectMode, receiptQuery.data, isEdit])
 
   const saveMutation = useMutation({
-    mutationFn: (values: GoodsReceiptEditorValues) => {
+    mutationFn: ({ values, confirmOverReceipt }: { values: GoodsReceiptEditorValues; confirmOverReceipt: boolean }) => {
       const items = values.items
         .filter((line) => parseLocaleQty(line.receiveNow) > 0)
         .map((line) => ({ purchase_order_item_id: line.purchase_order_item_id, qty: parseLocaleQty(line.receiveNow) }))
@@ -191,6 +195,7 @@ export function GoodsReceiptEditorPage() {
           due_date: values.due_date,
           remarks: values.remarks || null,
           items,
+          confirm_over_receipt: confirmOverReceipt,
         })
       }
 
@@ -201,16 +206,24 @@ export function GoodsReceiptEditorPage() {
         due_date: values.due_date,
         remarks: values.remarks || null,
         items,
+        confirm_over_receipt: confirmOverReceipt,
       })
     },
     onSuccess: (receipt) => {
       queryClient.invalidateQueries({ queryKey: ['goods-receipts'] })
       toast.success(isEdit ? 'Receipt details updated.' : 'Goods received. Confirm to update stock and create the payable.')
+      setOverReceiptConfirm(null)
       if (!isEdit) {
         navigate(`/purchase/goods-receipts/${receipt.id}/edit`, { replace: true })
       }
     },
-    onError: (error) => toastApiError(error),
+    onError: (error, variables) => {
+      if (isOverReceiptConfirmationRequired(error)) {
+        setOverReceiptConfirm({ message: getErrorMessage(error), values: variables.values })
+        return
+      }
+      toastApiError(error)
+    },
   })
 
   const saveDirectMutation = useMutation({
@@ -499,8 +512,19 @@ export function GoodsReceiptEditorPage() {
         description={`Receiving against ${purchaseOrder.document_number} — ${purchaseOrder.supplier?.supplier_name ?? ''}.`}
       />
 
+      <ConfirmationDialog
+        open={!!overReceiptConfirm}
+        onOpenChange={(open) => !open && setOverReceiptConfirm(null)}
+        title="Confirm Over-Receipt"
+        description={overReceiptConfirm?.message}
+        confirmLabel="Yes, Continue"
+        onConfirm={() => {
+          if (overReceiptConfirm) saveMutation.mutate({ values: overReceiptConfirm.values, confirmOverReceipt: true })
+        }}
+      />
+
       <Form {...form}>
-        <form onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))} className="flex flex-col gap-4">
+        <form onSubmit={form.handleSubmit((values) => saveMutation.mutate({ values, confirmOverReceipt: false }))} className="flex flex-col gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Receipt Details</CardTitle>

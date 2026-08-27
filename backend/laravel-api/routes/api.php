@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\V1\ProductSalesController;
 use App\Http\Controllers\Api\V1\PurchaseInvoiceController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReturnController;
+use App\Http\Controllers\Api\V1\PurchaseSettingController;
 use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
@@ -111,6 +112,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // authenticated user who can view an invoice needs this, not just administration.company.view.
     Route::get('company/print-header', [CompanyController::class, 'printHeader']);
     $withPagePermissions(Route::apiResource('branches', BranchController::class), 'administration.branch');
+    Route::get('purchase-settings', [PurchaseSettingController::class, 'show'])->middleware('permission:administration.purchase_settings.view');
+    Route::put('purchase-settings', [PurchaseSettingController::class, 'update'])->middleware('permission:administration.purchase_settings.update');
     $withPagePermissions(Route::apiResource('warehouses', WarehouseController::class), 'master.warehouses');
 
     $withPagePermissions(Route::apiResource('roles', RoleController::class), 'administration.roles');

@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Enums\WarehouseType;
 use App\Exceptions\BusinessException;
+use App\Exceptions\OverReceiptConfirmationRequiredException;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\GoodsReceipt;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\PurchaseSetting;
 use App\Models\StockLedger;
 use App\Models\Supplier;
 use App\Models\UnitOfMeasurement;
@@ -257,5 +259,82 @@ class GoodsReceiptTest extends TestCase
 
         // (qty * rate) uses the rounded qty, not the raw input.
         $this->assertEquals(50.65 * 950000, (float) $line->amount);
+    }
+
+    public function test_weight_category_item_can_exceed_remaining_within_tolerance_and_records_over_receipt_qty(): void
+    {
+        // Default weight_over_receipt_tolerance_percent is 10 — 50 remaining allows up to +5 unconfirmed.
+        $this->item->update(['qty_category' => 'weight']);
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 50.3]],
+        ]);
+
+        $line = $goodsReceipt->items->first()->fresh();
+        $this->assertEquals(50.3, (float) $line->qty);
+        $this->assertEquals(0.3, (float) $line->over_receipt_qty);
+
+        $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt->fresh());
+        $poItem = $purchaseOrder->items->first()->fresh();
+        $this->assertEquals('submitted', $goodsReceipt->status->value);
+        $this->assertEquals(50.3, (float) $poItem->received_qty);
+        $this->assertTrue($poItem->received_qty >= $poItem->qty);
+    }
+
+    public function test_weight_category_item_beyond_tolerance_requires_confirmation_then_succeeds(): void
+    {
+        $this->item->update(['qty_category' => 'weight']);
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);
+        $poItemId = $purchaseOrder->items->first()->id;
+
+        // Excess of 10 on a remaining of 50 is 20%, past the default 10% tolerance.
+        try {
+            $this->goodsReceiptService->create([
+                'purchase_order_id' => $purchaseOrder->id,
+                'warehouse_id' => $this->warehouse->id,
+                'receipt_date' => now()->toDateString(),
+                'due_date' => now()->addDays(30)->toDateString(),
+                'items' => [['purchase_order_item_id' => $poItemId, 'qty' => 60]],
+            ]);
+            $this->fail('Expected exceeding the tolerance to require confirmation.');
+        } catch (OverReceiptConfirmationRequiredException) {
+        }
+
+        $this->assertDatabaseCount('goods_receipts', 0);
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'confirm_over_receipt' => true,
+            'items' => [['purchase_order_item_id' => $poItemId, 'qty' => 60]],
+        ]);
+
+        $line = $goodsReceipt->items->first()->fresh();
+        $this->assertEquals(60, (float) $line->qty);
+        $this->assertEquals(10, (float) $line->over_receipt_qty);
+    }
+
+    public function test_weight_category_item_has_no_limit_when_tolerance_is_zero(): void
+    {
+        PurchaseSetting::query()->first()->update(['weight_over_receipt_tolerance_percent' => 0]);
+        $this->item->update(['qty_category' => 'weight']);
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 200]],
+        ]);
+
+        $this->assertEquals(200, (float) $goodsReceipt->items->first()->qty);
     }
 }

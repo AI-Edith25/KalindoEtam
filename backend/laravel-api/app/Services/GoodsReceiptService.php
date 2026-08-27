@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DocumentStatus;
+use App\Enums\QtyCategory;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
@@ -64,9 +65,11 @@ class GoodsReceiptService
                 'remarks' => $data['remarks'] ?? null,
             ]);
 
-            $this->assertAggregateWithinOutstanding($purchaseOrder->id, $data['items']);
+            $confirmOverReceipt = (bool) ($data['confirm_over_receipt'] ?? false);
+            $this->assertAggregateWithinOutstanding($purchaseOrder->id, $data['items'], $confirmOverReceipt);
+            $overReceiptByIndex = $this->computeOverReceiptQtyByIndex($purchaseOrder->id, $data['items']);
 
-            foreach ($data['items'] as $line) {
+            foreach ($data['items'] as $index => $line) {
                 $poItem = $this->resolvePurchaseOrderItem($purchaseOrder->id, $line['purchase_order_item_id']);
                 $item = $poItem->item;
                 $this->qtyCategoryValidator->assertValid($item, $line['qty']);
@@ -80,6 +83,7 @@ class GoodsReceiptService
                     'item_name' => $item->item_name,
                     'uom' => $item->uom->name,
                     'qty' => $qty,
+                    'over_receipt_qty' => $overReceiptByIndex[$index] ?? 0,
                     'qty_category' => $item->qty_category,
                     'rate' => $poItem->rate,
                     'amount' => $qty * $poItem->rate,
@@ -151,11 +155,15 @@ class GoodsReceiptService
             if (isset($data['items'])) {
                 $goodsReceipt->items()->delete();
 
+                $confirmOverReceipt = (bool) ($data['confirm_over_receipt'] ?? false);
+                $overReceiptByIndex = [];
+
                 if ($goodsReceipt->purchase_order_id !== null) {
-                    $this->assertAggregateWithinOutstanding($goodsReceipt->purchase_order_id, $data['items']);
+                    $this->assertAggregateWithinOutstanding($goodsReceipt->purchase_order_id, $data['items'], $confirmOverReceipt);
+                    $overReceiptByIndex = $this->computeOverReceiptQtyByIndex($goodsReceipt->purchase_order_id, $data['items']);
                 }
 
-                foreach ($data['items'] as $line) {
+                foreach ($data['items'] as $index => $line) {
                     if ($goodsReceipt->purchase_order_id === null) {
                         $this->createDirectLine($goodsReceipt, $line);
 
@@ -175,6 +183,7 @@ class GoodsReceiptService
                         'item_name' => $item->item_name,
                         'uom' => $item->uom->name,
                         'qty' => $qty,
+                        'over_receipt_qty' => $overReceiptByIndex[$index] ?? 0,
                         'qty_category' => $item->qty_category,
                         'rate' => $poItem->rate,
                         'amount' => $qty * $poItem->rate,
@@ -218,10 +227,17 @@ class GoodsReceiptService
                     throw new BusinessException('Purchase Order is no longer submitted; cannot receive goods against it.');
                 }
 
+                // Weight-category groups are skipped here — already validated (and, if needed,
+                // confirmed) against the tolerance setting at create()/update() time, and unlike
+                // Unit they're never hard-blocked by outstanding qty at all.
                 $goodsReceipt->items
                     ->groupBy('purchase_order_item_id')
                     ->each(function ($group) {
-                        $this->assertWithinOutstanding($group->first()->purchaseOrderItem, (float) $group->sum('qty'));
+                        $poItem = $group->first()->purchaseOrderItem;
+
+                        if ($poItem->item->qty_category === QtyCategory::UNIT) {
+                            $this->assertWithinOutstanding($poItem, (float) $group->sum('qty'));
+                        }
                     });
             }
 
@@ -266,9 +282,13 @@ class GoodsReceiptService
     /**
      * The same PO item can appear on more than one line (different truck
      * loads) — validate the combined qty per item, not each line alone,
-     * against that item's outstanding qty.
+     * against that item's outstanding qty. Unit-category items keep the
+     * existing hard block (Item.allow_over_receipt opt-in bypass); Weight-
+     * category items are never hard-blocked here — over/under vs. the PO's
+     * ordered qty is normal for a truck-scale result, only gated by the
+     * configured tolerance (see QtyCategoryValidator::assertWeightOverReceiptAllowed).
      */
-    protected function assertAggregateWithinOutstanding(string $purchaseOrderId, array $lines): void
+    protected function assertAggregateWithinOutstanding(string $purchaseOrderId, array $lines, bool $confirmOverReceipt): void
     {
         $totalsByPoItemId = collect($lines)
             ->groupBy('purchase_order_item_id')
@@ -276,7 +296,14 @@ class GoodsReceiptService
 
         foreach ($totalsByPoItemId as $purchaseOrderItemId => $totalQty) {
             $poItem = $this->resolvePurchaseOrderItem($purchaseOrderId, $purchaseOrderItemId);
-            $this->assertWithinOutstanding($poItem, (float) $totalQty);
+            $item = $poItem->item;
+            $outstanding = (float) ($poItem->qty - $poItem->received_qty);
+
+            if ($item->qty_category === QtyCategory::WEIGHT) {
+                $this->qtyCategoryValidator->assertWeightOverReceiptAllowed($item, $outstanding, (float) $totalQty, $confirmOverReceipt);
+            } else {
+                $this->assertWithinOutstanding($poItem, (float) $totalQty);
+            }
         }
     }
 
@@ -287,6 +314,39 @@ class GoodsReceiptService
         if ($qty > $outstanding && ! $poItem->item->allow_over_receipt) {
             throw new BusinessException("Received qty ({$qty}) exceeds outstanding qty ({$outstanding}) for item {$poItem->item->item_code}.");
         }
+    }
+
+    /**
+     * Attributes the excess-over-outstanding qty per line (not just per PO
+     * item) for report traceability — GoodsReceiptItem.over_receipt_qty. When
+     * the same PO item spans multiple lines, only the portion of each line's
+     * own qty that pushed the running total past outstanding counts as that
+     * line's over-receipt, in the order the lines were submitted. Applies
+     * regardless of category — a Unit item over-received via the
+     * allow_over_receipt flag gets the same traceability as a Weight item.
+     *
+     * @return array<int, float> line index (as given in $lines) => over_receipt_qty
+     */
+    protected function computeOverReceiptQtyByIndex(string $purchaseOrderId, array $lines): array
+    {
+        $overReceiptByIndex = [];
+
+        collect($lines)
+            ->map(fn ($line, $index) => ['index' => $index, ...$line])
+            ->groupBy('purchase_order_item_id')
+            ->each(function ($group, $purchaseOrderItemId) use ($purchaseOrderId, &$overReceiptByIndex) {
+                $poItem = $this->resolvePurchaseOrderItem($purchaseOrderId, $purchaseOrderItemId);
+                $outstanding = (float) ($poItem->qty - $poItem->received_qty);
+                $running = 0.0;
+
+                foreach ($group as $entry) {
+                    $before = $running;
+                    $running += (float) $entry['qty'];
+                    $overReceiptByIndex[$entry['index']] = max(0.0, $running - $outstanding) - max(0.0, $before - $outstanding);
+                }
+            });
+
+        return $overReceiptByIndex;
     }
 
     protected function assertDraft(GoodsReceipt $goodsReceipt, string $action): void

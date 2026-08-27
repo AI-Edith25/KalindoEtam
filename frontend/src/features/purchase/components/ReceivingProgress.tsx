@@ -26,6 +26,7 @@ export function ReceivingProgress({ order, size = 'sm' }: ReceivingProgressProps
   }
 
   const { ordered, received } = computeReceivingTotals(order)
+  const over = received - ordered
 
   return (
     <div className={size === 'lg' ? 'flex items-center gap-3' : 'flex items-center gap-2'}>
@@ -33,6 +34,8 @@ export function ReceivingProgress({ order, size = 'sm' }: ReceivingProgressProps
       <span className={size === 'lg' ? 'text-base font-medium tabular-nums' : 'text-sm tabular-nums text-muted-foreground'}>
         {formatNumber(received)} / {formatNumber(ordered)}
       </span>
+      {/* Weight-category over-receipt is normal (truck-scale result), not an error — see QtyCategoryValidator. */}
+      {over > 0 && <span className="text-xs font-medium tabular-nums text-amber-600 dark:text-amber-500">+{formatNumber(over)} over</span>}
     </div>
   )
 }

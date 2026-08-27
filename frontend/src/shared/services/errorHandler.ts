@@ -56,6 +56,19 @@ export function toastApiError(error: unknown): void {
   toast.error(message)
 }
 
+/**
+ * True for OverReceiptConfirmationRequiredException's 409 shape
+ * (QtyCategoryValidator::assertWeightOverReceiptAllowed) — an "are you sure"
+ * gate, not a normal error. Callers use this to show a confirm dialog
+ * instead of toastApiError().
+ */
+export function isOverReceiptConfirmationRequired(error: unknown): boolean {
+  if (!axios.isAxiosError(error) || error.response?.status !== 409) return false
+
+  const data = error.response.data as { data?: { requires_confirmation?: boolean } } | undefined
+  return data?.data?.requires_confirmation === true
+}
+
 export function getFieldErrors(error: unknown): Record<string, string[]> | null {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as Partial<ValidationErrorBody> | undefined

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { formatQty, qtyDecimalPlaces } from '@/shared/lib/qty'
+import { formatQty, parseLocaleQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { GoodsReceiptEditorValues } from '../lib/goodsReceiptFormSchema'
 import type { PurchaseOrderItem } from '../types'
 
@@ -31,6 +31,16 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
+
+  // Same PO item can span multiple rows (different truck loads) — the over-remaining warning
+  // for a Weight-category item is about the combined total, not any single row alone. Mirrors
+  // goodsReceiptFormSchema's own grouping.
+  const receivedTotalByPoItemId = new Map<string, number>()
+  watchedItems?.forEach((line) => {
+    if (!line?.purchase_order_item_id) return
+    const value = parseLocaleQty(line.receiveNow || '0')
+    receivedTotalByPoItemId.set(line.purchase_order_item_id, (receivedTotalByPoItemId.get(line.purchase_order_item_id) ?? 0) + value)
+  })
 
   const handleItemChange = (index: number, poItemId: string) => {
     setValue(`items.${index}.purchase_order_item_id`, poItemId, { shouldValidate: true })
@@ -78,6 +88,9 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
                 const qtyCategory = line?.qtyCategory ?? 'unit'
                 const decimalPlaces = qtyDecimalPlaces(qtyCategory)
                 const uom = purchaseOrderItems.find((poItem) => poItem.id === line?.purchase_order_item_id)?.item_uom
+                const isWeight = qtyCategory === 'weight'
+                const groupTotal = line?.purchase_order_item_id ? (receivedTotalByPoItemId.get(line.purchase_order_item_id) ?? 0) : 0
+                const overBy = isWeight ? groupTotal - remaining : 0
 
                 return (
                   <TableRow key={field.id}>
@@ -117,13 +130,18 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
                               <Input
                                 type="number"
                                 min={0}
-                                max={allowOverReceipt ? undefined : remaining}
+                                max={isWeight || allowOverReceipt ? undefined : remaining}
                                 step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
-                                disabled={disabled || !hasItem || (remaining === 0 && !allowOverReceipt)}
+                                disabled={disabled || !hasItem || (remaining === 0 && !isWeight && !allowOverReceipt)}
                                 {...receiveNowField}
                               />
                               {uom && <span className="text-xs text-muted-foreground">{uom}</span>}
                             </div>
+                            {overBy > 0 && (
+                              <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
+                                Melebihi sisa PO sebesar {formatQty(overBy, qtyCategory)} {uom ?? ''} — hasil timbangan aktual.
+                              </p>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}

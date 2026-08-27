@@ -276,13 +276,19 @@ class PurchaseReturnService
 
             $priorTotals = $this->purchaseReturnItemRepository->returnedTotalsForPurchaseInvoiceItem($invoiceItem->id);
 
+            // Hard ceiling regardless of qty_category — unlike Goods Receipt's PO-estimate-vs-
+            // truck-scale gap, this is actual-vs-actual (the Invoice already carries the real
+            // received qty for Weight items, copied verbatim from the Goods Receipt), so there's
+            // no legitimate reason to return more than was ever invoiced. The 1e-4 epsilon only
+            // absorbs float rounding at the qty_category's own decimal precision, same as
+            // QtyCategoryValidator::isWholeNumber — it never widens the real boundary.
             $remainingQty = (float) $invoiceItem->qty - $priorTotals['qty'];
-            if ($qtyReturned > $remainingQty) {
+            if ($qtyReturned > $remainingQty + 0.0001) {
                 throw new BusinessException("Returned quantity ({$qtyReturned}) exceeds what remains returnable ({$remainingQty}) for {$invoiceItem->item_name}.");
             }
 
             $remainingAmount = (float) $invoiceItem->amount - $priorTotals['amount'];
-            if ($amount > $remainingAmount) {
+            if ($amount > $remainingAmount + 0.01) {
                 throw new BusinessException("Returned amount ({$amount}) exceeds what remains returnable ({$remainingAmount}) for {$invoiceItem->item_name}.");
             }
 

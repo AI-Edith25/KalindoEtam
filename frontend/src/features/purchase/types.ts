@@ -77,6 +77,7 @@ export interface GoodsReceiptItem {
   item_name: string
   uom: string
   qty: string | number
+  over_receipt_qty: string | number
   qty_category: 'unit' | 'weight'
   rate: string | number
   amount: string | number
@@ -113,6 +114,8 @@ export interface GoodsReceiptFormValues {
   remarks: string | null
   /** From-PO lines carry purchase_order_item_id; direct-mode lines carry item_id + rate instead. */
   items: { purchase_order_item_id?: string; item_id?: string; rate?: number; qty: number }[]
+  /** Confirms a Weight-category line's excess over the outstanding PO qty is intentional — see QtyCategoryValidator::assertWeightOverReceiptAllowed. */
+  confirm_over_receipt?: boolean
 }
 
 export interface GoodsReceiptFilterValues {

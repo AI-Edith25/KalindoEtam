@@ -44,6 +44,13 @@ export interface CompanyFormValues {
   fiscal_year_start: string
 }
 
+export interface PurchaseSetting {
+  id: string
+  /** null/0 = no upper bound on Weight-category over-receipt. */
+  weight_over_receipt_tolerance_percent: number | null
+  updated_at: string
+}
+
 export interface DocumentAttachment {
   id: string
   attachable_type: string
