@@ -21,6 +21,7 @@ class StockTransferService
         protected ItemRepository $itemRepository,
         protected StockLedgerService $stockLedgerService,
         protected AuditLogService $auditLogService,
+        protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -148,6 +149,8 @@ class StockTransferService
 
         foreach ($items as $line) {
             $item = $this->itemRepository->findOrFail($line['item_id']);
+            $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+            $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
 
             $this->stockTransferItemRepository->create([
                 'stock_transfer_id' => $transfer->id,
@@ -155,7 +158,8 @@ class StockTransferService
                 'item_code' => $item->item_code,
                 'item_name' => $item->item_name,
                 'uom' => $item->uom->name,
-                'qty' => $line['qty'],
+                'qty' => $qty,
+                'qty_category' => $item->qty_category,
             ]);
         }
     }
@@ -167,7 +171,7 @@ class StockTransferService
         }
     }
 
-    protected function assertSufficientStock(string $warehouseId, string $itemId, int $qty): void
+    protected function assertSufficientStock(string $warehouseId, string $itemId, int|float $qty): void
     {
         $available = $this->stockLedgerService->getCurrentBalance($itemId, $warehouseId);
 

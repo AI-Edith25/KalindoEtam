@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -23,12 +24,14 @@ class Item extends Model
         'purchase_tax_id',
         'sales_tax_id',
         'allow_over_receipt',
+        'qty_category',
     ];
 
     protected $casts = [
         'standard_rate' => 'decimal:2',
-        'current_stock' => 'integer',
+        'current_stock' => 'decimal:4',
         'allow_over_receipt' => 'boolean',
+        'qty_category' => QtyCategory::class,
     ];
 
     public function itemGroup(): BelongsTo

@@ -40,6 +40,7 @@ class PurchaseReturnService
         protected AccountingService $accountingService,
         protected StockLedgerService $stockLedgerService,
         protected AuditLogService $auditLogService,
+        protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -61,6 +62,8 @@ class PurchaseReturnService
 
             [$subtotal, $totalAmount] = $this->validateAgainstPurchaseInvoice($purchaseInvoice, $lines, $data);
 
+            // validateAgainstPurchaseInvoice() rounds each line's qty_returned to its item's
+            // qty_category in place (by reference) — replaceLines() below relies on that.
             $purchaseReturn = $this->purchaseReturnRepository->create([
                 'purchase_invoice_id' => $purchaseInvoice->id,
                 'supplier_id' => $purchaseInvoice->supplier_id,
@@ -234,10 +237,10 @@ class PurchaseReturnService
     }
 
     /**
-     * @param  array<int, array{purchase_invoice_item_id: string, qty_returned?: int, amount: float}>  $lines
+     * @param  array<int, array{purchase_invoice_item_id: string, qty_returned?: float, amount: float}>  $lines
      * @return array{0: float, 1: float} [subtotal, total_amount]
      */
-    protected function validateAgainstPurchaseInvoice(PurchaseInvoice $purchaseInvoice, array $lines, array $data): array
+    protected function validateAgainstPurchaseInvoice(PurchaseInvoice $purchaseInvoice, array &$lines, array $data): array
     {
         if ($purchaseInvoice->status !== DocumentStatus::SUBMITTED) {
             throw new BusinessException('Purchase Returns can only be raised against a submitted Purchase Invoice.');
@@ -251,23 +254,29 @@ class PurchaseReturnService
         $this->assertNoDuplicateReferences($lines);
 
         $subtotal = 0.0;
-        foreach ($lines as $line) {
+        foreach ($lines as &$line) {
             $invoiceItem = $this->purchaseInvoiceItemRepository->findOrFail($line['purchase_invoice_item_id']);
 
             if ($invoiceItem->purchase_invoice_id !== $purchaseInvoice->id) {
                 throw new BusinessException('One or more lines do not belong to the selected Purchase Invoice.');
             }
 
-            $qtyReturned = (int) ($line['qty_returned'] ?? 0);
+            $qtyReturned = (float) ($line['qty_returned'] ?? 0);
             $amount = (float) $line['amount'];
 
             if ($qtyReturned < 0 || $amount < 0) {
                 throw new BusinessException('Returned quantity and amount cannot be negative.');
             }
 
+            if ($qtyReturned > 0) {
+                $this->qtyCategoryValidator->assertValid($invoiceItem->item, $qtyReturned);
+                $qtyReturned = $this->qtyCategoryValidator->round($invoiceItem->item, $qtyReturned);
+                $line['qty_returned'] = $qtyReturned;
+            }
+
             $priorTotals = $this->purchaseReturnItemRepository->returnedTotalsForPurchaseInvoiceItem($invoiceItem->id);
 
-            $remainingQty = (int) $invoiceItem->qty - $priorTotals['qty'];
+            $remainingQty = (float) $invoiceItem->qty - $priorTotals['qty'];
             if ($qtyReturned > $remainingQty) {
                 throw new BusinessException("Returned quantity ({$qtyReturned}) exceeds what remains returnable ({$remainingQty}) for {$invoiceItem->item_name}.");
             }
@@ -279,6 +288,7 @@ class PurchaseReturnService
 
             $subtotal += $amount;
         }
+        unset($line);
 
         $taxAmount = (float) ($data['tax_amount'] ?? 0);
         $totalAmount = $subtotal + $taxAmount;
@@ -312,6 +322,7 @@ class PurchaseReturnService
                 'item_name' => $invoiceItem->item_name,
                 'uom' => $invoiceItem->uom,
                 'qty_returned' => $line['qty_returned'] ?? 0,
+                'qty_category' => $invoiceItem->item->qty_category,
                 'rate' => $invoiceItem->rate,
                 'amount' => $line['amount'],
             ]);

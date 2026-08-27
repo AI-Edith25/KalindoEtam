@@ -15,7 +15,8 @@ import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
+import { parseLocaleQty } from '@/shared/lib/qty'
 import { fetchItemsLookup, fetchSuppliersLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { fetchGoodsReceipt, createGoodsReceipt, updateGoodsReceipt, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { fetchPurchaseOrder, fetchPurchaseOrders } from '../api/purchaseOrderApi'
@@ -48,21 +49,6 @@ const emptyDirectValues: DirectGoodsReceiptEditorValues = {
 }
 
 type ReceiptMode = 'from_po' | 'direct'
-
-/** Sums actual_weight per weight_unit (never mixed across units) — purely informational, never fed into qty/price totals. */
-function weightTotalsLabel(lines: { actual_weight?: string; weight_unit?: string }[]): string {
-  const totalsByUnit: Record<string, number> = {}
-
-  for (const line of lines) {
-    const weight = Number(line.actual_weight || 0)
-    if (weight <= 0) continue
-    const unit = line.weight_unit || 'ton'
-    totalsByUnit[unit] = (totalsByUnit[unit] ?? 0) + weight
-  }
-
-  const parts = Object.entries(totalsByUnit).map(([unit, total]) => `${formatNumber(total)} ${unit}`)
-  return parts.length > 0 ? parts.join(', ') : '—'
-}
 
 export function GoodsReceiptEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -140,10 +126,8 @@ export function GoodsReceiptEditorPage() {
       alreadyReceived: Number(poItem.received_qty),
       remaining: Number(poItem.outstanding_qty),
       allowOverReceipt: poItem.allow_over_receipt ?? false,
+      qtyCategory: poItem.item_qty_category ?? 'unit',
       receiveNow: String(existing?.qty ?? 0),
-      actual_weight: existing?.actual_weight != null ? String(existing.actual_weight) : '',
-      weight_unit: (existing?.weight_unit as 'kg' | 'ton' | null) ?? 'ton',
-      weighbridge_ref: existing?.weighbridge_ref ?? '',
     })
 
     // Edit mode rebuilds rows from the saved draft's own lines — preserves duplicate
@@ -186,11 +170,9 @@ export function GoodsReceiptEditorPage() {
         item_id: line.item_id,
         item_code: line.item_code,
         item_name: line.item_name,
+        qtyCategory: line.qty_category,
         qty: String(line.qty),
         rate: String(line.rate),
-        actual_weight: line.actual_weight != null ? String(line.actual_weight) : '',
-        weight_unit: (line.weight_unit as 'kg' | 'ton' | null) ?? 'ton',
-        weighbridge_ref: line.weighbridge_ref ?? '',
       })),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -199,14 +181,8 @@ export function GoodsReceiptEditorPage() {
   const saveMutation = useMutation({
     mutationFn: (values: GoodsReceiptEditorValues) => {
       const items = values.items
-        .filter((line) => Number(line.receiveNow) > 0)
-        .map((line) => ({
-          purchase_order_item_id: line.purchase_order_item_id,
-          qty: Number(line.receiveNow),
-          actual_weight: line.actual_weight ? Number(line.actual_weight) : null,
-          weight_unit: line.weight_unit || null,
-          weighbridge_ref: line.weighbridge_ref || null,
-        }))
+        .filter((line) => parseLocaleQty(line.receiveNow) > 0)
+        .map((line) => ({ purchase_order_item_id: line.purchase_order_item_id, qty: parseLocaleQty(line.receiveNow) }))
 
       if (isEdit) {
         return updateGoodsReceipt(id!, {
@@ -239,14 +215,7 @@ export function GoodsReceiptEditorPage() {
 
   const saveDirectMutation = useMutation({
     mutationFn: (values: DirectGoodsReceiptEditorValues) => {
-      const items = values.items.map((line) => ({
-        item_id: line.item_id,
-        qty: Number(line.qty),
-        rate: Number(line.rate),
-        actual_weight: line.actual_weight ? Number(line.actual_weight) : null,
-        weight_unit: line.weight_unit || null,
-        weighbridge_ref: line.weighbridge_ref || null,
-      }))
+      const items = values.items.map((line) => ({ item_id: line.item_id, qty: parseLocaleQty(line.qty), rate: Number(line.rate) }))
 
       if (isEdit) {
         return updateGoodsReceipt(id!, {
@@ -294,14 +263,10 @@ export function GoodsReceiptEditorPage() {
   const subtotal = computeSubtotal(receivingNowLines)
   const tax = computeTax()
   const grandTotal = computeGrandTotal(receivingNowLines)
-  const totalQty = (watchedItems ?? []).reduce((sum, line) => sum + Number(line.receiveNow || 0), 0)
-  const totalWeightLabel = weightTotalsLabel(watchedItems ?? [])
 
   const directWatchedItems = directForm.watch('items')
   const directSubtotal = computeSubtotal(directWatchedItems ?? [])
   const directGrandTotal = computeGrandTotal(directWatchedItems ?? [])
-  const directTotalQty = (directWatchedItems ?? []).reduce((sum, line) => sum + Number(line.qty || 0), 0)
-  const directTotalWeightLabel = weightTotalsLabel(directWatchedItems ?? [])
 
   if (isEdit && receiptQuery.isLoading) {
     return (
@@ -489,22 +454,10 @@ export function GoodsReceiptEditorPage() {
 
             <Card>
               <CardContent className="flex flex-col items-end gap-1.5 py-4">
-                <div className="flex w-full max-w-64 justify-between text-sm">
-                  <span className="text-muted-foreground">Total Qty (satuan)</span>
-                  <span>{formatNumber(directTotalQty)}</span>
-                </div>
-                <div className="flex w-full max-w-64 justify-between text-sm">
-                  <span className="text-muted-foreground">Total Berat Aktual</span>
-                  <span>{directTotalWeightLabel}</span>
-                </div>
-                <Separator className="w-full max-w-64" />
                 <div className="flex w-full max-w-64 justify-between text-base font-semibold">
                   <span>Total</span>
                   <span>{formatCurrency(directGrandTotal || directSubtotal)}</span>
                 </div>
-                <p className="w-full max-w-64 text-xs text-muted-foreground">
-                  Qty = jumlah satuan barang. Berat aktual hanya catatan timbangan, tidak memengaruhi nilai.
-                </p>
               </CardContent>
             </Card>
 
@@ -642,15 +595,6 @@ export function GoodsReceiptEditorPage() {
           <Card>
             <CardContent className="flex flex-col items-end gap-1.5 py-4">
               <div className="flex w-full max-w-64 justify-between text-sm">
-                <span className="text-muted-foreground">Total Qty (satuan)</span>
-                <span>{formatNumber(totalQty)}</span>
-              </div>
-              <div className="flex w-full max-w-64 justify-between text-sm">
-                <span className="text-muted-foreground">Total Berat Aktual</span>
-                <span>{totalWeightLabel}</span>
-              </div>
-              <Separator className="w-full max-w-64" />
-              <div className="flex w-full max-w-64 justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
@@ -663,9 +607,6 @@ export function GoodsReceiptEditorPage() {
                 <span>Grand Total</span>
                 <span>{formatCurrency(grandTotal)}</span>
               </div>
-              <p className="w-full max-w-64 text-xs text-muted-foreground">
-                Qty = jumlah satuan barang. Berat aktual hanya catatan timbangan, tidak memengaruhi nilai.
-              </p>
             </CardContent>
           </Card>
 

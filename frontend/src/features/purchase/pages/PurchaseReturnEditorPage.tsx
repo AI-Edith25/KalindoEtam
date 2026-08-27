@@ -16,7 +16,8 @@ import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
+import { formatQty, parseLocaleQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import { fetchPurchaseInvoice, fetchPurchaseInvoices } from '../api/purchaseInvoiceApi'
 import { createPurchaseReturn, fetchPurchaseReturn, submitPurchaseReturn, updatePurchaseReturn } from '../api/purchaseReturnApi'
 import { purchaseReturnFormSchema, emptyPurchaseReturnEditorValues, type PurchaseReturnEditorValues } from '../lib/purchaseReturnFormSchema'
@@ -133,7 +134,7 @@ export function PurchaseReturnEditorPage() {
       .filter(([, line]) => Number(line.qtyReturned) > 0 || Number(line.amount) > 0)
       .map(([invoiceItemId, line]) => ({
         purchase_invoice_item_id: invoiceItemId,
-        qty_returned: Math.round(Number(line.qtyReturned) || 0),
+        qty_returned: parseLocaleQty(line.qtyReturned) || 0,
         amount: Number(line.amount) || 0,
       })),
   })
@@ -342,6 +343,8 @@ export function PurchaseReturnEditorPage() {
                       const capQty = Number(line.returnable_qty) + ownQty
                       const capAmount = Number(line.returnable_amount) + ownAmount
                       const quantityAllowed = reasonAllowsQuantity((reason || 'quantity_discrepancy') as PurchaseReturnReason)
+                      const qtyCategory = line.item_qty_category ?? 'unit'
+                      const decimalPlaces = qtyDecimalPlaces(qtyCategory)
 
                       return (
                         <TableRow key={line.id}>
@@ -351,14 +354,14 @@ export function PurchaseReturnEditorPage() {
                               <span className="text-xs text-muted-foreground">{line.item_code}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">{formatNumber(line.returnable_qty)}</TableCell>
+                          <TableCell className="text-right">{formatQty(line.returnable_qty, qtyCategory)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(line.returnable_amount)}</TableCell>
                           <TableCell>
                             <Input
                               type="number"
                               min={0}
                               max={capQty}
-                              step="1"
+                              step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
                               placeholder="0"
                               disabled={!quantityAllowed}
                               value={existing?.qtyReturned ?? ''}

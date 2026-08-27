@@ -13,6 +13,7 @@ import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
+import { formatQty } from '@/shared/lib/qty'
 import { cancelPurchaseOrder, deletePurchaseOrder, fetchPurchaseOrder, submitPurchaseOrder } from '../api/purchaseOrderApi'
 import { fetchGoodsReceipts } from '../api/goodsReceiptApi'
 import { ReceivingProgress } from '../components/ReceivingProgress'
@@ -25,15 +26,15 @@ const APPROVABLE_TYPE = 'App\\Models\\PurchaseOrder'
 const lineColumns: DataTableColumn<PurchaseOrderItem>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code ?? '—' },
   { header: 'Item Name', accessor: (row) => row.item_name ?? '—' },
-  { header: 'Ordered Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
+  { header: 'Ordered Qty', accessor: (row) => formatQty(row.qty, row.item_qty_category ?? 'unit'), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
   { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
-  { header: 'Received Qty', accessor: (row) => formatNumber(row.received_qty), className: 'text-right' },
-  { header: 'Remaining Qty', accessor: (row) => formatNumber(row.outstanding_qty), className: 'text-right' },
+  { header: 'Received Qty', accessor: (row) => formatQty(row.received_qty, row.item_qty_category ?? 'unit'), className: 'text-right' },
+  { header: 'Remaining Qty', accessor: (row) => formatQty(row.outstanding_qty, row.item_qty_category ?? 'unit'), className: 'text-right' },
 ]
 
 function goodsReceiptQty(receipt: GoodsReceipt): number {
-  return receipt.items.reduce((sum, line) => sum + line.qty, 0)
+  return receipt.items.reduce((sum, line) => sum + Number(line.qty), 0)
 }
 
 const goodsReceiptColumns = (onNavigate: (id: string) => void): DataTableColumn<GoodsReceipt>[] => [

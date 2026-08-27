@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -20,16 +21,14 @@ class GoodsReceiptItem extends Model
         'item_name',
         'uom',
         'qty',
-        'actual_weight',
-        'weight_unit',
-        'weighbridge_ref',
+        'qty_category',
         'rate',
         'amount',
     ];
 
     protected $casts = [
-        'qty' => 'integer',
-        'actual_weight' => 'decimal:2',
+        'qty' => 'decimal:4',
+        'qty_category' => QtyCategory::class,
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
     ];

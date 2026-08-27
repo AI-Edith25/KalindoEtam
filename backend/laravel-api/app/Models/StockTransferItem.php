@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -19,10 +20,12 @@ class StockTransferItem extends Model
         'item_name',
         'uom',
         'qty',
+        'qty_category',
     ];
 
     protected $casts = [
-        'qty' => 'integer',
+        'qty' => 'decimal:4',
+        'qty_category' => QtyCategory::class,
     ];
 
     public function stockTransfer(): BelongsTo

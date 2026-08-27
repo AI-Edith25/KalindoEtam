@@ -3,12 +3,13 @@ import type { Item } from '../types'
 export interface ItemFilterValues {
   itemGroupId: string | null
   uomId: string | null
+  qtyCategory: 'unit' | 'weight' | null
 }
 
-export const emptyItemFilters: ItemFilterValues = { itemGroupId: null, uomId: null }
+export const emptyItemFilters: ItemFilterValues = { itemGroupId: null, uomId: null, qtyCategory: null }
 
 export function hasActiveItemFilters(filters: ItemFilterValues): boolean {
-  return filters.itemGroupId !== null || filters.uomId !== null
+  return filters.itemGroupId !== null || filters.uomId !== null || filters.qtyCategory !== null
 }
 
 /**
@@ -26,6 +27,7 @@ export function applyItemFilters(items: Item[], search: string, filters: ItemFil
   return items.filter((item) => {
     if (filters.itemGroupId && item.item_group_id !== filters.itemGroupId) return false
     if (filters.uomId && item.uom_id !== filters.uomId) return false
+    if (filters.qtyCategory && item.qty_category !== filters.qtyCategory) return false
 
     if (!query) return true
 

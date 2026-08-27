@@ -12,7 +12,8 @@ import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatQty } from '@/shared/lib/qty'
 import { deleteGoodsReceipt, fetchGoodsReceipt, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { computeTax, lineAmount } from '@/shared/lib/documentTotals'
 import type { GoodsReceiptItem } from '../types'
@@ -20,30 +21,10 @@ import type { GoodsReceiptItem } from '../types'
 const lineColumns: DataTableColumn<GoodsReceiptItem>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
   { header: 'Item Name', accessor: (row) => row.item_name },
-  { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
-  {
-    header: 'Actual Weight',
-    accessor: (row) => (row.actual_weight != null ? `${formatNumber(row.actual_weight)} ${row.weight_unit ?? ''}`.trim() : '—'),
-    className: 'text-right',
-  },
+  { header: 'Qty', accessor: (row) => formatQty(row.qty, row.qty_category ?? 'unit'), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
   { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
 ]
-
-/** Sums actual_weight per weight_unit (never mixed across units) — purely informational. */
-function weightTotalsLabel(items: GoodsReceiptItem[]): string {
-  const totalsByUnit: Record<string, number> = {}
-
-  for (const item of items) {
-    const weight = Number(item.actual_weight ?? 0)
-    if (weight <= 0) continue
-    const unit = item.weight_unit || 'ton'
-    totalsByUnit[unit] = (totalsByUnit[unit] ?? 0) + weight
-  }
-
-  const parts = Object.entries(totalsByUnit).map(([unit, total]) => `${formatNumber(total)} ${unit}`)
-  return parts.length > 0 ? parts.join(', ') : '—'
-}
 
 /** Read-only, section-grouped — same shell as PurchaseOrderDetailPage (DetailField/DetailSection outside a Drawer, DataTable for read-only lines). */
 export function GoodsReceiptDetailPage() {
@@ -163,15 +144,6 @@ export function GoodsReceiptDetailPage() {
 
       <Card>
         <CardContent className="flex flex-col items-end gap-1.5 py-4">
-          <div className="flex w-full max-w-64 justify-between text-sm">
-            <span className="text-muted-foreground">Total Qty (satuan)</span>
-            <span>{formatNumber(receipt.items.reduce((sum, line) => sum + line.qty, 0))}</span>
-          </div>
-          <div className="flex w-full max-w-64 justify-between text-sm">
-            <span className="text-muted-foreground">Total Berat Aktual</span>
-            <span>{weightTotalsLabel(receipt.items)}</span>
-          </div>
-          <Separator className="w-full max-w-64" />
           <div className="flex w-full max-w-64 justify-between text-sm">
             <span className="text-muted-foreground">Subtotal</span>
             <span>{formatCurrency(subtotal)}</span>

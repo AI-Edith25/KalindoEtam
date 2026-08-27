@@ -28,9 +28,9 @@ const SORTERS: Record<string, (adjustment: StockAdjustment) => string | number> 
 /** Aggregates a document's lines into one summary — a Stock Adjustment can cover several items, so the list shows the total physical/system/difference across all of them, not a single line's numbers. */
 function adjustmentTotals(adjustment: StockAdjustment) {
   return {
-    physical: adjustment.items.reduce((sum, line) => sum + line.counted_qty, 0),
-    system: adjustment.items.reduce((sum, line) => sum + line.system_qty, 0),
-    difference: adjustment.items.reduce((sum, line) => sum + line.difference_qty, 0),
+    physical: adjustment.items.reduce((sum, line) => sum + Number(line.counted_qty), 0),
+    system: adjustment.items.reduce((sum, line) => sum + Number(line.system_qty), 0),
+    difference: adjustment.items.reduce((sum, line) => sum + Number(line.difference_qty), 0),
   }
 }
 

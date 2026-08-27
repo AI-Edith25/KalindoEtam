@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\QtyCategory;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,6 +31,7 @@ class StoreItemRequest extends FormRequest
             'purchase_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'purchase')],
             'sales_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'sales')],
             'allow_over_receipt' => ['sometimes', 'boolean'],
+            'qty_category' => ['sometimes', Rule::enum(QtyCategory::class)],
         ];
     }
 }

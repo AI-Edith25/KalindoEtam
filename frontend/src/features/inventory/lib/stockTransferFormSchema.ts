@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isValidQtyForCategory, parseLocaleQty, qtyErrorMessage } from '@/shared/lib/qty'
 
 /**
  * One row per item added to the transfer — free-form (Add/Remove Row), same
@@ -6,21 +7,24 @@ import { z } from 'zod'
  * warehouse. `availableQty` is a read-only snapshot from the bulk
  * stock-balance lookup for the source warehouse (same lookup Delivery/Stock
  * Adjustment already use) — qty can't exceed it, mirroring Delivery's
- * "Cannot exceed available stock" ceiling.
+ * "Cannot exceed available stock" ceiling. `qtyCategory` is a snapshot
+ * populated when the item is selected — decides whether `qty` must be a
+ * whole number or may carry up to 2 decimals (see @/shared/lib/qty).
  */
 export const stockTransferLineRowSchema = z
   .object({
     item_id: z.string().min(1, 'Item is required'),
     item_code: z.string(),
     item_name: z.string(),
+    qtyCategory: z.enum(['unit', 'weight']),
     availableQty: z.number(),
     qty: z.string().min(1, 'Qty is required'),
   })
   .superRefine((line, ctx) => {
-    const value = Number(line.qty || 0)
+    const value = parseLocaleQty(line.qty)
 
-    if (!Number.isInteger(value) || value < 1) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Must be a positive whole number', path: ['qty'] })
+    if (!isValidQtyForCategory(line.qty, line.qtyCategory) || value <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: qtyErrorMessage(line.qtyCategory), path: ['qty'] })
       return
     }
 

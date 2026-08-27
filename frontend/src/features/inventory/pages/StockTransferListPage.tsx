@@ -26,7 +26,7 @@ const SORTERS: Record<string, (transfer: StockTransfer) => string | number> = {
 }
 
 function totalQty(transfer: StockTransfer): number {
-  return transfer.items.reduce((sum, line) => sum + line.qty, 0)
+  return transfer.items.reduce((sum, line) => sum + Number(line.qty), 0)
 }
 
 export function StockTransferListPage() {

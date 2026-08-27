@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -15,12 +16,13 @@ class PurchaseInvoiceItem extends Model
 
     protected $fillable = [
         'purchase_invoice_id', 'goods_receipt_item_id', 'item_id',
-        'item_code', 'item_name', 'uom', 'rate', 'qty', 'amount',
+        'item_code', 'item_name', 'uom', 'rate', 'qty', 'qty_category', 'amount',
     ];
 
     protected $casts = [
         'rate' => 'decimal:2',
-        'qty' => 'integer',
+        'qty' => 'decimal:4',
+        'qty_category' => QtyCategory::class,
         'amount' => 'decimal:2',
     ];
 

@@ -20,7 +20,7 @@ class UpdateStockTransferRequest extends FormRequest
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
-            'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
+            'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01'],
         ];
     }
 

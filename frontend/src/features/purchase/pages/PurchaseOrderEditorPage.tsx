@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
+import { parseLocaleQty } from '@/shared/lib/qty'
 import { fetchItemsLookup, fetchSuppliersLookup, fetchTaxesLookup } from '@/features/master/api/lookupsApi'
 import { createPurchaseOrder, fetchPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder } from '../api/purchaseOrderApi'
 import { PurchaseOrderLineItemTable } from '../components/PurchaseOrderLineItemTable'
@@ -72,6 +73,7 @@ export function PurchaseOrderEditorPage() {
       remarks: order.remarks ?? '',
       items: order.items.map((line) => ({
         item_id: line.item_id,
+        qtyCategory: line.item_qty_category ?? 'unit',
         qty: String(line.qty),
         rate: String(line.rate),
         tax_id: line.tax_id ?? '',
@@ -88,7 +90,7 @@ export function PurchaseOrderEditorPage() {
     remarks: values.remarks || null,
     items: values.items.map((line) => ({
       item_id: line.item_id,
-      qty: Number(line.qty),
+      qty: parseLocaleQty(line.qty),
       rate: Number(line.rate),
       tax_id: line.tax_id || null,
     })),

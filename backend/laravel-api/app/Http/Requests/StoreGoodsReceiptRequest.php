@@ -26,11 +26,9 @@ class StoreGoodsReceiptRequest extends FormRequest
             'items.*.purchase_order_item_id' => ['required_with:purchase_order_id', 'nullable', 'uuid', 'exists:purchase_order_items,id'],
             'items.*.item_id' => ['required_without:purchase_order_id', 'nullable', 'uuid', 'exists:items,id'],
             'items.*.rate' => ['required_without:purchase_order_id', 'nullable', 'numeric', 'min:0'],
-            'items.*.qty' => ['required', 'integer', 'min:1'],
-            // Truck-scale weight — record-keeping only, never checked against qty or used in any math.
-            'items.*.actual_weight' => ['nullable', 'numeric', 'min:0', 'regex:/^\d+(\.\d{1,2})?$/'],
-            'items.*.weight_unit' => ['nullable', 'in:kg,ton'],
-            'items.*.weighbridge_ref' => ['nullable', 'string', 'max:64'],
+            // Whole-number-vs-decimal enforcement happens in GoodsReceiptService via
+            // QtyCategoryValidator (needs the Item loaded, not available here).
+            'items.*.qty' => ['required', 'numeric', 'min:0.01'],
         ];
     }
 }

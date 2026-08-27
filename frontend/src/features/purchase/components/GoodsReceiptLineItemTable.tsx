@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { formatNumber } from '@/lib/utils'
+import { formatQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { GoodsReceiptEditorValues } from '../lib/goodsReceiptFormSchema'
 import type { PurchaseOrderItem } from '../types'
 
@@ -44,6 +44,7 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
       setValue(`items.${index}.alreadyReceived`, Number(selected.received_qty))
       setValue(`items.${index}.remaining`, Number(selected.outstanding_qty))
       setValue(`items.${index}.allowOverReceipt`, selected.allow_over_receipt ?? false, { shouldValidate: true })
+      setValue(`items.${index}.qtyCategory`, selected.item_qty_category ?? 'unit', { shouldValidate: true })
     }
   }
 
@@ -58,15 +59,13 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
               <TableHead className="text-right">Already Received</TableHead>
               <TableHead className="text-right">Remaining</TableHead>
               <TableHead className="w-36 text-right">Receive Now</TableHead>
-              <TableHead className="w-48">Actual Weight</TableHead>
-              <TableHead className="w-36">Weighbridge Ref</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="p-0">
+                <TableCell colSpan={6} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start receiving against this Purchase Order." />
                 </TableCell>
               </TableRow>
@@ -76,6 +75,9 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
                 const remaining = Number(line?.remaining ?? 0)
                 const allowOverReceipt = line?.allowOverReceipt ?? false
                 const hasItem = !!line?.purchase_order_item_id
+                const qtyCategory = line?.qtyCategory ?? 'unit'
+                const decimalPlaces = qtyDecimalPlaces(qtyCategory)
+                const uom = purchaseOrderItems.find((poItem) => poItem.id === line?.purchase_order_item_id)?.item_uom
 
                 return (
                   <TableRow key={field.id}>
@@ -102,64 +104,26 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
                         )}
                       />
                     </TableCell>
-                    <TableCell className="text-right">{formatNumber(line?.ordered ?? 0)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(line?.alreadyReceived ?? 0)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(remaining)}</TableCell>
+                    <TableCell className="text-right">{formatQty(line?.ordered ?? 0, qtyCategory)}</TableCell>
+                    <TableCell className="text-right">{formatQty(line?.alreadyReceived ?? 0, qtyCategory)}</TableCell>
+                    <TableCell className="text-right">{formatQty(remaining, qtyCategory)}</TableCell>
                     <TableCell>
                       <FormField
                         control={control}
                         name={`items.${index}.receiveNow`}
                         render={({ field: receiveNowField }) => (
                           <FormItem className="gap-0">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={allowOverReceipt ? undefined : remaining}
-                              step="1"
-                              disabled={disabled || !hasItem || (remaining === 0 && !allowOverReceipt)}
-                              {...receiveNowField}
-                            />
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1.5">
-                        <FormField
-                          control={control}
-                          name={`items.${index}.actual_weight`}
-                          render={({ field: weightField }) => (
-                            <FormItem className="gap-0">
-                              <Input type="number" min={0} step="0.01" placeholder="Optional" disabled={disabled} {...weightField} />
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={control}
-                          name={`items.${index}.weight_unit`}
-                          render={({ field: unitField }) => (
-                            <Select value={unitField.value || 'ton'} onValueChange={unitField.onChange} disabled={disabled}>
-                              <SelectTrigger className="w-20">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="ton">ton</SelectItem>
-                                <SelectItem value="kg">kg</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <FormField
-                        control={control}
-                        name={`items.${index}.weighbridge_ref`}
-                        render={({ field: refField }) => (
-                          <FormItem className="gap-0">
-                            <Input placeholder="Optional" disabled={disabled} {...refField} />
+                            <div className="flex items-center gap-1.5">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={allowOverReceipt ? undefined : remaining}
+                                step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                                disabled={disabled || !hasItem || (remaining === 0 && !allowOverReceipt)}
+                                {...receiveNowField}
+                              />
+                              {uom && <span className="text-xs text-muted-foreground">{uom}</span>}
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -201,10 +165,8 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
             alreadyReceived: 0,
             remaining: 0,
             allowOverReceipt: false,
+            qtyCategory: 'unit',
             receiveNow: '0',
-            actual_weight: '',
-            weight_unit: 'ton',
-            weighbridge_ref: '',
           })
         }
         disabled={disabled}

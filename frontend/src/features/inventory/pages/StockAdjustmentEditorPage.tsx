@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { parseLocaleQty } from '@/shared/lib/qty'
 import { fetchStockBalances } from '../api/stockApi'
 import {
   createStockAdjustment,
@@ -89,7 +90,8 @@ export function StockAdjustmentEditorPage() {
         item_id: line.item_id,
         item_code: line.item_code,
         item_name: line.item_name,
-        systemQty: line.system_qty,
+        qtyCategory: line.qty_category,
+        systemQty: Number(line.system_qty),
         countedQty: String(line.counted_qty),
         reason: line.reason,
       })),
@@ -116,7 +118,7 @@ export function StockAdjustmentEditorPage() {
     remarks: values.remarks || null,
     items: values.items.map((line) => ({
       item_id: line.item_id,
-      counted_qty: Number(line.countedQty),
+      counted_qty: parseLocaleQty(line.countedQty),
       reason: line.reason,
     })),
   })

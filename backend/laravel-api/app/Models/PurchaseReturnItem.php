@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -21,11 +22,12 @@ class PurchaseReturnItem extends Model
 
     protected $fillable = [
         'purchase_return_id', 'purchase_invoice_item_id', 'item_id', 'warehouse_id',
-        'item_code', 'item_name', 'uom', 'qty_returned', 'rate', 'amount',
+        'item_code', 'item_name', 'uom', 'qty_returned', 'qty_category', 'rate', 'amount',
     ];
 
     protected $casts = [
-        'qty_returned' => 'integer',
+        'qty_returned' => 'decimal:4',
+        'qty_category' => QtyCategory::class,
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
     ];

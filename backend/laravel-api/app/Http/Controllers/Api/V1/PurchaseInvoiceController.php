@@ -20,7 +20,7 @@ class PurchaseInvoiceController extends Controller
 {
     use ApiResponse;
 
-    protected const EAGER = ['supplier', 'purchaseOrder', 'purchaseOrders', 'goodsReceipt.warehouse', 'goodsReceipts', 'items', 'accountsPayable', 'purchaseReturns'];
+    protected const EAGER = ['supplier', 'purchaseOrder', 'purchaseOrders', 'goodsReceipt.warehouse', 'goodsReceipts', 'items.item', 'accountsPayable', 'purchaseReturns'];
 
     public function __construct(protected PurchaseInvoiceService $purchaseInvoiceService) {}
 

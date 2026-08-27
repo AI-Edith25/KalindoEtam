@@ -37,6 +37,7 @@ const itemFormSchema = z.object({
   purchase_tax_id: z.string(),
   sales_tax_id: z.string(),
   allow_over_receipt: z.boolean(),
+  qty_category: z.enum(['unit', 'weight']),
 })
 
 type ItemFormSchemaValues = z.infer<typeof itemFormSchema>
@@ -50,6 +51,7 @@ const emptyValues: ItemFormSchemaValues = {
   purchase_tax_id: '',
   sales_tax_id: '',
   allow_over_receipt: false,
+  qty_category: 'unit',
 }
 
 interface ItemFormDrawerProps {
@@ -82,6 +84,7 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
             purchase_tax_id: item.purchase_tax_id ?? '',
             sales_tax_id: item.sales_tax_id ?? '',
             allow_over_receipt: item.allow_over_receipt,
+            qty_category: item.qty_category,
           }
         : emptyValues,
     )
@@ -198,6 +201,30 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="qty_category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Qty Category</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="unit">Unit</SelectItem>
+                        <SelectItem value="weight">Weight</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Kategori Unit → qty diinput bilangan bulat. Kategori Weight → qty boleh desimal.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

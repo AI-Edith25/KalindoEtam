@@ -13,7 +13,8 @@ import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatQty } from '@/shared/lib/qty'
 import { deletePurchaseReturn, fetchPurchaseReturn, reversePurchaseReturn, submitPurchaseReturn } from '../api/purchaseReturnApi'
 import { PURCHASE_RETURN_REASON_LABELS } from '../lib/purchaseReturnReasonLabels'
 import type { PurchaseReturnItem } from '../types'
@@ -21,7 +22,7 @@ import type { PurchaseReturnItem } from '../types'
 const lineColumns: DataTableColumn<PurchaseReturnItem>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
   { header: 'Item Name', accessor: (row) => row.item_name },
-  { header: 'Qty Returned', accessor: (row) => formatNumber(row.qty_returned), className: 'text-right' },
+  { header: 'Qty Returned', accessor: (row) => formatQty(row.qty_returned, row.qty_category), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
   { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
 ]

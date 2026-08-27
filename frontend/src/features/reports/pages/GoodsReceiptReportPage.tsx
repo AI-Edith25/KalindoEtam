@@ -19,21 +19,6 @@ import { GoodsReceiptReportFiltersBar } from '../components/GoodsReceiptReportFi
 import { emptyGoodsReceiptReportFilters } from '../lib/reportFilters'
 import type { GoodsReceiptReportFilterValues } from '../types'
 
-/** Sums actual_weight per weight_unit (never mixed across units) — purely informational. */
-function weightTotalsLabel(items: GoodsReceipt['items']): string {
-  const totalsByUnit: Record<string, number> = {}
-
-  for (const item of items) {
-    const weight = Number(item.actual_weight ?? 0)
-    if (weight <= 0) continue
-    const unit = item.weight_unit || 'ton'
-    totalsByUnit[unit] = (totalsByUnit[unit] ?? 0) + weight
-  }
-
-  const parts = Object.entries(totalsByUnit).map(([unit, total]) => `${formatNumber(total)} ${unit}`)
-  return parts.length > 0 ? parts.join(', ') : '—'
-}
-
 /** Read-only report over Goods Receipt — reuses fetchGoodsReceipts() as-is, no new endpoint for listing (export gets its own). */
 export function GoodsReceiptReportPage() {
   const navigate = useNavigate()
@@ -103,12 +88,7 @@ export function GoodsReceiptReportPage() {
     { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },
     {
       header: 'Received Qty',
-      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + line.qty, 0)),
-      className: 'text-right',
-    },
-    {
-      header: 'Total Actual Weight',
-      accessor: (row) => weightTotalsLabel(row.items),
+      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + Number(line.qty), 0)),
       className: 'text-right',
     },
   ]

@@ -62,6 +62,23 @@ export function ItemFiltersBar({ value, onChange }: ItemFiltersBarProps) {
           </SelectContent>
         </Select>
       </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Qty Category</span>
+        <Select
+          value={value.qtyCategory ?? ALL}
+          onValueChange={(next) => onChange({ ...value, qtyCategory: next === ALL ? null : (next as 'unit' | 'weight') })}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="All categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All categories</SelectItem>
+            <SelectItem value="unit">Unit</SelectItem>
+            <SelectItem value="weight">Weight</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </FilterPanel>
   )
 }

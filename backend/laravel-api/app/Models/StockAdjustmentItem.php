@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -21,13 +22,15 @@ class StockAdjustmentItem extends Model
         'system_qty',
         'counted_qty',
         'difference_qty',
+        'qty_category',
         'reason',
     ];
 
     protected $casts = [
-        'system_qty' => 'integer',
-        'counted_qty' => 'integer',
-        'difference_qty' => 'integer',
+        'system_qty' => 'decimal:4',
+        'counted_qty' => 'decimal:4',
+        'difference_qty' => 'decimal:4',
+        'qty_category' => QtyCategory::class,
     ];
 
     public function stockAdjustment(): BelongsTo

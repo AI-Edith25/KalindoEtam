@@ -16,6 +16,7 @@ class StockTransferItemResource extends JsonResource
             'item_name' => $this->item_name,
             'uom' => $this->uom,
             'qty' => $this->qty,
+            'qty_category' => $this->qty_category,
         ];
     }
 }

@@ -64,7 +64,7 @@ class PurchaseReturnTest extends TestCase
         ]);
     }
 
-    protected function submittedPurchaseInvoice(int $qty = 10, float $rate = 20000): PurchaseInvoice
+    protected function submittedPurchaseInvoice(int|float $qty = 10, float $rate = 20000): PurchaseInvoice
     {
         $purchaseOrder = $this->purchaseOrderService->create([
             'supplier_id' => $this->supplier->id,
@@ -282,5 +282,46 @@ class PurchaseReturnTest extends TestCase
         // No stock movement either — the failed journal post aborts the whole transaction.
         $stock = StockLedger::query()->where('item_id', $this->item->id)->sum('qty_change');
         $this->assertEquals(5, $stock);
+    }
+
+    public function test_unit_category_item_rejects_decimal_qty_returned(): void
+    {
+        $purchaseInvoice = $this->submittedPurchaseInvoice(qty: 10, rate: 20000);
+        $invoiceItem = $purchaseInvoice->items->first();
+
+        try {
+            $this->purchaseReturnService->create([
+                'purchase_invoice_id' => $purchaseInvoice->id,
+                'return_date' => now()->toDateString(),
+                'reason' => PurchaseReturnReason::DAMAGED_GOODS->value,
+                'items' => [
+                    ['purchase_invoice_item_id' => $invoiceItem->id, 'qty_returned' => 2.5, 'amount' => 50000],
+                ],
+            ]);
+            $this->fail('Expected a decimal qty_returned on a Unit-category item to throw.');
+        } catch (BusinessException) {
+        }
+
+        $this->assertDatabaseCount('purchase_returns', 0);
+    }
+
+    public function test_weight_category_item_accepts_decimal_qty_returned_and_rounds_to_two_places(): void
+    {
+        $this->item->update(['qty_category' => 'weight']);
+        $purchaseInvoice = $this->submittedPurchaseInvoice(qty: 10.5, rate: 20000);
+        $invoiceItem = $purchaseInvoice->items->first();
+
+        $purchaseReturn = $this->purchaseReturnService->create([
+            'purchase_invoice_id' => $purchaseInvoice->id,
+            'return_date' => now()->toDateString(),
+            'reason' => PurchaseReturnReason::DAMAGED_GOODS->value,
+            'items' => [
+                ['purchase_invoice_item_id' => $invoiceItem->id, 'qty_returned' => 2.5049, 'amount' => 50000],
+            ],
+        ]);
+
+        $line = $purchaseReturn->items->first()->fresh();
+        $this->assertEquals(2.50, (float) $line->qty_returned);
+        $this->assertSame('weight', $line->qty_category->value);
     }
 }

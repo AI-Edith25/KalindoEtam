@@ -10,6 +10,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+import { formatQty } from '@/shared/lib/qty'
 import { deleteItem, fetchItems } from '../api/itemApi'
 import { ItemFormDrawer } from '../components/ItemFormDrawer'
 import { ItemDetailDrawer } from '../components/ItemDetailDrawer'
@@ -43,6 +44,7 @@ export function ItemListPage() {
     { header: 'Name', accessor: (row) => row.item_name, sortKey: 'item_name' },
     { header: 'Group', accessor: (row) => row.item_group?.name ?? '—' },
     { header: 'UOM', accessor: (row) => row.uom?.name ?? '—' },
+    { header: 'Qty Category', accessor: (row) => (row.qty_category === 'weight' ? 'Weight' : 'Unit') },
     {
       header: 'Standard Rate',
       accessor: (row) => formatCurrency(row.standard_rate),
@@ -51,7 +53,7 @@ export function ItemListPage() {
     },
     {
       header: 'Stock',
-      accessor: (row) => formatNumber(row.current_stock),
+      accessor: (row) => formatQty(row.current_stock, row.qty_category),
       className: 'text-right',
       sortKey: 'current_stock',
     },

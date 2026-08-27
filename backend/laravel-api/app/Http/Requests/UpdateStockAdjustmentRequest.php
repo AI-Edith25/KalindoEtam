@@ -19,7 +19,7 @@ class UpdateStockAdjustmentRequest extends FormRequest
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
-            'items.*.counted_qty' => ['required_with:items', 'integer', 'min:0'],
+            'items.*.counted_qty' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.reason' => ['required_with:items', 'string'],
         ];
     }

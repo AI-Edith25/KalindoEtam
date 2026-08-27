@@ -26,6 +26,7 @@ class PurchaseOrderService
         protected PurchaseOrderItemRepository $purchaseOrderItemRepository,
         protected TaxService $taxService,
         protected AuditLogService $auditLogService,
+        protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -154,13 +155,17 @@ class PurchaseOrderService
         $totalTax = 0.0;
 
         foreach ($items as $line) {
-            $lineAmount = $line['qty'] * $line['rate'];
-            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'purchase_tax_id', $lineAmount);
+            $item = $itemsById->get($line['item_id']);
+            $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+            $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
+            $lineAmount = $qty * $line['rate'];
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $item, 'purchase_tax_id', $lineAmount);
 
             $this->purchaseOrderItemRepository->create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'item_id' => $line['item_id'],
-                'qty' => $line['qty'],
+                'qty' => $qty,
+                'qty_category' => $item->qty_category,
                 'rate' => $line['rate'],
                 'amount' => $lineAmount,
                 'received_qty' => 0,
@@ -174,6 +179,11 @@ class PurchaseOrderService
         return round($totalTax, 2);
     }
 
+    /**
+     * A rough pre-rounding subtotal for the header's own "does this even need
+     * saving" preview — replaceItems() computes the authoritative per-line
+     * amount (using each item's rounded qty) right after this is called.
+     */
     protected function sumLines(array $items): float
     {
         return collect($items)->sum(fn (array $line) => $line['qty'] * $line['rate']);

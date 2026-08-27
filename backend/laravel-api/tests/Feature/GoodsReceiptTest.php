@@ -25,8 +25,6 @@ use Tests\TestCase;
  * Covers the 2 Goods Receipt features shipped together: standalone/direct
  * receipts with no source Purchase Order, and the per-Item "Allow
  * Over-Receipt" override on GoodsReceiptService::assertWithinOutstanding().
- * Qty is a whole-unit count (zak/lot/unit), not a truck-scale weight — see
- * the qty-decimal revert migration/commit for why decimal qty was wrong.
  */
 class GoodsReceiptTest extends TestCase
 {
@@ -87,12 +85,12 @@ class GoodsReceiptTest extends TestCase
 
         $this->assertNull($goodsReceipt->purchase_order_id);
         $this->assertNull($goodsReceipt->items->first()->purchase_order_item_id);
-        $this->assertSame(12, $goodsReceipt->items->first()->qty);
+        $this->assertEquals(12, (float) $goodsReceipt->items->first()->qty);
 
         $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt->fresh());
 
         $this->assertEquals('submitted', $goodsReceipt->status->value);
-        $this->assertSame(12, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
+        $this->assertEquals(12, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
         $this->assertDatabaseCount('stock_ledgers', 1);
     }
 
@@ -131,62 +129,17 @@ class GoodsReceiptTest extends TestCase
         $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt->fresh());
 
         $poItem = $purchaseOrder->items->first()->fresh();
-        $this->assertSame(55, $poItem->received_qty);
-        $this->assertSame(-5, $poItem->qty - $poItem->received_qty); // outstanding goes negative, no error
+        $this->assertEquals(55, (float) $poItem->received_qty);
+        $this->assertEquals(-5, (float) $poItem->qty - (float) $poItem->received_qty); // outstanding goes negative, no error
         $this->assertTrue($poItem->received_qty >= $poItem->qty); // "fully received" (PurchaseOrderResource::is_fully_received) still holds past 100%
 
         // Preserved end to end: GR item, PO received_qty, stock ledger, Item.current_stock.
-        $this->assertSame(55, $goodsReceipt->items->first()->qty);
-        $this->assertSame(55, $this->item->fresh()->current_stock);
-        $this->assertSame(55, StockLedger::query()->where('item_id', $this->item->id)->value('balance_qty'));
+        $this->assertEquals(55, (float) $goodsReceipt->items->first()->qty);
+        $this->assertEquals(55, (float) $this->item->fresh()->current_stock);
+        $this->assertEquals(55, (float) StockLedger::query()->where('item_id', $this->item->id)->value('balance_qty'));
     }
 
-    public function test_actual_weight_is_optional_and_defaults_to_null(): void
-    {
-        $goodsReceipt = $this->goodsReceiptService->create([
-            'purchase_order_id' => null,
-            'supplier_id' => $this->supplier->id,
-            'warehouse_id' => $this->warehouse->id,
-            'receipt_date' => now()->toDateString(),
-            'due_date' => now()->addDays(30)->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => 10, 'rate' => 950000]],
-        ]);
-
-        $line = $goodsReceipt->items->first();
-        $this->assertNull($line->actual_weight);
-        $this->assertNull($line->weight_unit);
-        $this->assertNull($line->weighbridge_ref);
-    }
-
-    public function test_actual_weight_is_recorded_but_never_affects_amount(): void
-    {
-        $goodsReceipt = $this->goodsReceiptService->create([
-            'purchase_order_id' => null,
-            'supplier_id' => $this->supplier->id,
-            'warehouse_id' => $this->warehouse->id,
-            'receipt_date' => now()->toDateString(),
-            'due_date' => now()->addDays(30)->toDateString(),
-            'items' => [[
-                'item_id' => $this->item->id,
-                'qty' => 10,
-                'rate' => 950000,
-                'actual_weight' => 10.65,
-                'weight_unit' => 'ton',
-                'weighbridge_ref' => 'WB-001',
-            ]],
-        ]);
-
-        $line = $goodsReceipt->items->first();
-        $this->assertEquals(10.65, (float) $line->actual_weight);
-        $this->assertSame('ton', $line->weight_unit);
-        $this->assertSame('WB-001', $line->weighbridge_ref);
-
-        // Weight never touches qty/rate/amount math — identical to a line with no weight at all.
-        $this->assertSame(10, $line->qty);
-        $this->assertEquals(9500000, (float) $line->amount);
-    }
-
-    public function test_same_po_item_can_appear_on_two_lines_with_independent_weights(): void
+    public function test_same_po_item_can_appear_on_two_lines_with_independent_qty(): void
     {
         $purchaseOrder = $this->submittedPurchaseOrder(qty: 100, rate: 1000000);
         $poItemId = $purchaseOrder->items->first()->id;
@@ -197,14 +150,14 @@ class GoodsReceiptTest extends TestCase
             'receipt_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [
-                ['purchase_order_item_id' => $poItemId, 'qty' => 30, 'actual_weight' => 30.10, 'weight_unit' => 'ton'],
-                ['purchase_order_item_id' => $poItemId, 'qty' => 20, 'actual_weight' => 20.40, 'weight_unit' => 'ton'],
+                ['purchase_order_item_id' => $poItemId, 'qty' => 30],
+                ['purchase_order_item_id' => $poItemId, 'qty' => 20],
             ],
         ]);
 
         $this->assertCount(2, $goodsReceipt->items);
-        $weights = $goodsReceipt->items->map(fn ($line) => (float) $line->actual_weight)->sort()->values()->all();
-        $this->assertEquals([20.40, 30.10], $weights);
+        $qtys = $goodsReceipt->items->map(fn ($line) => (float) $line->qty)->sort()->values()->all();
+        $this->assertEquals([20, 30], $qtys);
     }
 
     public function test_combined_qty_across_lines_for_the_same_po_item_is_validated_not_each_line_alone(): void
@@ -264,5 +217,45 @@ class GoodsReceiptTest extends TestCase
         }
 
         $this->assertDatabaseCount('goods_receipts', 0);
+    }
+
+    public function test_unit_category_item_rejects_decimal_qty(): void
+    {
+        // $this->item defaults to qty_category 'unit' (not set in setUp()).
+        try {
+            $this->goodsReceiptService->create([
+                'purchase_order_id' => null,
+                'supplier_id' => $this->supplier->id,
+                'warehouse_id' => $this->warehouse->id,
+                'receipt_date' => now()->toDateString(),
+                'due_date' => now()->addDays(30)->toDateString(),
+                'items' => [['item_id' => $this->item->id, 'qty' => 12.5, 'rate' => 950000]],
+            ]);
+            $this->fail('Expected a decimal qty on a Unit-category item to throw.');
+        } catch (BusinessException) {
+        }
+
+        $this->assertDatabaseCount('goods_receipts', 0);
+    }
+
+    public function test_weight_category_item_accepts_decimal_qty_and_rounds_to_two_places(): void
+    {
+        $this->item->update(['qty_category' => 'weight']);
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 50.6549, 'rate' => 950000]],
+        ]);
+
+        $line = $goodsReceipt->items->first()->fresh();
+        $this->assertEquals(50.65, (float) $line->qty);
+        $this->assertSame('weight', $line->qty_category->value);
+
+        // (qty * rate) uses the rounded qty, not the raw input.
+        $this->assertEquals(50.65 * 950000, (float) $line->amount);
     }
 }

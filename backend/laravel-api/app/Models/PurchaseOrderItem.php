@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ class PurchaseOrderItem extends Model
         'purchase_order_id',
         'item_id',
         'qty',
+        'qty_category',
         'rate',
         'amount',
         'received_qty',
@@ -24,10 +26,11 @@ class PurchaseOrderItem extends Model
     ];
 
     protected $casts = [
-        'qty' => 'integer',
+        'qty' => 'decimal:4',
+        'qty_category' => QtyCategory::class,
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
-        'received_qty' => 'integer',
+        'received_qty' => 'decimal:4',
         'tax_amount' => 'decimal:2',
     ];
 

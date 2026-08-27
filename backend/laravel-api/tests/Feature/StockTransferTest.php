@@ -79,10 +79,10 @@ class StockTransferTest extends TestCase
 
         $this->stockTransferService->submit($transfer);
 
-        $this->assertSame(30, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->source->id));
-        $this->assertSame(20, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->destination->id));
+        $this->assertEquals(30, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->source->id));
+        $this->assertEquals(20, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->destination->id));
         // current_stock is a company-wide total across all warehouses — a transfer redistributes it, doesn't change it.
-        $this->assertSame(50, $this->item->fresh()->current_stock);
+        $this->assertEquals(50, $this->item->fresh()->current_stock);
     }
 
     public function test_submit_rejects_qty_exceeding_available_stock_at_source(): void
@@ -127,5 +127,37 @@ class StockTransferTest extends TestCase
         $this->stockTransferService->submit($transfer);
 
         $this->assertSame($before, JournalEntry::query()->count());
+    }
+
+    public function test_unit_category_item_rejects_decimal_qty(): void
+    {
+        try {
+            $this->stockTransferService->create([
+                'source_warehouse_id' => $this->source->id,
+                'destination_warehouse_id' => $this->destination->id,
+                'transfer_date' => now()->toDateString(),
+                'items' => [['item_id' => $this->item->id, 'qty' => 12.5]],
+            ]);
+            $this->fail('Expected a decimal qty on a Unit-category item to throw.');
+        } catch (BusinessException) {
+        }
+
+        $this->assertDatabaseCount('stock_transfers', 0);
+    }
+
+    public function test_weight_category_item_accepts_decimal_qty_and_rounds_to_two_places(): void
+    {
+        $this->item->update(['qty_category' => 'weight']);
+
+        $transfer = $this->stockTransferService->create([
+            'source_warehouse_id' => $this->source->id,
+            'destination_warehouse_id' => $this->destination->id,
+            'transfer_date' => now()->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 20.6549]],
+        ]);
+
+        $line = $transfer->items->first()->fresh();
+        $this->assertEquals(20.65, (float) $line->qty);
+        $this->assertSame('weight', $line->qty_category->value);
     }
 }

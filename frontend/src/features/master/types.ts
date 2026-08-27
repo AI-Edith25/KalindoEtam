@@ -85,13 +85,15 @@ export interface Item {
   uom_id: string
   uom: Uom | null
   standard_rate: string | number
-  current_stock: number
+  current_stock: string | number
   purchase_tax_id: string | null
   purchase_tax: Tax | null
   sales_tax_id: string | null
   sales_tax: Tax | null
   /** Lets a Goods Receipt line for this item exceed the PO's outstanding qty — bulk items (cement) received by truck-scale weight. */
   allow_over_receipt: boolean
+  /** Decides qty input type everywhere this item appears — 'unit' (integer, e.g. zak) or 'weight' (2 decimals, e.g. bulk cement). */
+  qty_category: 'unit' | 'weight'
   created_at: string
   updated_at: string
 }
@@ -104,6 +106,7 @@ export interface ItemFormValues {
   standard_rate: number
   purchase_tax_id?: string | null
   sales_tax_id?: string | null
+  qty_category: 'unit' | 'weight'
 }
 
 export interface ItemGroupFormValues {

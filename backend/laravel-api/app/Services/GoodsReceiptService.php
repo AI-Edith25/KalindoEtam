@@ -28,6 +28,7 @@ class GoodsReceiptService
         protected ItemRepository $itemRepository,
         protected StockLedgerService $stockLedgerService,
         protected AuditLogService $auditLogService,
+        protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -68,6 +69,8 @@ class GoodsReceiptService
             foreach ($data['items'] as $line) {
                 $poItem = $this->resolvePurchaseOrderItem($purchaseOrder->id, $line['purchase_order_item_id']);
                 $item = $poItem->item;
+                $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+                $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
 
                 $this->goodsReceiptItemRepository->create([
                     'goods_receipt_id' => $goodsReceipt->id,
@@ -76,12 +79,10 @@ class GoodsReceiptService
                     'item_code' => $item->item_code,
                     'item_name' => $item->item_name,
                     'uom' => $item->uom->name,
-                    'qty' => $line['qty'],
-                    'actual_weight' => $line['actual_weight'] ?? null,
-                    'weight_unit' => $line['weight_unit'] ?? null,
-                    'weighbridge_ref' => $line['weighbridge_ref'] ?? null,
+                    'qty' => $qty,
+                    'qty_category' => $item->qty_category,
                     'rate' => $poItem->rate,
-                    'amount' => $line['qty'] * $poItem->rate,
+                    'amount' => $qty * $poItem->rate,
                 ]);
             }
 
@@ -123,6 +124,8 @@ class GoodsReceiptService
     protected function createDirectLine(GoodsReceipt $goodsReceipt, array $line): void
     {
         $item = $this->itemRepository->findOrFail($line['item_id']);
+        $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+        $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
 
         $this->goodsReceiptItemRepository->create([
             'goods_receipt_id' => $goodsReceipt->id,
@@ -131,12 +134,10 @@ class GoodsReceiptService
             'item_code' => $item->item_code,
             'item_name' => $item->item_name,
             'uom' => $item->uom->name,
-            'qty' => $line['qty'],
-            'actual_weight' => $line['actual_weight'] ?? null,
-            'weight_unit' => $line['weight_unit'] ?? null,
-            'weighbridge_ref' => $line['weighbridge_ref'] ?? null,
+            'qty' => $qty,
+            'qty_category' => $item->qty_category,
             'rate' => $line['rate'],
-            'amount' => $line['qty'] * $line['rate'],
+            'amount' => $qty * $line['rate'],
         ]);
     }
 
@@ -163,6 +164,8 @@ class GoodsReceiptService
 
                     $poItem = $this->resolvePurchaseOrderItem($goodsReceipt->purchase_order_id, $line['purchase_order_item_id']);
                     $item = $poItem->item;
+                    $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+                    $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
 
                     $this->goodsReceiptItemRepository->create([
                         'goods_receipt_id' => $goodsReceipt->id,
@@ -171,12 +174,10 @@ class GoodsReceiptService
                         'item_code' => $item->item_code,
                         'item_name' => $item->item_name,
                         'uom' => $item->uom->name,
-                        'qty' => $line['qty'],
-                        'actual_weight' => $line['actual_weight'] ?? null,
-                        'weight_unit' => $line['weight_unit'] ?? null,
-                        'weighbridge_ref' => $line['weighbridge_ref'] ?? null,
+                        'qty' => $qty,
+                        'qty_category' => $item->qty_category,
                         'rate' => $poItem->rate,
-                        'amount' => $line['qty'] * $poItem->rate,
+                        'amount' => $qty * $poItem->rate,
                     ]);
                 }
             }
@@ -220,7 +221,7 @@ class GoodsReceiptService
                 $goodsReceipt->items
                     ->groupBy('purchase_order_item_id')
                     ->each(function ($group) {
-                        $this->assertWithinOutstanding($group->first()->purchaseOrderItem, (int) $group->sum('qty'));
+                        $this->assertWithinOutstanding($group->first()->purchaseOrderItem, (float) $group->sum('qty'));
                     });
             }
 
@@ -275,11 +276,11 @@ class GoodsReceiptService
 
         foreach ($totalsByPoItemId as $purchaseOrderItemId => $totalQty) {
             $poItem = $this->resolvePurchaseOrderItem($purchaseOrderId, $purchaseOrderItemId);
-            $this->assertWithinOutstanding($poItem, (int) $totalQty);
+            $this->assertWithinOutstanding($poItem, (float) $totalQty);
         }
     }
 
-    protected function assertWithinOutstanding(PurchaseOrderItem $poItem, int $qty): void
+    protected function assertWithinOutstanding(PurchaseOrderItem $poItem, int|float $qty): void
     {
         $outstanding = $poItem->qty - $poItem->received_qty;
 

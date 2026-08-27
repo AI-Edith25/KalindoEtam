@@ -21,12 +21,13 @@ class PurchaseInvoiceItemResource extends JsonResource
             'item_code' => $this->item_code,
             'item_name' => $this->item_name,
             'uom' => $this->uom,
+            'item_qty_category' => $this->whenLoaded('item', fn () => $this->item->qty_category),
             'rate' => $this->rate,
             'qty' => $this->qty,
             'amount' => $this->amount,
-            'returned_qty' => (int) $returnedTotals->qty,
+            'returned_qty' => (float) $returnedTotals->qty,
             'returned_amount' => (float) $returnedTotals->amount,
-            'returnable_qty' => (int) $this->qty - (int) $returnedTotals->qty,
+            'returnable_qty' => (float) $this->qty - (float) $returnedTotals->qty,
             'returnable_amount' => (float) $this->amount - (float) $returnedTotals->amount,
         ];
     }

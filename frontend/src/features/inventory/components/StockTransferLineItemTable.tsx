@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { formatNumber } from '@/lib/utils'
+import { formatQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { StockTransferEditorValues } from '../lib/stockTransferFormSchema'
 import type { Item } from '@/features/master/types'
 
@@ -36,6 +36,7 @@ export function StockTransferLineItemTable({ form, items, itemsLoading, disabled
     if (selected) {
       setValue(`items.${index}.item_code`, selected.item_code)
       setValue(`items.${index}.item_name`, selected.item_name)
+      setValue(`items.${index}.qtyCategory`, selected.qty_category, { shouldValidate: true })
     }
   }
 
@@ -61,6 +62,8 @@ export function StockTransferLineItemTable({ form, items, itemsLoading, disabled
             ) : (
               fields.map((field, index) => {
                 const availableQty = watchedItems?.[index]?.availableQty ?? field.availableQty
+                const qtyCategory = watchedItems?.[index]?.qtyCategory ?? 'unit'
+                const decimalPlaces = qtyDecimalPlaces(qtyCategory)
 
                 return (
                   <TableRow key={field.id}>
@@ -87,14 +90,20 @@ export function StockTransferLineItemTable({ form, items, itemsLoading, disabled
                         )}
                       />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">{formatNumber(availableQty)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">{formatQty(availableQty, qtyCategory)}</TableCell>
                     <TableCell>
                       <FormField
                         control={control}
                         name={`items.${index}.qty`}
                         render={({ field: qtyField }) => (
                           <FormItem className="gap-0">
-                            <Input type="number" min={1} step="1" disabled={disabled} {...qtyField} />
+                            <Input
+                              type="number"
+                              min={decimalPlaces > 0 ? 0.01 : 1}
+                              step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                              disabled={disabled}
+                              {...qtyField}
+                            />
                             <FormMessage />
                           </FormItem>
                         )}
@@ -126,7 +135,7 @@ export function StockTransferLineItemTable({ form, items, itemsLoading, disabled
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', availableQty: 0, qty: '1' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', availableQty: 0, qty: '1' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

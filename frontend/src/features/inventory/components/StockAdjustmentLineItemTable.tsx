@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { cn, formatNumber } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { formatQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { StockAdjustmentEditorValues } from '../lib/stockAdjustmentFormSchema'
 import type { Item } from '@/features/master/types'
 
@@ -39,6 +40,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
     if (selected) {
       setValue(`items.${index}.item_code`, selected.item_code)
       setValue(`items.${index}.item_name`, selected.item_name)
+      setValue(`items.${index}.qtyCategory`, selected.qty_category, { shouldValidate: true })
     }
   }
 
@@ -68,6 +70,8 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
                 const systemQty = watchedItems?.[index]?.systemQty ?? field.systemQty
                 const countedQty = Number(watchedItems?.[index]?.countedQty || 0)
                 const difference = countedQty - systemQty
+                const qtyCategory = watchedItems?.[index]?.qtyCategory ?? 'unit'
+                const decimalPlaces = qtyDecimalPlaces(qtyCategory)
 
                 return (
                   <TableRow key={field.id}>
@@ -94,14 +98,20 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
                         )}
                       />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">{formatNumber(systemQty)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">{formatQty(systemQty, qtyCategory)}</TableCell>
                     <TableCell>
                       <FormField
                         control={control}
                         name={`items.${index}.countedQty`}
                         render={({ field: countedField }) => (
                           <FormItem className="gap-0">
-                            <Input type="number" min={0} step="1" disabled={disabled} {...countedField} />
+                            <Input
+                              type="number"
+                              min={0}
+                              step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                              disabled={disabled}
+                              {...countedField}
+                            />
                             <FormMessage />
                           </FormItem>
                         )}
@@ -115,7 +125,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
                       )}
                     >
                       {difference > 0 ? '+' : ''}
-                      {formatNumber(difference)}
+                      {formatQty(difference, qtyCategory)}
                     </TableCell>
                     <TableCell>
                       <FormField
@@ -155,7 +165,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', systemQty: 0, countedQty: '0', reason: '' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', systemQty: 0, countedQty: '0', reason: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

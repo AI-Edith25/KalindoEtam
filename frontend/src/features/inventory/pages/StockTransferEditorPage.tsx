@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { parseLocaleQty } from '@/shared/lib/qty'
 import { fetchStockBalances } from '../api/stockApi'
 import {
   createStockTransfer,
@@ -90,6 +91,7 @@ export function StockTransferEditorPage() {
         item_id: line.item_id,
         item_code: line.item_code,
         item_name: line.item_name,
+        qtyCategory: line.qty_category,
         availableQty: 0,
         qty: String(line.qty),
       })),
@@ -117,7 +119,7 @@ export function StockTransferEditorPage() {
     remarks: values.remarks || null,
     items: values.items.map((line) => ({
       item_id: line.item_id,
-      qty: Number(line.qty),
+      qty: parseLocaleQty(line.qty),
     })),
   })
 

@@ -8,6 +8,7 @@ import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatCurrency } from '@/lib/utils'
 import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
+import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { PurchaseOrderEditorValues } from '../lib/purchaseOrderFormSchema'
 import type { Item, Tax } from '@/features/master/types'
 
@@ -43,6 +44,7 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
     if (selected) {
       setValue(`items.${index}.rate`, String(selected.standard_rate), { shouldValidate: true })
       setValue(`items.${index}.tax_id`, selected.purchase_tax_id ?? '', { shouldValidate: true })
+      setValue(`items.${index}.qtyCategory`, selected.qty_category, { shouldValidate: true })
     }
   }
 
@@ -69,7 +71,13 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
                 </TableCell>
               </TableRow>
             ) : (
-              fields.map((field, index) => (
+              fields.map((field, index) => {
+                const selectedItem = items.find((item) => item.id === watchedItems?.[index]?.item_id)
+                const qtyCategory = watchedItems?.[index]?.qtyCategory ?? 'unit'
+                const decimalPlaces = qtyDecimalPlaces(qtyCategory)
+                const uom = selectedItem?.uom ? `${selectedItem.uom.name}${selectedItem.uom.symbol ? ` (${selectedItem.uom.symbol})` : ''}` : null
+
+                return (
                 <TableRow key={field.id}>
                   <TableCell>
                     <FormField
@@ -100,7 +108,16 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
                       name={`items.${index}.qty`}
                       render={({ field: qtyField }) => (
                         <FormItem className="gap-0">
-                          <Input type="number" min={1} step="1" disabled={disabled} {...qtyField} />
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              type="number"
+                              min={decimalPlaces > 0 ? 0.01 : 1}
+                              step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                              disabled={disabled}
+                              {...qtyField}
+                            />
+                            {uom && <span className="text-xs text-muted-foreground">{uom}</span>}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -171,7 +188,8 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))
+                )
+              })
             )}
           </TableBody>
         </Table>
@@ -182,7 +200,7 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', qty: '1', rate: '0', tax_id: '' })}
+        onClick={() => append({ item_id: '', qtyCategory: 'unit', qty: '1', rate: '0', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

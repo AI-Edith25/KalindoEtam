@@ -11,27 +11,28 @@ import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { cn, formatDate, formatNumber } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
+import { formatQty } from '@/shared/lib/qty'
 import { deleteStockAdjustment, fetchStockAdjustment, submitStockAdjustment } from '../api/stockAdjustmentApi'
 import type { StockAdjustmentItem } from '../types'
 
 const lineColumns: DataTableColumn<StockAdjustmentItem>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
   { header: 'Item Name', accessor: (row) => row.item_name },
-  { header: 'System Qty', accessor: (row) => formatNumber(row.system_qty), className: 'text-right text-muted-foreground' },
-  { header: 'Physical Qty', accessor: (row) => formatNumber(row.counted_qty), className: 'text-right' },
+  { header: 'System Qty', accessor: (row) => formatQty(row.system_qty, row.qty_category), className: 'text-right text-muted-foreground' },
+  { header: 'Physical Qty', accessor: (row) => formatQty(row.counted_qty, row.qty_category), className: 'text-right' },
   {
     header: 'Difference',
     accessor: (row) => (
       <span
         className={cn(
           'font-medium',
-          row.difference_qty > 0 && 'text-green-600 dark:text-green-400',
-          row.difference_qty < 0 && 'text-destructive',
+          Number(row.difference_qty) > 0 && 'text-green-600 dark:text-green-400',
+          Number(row.difference_qty) < 0 && 'text-destructive',
         )}
       >
-        {row.difference_qty > 0 ? '+' : ''}
-        {formatNumber(row.difference_qty)}
+        {Number(row.difference_qty) > 0 ? '+' : ''}
+        {formatQty(row.difference_qty, row.qty_category)}
       </span>
     ),
     className: 'text-right',

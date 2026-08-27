@@ -18,7 +18,8 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
+import { formatQty } from '@/shared/lib/qty'
 import { fetchGoodsReceipts } from '../api/goodsReceiptApi'
 import { createPurchaseInvoice, fetchPurchaseInvoice, submitPurchaseInvoice, updatePurchaseInvoice } from '../api/purchaseInvoiceApi'
 import { emptyPurchaseInvoiceEditorValues, purchaseInvoiceFormSchema, type PurchaseInvoiceEditorValues } from '../lib/purchaseInvoiceFormSchema'
@@ -29,7 +30,8 @@ interface PreviewLine {
   item_code: string | null
   item_name: string
   uom: string | null
-  qty: number
+  qty: string | number
+  qty_category?: 'unit' | 'weight'
   rate: string | number
   amount: string | number
 }
@@ -37,7 +39,7 @@ interface PreviewLine {
 const lineColumns: DataTableColumn<PreviewLine>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
   { header: 'Item Name', accessor: (row) => row.item_name },
-  { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
+  { header: 'Qty', accessor: (row) => formatQty(row.qty, row.qty_category ?? 'unit'), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
   { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
 ]
@@ -269,7 +271,7 @@ function PurchaseInvoiceForm({
   const watchedTaxAmount = Number(form.watch('tax_amount') || 0)
 
   const previewLines: PreviewLine[] = isEdit
-    ? ((invoice?.items ?? []) as PurchaseInvoiceItem[]).map((line) => ({ ...line }))
+    ? ((invoice?.items ?? []) as PurchaseInvoiceItem[]).map((line) => ({ ...line, qty_category: line.item_qty_category }))
     : selectedGoodsReceipts.flatMap((gr) => gr.items.map((line) => ({ ...line })))
   const subtotal = previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
   const grandTotal = subtotal + watchedTaxAmount

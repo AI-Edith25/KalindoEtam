@@ -26,6 +26,6 @@ class PurchaseReturnItemRepository extends BaseRepository
             ->selectRaw('COALESCE(SUM(qty_returned), 0) as qty, COALESCE(SUM(amount), 0) as amount')
             ->first();
 
-        return ['qty' => (int) $row->qty, 'amount' => (float) $row->amount];
+        return ['qty' => (float) $row->qty, 'amount' => (float) $row->amount];
     }
 }

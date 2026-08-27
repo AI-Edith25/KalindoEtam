@@ -21,6 +21,7 @@ class StockAdjustmentService
         protected ItemRepository $itemRepository,
         protected StockLedgerService $stockLedgerService,
         protected AuditLogService $auditLogService,
+        protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -123,6 +124,8 @@ class StockAdjustmentService
 
         foreach ($items as $line) {
             $item = $this->itemRepository->findOrFail($line['item_id']);
+            $this->qtyCategoryValidator->assertValid($item, $line['counted_qty']);
+            $countedQty = $this->qtyCategoryValidator->round($item, $line['counted_qty']);
             $systemQty = $this->stockLedgerService->peekBalance($item->id, $adjustment->warehouse_id);
 
             $this->stockAdjustmentItemRepository->create([
@@ -132,8 +135,9 @@ class StockAdjustmentService
                 'item_name' => $item->item_name,
                 'uom' => $item->uom->name,
                 'system_qty' => $systemQty,
-                'counted_qty' => $line['counted_qty'],
-                'difference_qty' => $line['counted_qty'] - $systemQty,
+                'counted_qty' => $countedQty,
+                'difference_qty' => $countedQty - $systemQty,
+                'qty_category' => $item->qty_category,
                 'reason' => $line['reason'],
             ]);
         }

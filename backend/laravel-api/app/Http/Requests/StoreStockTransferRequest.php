@@ -20,7 +20,9 @@ class StoreStockTransferRequest extends FormRequest
             'remarks' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'uuid', 'exists:items,id'],
-            'items.*.qty' => ['required', 'integer', 'min:1'],
+            // Whole-number-vs-decimal enforcement happens in StockTransferService via
+            // QtyCategoryValidator (needs the Item loaded, not available here).
+            'items.*.qty' => ['required', 'numeric', 'min:0.01'],
         ];
     }
 

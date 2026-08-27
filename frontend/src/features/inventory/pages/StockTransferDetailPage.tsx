@@ -11,7 +11,8 @@ import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatDate, formatNumber } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { formatQty } from '@/shared/lib/qty'
 import { deleteStockTransfer, fetchStockTransfer, submitStockTransfer } from '../api/stockTransferApi'
 import type { StockTransferItem } from '../types'
 
@@ -19,7 +20,7 @@ const lineColumns: DataTableColumn<StockTransferItem>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
   { header: 'Item Name', accessor: (row) => row.item_name },
   { header: 'UOM', accessor: (row) => row.uom },
-  { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
+  { header: 'Qty', accessor: (row) => formatQty(row.qty, row.qty_category), className: 'text-right' },
 ]
 
 /** Read-only, section-grouped — same shell as StockAdjustmentDetailPage, minus a totals footer. */

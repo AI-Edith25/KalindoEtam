@@ -14,8 +14,8 @@ export interface StockLedgerEntry {
   voucher_type: VoucherType
   voucher_id: string
   reference_no: string | null
-  qty_change: number
-  balance_qty: number
+  qty_change: string | number
+  balance_qty: string | number
   posting_datetime: string
   remarks: string | null
 }
@@ -53,9 +53,10 @@ export interface StockAdjustmentItem {
   item_code: string
   item_name: string
   uom: string
-  system_qty: number
-  counted_qty: number
-  difference_qty: number
+  system_qty: string | number
+  counted_qty: string | number
+  difference_qty: string | number
+  qty_category: 'unit' | 'weight'
   reason: string
 }
 
@@ -93,7 +94,8 @@ export interface StockTransferItem {
   item_code: string
   item_name: string
   uom: string
-  qty: number
+  qty: string | number
+  qty_category: 'unit' | 'weight'
 }
 
 export interface StockTransfer {

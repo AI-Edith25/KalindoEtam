@@ -23,7 +23,9 @@ class StorePurchaseReturnRequest extends FormRequest
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array'],
             'items.*.purchase_invoice_item_id' => ['required_with:items', 'uuid', 'exists:purchase_invoice_items,id'],
-            'items.*.qty_returned' => ['sometimes', 'integer', 'min:0'],
+            // Whole-number-vs-decimal enforcement happens in PurchaseReturnService via
+            // QtyCategoryValidator (needs the Item loaded, not available here).
+            'items.*.qty_returned' => ['sometimes', 'numeric', 'min:0'],
             'items.*.amount' => ['required_with:items', 'numeric', 'min:0'],
         ];
     }

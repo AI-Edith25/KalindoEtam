@@ -2,7 +2,8 @@ import { Pencil } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { DetailDrawerLayout, DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatQty } from '@/shared/lib/qty'
 import type { Item } from '../types'
 
 interface ItemDetailDrawerProps {
@@ -27,7 +28,7 @@ export function ItemDetailDrawer({ open, onOpenChange, item, onEdit }: ItemDetai
       onOpenChange={onOpenChange}
       title={item.item_name}
       subtitle={item.item_code}
-      badge={<StatusBadge status={item.current_stock > 0 ? 'in_stock' : 'out_of_stock'} />}
+      badge={<StatusBadge status={Number(item.current_stock) > 0 ? 'in_stock' : 'out_of_stock'} />}
       primaryAction={{ label: 'Edit Item', icon: Pencil, onClick: () => onEdit(item) }}
     >
       <DetailSection>
@@ -38,7 +39,7 @@ export function ItemDetailDrawer({ open, onOpenChange, item, onEdit }: ItemDetai
         <DetailField label="Standard Rate" value={formatCurrency(item.standard_rate)} />
         <DetailField
           label="Current Stock"
-          value={`${formatNumber(item.current_stock)} ${item.uom?.symbol ?? item.uom?.name ?? ''}`}
+          value={`${formatQty(item.current_stock, item.qty_category)} ${item.uom?.symbol ?? item.uom?.name ?? ''}`}
         />
       </DetailSection>
 

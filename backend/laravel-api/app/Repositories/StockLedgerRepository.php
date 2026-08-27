@@ -13,9 +13,9 @@ class StockLedgerRepository extends BaseRepository
         parent::__construct($model);
     }
 
-    public function latestBalance(string $itemId, string $warehouseId): int
+    public function latestBalance(string $itemId, string $warehouseId): float
     {
-        return (int) $this->model->query()
+        return (float) $this->model->query()
             ->where('item_id', $itemId)
             ->where('warehouse_id', $warehouseId)
             ->orderByDesc('posting_datetime')
@@ -57,14 +57,14 @@ class StockLedgerRepository extends BaseRepository
      * across every warehouse, not just the one most recently touched —
      * sum each warehouse's latest balance, not just the latest write.
      */
-    public function totalBalanceForItem(string $itemId): int
+    public function totalBalanceForItem(string $itemId): float
     {
         $warehouseIds = $this->model->query()
             ->where('item_id', $itemId)
             ->distinct()
             ->pluck('warehouse_id');
 
-        $total = 0;
+        $total = 0.0;
 
         foreach ($warehouseIds as $warehouseId) {
             $total += $this->latestBalance($itemId, $warehouseId);
@@ -79,9 +79,9 @@ class StockLedgerRepository extends BaseRepository
      * currently say") where taking FOR UPDATE would hold a lock for no
      * real reason and risks contention between unrelated concurrent drafts.
      */
-    public function latestBalanceUnlocked(string $itemId, string $warehouseId): int
+    public function latestBalanceUnlocked(string $itemId, string $warehouseId): float
     {
-        return (int) $this->model->query()
+        return (float) $this->model->query()
             ->where('item_id', $itemId)
             ->where('warehouse_id', $warehouseId)
             ->orderByDesc('posting_datetime')

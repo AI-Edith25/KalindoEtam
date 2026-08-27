@@ -1,27 +1,5 @@
 import { z } from 'zod'
-
-/** True when `value` has no more than 2 decimal places — used only for the optional actual-weight field, never for qty. */
-function hasAtMostTwoDecimals(value: number): boolean {
-  return Math.abs(Math.round(value * 100) - value * 100) < 1e-6
-}
-
-/**
- * Truck-scale weight recorded alongside a line, purely for record-keeping
- * — never validated against qty, never affects rate/amount. Shared by both
- * the from-PO and direct-receipt row schemas.
- */
-const weightFieldsSchema = {
-  actual_weight: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .refine(
-      (value) => !value || (!Number.isNaN(Number(value)) && hasAtMostTwoDecimals(Number(value)) && Number(value) >= 0),
-      'Must be zero or greater, at most 2 decimal places',
-    ),
-  weight_unit: z.enum(['kg', 'ton']).optional().or(z.literal('')),
-  weighbridge_ref: z.string().optional().or(z.literal('')),
-}
+import { isValidQtyForCategory, parseLocaleQty, qtyErrorMessage } from '@/shared/lib/qty'
 
 /**
  * One row of a from-PO receipt — item is user-selectable (Add/Remove Row),
@@ -32,7 +10,9 @@ const weightFieldsSchema = {
  * validated against that line's `remaining` at the array level (see
  * goodsReceiptFormSchema's superRefine below), not per row. `ordered`/
  * `alreadyReceived`/`remaining`/`allowOverReceipt`/`item_code`/`item_name`/
- * `rate` are a snapshot populated when the item is selected.
+ * `rate`/`qtyCategory` are a snapshot populated when the item is selected —
+ * `qtyCategory` decides whether `receiveNow` must be a whole number or may
+ * carry up to 2 decimals (see @/shared/lib/qty).
  */
 export const goodsReceiptLineRowSchema = z
   .object({
@@ -44,14 +24,14 @@ export const goodsReceiptLineRowSchema = z
     alreadyReceived: z.number(),
     remaining: z.number(),
     allowOverReceipt: z.boolean(),
+    qtyCategory: z.enum(['unit', 'weight']),
     receiveNow: z.string(),
-    ...weightFieldsSchema,
   })
   .superRefine((line, ctx) => {
-    const value = Number(line.receiveNow || 0)
+    const value = parseLocaleQty(line.receiveNow || '0')
 
-    if (Number.isNaN(value) || !Number.isInteger(value) || value < 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Must be a whole number', path: ['receiveNow'] })
+    if (Number.isNaN(value) || value < 0 || !isValidQtyForCategory(line.receiveNow || '0', line.qtyCategory)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: qtyErrorMessage(line.qtyCategory), path: ['receiveNow'] })
     }
   })
 
@@ -59,21 +39,27 @@ export const goodsReceiptLineRowSchema = z
  * One row of a standalone/direct receipt (no source Purchase Order) —
  * user picks the Item and types qty/rate directly, no PO line to snapshot
  * or cap against. Mirrors PurchaseOrderLineItemTable's row shape.
+ * `qtyCategory` is a snapshot populated when the item is selected.
  */
-export const directGoodsReceiptLineRowSchema = z.object({
-  item_id: z.string().min(1, 'Item is required'),
-  item_code: z.string().optional().or(z.literal('')),
-  item_name: z.string().optional().or(z.literal('')),
-  qty: z
-    .string()
-    .min(1, 'Qty is required')
-    .refine((value) => Number.isInteger(Number(value)) && Number(value) >= 1, 'Must be at least 1'),
-  rate: z
-    .string()
-    .min(1, 'Rate is required')
-    .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0, 'Must be zero or greater'),
-  ...weightFieldsSchema,
-})
+export const directGoodsReceiptLineRowSchema = z
+  .object({
+    item_id: z.string().min(1, 'Item is required'),
+    item_code: z.string().optional().or(z.literal('')),
+    item_name: z.string().optional().or(z.literal('')),
+    qtyCategory: z.enum(['unit', 'weight']),
+    qty: z.string().min(1, 'Qty is required'),
+    rate: z
+      .string()
+      .min(1, 'Rate is required')
+      .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0, 'Must be zero or greater'),
+  })
+  .superRefine((line, ctx) => {
+    const value = parseLocaleQty(line.qty)
+
+    if (Number.isNaN(value) || value <= 0 || !isValidQtyForCategory(line.qty, line.qtyCategory)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: qtyErrorMessage(line.qtyCategory), path: ['qty'] })
+    }
+  })
 
 export const goodsReceiptFormSchema = z.object({
   warehouse_id: z.string().min(1, 'Warehouse is required'),
@@ -81,7 +67,7 @@ export const goodsReceiptFormSchema = z.object({
   due_date: z.string().min(1, 'Due date is required'),
   remarks: z.string().optional().or(z.literal('')),
   items: z.array(goodsReceiptLineRowSchema).superRefine((items, ctx) => {
-    const hasAny = items.some((line) => Number(line.receiveNow || 0) > 0)
+    const hasAny = items.some((line) => parseLocaleQty(line.receiveNow || '0') > 0)
     if (!hasAny) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Receive at least one line item.' })
     }
@@ -91,7 +77,7 @@ export const goodsReceiptFormSchema = z.object({
     const groups = new Map<string, { total: number; remaining: number; allowOverReceipt: boolean; indexes: number[] }>()
     items.forEach((line, index) => {
       if (!line.purchase_order_item_id) return
-      const value = Number(line.receiveNow || 0)
+      const value = parseLocaleQty(line.receiveNow || '0')
       const group = groups.get(line.purchase_order_item_id)
       if (group) {
         group.total += value

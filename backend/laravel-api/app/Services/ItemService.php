@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\QtyCategory;
 use App\Models\Item;
 use App\Repositories\ItemRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -22,6 +23,10 @@ class ItemService
     public function create(array $data): Item
     {
         return DB::transaction(function () use ($data) {
+            // The 'unit' DB default only applies once the row is re-read — an in-memory
+            // model from a bare create() would otherwise see qty_category as null.
+            $data['qty_category'] ??= QtyCategory::UNIT->value;
+
             $item = $this->itemRepository->create($data);
             $this->auditLogService->record('created', 'item', "Created item \"{$item->item_name}\".");
 

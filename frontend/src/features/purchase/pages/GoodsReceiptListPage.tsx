@@ -146,7 +146,7 @@ export function GoodsReceiptListPage() {
     { header: 'Receipt Date', accessor: (row) => formatDate(row.receipt_date), sortKey: 'receipt_date' },
     {
       header: 'Qty Received',
-      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + line.qty, 0)),
+      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + Number(line.qty), 0)),
       className: 'text-right',
     },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },

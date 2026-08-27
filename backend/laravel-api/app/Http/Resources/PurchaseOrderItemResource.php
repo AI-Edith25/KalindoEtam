@@ -15,6 +15,8 @@ class PurchaseOrderItemResource extends JsonResource
             'item_code' => $this->whenLoaded('item', fn () => $this->item->item_code),
             'item_name' => $this->whenLoaded('item', fn () => $this->item->item_name),
             'allow_over_receipt' => $this->whenLoaded('item', fn () => (bool) $this->item->allow_over_receipt),
+            'item_qty_category' => $this->whenLoaded('item', fn () => $this->item->qty_category),
+            'item_uom' => $this->whenLoaded('item', fn () => $this->item->uom?->name),
             'qty' => $this->qty,
             'rate' => $this->rate,
             'amount' => $this->amount,
