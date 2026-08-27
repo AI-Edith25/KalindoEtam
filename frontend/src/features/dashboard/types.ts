@@ -15,7 +15,7 @@ export interface LowStockItem {
   item_name: string
   item_group: { id: string; name: string } | null
   uom: { id: string; name: string; symbol: string | null } | null
-  current_stock: string | number
+  current_stock: number
 }
 
 export interface RecentTransaction {

@@ -50,13 +50,15 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
               <TableHead className="w-28">Qty</TableHead>
               <TableHead className="w-36">Rate</TableHead>
               <TableHead className="w-36 text-right">Amount</TableHead>
+              <TableHead className="w-48">Actual Weight</TableHead>
+              <TableHead className="w-36">Weighbridge Ref</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={7} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start building this receipt." />
                 </TableCell>
               </TableRow>
@@ -92,7 +94,7 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
                       name={`items.${index}.qty`}
                       render={({ field: qtyField }) => (
                         <FormItem className="gap-0">
-                          <Input type="number" min={0.01} step="0.01" disabled={disabled} {...qtyField} />
+                          <Input type="number" min={1} step="1" disabled={disabled} {...qtyField} />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -112,6 +114,47 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(lineAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }))}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1.5">
+                      <FormField
+                        control={control}
+                        name={`items.${index}.actual_weight`}
+                        render={({ field: weightField }) => (
+                          <FormItem className="gap-0">
+                            <Input type="number" min={0} step="0.01" placeholder="Optional" disabled={disabled} {...weightField} />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={control}
+                        name={`items.${index}.weight_unit`}
+                        render={({ field: unitField }) => (
+                          <Select value={unitField.value || 'ton'} onValueChange={unitField.onChange} disabled={disabled}>
+                            <SelectTrigger className="w-20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ton">ton</SelectItem>
+                              <SelectItem value="kg">kg</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <FormField
+                      control={control}
+                      name={`items.${index}.weighbridge_ref`}
+                      render={({ field: refField }) => (
+                        <FormItem className="gap-0">
+                          <Input placeholder="Optional" disabled={disabled} {...refField} />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </TableCell>
                   <TableCell>
                     <Button
@@ -138,7 +181,9 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', qty: '1', rate: '0' })}
+        onClick={() =>
+          append({ item_id: '', item_code: '', item_name: '', qty: '1', rate: '0', actual_weight: '', weight_unit: 'ton', weighbridge_ref: '' })
+        }
         disabled={disabled}
       >
         <Plus className="size-4" />

@@ -83,12 +83,12 @@ export function InventoryMovementReportPage() {
     },
     {
       header: 'Qty In',
-      accessor: (row) => (Number(row.qty_change) > 0 ? formatNumber(row.qty_change) : '—'),
+      accessor: (row) => (row.qty_change > 0 ? formatNumber(row.qty_change) : '—'),
       className: 'text-right',
     },
     {
       header: 'Qty Out',
-      accessor: (row) => (Number(row.qty_change) < 0 ? formatNumber(Math.abs(Number(row.qty_change))) : '—'),
+      accessor: (row) => (row.qty_change < 0 ? formatNumber(Math.abs(row.qty_change)) : '—'),
       className: 'text-right',
     },
     { header: 'Running Balance', accessor: (row) => formatNumber(row.balance_qty), className: 'text-right font-medium' },

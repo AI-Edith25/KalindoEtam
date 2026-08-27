@@ -133,7 +133,7 @@ export function PurchaseReturnEditorPage() {
       .filter(([, line]) => Number(line.qtyReturned) > 0 || Number(line.amount) > 0)
       .map(([invoiceItemId, line]) => ({
         purchase_invoice_item_id: invoiceItemId,
-        qty_returned: Number(line.qtyReturned) || 0,
+        qty_returned: Math.round(Number(line.qtyReturned) || 0),
         amount: Number(line.amount) || 0,
       })),
   })
@@ -358,7 +358,7 @@ export function PurchaseReturnEditorPage() {
                               type="number"
                               min={0}
                               max={capQty}
-                              step="0.01"
+                              step="1"
                               placeholder="0"
                               disabled={!quantityAllowed}
                               value={existing?.qtyReturned ?? ''}

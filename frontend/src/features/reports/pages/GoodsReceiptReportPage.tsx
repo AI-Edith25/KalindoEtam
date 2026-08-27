@@ -9,34 +9,64 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
+import { toastApiError } from '@/shared/services/errorHandler'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { formatDate, formatNumber } from '@/lib/utils'
-import { fetchGoodsReceipts } from '@/features/purchase/api/goodsReceiptApi'
+import { exportGoodsReceipts, fetchGoodsReceipts } from '@/features/purchase/api/goodsReceiptApi'
 import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
 import type { GoodsReceipt } from '@/features/purchase/types'
 import { GoodsReceiptReportFiltersBar } from '../components/GoodsReceiptReportFiltersBar'
 import { emptyGoodsReceiptReportFilters } from '../lib/reportFilters'
 import type { GoodsReceiptReportFilterValues } from '../types'
 
-/** Read-only report over Goods Receipt — reuses fetchGoodsReceipts() as-is, no new endpoint. */
+/** Sums actual_weight per weight_unit (never mixed across units) — purely informational. */
+function weightTotalsLabel(items: GoodsReceipt['items']): string {
+  const totalsByUnit: Record<string, number> = {}
+
+  for (const item of items) {
+    const weight = Number(item.actual_weight ?? 0)
+    if (weight <= 0) continue
+    const unit = item.weight_unit || 'ton'
+    totalsByUnit[unit] = (totalsByUnit[unit] ?? 0) + weight
+  }
+
+  const parts = Object.entries(totalsByUnit).map(([unit, total]) => `${formatNumber(total)} ${unit}`)
+  return parts.length > 0 ? parts.join(', ') : '—'
+}
+
+/** Read-only report over Goods Receipt — reuses fetchGoodsReceipts() as-is, no new endpoint for listing (export gets its own). */
 export function GoodsReceiptReportPage() {
   const navigate = useNavigate()
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<GoodsReceiptReportFilterValues>(emptyGoodsReceiptReportFilters)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const activeFilterParams = {
+    ...(search ? { search } : {}),
+    ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
+    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+  }
 
   const listQuery = useQuery({
     queryKey: ['goods-receipt-report', page, search, filters.warehouse_id, filters.dateFrom, filters.dateTo],
-    queryFn: () =>
-      fetchGoodsReceipts({
-        page,
-        ...(search ? { search } : {}),
-        ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
-        ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
-        ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-      }),
+    queryFn: () => fetchGoodsReceipts({ page, ...activeFilterParams }),
     placeholderData: (previous) => previous,
   })
+
+  const exportAs = async (format: 'xlsx' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const blob = await exportGoodsReceipts(activeFilterParams, format)
+      downloadBlob(`goods-receipts.${format}`, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   // GoodsReceiptResource doesn't nest its purchase_order — same client-side lookup-join as GoodsReceiptListPage.
   const purchaseOrdersLookup = useQuery({
@@ -73,7 +103,12 @@ export function GoodsReceiptReportPage() {
     { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },
     {
       header: 'Received Qty',
-      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + Number(line.qty), 0)),
+      accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + line.qty, 0)),
+      className: 'text-right',
+    },
+    {
+      header: 'Total Actual Weight',
+      accessor: (row) => weightTotalsLabel(row.items),
       className: 'text-right',
     },
   ]
@@ -92,7 +127,8 @@ export function GoodsReceiptReportPage() {
           <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
+              { label: 'Export XLSX', icon: Download, onClick: () => exportAs('xlsx'), disabled: isExporting },
+              { label: 'Export CSV', icon: Download, onClick: () => exportAs('csv'), disabled: isExporting },
               { label: 'Import', icon: Upload, disabled: true },
             ]}
           />

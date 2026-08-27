@@ -24,10 +24,10 @@ class PurchaseOrderItem extends Model
     ];
 
     protected $casts = [
-        'qty' => 'decimal:2',
+        'qty' => 'integer',
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
-        'received_qty' => 'decimal:2',
+        'received_qty' => 'integer',
         'tax_amount' => 'decimal:2',
     ];
 

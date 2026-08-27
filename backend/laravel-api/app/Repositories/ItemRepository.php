@@ -23,7 +23,7 @@ class ItemRepository extends BaseRepository
         return $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax'])->findOrFail($id);
     }
 
-    public function updateCurrentStock(Item $item, int|float $balanceQty): void
+    public function updateCurrentStock(Item $item, int $balanceQty): void
     {
         $item->update(['current_stock' => $balanceQty]);
     }
@@ -32,7 +32,7 @@ class ItemRepository extends BaseRepository
     {
         return [
             'total_items' => $this->model->query()->count(),
-            'total_stock_qty' => (float) $this->model->query()->sum('current_stock'),
+            'total_stock_qty' => (int) $this->model->query()->sum('current_stock'),
             'zero_stock_items' => $this->model->query()->where('current_stock', 0)->count(),
         ];
     }

@@ -1,21 +1,42 @@
 import { z } from 'zod'
 
-/** True when `value` has no more than 2 decimal places (bulk items are received by truck-scale weight, e.g. 50.65). */
+/** True when `value` has no more than 2 decimal places — used only for the optional actual-weight field, never for qty. */
 function hasAtMostTwoDecimals(value: number): boolean {
   return Math.abs(Math.round(value * 100) - value * 100) < 1e-6
 }
 
 /**
- * One row per Purchase Order line — never added or removed by the user
- * (Goods Receipt can't have free item selection). `receiveNow` is the
- * only editable field per row; `ordered`/`alreadyReceived`/`remaining`
- * are a read-only snapshot taken when the Purchase Order was loaded.
- * `allowOverReceipt` mirrors the line's Item.allow_over_receipt flag —
- * only then can `receiveNow` exceed `remaining`.
+ * Truck-scale weight recorded alongside a line, purely for record-keeping
+ * — never validated against qty, never affects rate/amount. Shared by both
+ * the from-PO and direct-receipt row schemas.
+ */
+const weightFieldsSchema = {
+  actual_weight: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .refine(
+      (value) => !value || (!Number.isNaN(Number(value)) && hasAtMostTwoDecimals(Number(value)) && Number(value) >= 0),
+      'Must be zero or greater, at most 2 decimal places',
+    ),
+  weight_unit: z.enum(['kg', 'ton']).optional().or(z.literal('')),
+  weighbridge_ref: z.string().optional().or(z.literal('')),
+}
+
+/**
+ * One row of a from-PO receipt — item is user-selectable (Add/Remove Row),
+ * restricted to the loaded Purchase Order's own lines (see
+ * GoodsReceiptLineItemTable's item Select). The same PO line can be picked
+ * on more than one row (different truck loads of the same item) — combined
+ * `receiveNow` across every row sharing a `purchase_order_item_id` is
+ * validated against that line's `remaining` at the array level (see
+ * goodsReceiptFormSchema's superRefine below), not per row. `ordered`/
+ * `alreadyReceived`/`remaining`/`allowOverReceipt`/`item_code`/`item_name`/
+ * `rate` are a snapshot populated when the item is selected.
  */
 export const goodsReceiptLineRowSchema = z
   .object({
-    purchase_order_item_id: z.string(),
+    purchase_order_item_id: z.string().min(1, 'Item is required'),
     item_code: z.string(),
     item_name: z.string(),
     rate: z.number(),
@@ -24,21 +45,13 @@ export const goodsReceiptLineRowSchema = z
     remaining: z.number(),
     allowOverReceipt: z.boolean(),
     receiveNow: z.string(),
+    ...weightFieldsSchema,
   })
   .superRefine((line, ctx) => {
     const value = Number(line.receiveNow || 0)
 
-    if (Number.isNaN(value) || !hasAtMostTwoDecimals(value) || value < 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Must have at most 2 decimal places', path: ['receiveNow'] })
-      return
-    }
-
-    if (value > line.remaining && !line.allowOverReceipt) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Cannot exceed remaining (${line.remaining})`,
-        path: ['receiveNow'],
-      })
+    if (Number.isNaN(value) || !Number.isInteger(value) || value < 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Must be a whole number', path: ['receiveNow'] })
     }
   })
 
@@ -54,14 +67,12 @@ export const directGoodsReceiptLineRowSchema = z.object({
   qty: z
     .string()
     .min(1, 'Qty is required')
-    .refine((value) => {
-      const num = Number(value)
-      return !Number.isNaN(num) && hasAtMostTwoDecimals(num) && num > 0
-    }, 'Must be greater than 0, at most 2 decimal places'),
+    .refine((value) => Number.isInteger(Number(value)) && Number(value) >= 1, 'Must be at least 1'),
   rate: z
     .string()
     .min(1, 'Rate is required')
     .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0, 'Must be zero or greater'),
+  ...weightFieldsSchema,
 })
 
 export const goodsReceiptFormSchema = z.object({
@@ -74,6 +85,38 @@ export const goodsReceiptFormSchema = z.object({
     if (!hasAny) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Receive at least one line item.' })
     }
+
+    // Same PO item can appear on multiple rows (different truck loads) — validate the combined
+    // total, not each row alone, against that item's remaining outstanding qty.
+    const groups = new Map<string, { total: number; remaining: number; allowOverReceipt: boolean; indexes: number[] }>()
+    items.forEach((line, index) => {
+      if (!line.purchase_order_item_id) return
+      const value = Number(line.receiveNow || 0)
+      const group = groups.get(line.purchase_order_item_id)
+      if (group) {
+        group.total += value
+        group.indexes.push(index)
+      } else {
+        groups.set(line.purchase_order_item_id, {
+          total: value,
+          remaining: line.remaining,
+          allowOverReceipt: line.allowOverReceipt,
+          indexes: [index],
+        })
+      }
+    })
+
+    groups.forEach(({ total, remaining, allowOverReceipt, indexes }) => {
+      if (total > remaining && !allowOverReceipt) {
+        indexes.forEach((index) => {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Combined Receive Now for this item (${total}) exceeds remaining (${remaining})`,
+            path: [index, 'receiveNow'],
+          })
+        })
+      }
+    })
   }),
 })
 

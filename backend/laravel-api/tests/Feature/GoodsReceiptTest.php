@@ -22,10 +22,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Covers the 3 Goods Receipt bugs fixed together: standalone/direct receipts
- * with no source Purchase Order, the per-Item "Allow Over-Receipt" override
- * on GoodsReceiptService::assertWithinOutstanding(), and 2-decimal-precision
- * quantities (bulk items like cement are received by truck-scale weight).
+ * Covers the 2 Goods Receipt features shipped together: standalone/direct
+ * receipts with no source Purchase Order, and the per-Item "Allow
+ * Over-Receipt" override on GoodsReceiptService::assertWithinOutstanding().
+ * Qty is a whole-unit count (zak/lot/unit), not a truck-scale weight — see
+ * the qty-decimal revert migration/commit for why decimal qty was wrong.
  */
 class GoodsReceiptTest extends TestCase
 {
@@ -61,7 +62,7 @@ class GoodsReceiptTest extends TestCase
         ]);
     }
 
-    protected function submittedPurchaseOrder(float $qty, float $rate): \App\Models\PurchaseOrder
+    protected function submittedPurchaseOrder(int $qty, float $rate): \App\Models\PurchaseOrder
     {
         $purchaseOrder = $this->purchaseOrderService->create([
             'supplier_id' => $this->supplier->id,
@@ -81,17 +82,17 @@ class GoodsReceiptTest extends TestCase
             'warehouse_id' => $this->warehouse->id,
             'receipt_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => 12.5, 'rate' => 950000]],
+            'items' => [['item_id' => $this->item->id, 'qty' => 12, 'rate' => 950000]],
         ]);
 
         $this->assertNull($goodsReceipt->purchase_order_id);
         $this->assertNull($goodsReceipt->items->first()->purchase_order_item_id);
-        $this->assertEquals(12.5, (float) $goodsReceipt->items->first()->qty);
+        $this->assertSame(12, $goodsReceipt->items->first()->qty);
 
         $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt->fresh());
 
         $this->assertEquals('submitted', $goodsReceipt->status->value);
-        $this->assertEquals(12.5, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
+        $this->assertSame(12, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
         $this->assertDatabaseCount('stock_ledgers', 1);
     }
 
@@ -105,7 +106,7 @@ class GoodsReceiptTest extends TestCase
                 'warehouse_id' => $this->warehouse->id,
                 'receipt_date' => now()->toDateString(),
                 'due_date' => now()->addDays(30)->toDateString(),
-                'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 50.65]],
+                'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 55]],
             ]);
             $this->fail('Expected receiving more than the PO qty to throw when allow_over_receipt is false.');
         } catch (BusinessException) {
@@ -124,19 +125,144 @@ class GoodsReceiptTest extends TestCase
             'warehouse_id' => $this->warehouse->id,
             'receipt_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 50.65]],
+            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 55]],
         ]);
 
         $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt->fresh());
 
         $poItem = $purchaseOrder->items->first()->fresh();
-        $this->assertEquals(50.65, (float) $poItem->received_qty);
-        $this->assertEqualsWithDelta(-0.65, (float) $poItem->qty - (float) $poItem->received_qty, 0.001); // outstanding goes negative, no error
-        $this->assertTrue((float) $poItem->received_qty >= (float) $poItem->qty); // "fully received" (PurchaseOrderResource::is_fully_received) still holds past 100%
+        $this->assertSame(55, $poItem->received_qty);
+        $this->assertSame(-5, $poItem->qty - $poItem->received_qty); // outstanding goes negative, no error
+        $this->assertTrue($poItem->received_qty >= $poItem->qty); // "fully received" (PurchaseOrderResource::is_fully_received) still holds past 100%
 
-        // Decimal precision preserved end to end: GR item, PO received_qty, stock ledger, Item.current_stock.
-        $this->assertEquals(50.65, (float) $goodsReceipt->items->first()->qty);
-        $this->assertEquals(50.65, (float) $this->item->fresh()->current_stock);
-        $this->assertEquals(50.65, (float) StockLedger::query()->where('item_id', $this->item->id)->value('balance_qty'));
+        // Preserved end to end: GR item, PO received_qty, stock ledger, Item.current_stock.
+        $this->assertSame(55, $goodsReceipt->items->first()->qty);
+        $this->assertSame(55, $this->item->fresh()->current_stock);
+        $this->assertSame(55, StockLedger::query()->where('item_id', $this->item->id)->value('balance_qty'));
+    }
+
+    public function test_actual_weight_is_optional_and_defaults_to_null(): void
+    {
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 10, 'rate' => 950000]],
+        ]);
+
+        $line = $goodsReceipt->items->first();
+        $this->assertNull($line->actual_weight);
+        $this->assertNull($line->weight_unit);
+        $this->assertNull($line->weighbridge_ref);
+    }
+
+    public function test_actual_weight_is_recorded_but_never_affects_amount(): void
+    {
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [[
+                'item_id' => $this->item->id,
+                'qty' => 10,
+                'rate' => 950000,
+                'actual_weight' => 10.65,
+                'weight_unit' => 'ton',
+                'weighbridge_ref' => 'WB-001',
+            ]],
+        ]);
+
+        $line = $goodsReceipt->items->first();
+        $this->assertEquals(10.65, (float) $line->actual_weight);
+        $this->assertSame('ton', $line->weight_unit);
+        $this->assertSame('WB-001', $line->weighbridge_ref);
+
+        // Weight never touches qty/rate/amount math — identical to a line with no weight at all.
+        $this->assertSame(10, $line->qty);
+        $this->assertEquals(9500000, (float) $line->amount);
+    }
+
+    public function test_same_po_item_can_appear_on_two_lines_with_independent_weights(): void
+    {
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 100, rate: 1000000);
+        $poItemId = $purchaseOrder->items->first()->id;
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [
+                ['purchase_order_item_id' => $poItemId, 'qty' => 30, 'actual_weight' => 30.10, 'weight_unit' => 'ton'],
+                ['purchase_order_item_id' => $poItemId, 'qty' => 20, 'actual_weight' => 20.40, 'weight_unit' => 'ton'],
+            ],
+        ]);
+
+        $this->assertCount(2, $goodsReceipt->items);
+        $weights = $goodsReceipt->items->map(fn ($line) => (float) $line->actual_weight)->sort()->values()->all();
+        $this->assertEquals([20.40, 30.10], $weights);
+    }
+
+    public function test_combined_qty_across_lines_for_the_same_po_item_is_validated_not_each_line_alone(): void
+    {
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);
+        $poItemId = $purchaseOrder->items->first()->id;
+
+        // Neither line alone exceeds 50, but the combined 30 + 30 = 60 does.
+        try {
+            $this->goodsReceiptService->create([
+                'purchase_order_id' => $purchaseOrder->id,
+                'warehouse_id' => $this->warehouse->id,
+                'receipt_date' => now()->toDateString(),
+                'due_date' => now()->addDays(30)->toDateString(),
+                'items' => [
+                    ['purchase_order_item_id' => $poItemId, 'qty' => 30],
+                    ['purchase_order_item_id' => $poItemId, 'qty' => 30],
+                ],
+            ]);
+            $this->fail('Expected the combined qty across both lines to exceed remaining and throw.');
+        } catch (BusinessException) {
+        }
+
+        $this->assertDatabaseCount('goods_receipts', 0);
+
+        // Combined 25 + 25 = 50 is exactly the outstanding qty — allowed.
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [
+                ['purchase_order_item_id' => $poItemId, 'qty' => 25],
+                ['purchase_order_item_id' => $poItemId, 'qty' => 25],
+            ],
+        ]);
+
+        $this->assertCount(2, $goodsReceipt->items);
+    }
+
+    public function test_purchase_order_item_from_a_different_po_is_rejected(): void
+    {
+        $purchaseOrderA = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);
+        $purchaseOrderB = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);
+        $foreignPoItemId = $purchaseOrderB->items->first()->id;
+
+        try {
+            $this->goodsReceiptService->create([
+                'purchase_order_id' => $purchaseOrderA->id,
+                'warehouse_id' => $this->warehouse->id,
+                'receipt_date' => now()->toDateString(),
+                'due_date' => now()->addDays(30)->toDateString(),
+                'items' => [['purchase_order_item_id' => $foreignPoItemId, 'qty' => 10]],
+            ]);
+            $this->fail('Expected a PO item belonging to a different Purchase Order to be rejected.');
+        } catch (BusinessException) {
+        }
+
+        $this->assertDatabaseCount('goods_receipts', 0);
     }
 }

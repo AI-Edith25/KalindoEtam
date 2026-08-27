@@ -175,7 +175,7 @@ class DashboardService
     public function inventoryMovement(string $dateFrom, string $dateTo): array
     {
         return $this->stockLedgerService->movementByDateRange($dateFrom, $dateTo)
-            ->map(fn ($row) => ['date' => $row->date, 'stock_in' => (float) $row->stock_in, 'stock_out' => (float) $row->stock_out])
+            ->map(fn ($row) => ['date' => $row->date, 'stock_in' => (int) $row->stock_in, 'stock_out' => (int) $row->stock_out])
             ->values()->all();
     }
 

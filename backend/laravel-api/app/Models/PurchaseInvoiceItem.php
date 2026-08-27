@@ -20,7 +20,7 @@ class PurchaseInvoiceItem extends Model
 
     protected $casts = [
         'rate' => 'decimal:2',
-        'qty' => 'decimal:2',
+        'qty' => 'integer',
         'amount' => 'decimal:2',
     ];
 

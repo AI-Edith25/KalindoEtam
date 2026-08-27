@@ -27,7 +27,7 @@ class Item extends Model
 
     protected $casts = [
         'standard_rate' => 'decimal:2',
-        'current_stock' => 'decimal:2',
+        'current_stock' => 'integer',
         'allow_over_receipt' => 'boolean',
     ];
 

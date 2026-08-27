@@ -22,7 +22,7 @@ class PurchaseOrderItemRepository extends BaseRepository
         return $this->model->query()->with('item.uom')->findOrFail($id);
     }
 
-    public function incrementReceivedQty(PurchaseOrderItem $item, int|float $qty): void
+    public function incrementReceivedQty(PurchaseOrderItem $item, int $qty): void
     {
         $item->update(['received_qty' => $item->received_qty + $qty]);
     }

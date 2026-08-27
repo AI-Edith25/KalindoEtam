@@ -29,7 +29,7 @@ interface PreviewLine {
   item_code: string | null
   item_name: string
   uom: string | null
-  qty: string | number
+  qty: number
   rate: string | number
   amount: string | number
 }

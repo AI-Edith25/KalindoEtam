@@ -170,6 +170,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // gated by the document's own existing update permission, not a new one. See docs/APPROVAL_WORKFLOW_DESIGN.md §4.
     Route::post('purchase-orders/{purchaseOrder}/request-approval', [PurchaseOrderController::class, 'requestApproval'])->middleware('permission:purchase.orders.update');
 
+    // Registered before apiResource('goods-receipts', ...) below — same GET/{id}-swallowing-order
+    // trick as invoices/export/sales-report.
+    Route::get('goods-receipts/export', [GoodsReceiptController::class, 'export'])->middleware('permission:purchase.goods_receipts.view|reports.goods_receipts.view');
     $withPagePermissions(Route::apiResource('goods-receipts', GoodsReceiptController::class), 'purchase.goods_receipts', 'reports.goods_receipts.view');
     Route::post('goods-receipts/{goodsReceipt}/submit', [GoodsReceiptController::class, 'submit'])->middleware('permission:purchase.goods_receipts.update');
 

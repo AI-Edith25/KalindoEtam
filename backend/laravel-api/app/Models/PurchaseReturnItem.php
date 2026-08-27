@@ -25,7 +25,7 @@ class PurchaseReturnItem extends Model
     ];
 
     protected $casts = [
-        'qty_returned' => 'decimal:2',
+        'qty_returned' => 'integer',
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
     ];

@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchItemsLookup, fetchSuppliersLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { fetchGoodsReceipt, createGoodsReceipt, updateGoodsReceipt, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { fetchPurchaseOrder, fetchPurchaseOrders } from '../api/purchaseOrderApi'
@@ -28,6 +28,7 @@ import {
   type GoodsReceiptEditorValues,
   type DirectGoodsReceiptEditorValues,
 } from '../lib/goodsReceiptFormSchema'
+import type { GoodsReceiptItem, PurchaseOrderItem } from '../types'
 
 const emptyValues: GoodsReceiptEditorValues = {
   warehouse_id: '',
@@ -47,6 +48,21 @@ const emptyDirectValues: DirectGoodsReceiptEditorValues = {
 }
 
 type ReceiptMode = 'from_po' | 'direct'
+
+/** Sums actual_weight per weight_unit (never mixed across units) — purely informational, never fed into qty/price totals. */
+function weightTotalsLabel(lines: { actual_weight?: string; weight_unit?: string }[]): string {
+  const totalsByUnit: Record<string, number> = {}
+
+  for (const line of lines) {
+    const weight = Number(line.actual_weight || 0)
+    if (weight <= 0) continue
+    const unit = line.weight_unit || 'ton'
+    totalsByUnit[unit] = (totalsByUnit[unit] ?? 0) + weight
+  }
+
+  const parts = Object.entries(totalsByUnit).map(([unit, total]) => `${formatNumber(total)} ${unit}`)
+  return parts.length > 0 ? parts.join(', ') : '—'
+}
 
 export function GoodsReceiptEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -113,27 +129,45 @@ export function GoodsReceiptEditorPage() {
     const purchaseOrder = purchaseOrderQuery.data
     if (!purchaseOrder || isDirectMode) return
 
-    const existingQtyByPoItemId = new Map((receiptQuery.data?.items ?? []).map((line) => [line.purchase_order_item_id, line.qty]))
+    const poItemById = new Map(purchaseOrder.items.map((poItem) => [poItem.id, poItem]))
+
+    const buildRow = (poItem: PurchaseOrderItem, existing?: GoodsReceiptItem) => ({
+      purchase_order_item_id: poItem.id,
+      item_code: poItem.item_code ?? '',
+      item_name: poItem.item_name ?? '',
+      rate: Number(poItem.rate),
+      ordered: Number(poItem.qty),
+      alreadyReceived: Number(poItem.received_qty),
+      remaining: Number(poItem.outstanding_qty),
+      allowOverReceipt: poItem.allow_over_receipt ?? false,
+      receiveNow: String(existing?.qty ?? 0),
+      actual_weight: existing?.actual_weight != null ? String(existing.actual_weight) : '',
+      weight_unit: (existing?.weight_unit as 'kg' | 'ton' | null) ?? 'ton',
+      weighbridge_ref: existing?.weighbridge_ref ?? '',
+    })
+
+    // Edit mode rebuilds rows from the saved draft's own lines — preserves duplicate
+    // purchase_order_item_id rows (multiple truck loads of the same item). Create mode has no
+    // draft yet, so it prefills one convenience row per PO item, same as before.
+    const items =
+      isEdit && receiptQuery.data
+        ? receiptQuery.data.items
+            .map((line) => {
+              const poItem = line.purchase_order_item_id ? poItemById.get(line.purchase_order_item_id) : undefined
+              return poItem ? buildRow(poItem, line) : null
+            })
+            .filter((row): row is NonNullable<typeof row> => row !== null)
+        : purchaseOrder.items.map((poItem) => buildRow(poItem))
 
     form.reset({
       warehouse_id: receiptQuery.data?.warehouse_id ?? '',
       receipt_date: receiptQuery.data?.receipt_date ?? '',
       due_date: receiptQuery.data?.due_date ?? '',
       remarks: receiptQuery.data?.remarks ?? '',
-      items: purchaseOrder.items.map((poItem) => ({
-        purchase_order_item_id: poItem.id,
-        item_code: poItem.item_code ?? '',
-        item_name: poItem.item_name ?? '',
-        rate: Number(poItem.rate),
-        ordered: Number(poItem.qty),
-        alreadyReceived: Number(poItem.received_qty),
-        remaining: Number(poItem.outstanding_qty),
-        allowOverReceipt: poItem.allow_over_receipt ?? false,
-        receiveNow: String(existingQtyByPoItemId.get(poItem.id) ?? 0),
-      })),
+      items,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [purchaseOrderQuery.data, receiptQuery.data, isDirectMode])
+  }, [purchaseOrderQuery.data, receiptQuery.data, isDirectMode, isEdit])
 
   useEffect(() => {
     if (!isDirectMode) return
@@ -154,6 +188,9 @@ export function GoodsReceiptEditorPage() {
         item_name: line.item_name,
         qty: String(line.qty),
         rate: String(line.rate),
+        actual_weight: line.actual_weight != null ? String(line.actual_weight) : '',
+        weight_unit: (line.weight_unit as 'kg' | 'ton' | null) ?? 'ton',
+        weighbridge_ref: line.weighbridge_ref ?? '',
       })),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -163,7 +200,13 @@ export function GoodsReceiptEditorPage() {
     mutationFn: (values: GoodsReceiptEditorValues) => {
       const items = values.items
         .filter((line) => Number(line.receiveNow) > 0)
-        .map((line) => ({ purchase_order_item_id: line.purchase_order_item_id, qty: Number(line.receiveNow) }))
+        .map((line) => ({
+          purchase_order_item_id: line.purchase_order_item_id,
+          qty: Number(line.receiveNow),
+          actual_weight: line.actual_weight ? Number(line.actual_weight) : null,
+          weight_unit: line.weight_unit || null,
+          weighbridge_ref: line.weighbridge_ref || null,
+        }))
 
       if (isEdit) {
         return updateGoodsReceipt(id!, {
@@ -196,7 +239,14 @@ export function GoodsReceiptEditorPage() {
 
   const saveDirectMutation = useMutation({
     mutationFn: (values: DirectGoodsReceiptEditorValues) => {
-      const items = values.items.map((line) => ({ item_id: line.item_id, qty: Number(line.qty), rate: Number(line.rate) }))
+      const items = values.items.map((line) => ({
+        item_id: line.item_id,
+        qty: Number(line.qty),
+        rate: Number(line.rate),
+        actual_weight: line.actual_weight ? Number(line.actual_weight) : null,
+        weight_unit: line.weight_unit || null,
+        weighbridge_ref: line.weighbridge_ref || null,
+      }))
 
       if (isEdit) {
         return updateGoodsReceipt(id!, {
@@ -244,10 +294,14 @@ export function GoodsReceiptEditorPage() {
   const subtotal = computeSubtotal(receivingNowLines)
   const tax = computeTax()
   const grandTotal = computeGrandTotal(receivingNowLines)
+  const totalQty = (watchedItems ?? []).reduce((sum, line) => sum + Number(line.receiveNow || 0), 0)
+  const totalWeightLabel = weightTotalsLabel(watchedItems ?? [])
 
   const directWatchedItems = directForm.watch('items')
   const directSubtotal = computeSubtotal(directWatchedItems ?? [])
   const directGrandTotal = computeGrandTotal(directWatchedItems ?? [])
+  const directTotalQty = (directWatchedItems ?? []).reduce((sum, line) => sum + Number(line.qty || 0), 0)
+  const directTotalWeightLabel = weightTotalsLabel(directWatchedItems ?? [])
 
   if (isEdit && receiptQuery.isLoading) {
     return (
@@ -435,10 +489,22 @@ export function GoodsReceiptEditorPage() {
 
             <Card>
               <CardContent className="flex flex-col items-end gap-1.5 py-4">
+                <div className="flex w-full max-w-64 justify-between text-sm">
+                  <span className="text-muted-foreground">Total Qty (satuan)</span>
+                  <span>{formatNumber(directTotalQty)}</span>
+                </div>
+                <div className="flex w-full max-w-64 justify-between text-sm">
+                  <span className="text-muted-foreground">Total Berat Aktual</span>
+                  <span>{directTotalWeightLabel}</span>
+                </div>
+                <Separator className="w-full max-w-64" />
                 <div className="flex w-full max-w-64 justify-between text-base font-semibold">
                   <span>Total</span>
                   <span>{formatCurrency(directGrandTotal || directSubtotal)}</span>
                 </div>
+                <p className="w-full max-w-64 text-xs text-muted-foreground">
+                  Qty = jumlah satuan barang. Berat aktual hanya catatan timbangan, tidak memengaruhi nilai.
+                </p>
               </CardContent>
             </Card>
 
@@ -566,7 +632,7 @@ export function GoodsReceiptEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <GoodsReceiptLineItemTable form={form} />
+              <GoodsReceiptLineItemTable form={form} purchaseOrderItems={purchaseOrder.items} />
               {form.formState.errors.items?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
               )}
@@ -575,6 +641,15 @@ export function GoodsReceiptEditorPage() {
 
           <Card>
             <CardContent className="flex flex-col items-end gap-1.5 py-4">
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Total Qty (satuan)</span>
+                <span>{formatNumber(totalQty)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Total Berat Aktual</span>
+                <span>{totalWeightLabel}</span>
+              </div>
+              <Separator className="w-full max-w-64" />
               <div className="flex w-full max-w-64 justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
@@ -588,6 +663,9 @@ export function GoodsReceiptEditorPage() {
                 <span>Grand Total</span>
                 <span>{formatCurrency(grandTotal)}</span>
               </div>
+              <p className="w-full max-w-64 text-xs text-muted-foreground">
+                Qty = jumlah satuan barang. Berat aktual hanya catatan timbangan, tidak memengaruhi nilai.
+              </p>
             </CardContent>
           </Card>
 

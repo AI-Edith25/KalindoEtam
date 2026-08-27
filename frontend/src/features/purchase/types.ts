@@ -7,14 +7,14 @@ export interface PurchaseOrderItem {
   item_id: string
   item_code: string | null
   item_name: string | null
-  qty: string | number
+  qty: number
   rate: string | number
   amount: string | number
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
-  received_qty: string | number
-  outstanding_qty: string | number
+  received_qty: number
+  outstanding_qty: number
   /** From the line's Item — lets GoodsReceiptLineItemTable allow "Receive Now" to exceed Remaining. */
   allow_over_receipt?: boolean
 }
@@ -72,7 +72,10 @@ export interface GoodsReceiptItem {
   item_code: string
   item_name: string
   uom: string
-  qty: string | number
+  qty: number
+  actual_weight: string | number | null
+  weight_unit: string | null
+  weighbridge_ref: string | null
   rate: string | number
   amount: string | number
 }
@@ -107,7 +110,15 @@ export interface GoodsReceiptFormValues {
   due_date: string
   remarks: string | null
   /** From-PO lines carry purchase_order_item_id; direct-mode lines carry item_id + rate instead. */
-  items: { purchase_order_item_id?: string; item_id?: string; rate?: number; qty: number }[]
+  items: {
+    purchase_order_item_id?: string
+    item_id?: string
+    rate?: number
+    qty: number
+    actual_weight?: number | null
+    weight_unit?: string | null
+    weighbridge_ref?: string | null
+  }[]
 }
 
 export interface GoodsReceiptFilterValues {
@@ -126,11 +137,11 @@ export interface PurchaseInvoiceItem {
   item_name: string
   uom: string
   rate: string | number
-  qty: string | number
+  qty: number
   amount: string | number
-  returned_qty: string | number
+  returned_qty: number
   returned_amount: string | number
-  returnable_qty: string | number
+  returnable_qty: number
   returnable_amount: string | number
 }
 
@@ -207,7 +218,7 @@ export interface PurchaseReturnItem {
   item_code: string
   item_name: string
   uom: string
-  qty_returned: string | number
+  qty_returned: number
   rate: string | number
   amount: string | number
 }

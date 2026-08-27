@@ -20,12 +20,16 @@ class GoodsReceiptItem extends Model
         'item_name',
         'uom',
         'qty',
+        'actual_weight',
+        'weight_unit',
+        'weighbridge_ref',
         'rate',
         'amount',
     ];
 
     protected $casts = [
-        'qty' => 'decimal:2',
+        'qty' => 'integer',
+        'actual_weight' => 'decimal:2',
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
     ];

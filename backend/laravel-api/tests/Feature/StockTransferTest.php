@@ -79,10 +79,10 @@ class StockTransferTest extends TestCase
 
         $this->stockTransferService->submit($transfer);
 
-        $this->assertEquals(30, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->source->id));
-        $this->assertEquals(20, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->destination->id));
+        $this->assertSame(30, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->source->id));
+        $this->assertSame(20, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->destination->id));
         // current_stock is a company-wide total across all warehouses — a transfer redistributes it, doesn't change it.
-        $this->assertEquals(50, $this->item->fresh()->current_stock);
+        $this->assertSame(50, $this->item->fresh()->current_stock);
     }
 
     public function test_submit_rejects_qty_exceeding_available_stock_at_source(): void

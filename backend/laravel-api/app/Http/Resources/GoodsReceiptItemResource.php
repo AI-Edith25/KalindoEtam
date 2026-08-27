@@ -17,6 +17,9 @@ class GoodsReceiptItemResource extends JsonResource
             'item_name' => $this->item_name,
             'uom' => $this->uom,
             'qty' => $this->qty,
+            'actual_weight' => $this->actual_weight,
+            'weight_unit' => $this->weight_unit,
+            'weighbridge_ref' => $this->weighbridge_ref,
             'rate' => $this->rate,
             'amount' => $this->amount,
         ];

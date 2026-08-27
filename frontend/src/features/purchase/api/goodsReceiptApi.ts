@@ -42,4 +42,9 @@ export async function submitGoodsReceipt(id: string): Promise<GoodsReceipt> {
   return data.data
 }
 
+export async function exportGoodsReceipts(params: Omit<GoodsReceiptListParams, 'page' | 'per_page'>, format: 'xlsx' | 'csv'): Promise<Blob> {
+  const { data } = await apiClient.get('/goods-receipts/export', { params: { ...params, format }, responseType: 'blob' })
+  return data
+}
+
 /** No cancelGoodsReceipt — the backend has no route for it. GoodsReceipt::cancel() always throws; reversal is only via the (not yet implemented) Return workflow. */

@@ -100,7 +100,7 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
                       name={`items.${index}.qty`}
                       render={({ field: qtyField }) => (
                         <FormItem className="gap-0">
-                          <Input type="number" min={0.01} step="0.01" disabled={disabled} {...qtyField} />
+                          <Input type="number" min={1} step="1" disabled={disabled} {...qtyField} />
                           <FormMessage />
                         </FormItem>
                       )}

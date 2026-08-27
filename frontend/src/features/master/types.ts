@@ -85,7 +85,7 @@ export interface Item {
   uom_id: string
   uom: Uom | null
   standard_rate: string | number
-  current_stock: string | number
+  current_stock: number
   purchase_tax_id: string | null
   purchase_tax: Tax | null
   sales_tax_id: string | null

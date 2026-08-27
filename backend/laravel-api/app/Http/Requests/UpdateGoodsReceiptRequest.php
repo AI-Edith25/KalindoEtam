@@ -25,7 +25,10 @@ class UpdateGoodsReceiptRequest extends FormRequest
             'items.*.purchase_order_item_id' => ['nullable', 'uuid', 'exists:purchase_order_items,id'],
             'items.*.item_id' => ['nullable', 'uuid', 'exists:items,id'],
             'items.*.rate' => ['nullable', 'numeric', 'min:0'],
-            'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
+            'items.*.actual_weight' => ['nullable', 'numeric', 'min:0', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'items.*.weight_unit' => ['nullable', 'in:kg,ton'],
+            'items.*.weighbridge_ref' => ['nullable', 'string', 'max:64'],
         ];
     }
 }

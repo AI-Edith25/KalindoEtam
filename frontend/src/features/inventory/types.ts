@@ -14,8 +14,8 @@ export interface StockLedgerEntry {
   voucher_type: VoucherType
   voucher_id: string
   reference_no: string | null
-  qty_change: string | number
-  balance_qty: string | number
+  qty_change: number
+  balance_qty: number
   posting_datetime: string
   remarks: string | null
 }

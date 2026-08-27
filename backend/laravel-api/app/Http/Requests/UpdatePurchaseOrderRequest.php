@@ -21,7 +21,7 @@ class UpdatePurchaseOrderRequest extends FormRequest
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
-            'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
             'tax_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('taxes', 'id')->where('is_active', true)],

@@ -15,6 +15,7 @@ use App\Repositories\ItemRepository;
 use App\Repositories\PurchaseOrderItemRepository;
 use App\Repositories\PurchaseOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class GoodsReceiptService
@@ -32,6 +33,12 @@ class GoodsReceiptService
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->goodsReceiptRepository->search($filters, $perPage);
+    }
+
+    /** Unpaginated, same filters as list() — for export. */
+    public function listAll(array $filters = []): Collection
+    {
+        return $this->goodsReceiptRepository->searchAll($filters);
     }
 
     public function create(array $data): GoodsReceipt
@@ -56,10 +63,10 @@ class GoodsReceiptService
                 'remarks' => $data['remarks'] ?? null,
             ]);
 
+            $this->assertAggregateWithinOutstanding($purchaseOrder->id, $data['items']);
+
             foreach ($data['items'] as $line) {
                 $poItem = $this->resolvePurchaseOrderItem($purchaseOrder->id, $line['purchase_order_item_id']);
-                $this->assertWithinOutstanding($poItem, $line['qty']);
-
                 $item = $poItem->item;
 
                 $this->goodsReceiptItemRepository->create([
@@ -70,6 +77,9 @@ class GoodsReceiptService
                     'item_name' => $item->item_name,
                     'uom' => $item->uom->name,
                     'qty' => $line['qty'],
+                    'actual_weight' => $line['actual_weight'] ?? null,
+                    'weight_unit' => $line['weight_unit'] ?? null,
+                    'weighbridge_ref' => $line['weighbridge_ref'] ?? null,
                     'rate' => $poItem->rate,
                     'amount' => $line['qty'] * $poItem->rate,
                 ]);
@@ -122,6 +132,9 @@ class GoodsReceiptService
             'item_name' => $item->item_name,
             'uom' => $item->uom->name,
             'qty' => $line['qty'],
+            'actual_weight' => $line['actual_weight'] ?? null,
+            'weight_unit' => $line['weight_unit'] ?? null,
+            'weighbridge_ref' => $line['weighbridge_ref'] ?? null,
             'rate' => $line['rate'],
             'amount' => $line['qty'] * $line['rate'],
         ]);
@@ -137,6 +150,10 @@ class GoodsReceiptService
             if (isset($data['items'])) {
                 $goodsReceipt->items()->delete();
 
+                if ($goodsReceipt->purchase_order_id !== null) {
+                    $this->assertAggregateWithinOutstanding($goodsReceipt->purchase_order_id, $data['items']);
+                }
+
                 foreach ($data['items'] as $line) {
                     if ($goodsReceipt->purchase_order_id === null) {
                         $this->createDirectLine($goodsReceipt, $line);
@@ -145,8 +162,6 @@ class GoodsReceiptService
                     }
 
                     $poItem = $this->resolvePurchaseOrderItem($goodsReceipt->purchase_order_id, $line['purchase_order_item_id']);
-                    $this->assertWithinOutstanding($poItem, $line['qty']);
-
                     $item = $poItem->item;
 
                     $this->goodsReceiptItemRepository->create([
@@ -157,6 +172,9 @@ class GoodsReceiptService
                         'item_name' => $item->item_name,
                         'uom' => $item->uom->name,
                         'qty' => $line['qty'],
+                        'actual_weight' => $line['actual_weight'] ?? null,
+                        'weight_unit' => $line['weight_unit'] ?? null,
+                        'weighbridge_ref' => $line['weighbridge_ref'] ?? null,
                         'rate' => $poItem->rate,
                         'amount' => $line['qty'] * $poItem->rate,
                     ]);
@@ -199,9 +217,11 @@ class GoodsReceiptService
                     throw new BusinessException('Purchase Order is no longer submitted; cannot receive goods against it.');
                 }
 
-                foreach ($goodsReceipt->items as $line) {
-                    $this->assertWithinOutstanding($line->purchaseOrderItem, $line->qty);
-                }
+                $goodsReceipt->items
+                    ->groupBy('purchase_order_item_id')
+                    ->each(function ($group) {
+                        $this->assertWithinOutstanding($group->first()->purchaseOrderItem, (int) $group->sum('qty'));
+                    });
             }
 
             foreach ($goodsReceipt->items as $line) {
@@ -242,7 +262,24 @@ class GoodsReceiptService
         return $poItem;
     }
 
-    protected function assertWithinOutstanding(PurchaseOrderItem $poItem, int|float $qty): void
+    /**
+     * The same PO item can appear on more than one line (different truck
+     * loads) — validate the combined qty per item, not each line alone,
+     * against that item's outstanding qty.
+     */
+    protected function assertAggregateWithinOutstanding(string $purchaseOrderId, array $lines): void
+    {
+        $totalsByPoItemId = collect($lines)
+            ->groupBy('purchase_order_item_id')
+            ->map(fn ($group) => collect($group)->sum('qty'));
+
+        foreach ($totalsByPoItemId as $purchaseOrderItemId => $totalQty) {
+            $poItem = $this->resolvePurchaseOrderItem($purchaseOrderId, $purchaseOrderItemId);
+            $this->assertWithinOutstanding($poItem, (int) $totalQty);
+        }
+    }
+
+    protected function assertWithinOutstanding(PurchaseOrderItem $poItem, int $qty): void
     {
         $outstanding = $poItem->qty - $poItem->received_qty;
 

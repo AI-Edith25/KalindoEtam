@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exports\GoodsReceiptExport;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexGoodsReceiptRequest;
@@ -11,6 +12,9 @@ use App\Http\Resources\GoodsReceiptResource;
 use App\Models\GoodsReceipt;
 use App\Services\GoodsReceiptService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class GoodsReceiptController extends Controller
 {
@@ -62,5 +66,17 @@ class GoodsReceiptController extends Controller
         $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt);
 
         return $this->success(new GoodsReceiptResource($goodsReceipt), 'Goods Receipt submitted.');
+    }
+
+    /** Same filters as index(), unpaginated — XLSX/CSV export. */
+    public function export(IndexGoodsReceiptRequest $request): BinaryFileResponse
+    {
+        $format = $request->validate(['format' => ['sometimes', Rule::in(['xlsx', 'csv'])]])['format'] ?? 'xlsx';
+        $filters = $request->validated();
+        unset($filters['per_page']);
+
+        $rows = $this->goodsReceiptService->listAll($filters);
+
+        return Excel::download(new GoodsReceiptExport($rows), "goods-receipts.{$format}");
     }
 }
