@@ -97,4 +97,32 @@ class CreditNoteRepository extends BaseRepository
             ->whereDate('credit_note_date', '<=', $to)
             ->sum('total_amount');
     }
+
+    /**
+     * Net revenue REDUCTION per Sales Person for the Dashboard's
+     * "Pencapaian Sales" panel — total_amount minus tax_amount, the ex-tax
+     * figure CreditNote::journalLines() debits to Sales Returns (4050,
+     * mapped into the P&L's REVENUE section as a contra) net of the
+     * Discount Given credit-back (4900). Credit Note has no sales_person_id
+     * of its own — attributed through its parent Invoice's own
+     * sales_person_id, same field InvoiceRepository::
+     * revenueBySalesPersonForPeriod() groups on. Caller subtracts this from
+     * the Invoice total. Excludes reversed notes — same as creditNoteTotal()
+     * above, a reversed Credit Note's ledger effect was already undone by
+     * CreditNoteService::reverse(). One grouped aggregate — never pulls
+     * rows into PHP.
+     */
+    public function revenueImpactBySalesPersonForPeriod(string $dateFrom, string $dateTo): Collection
+    {
+        return $this->model->query()
+            ->join('invoices', 'invoices.id', '=', 'credit_notes.invoice_id')
+            ->selectRaw('invoices.sales_person_id as sales_person_id, SUM(credit_notes.total_amount - credit_notes.tax_amount) as amount')
+            ->where('credit_notes.status', 'submitted')
+            ->where('credit_notes.is_reversed', false)
+            // whereDate(), not whereBetween() — see InvoiceRepository::revenueBySalesPersonForPeriod()'s own comment for why.
+            ->whereDate('credit_notes.credit_note_date', '>=', $dateFrom)
+            ->whereDate('credit_notes.credit_note_date', '<=', $dateTo)
+            ->groupBy('invoices.sales_person_id')
+            ->get();
+    }
 }

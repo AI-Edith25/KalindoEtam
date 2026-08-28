@@ -235,6 +235,27 @@ export interface SalesPersonFormValues {
   is_active: boolean
 }
 
+export interface SalesTarget {
+  id: string
+  sales_person_id: string
+  sales_person: { id: string; code: string; name: string } | null
+  branch_id: string | null
+  branch: { id: string; code: string; name: string } | null
+  period_month: number
+  period_year: number
+  target_amount: string | number
+  created_at: string
+  updated_at: string
+}
+
+export interface SalesTargetFormValues {
+  sales_person_id: string
+  branch_id: string | null
+  period_month: number
+  period_year: number
+  target_amount: number
+}
+
 export interface TermsOfPayment {
   id: string
   code: string

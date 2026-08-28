@@ -61,4 +61,32 @@ class DebitNoteRepository extends BaseRepository
     {
         return $this->model->query()->with(self::EAGER)->findOrFail($id);
     }
+
+    /**
+     * Net revenue ADDITION per Sales Person for the Dashboard's "Pencapaian
+     * Sales" panel — total_amount minus tax_amount, the ex-tax figure
+     * DebitNote::journalLines() credits across Sales Revenue (4000,
+     * subtotal_goods) and Other Income (4100, subtotal_other) combined —
+     * both halves of DashboardService::financialSummary()'s own
+     * revenue_total = REVENUE + OTHER_INCOME, so this stays consistent with
+     * that figure rather than only counting the Goods portion. Debit Note
+     * has no sales_person_id of its own — attributed through its parent
+     * Invoice's sales_person_id, same as CreditNoteRepository::
+     * revenueImpactBySalesPersonForPeriod(). Excludes reversed notes (their
+     * ledger effect was undone by DebitNoteService::reverse()). One grouped
+     * aggregate — never pulls rows into PHP.
+     */
+    public function revenueImpactBySalesPersonForPeriod(string $dateFrom, string $dateTo): Collection
+    {
+        return $this->model->query()
+            ->join('invoices', 'invoices.id', '=', 'debit_notes.invoice_id')
+            ->selectRaw('invoices.sales_person_id as sales_person_id, SUM(debit_notes.total_amount - debit_notes.tax_amount) as amount')
+            ->where('debit_notes.status', 'submitted')
+            ->where('debit_notes.is_reversed', false)
+            // whereDate(), not whereBetween() — see InvoiceRepository::revenueBySalesPersonForPeriod()'s own comment for why.
+            ->whereDate('debit_notes.debit_note_date', '>=', $dateFrom)
+            ->whereDate('debit_notes.debit_note_date', '<=', $dateTo)
+            ->groupBy('invoices.sales_person_id')
+            ->get();
+    }
 }

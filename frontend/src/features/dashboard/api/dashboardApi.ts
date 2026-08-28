@@ -7,6 +7,7 @@ import type {
   OutstandingSummary,
   PendingTask,
   RecentTransaction,
+  SalesAchievement,
   StockSummary,
   TrendPoint,
 } from '../types'
@@ -72,5 +73,10 @@ export async function fetchRecentTransactions(limit: number): Promise<RecentTran
   const { data } = await apiClient.get<ApiResponse<RecentTransaction[]>>('/dashboard/recent-transactions', {
     params: { limit },
   })
+  return data.data
+}
+
+export async function fetchSalesAchievement(params?: { month: number; year: number }): Promise<SalesAchievement> {
+  const { data } = await apiClient.get<ApiResponse<SalesAchievement>>('/dashboard/sales-achievement', { params })
   return data.data
 }

@@ -7,6 +7,7 @@ import { RecentTransactionsCard } from '../components/RecentTransactionsCard'
 import { PendingTasksCard } from '../components/PendingTasksCard'
 import { FinancialSummaryCards } from '../components/FinancialSummaryCards'
 import { RevenueExpenseChart } from '../components/RevenueExpenseChart'
+import { SalesAchievementCard } from '../components/SalesAchievementCard'
 import { fetchAccountsPayableOutstanding, fetchAccountsReceivableOutstanding } from '../api/dashboardApi'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 
@@ -23,6 +24,7 @@ export function DashboardPage() {
   const canViewPayable = useHasPermission('finance.accounts_payable.view')
   const canViewReceivable = useHasPermission('finance.accounts_receivable.view')
   const canViewDashboard = useHasPermission('dashboard.view')
+  const canViewSalesAchievement = useHasPermission('master.sales_targets.view')
 
   const apOutstanding = useQuery({
     queryKey: ['dashboard', 'ap-outstanding'],
@@ -78,6 +80,8 @@ export function DashboardPage() {
           <RevenueExpenseChart />
         </div>
       )}
+
+      {canViewSalesAchievement && <SalesAchievementCard />}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {canViewInventory && <LowStockCard />}

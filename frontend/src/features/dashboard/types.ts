@@ -50,3 +50,22 @@ export interface InventoryMovementPoint {
   stock_in: number
   stock_out: number
 }
+
+export interface SalesAchievementRow {
+  sales_person_id: string
+  sales_person_name: string
+  /** null = no target set for this sales person/period. */
+  target_amount: number | null
+  achieved_amount: number
+  /** null when target_amount is null — "no target" is not the same as "0 shortfall". */
+  shortfall_amount: number | null
+  /** null when target_amount is null or 0 — percent-of-target is undefined either way. */
+  achievement_percent: number | null
+}
+
+export interface SalesAchievement {
+  period: { month: number; year: number }
+  rows: SalesAchievementRow[]
+  /** Revenue from documents with no sales_person_id at all — shown separately, never folded into any row's target/percent math. */
+  unassigned: { achieved_amount: number } | null
+}

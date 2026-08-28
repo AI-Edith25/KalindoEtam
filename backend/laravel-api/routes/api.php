@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
 use App\Http\Controllers\Api\V1\SalesPersonController;
+use App\Http\Controllers\Api\V1\SalesTargetController;
 use App\Http\Controllers\Api\V1\SalesListingController;
 use App\Http\Controllers\Api\V1\SalesReportController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
@@ -143,6 +144,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('customers', CustomerController::class), 'master.customers');
     $withPagePermissions(Route::apiResource('suppliers', SupplierController::class), 'master.suppliers');
     $withPagePermissions(Route::apiResource('sales-persons', SalesPersonController::class), 'master.sales_persons');
+    $withPagePermissions(Route::apiResource('sales-targets', SalesTargetController::class), 'master.sales_targets');
     $withPagePermissions(Route::apiResource('terms-of-payments', TermsOfPaymentController::class), 'master.terms_of_payment');
 
     $withPagePermissions(Route::apiResource('items', ItemController::class), 'master.items');
@@ -384,5 +386,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
         Route::get('purchase-trend', [DashboardController::class, 'purchaseTrend'])->middleware('permission:purchase.orders.view');
         Route::get('inventory-movement', [DashboardController::class, 'inventoryMovement'])->middleware('permission:master.items.view');
         Route::get('pending-tasks', [DashboardController::class, 'pendingTasks'])->middleware('permission:dashboard.view');
+        // Gated on master.sales_targets.view — seeing targets is what makes this panel meaningful.
+        Route::get('sales-achievement', [DashboardController::class, 'salesAchievement'])->middleware('permission:master.sales_targets.view');
     });
 });

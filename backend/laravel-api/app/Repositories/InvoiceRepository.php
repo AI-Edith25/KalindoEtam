@@ -90,4 +90,33 @@ class InvoiceRepository extends BaseRepository
             ->whereDate('invoice_date', '<=', $to)
             ->sum('grand_total');
     }
+
+    /**
+     * Net revenue contribution per Sales Person for the Dashboard's
+     * "Pencapaian Sales" panel — grand_total minus tax_amount, i.e. the
+     * same ex-tax figure Invoice::journalLines() credits to Sales Revenue
+     * (4000) net of Discount Given (4900), the two accounts that feed the
+     * P&L's REVENUE section. Groups on the invoice's own sales_person_id
+     * (a real, populated, override-capable snapshot — see
+     * InvoiceService::create()) rather than salesOrder.sales_person_id
+     * (what applyFilters()'s own sales_person_id filter traverses): that
+     * path misses every Transportation invoice, which has no
+     * sales_order_id at all but does carry its own sales_person_id.
+     * One grouped aggregate — never pulls invoice rows into PHP.
+     */
+    public function revenueBySalesPersonForPeriod(string $dateFrom, string $dateTo): Collection
+    {
+        return $this->model->query()
+            ->selectRaw('sales_person_id, SUM(grand_total - tax_amount) as amount')
+            ->where('status', 'submitted')
+            // whereDate(), not whereBetween() — invoice_date is a `date`-cast column but its
+            // stored value carries a "00:00:00" time component, which makes a plain string
+            // whereBetween upper bound (e.g. "2026-07-31") lexicographically exclude a row
+            // actually stored as "2026-07-31 00:00:00". Same whereDate() convention every other
+            // date-range filter in this codebase already uses (see applyFilters() above).
+            ->whereDate('invoice_date', '>=', $dateFrom)
+            ->whereDate('invoice_date', '<=', $dateTo)
+            ->groupBy('sales_person_id')
+            ->get();
+    }
 }

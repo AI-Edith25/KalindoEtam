@@ -6,14 +6,19 @@ use App\Enums\ProfitLossSection;
 use App\Repositories\ApprovalFlowRepository;
 use App\Repositories\AccountsPayableRepository;
 use App\Repositories\AccountsReceivableRepository;
+use App\Repositories\CreditNoteRepository;
+use App\Repositories\DebitNoteRepository;
 use App\Repositories\DeliveryRepository;
 use App\Repositories\GoodsReceiptRepository;
+use App\Repositories\InvoiceRepository;
 use App\Repositories\ItemRepository;
 use App\Repositories\JournalEntryRepository;
 use App\Repositories\PaymentEntryRepository;
 use App\Repositories\PurchaseOrderRepository;
 use App\Repositories\ReceiptEntryRepository;
 use App\Repositories\SalesOrderRepository;
+use App\Repositories\SalesPersonRepository;
+use App\Repositories\SalesTargetRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 
@@ -43,6 +48,11 @@ class DashboardService
         protected ProfitLossService $profitLossService,
         protected StockLedgerService $stockLedgerService,
         protected ApprovalFlowRepository $approvalFlowRepository,
+        protected InvoiceRepository $invoiceRepository,
+        protected CreditNoteRepository $creditNoteRepository,
+        protected DebitNoteRepository $debitNoteRepository,
+        protected SalesTargetRepository $salesTargetRepository,
+        protected SalesPersonRepository $salesPersonRepository,
     ) {}
 
     public function stockSummary(): array
@@ -177,6 +187,101 @@ class DashboardService
         return $this->stockLedgerService->movementByDateRange($dateFrom, $dateTo)
             ->map(fn ($row) => ['date' => $row->date, 'stock_in' => (float) $row->stock_in, 'stock_out' => (float) $row->stock_out])
             ->values()->all();
+    }
+
+    /**
+     * "Pencapaian Sales" panel — each Sales Person's real revenue for
+     * $month/$year against their SalesTarget, on the exact same
+     * submitted-Invoice/CreditNote/DebitNote population and ex-tax netting
+     * that produces the GL entries financialSummary()'s Revenue (MTD) card
+     * reads (see each repository method's own docblock for the account-by-
+     * account trace). Three small grouped-aggregate queries, merged here in
+     * PHP — never pulls a document row into PHP, only pre-summed rows keyed
+     * by sales_person_id (bounded by distinct sales-person count).
+     *
+     * @return array{period: array{month: int, year: int}, rows: array, unassigned: ?array}
+     */
+    public function salesAchievement(int $month, int $year): array
+    {
+        [$dateFrom, $dateTo] = $this->resolveAchievementPeriod($month, $year);
+
+        $achieved = [];
+        $accumulate = function (iterable $rows, float $sign) use (&$achieved) {
+            foreach ($rows as $row) {
+                // Never keyBy('sales_person_id') on these rows — Collection casts a null key to
+                // '' (empty string), which is an easy silent bug against a genuinely nullable
+                // grouping column. Iterating and defaulting the key by hand keeps the null case
+                // (Unassigned) explicit instead.
+                $key = $row->sales_person_id ?? 'unassigned';
+                $achieved[$key] = ($achieved[$key] ?? 0.0) + $sign * (float) $row->amount;
+            }
+        };
+        $accumulate($this->invoiceRepository->revenueBySalesPersonForPeriod($dateFrom, $dateTo), 1.0);
+        $accumulate($this->creditNoteRepository->revenueImpactBySalesPersonForPeriod($dateFrom, $dateTo), -1.0);
+        $accumulate($this->debitNoteRepository->revenueImpactBySalesPersonForPeriod($dateFrom, $dateTo), 1.0);
+
+        $targets = [];
+        foreach ($this->salesTargetRepository->totalsBySalesPersonForPeriod($month, $year) as $row) {
+            $targets[$row->sales_person_id] = (float) $row->amount;
+        }
+
+        // Row set = union of {has a target} ∪ {has achievement} — a person with neither gets no
+        // row at all (nothing to show), never "every sales person unconditionally". 'unassigned'
+        // is deliberately excluded here and reported separately below.
+        $salesPersonIds = array_values(array_unique(array_merge(
+            array_keys($targets),
+            array_filter(array_keys($achieved), fn ($key) => $key !== 'unassigned'),
+        )));
+
+        $salesPersons = $this->salesPersonRepository->findMany($salesPersonIds)->keyBy('id');
+
+        $rows = collect($salesPersonIds)->map(function (string $id) use ($achieved, $targets, $salesPersons) {
+            $target = $targets[$id] ?? null;
+            $achievedAmount = round($achieved[$id] ?? 0.0, 2);
+            // "Kekurangan minimum 0" — a salesperson past their target shows 0, not a negative
+            // shortfall or a raw surplus figure (the ticket's own explicit reading).
+            $shortfall = $target !== null ? max(0.0, round($target - $achievedAmount, 2)) : null;
+            $percent = ($target !== null && $target > 0) ? round($achievedAmount / $target * 100, 1) : null;
+
+            return [
+                'sales_person_id' => $id,
+                'sales_person_name' => $salesPersons[$id]->name ?? '—',
+                'target_amount' => $target,
+                'achieved_amount' => $achievedAmount,
+                'shortfall_amount' => $shortfall,
+                'achievement_percent' => $percent,
+            ];
+        })->sortByDesc('achieved_amount')->values()->all();
+
+        $unassigned = isset($achieved['unassigned'])
+            ? ['achieved_amount' => round($achieved['unassigned'], 2)]
+            : null;
+
+        return [
+            'period' => ['month' => $month, 'year' => $year],
+            'rows' => $rows,
+            'unassigned' => $unassigned,
+        ];
+    }
+
+    /**
+     * date_from = first of the selected month. date_to = today when the
+     * selected month is the current one (matching
+     * DashboardFinancialSummaryRequest::resolvedFilters()'s own "MTD" =
+     * start-of-month..now() default exactly, so this panel and the Revenue
+     * (MTD) card reconcile for the current month); a past month's own
+     * end-of-month otherwise — "today" has no bearing on a closed period.
+     *
+     * @return array{0: string, 1: string}
+     */
+    protected function resolveAchievementPeriod(int $month, int $year): array
+    {
+        $start = Carbon::create($year, $month, 1)->startOfMonth();
+        $now = Carbon::now();
+        $isCurrentMonth = $start->year === $now->year && $start->month === $now->month;
+        $end = $isCurrentMonth ? $now->copy() : $start->copy()->endOfMonth();
+
+        return [$start->toDateString(), $end->toDateString()];
     }
 
     protected function toEntry(string $type, ?string $documentNumber, ?Carbon $date, float $amount, string $status, ?Carbon $createdAt): array

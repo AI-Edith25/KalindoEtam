@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\DashboardDateRangeRequest;
 use App\Http\Requests\DashboardDateRequest;
 use App\Http\Requests\DashboardFinancialSummaryRequest;
+use App\Http\Requests\DashboardSalesAchievementRequest;
 use App\Http\Requests\LowStockItemsRequest;
 use App\Http\Requests\RecentTransactionsRequest;
 use App\Http\Resources\ItemResource;
@@ -79,5 +80,10 @@ class DashboardController extends Controller
     public function inventoryMovement(DashboardDateRangeRequest $request): JsonResponse
     {
         return $this->success($this->dashboardService->inventoryMovement($request->resolvedDateFrom(), $request->resolvedDateTo()));
+    }
+
+    public function salesAchievement(DashboardSalesAchievementRequest $request): JsonResponse
+    {
+        return $this->success($this->dashboardService->salesAchievement($request->resolvedMonth(), $request->resolvedYear()));
     }
 }
