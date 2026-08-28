@@ -82,6 +82,7 @@ class DeliveryController extends Controller
     {
         $extra = $request->validate([
             'format' => ['sometimes', Rule::in(['xlsx', 'csv'])],
+            'mode' => ['sometimes', Rule::in(['detail', 'summary'])],
             'ids' => ['sometimes', 'array'],
             'ids.*' => ['uuid'],
             'columns' => ['sometimes', 'array'],
@@ -90,6 +91,16 @@ class DeliveryController extends Controller
 
         $filters = $request->validated();
         unset($filters['per_page']);
+
+        if (($extra['mode'] ?? 'detail') === 'summary') {
+            return $this->exportSalesSummary(
+                $this->deliveryService->summaryExportRows($filters, $extra['ids'] ?? null),
+                'DeliveryOrder',
+                $filters['date_from'] ?? null,
+                $filters['date_to'] ?? null,
+                $extra['format'] ?? 'xlsx',
+            );
+        }
 
         $rows = $this->deliveryService->listAll($filters, $extra['ids'] ?? null);
 

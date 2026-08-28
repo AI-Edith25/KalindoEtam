@@ -89,6 +89,7 @@ class DebitNoteController extends Controller
     {
         $extra = $request->validate([
             'format' => ['sometimes', Rule::in(['xlsx', 'csv'])],
+            'mode' => ['sometimes', Rule::in(['detail', 'summary'])],
             'ids' => ['sometimes', 'array'],
             'ids.*' => ['uuid'],
             'columns' => ['sometimes', 'array'],
@@ -97,6 +98,16 @@ class DebitNoteController extends Controller
 
         $filters = $request->validated();
         unset($filters['per_page']);
+
+        if (($extra['mode'] ?? 'detail') === 'summary') {
+            return $this->exportSalesSummary(
+                $this->debitNoteService->summaryExportRows($filters, $extra['ids'] ?? null),
+                'DebitNoteToCustomer',
+                $filters['date_from'] ?? null,
+                $filters['date_to'] ?? null,
+                $extra['format'] ?? 'xlsx',
+            );
+        }
 
         $rows = $this->debitNoteService->listAll($filters, $extra['ids'] ?? null);
 

@@ -7,18 +7,23 @@ use App\Enums\SalesOrderStatus;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
+use App\Exports\Concerns\BuildsSalesSummaryReport;
 use App\Models\Delivery;
 use App\Models\SalesOrderItem;
+use App\Repositories\CompanyRepository;
 use App\Repositories\DeliveryItemRepository;
 use App\Repositories\DeliveryRepository;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class DeliveryService
 {
+    use BuildsSalesSummaryReport;
+
     public function __construct(
         protected DeliveryRepository $deliveryRepository,
         protected DeliveryItemRepository $deliveryItemRepository,
@@ -27,6 +32,7 @@ class DeliveryService
         protected StockLedgerService $stockLedgerService,
         protected AuditLogService $auditLogService,
         protected TaxService $taxService,
+        protected CompanyRepository $companyRepository,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -38,6 +44,57 @@ class DeliveryService
     public function listAll(array $filters = [], ?array $ids = null): Collection
     {
         return $this->deliveryRepository->searchAll($filters, $ids);
+    }
+
+    /**
+     * The "Summary" export variant — see BuildsSalesSummaryReport. Tax is
+     * grouped per line item (each item's own tax, already eager-loaded via
+     * items.tax) — a Delivery has no single header-level tax the way a
+     * Sales Order does.
+     *
+     * @return array{rows: array, meta: array}
+     */
+    public function summaryExportRows(array $filters, ?array $ids = null): array
+    {
+        $deliveries = $this->deliveryRepository->searchAll($filters, $ids);
+
+        $bodyRows = $deliveries->map(function (Delivery $delivery) {
+            $excl = (float) $delivery->items->sum('amount');
+            $tax = round((float) $delivery->items->sum('tax_amount'), 2);
+
+            return [
+                $this->summaryExcelDate($delivery->delivery_date),
+                $delivery->document_number,
+                $delivery->customer?->customer_code,
+                $delivery->customer?->customer_name,
+                $excl,
+                0.0,
+                $tax,
+                round($excl + $tax, 2),
+                $delivery->salesOrder?->document_number,
+            ];
+        })->all();
+
+        $sumExcl = round($deliveries->sum(fn (Delivery $d) => (float) $d->items->sum('amount')), 2);
+        $sumTax = round($deliveries->sum(fn (Delivery $d) => (float) $d->items->sum('tax_amount')), 2);
+
+        $bodyRows[] = [null, null, null, 'Total By Header', $sumExcl, 0.0, $sumTax, round($sumExcl + $sumTax, 2), null];
+
+        $taxGroups = $this->groupTaxSummary($deliveries, fn (Delivery $d) => $d->items->map(fn ($item) => [
+            $item->tax?->code, (float) ($item->tax?->rate ?? 0), (float) $item->amount, (float) $item->tax_amount,
+        ])->all());
+
+        return $this->buildSalesSummaryReport(
+            title: 'DELIVERY ORDER LISTING - SUMMARY',
+            periodLabel: $this->summaryPeriodLabel($filters, $deliveries, 'delivery_date'),
+            companyName: $this->companyRepository->defaultOrById(null)?->name ?? 'PT. KALINDO ETAM',
+            headingRow: ['Date', 'Document', 'Customer', 'Customer Name', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax', 'Reference'],
+            bodyRows: $bodyRows,
+            taxGroups: $taxGroups,
+            printedBy: Auth::user()?->name ?? 'System',
+            lastColumn: 'I',
+            numberFormatColumns: ['E', 'F', 'G', 'H'],
+        );
     }
 
     public function create(array $data): Delivery

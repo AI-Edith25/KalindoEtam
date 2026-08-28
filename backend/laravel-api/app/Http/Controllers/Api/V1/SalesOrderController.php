@@ -96,6 +96,7 @@ class SalesOrderController extends Controller
     {
         $extra = $request->validate([
             'format' => ['sometimes', Rule::in(['xlsx', 'csv'])],
+            'mode' => ['sometimes', Rule::in(['detail', 'summary'])],
             'ids' => ['sometimes', 'array'],
             'ids.*' => ['uuid'],
             'columns' => ['sometimes', 'array'],
@@ -104,6 +105,16 @@ class SalesOrderController extends Controller
 
         $filters = $request->validated();
         unset($filters['per_page']);
+
+        if (($extra['mode'] ?? 'detail') === 'summary') {
+            return $this->exportSalesSummary(
+                $this->salesOrderService->summaryExportRows($filters, $extra['ids'] ?? null),
+                'SalesOrder',
+                $filters['date_from'] ?? null,
+                $filters['date_to'] ?? null,
+                $extra['format'] ?? 'xlsx',
+            );
+        }
 
         $rows = $this->salesOrderService->listAll($filters, $extra['ids'] ?? null);
 

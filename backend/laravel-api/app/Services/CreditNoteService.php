@@ -6,15 +6,18 @@ use App\Enums\CreditNoteReason;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
 use App\Exceptions\BusinessException;
+use App\Exports\Concerns\BuildsSalesSummaryReport;
 use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Repositories\AccountsReceivableRepository;
+use App\Repositories\CompanyRepository;
 use App\Repositories\CreditNoteItemRepository;
 use App\Repositories\CreditNoteRepository;
 use App\Repositories\InvoiceItemRepository;
 use App\Repositories\InvoiceRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -26,6 +29,8 @@ use Illuminate\Support\Facades\DB;
  */
 class CreditNoteService
 {
+    use BuildsSalesSummaryReport;
+
     protected const EAGER = ['invoice.delivery', 'customer', 'items.invoiceItem', 'items.item'];
 
     public function __construct(
@@ -37,6 +42,7 @@ class CreditNoteService
         protected AccountsReceivableService $accountsReceivableService,
         protected AccountingService $accountingService,
         protected AuditLogService $auditLogService,
+        protected CompanyRepository $companyRepository,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -48,6 +54,54 @@ class CreditNoteService
     public function listAll(array $filters = [], ?array $ids = null): Collection
     {
         return $this->creditNoteRepository->searchAll($filters, $ids);
+    }
+
+    /**
+     * The "Summary" export variant — see BuildsSalesSummaryReport. Credit
+     * Note has no linked Tax record anywhere (no tax_id, just a raw
+     * tax_amount figure), so the Tax Summary section can only ever produce
+     * a single NON-PPN bucket — not a fabricated code/rate breakdown.
+     *
+     * @return array{rows: array, meta: array}
+     */
+    public function summaryExportRows(array $filters, ?array $ids = null): array
+    {
+        $creditNotes = $this->creditNoteRepository->searchAll($filters, $ids);
+
+        $bodyRows = $creditNotes->map(fn (CreditNote $cn) => [
+            $this->summaryExcelDate($cn->credit_note_date),
+            $cn->document_number,
+            $cn->customer?->customer_code,
+            $cn->customer?->customer_name,
+            (float) $cn->subtotal,
+            (float) $cn->discount_amount,
+            (float) $cn->tax_amount,
+            (float) $cn->total_amount,
+        ])->all();
+
+        $bodyRows[] = [
+            null, null, null, 'Total By Header',
+            round($creditNotes->sum(fn (CreditNote $cn) => (float) $cn->subtotal), 2),
+            round($creditNotes->sum(fn (CreditNote $cn) => (float) $cn->discount_amount), 2),
+            round($creditNotes->sum(fn (CreditNote $cn) => (float) $cn->tax_amount), 2),
+            round($creditNotes->sum(fn (CreditNote $cn) => (float) $cn->total_amount), 2),
+        ];
+
+        $taxGroups = $this->groupTaxSummary($creditNotes, fn (CreditNote $cn) => [
+            [null, 0.0, (float) $cn->subtotal - (float) $cn->discount_amount, (float) $cn->tax_amount],
+        ]);
+
+        return $this->buildSalesSummaryReport(
+            title: 'CREDIT NOTE TO CUSTOMER LISTING - SUMMARY',
+            periodLabel: $this->summaryPeriodLabel($filters, $creditNotes, 'credit_note_date'),
+            companyName: $this->companyRepository->defaultOrById(null)?->name ?? 'PT. KALINDO ETAM',
+            headingRow: ['Date', 'Document', 'Customer', 'Customer Name', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax'],
+            bodyRows: $bodyRows,
+            taxGroups: $taxGroups,
+            printedBy: Auth::user()?->name ?? 'System',
+            lastColumn: 'H',
+            numberFormatColumns: ['E', 'F', 'G', 'H'],
+        );
     }
 
     public function create(array $data): CreditNote

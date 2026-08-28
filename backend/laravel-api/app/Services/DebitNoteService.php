@@ -5,15 +5,18 @@ namespace App\Services;
 use App\Enums\DebitNoteReason;
 use App\Enums\DocumentStatus;
 use App\Exceptions\BusinessException;
+use App\Exports\Concerns\BuildsSalesSummaryReport;
 use App\Models\DebitNote;
 use App\Models\Invoice;
 use App\Repositories\AccountsReceivableRepository;
+use App\Repositories\CompanyRepository;
 use App\Repositories\DebitNoteItemRepository;
 use App\Repositories\DebitNoteRepository;
 use App\Repositories\InvoiceItemRepository;
 use App\Repositories\InvoiceRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -26,6 +29,8 @@ use Illuminate\Support\Facades\DB;
  */
 class DebitNoteService
 {
+    use BuildsSalesSummaryReport;
+
     protected const EAGER = ['invoice', 'customer', 'items.invoiceItem', 'items.item'];
 
     public function __construct(
@@ -37,6 +42,7 @@ class DebitNoteService
         protected AccountsReceivableService $accountsReceivableService,
         protected AccountingService $accountingService,
         protected AuditLogService $auditLogService,
+        protected CompanyRepository $companyRepository,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -48,6 +54,54 @@ class DebitNoteService
     public function listAll(array $filters = [], ?array $ids = null): Collection
     {
         return $this->debitNoteRepository->searchAll($filters, $ids);
+    }
+
+    /**
+     * The "Summary" export variant — see BuildsSalesSummaryReport. Debit
+     * Note has no linked Tax record anywhere (no tax_id, just a raw
+     * tax_amount figure), so the Tax Summary section can only ever produce
+     * a single NON-PPN bucket — not a fabricated code/rate breakdown.
+     *
+     * @return array{rows: array, meta: array}
+     */
+    public function summaryExportRows(array $filters, ?array $ids = null): array
+    {
+        $debitNotes = $this->debitNoteRepository->searchAll($filters, $ids);
+
+        $bodyRows = $debitNotes->map(fn (DebitNote $dn) => [
+            $this->summaryExcelDate($dn->debit_note_date),
+            $dn->document_number,
+            $dn->customer?->customer_code,
+            $dn->customer?->customer_name,
+            (float) $dn->subtotal_goods + (float) $dn->subtotal_other,
+            0.0,
+            (float) $dn->tax_amount,
+            (float) $dn->total_amount,
+        ])->all();
+
+        $bodyRows[] = [
+            null, null, null, 'Total By Header',
+            round($debitNotes->sum(fn (DebitNote $dn) => (float) $dn->subtotal_goods + (float) $dn->subtotal_other), 2),
+            0.0,
+            round($debitNotes->sum(fn (DebitNote $dn) => (float) $dn->tax_amount), 2),
+            round($debitNotes->sum(fn (DebitNote $dn) => (float) $dn->total_amount), 2),
+        ];
+
+        $taxGroups = $this->groupTaxSummary($debitNotes, fn (DebitNote $dn) => [
+            [null, 0.0, (float) $dn->subtotal_goods + (float) $dn->subtotal_other, (float) $dn->tax_amount],
+        ]);
+
+        return $this->buildSalesSummaryReport(
+            title: 'DEBIT NOTE TO CUSTOMER LISTING - SUMMARY',
+            periodLabel: $this->summaryPeriodLabel($filters, $debitNotes, 'debit_note_date'),
+            companyName: $this->companyRepository->defaultOrById(null)?->name ?? 'PT. KALINDO ETAM',
+            headingRow: ['Date', 'Document', 'Customer', 'Customer Name', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax'],
+            bodyRows: $bodyRows,
+            taxGroups: $taxGroups,
+            printedBy: Auth::user()?->name ?? 'System',
+            lastColumn: 'H',
+            numberFormatColumns: ['E', 'F', 'G', 'H'],
+        );
     }
 
     public function create(array $data): DebitNote

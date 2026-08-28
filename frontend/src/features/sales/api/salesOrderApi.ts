@@ -62,6 +62,8 @@ export async function cancelSalesOrder(id: string): Promise<SalesOrder> {
 
 export interface SalesOrderExportParams {
   format: 'xlsx' | 'csv'
+  /** Omit/'detail' = today's column-selectable export; 'summary' = the fixed legacy-report layout, no columns param. */
+  mode?: 'detail' | 'summary'
   columns?: string[]
   ids?: string[]
   search?: string

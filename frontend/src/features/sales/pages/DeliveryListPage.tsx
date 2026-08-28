@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ChevronDown, Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2 } from 'lucide-react'
+import { Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
@@ -72,6 +72,7 @@ export function DeliveryListPage() {
   const [deletingDelivery, setDeletingDelivery] = useState<Delivery | null>(null)
   const [exportPickerOpen, setExportPickerOpen] = useState(false)
   const [pendingExportFormat, setPendingExportFormat] = useState<'xlsx' | 'csv' | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters<AdvancedFilterValue>(EMPTY_FILTERS)
   const [draft, setDraft] = useState<AdvancedFilterValue>(urlFilters)
@@ -250,6 +251,7 @@ export function DeliveryListPage() {
   ].filter((chip): chip is { key: string; label: string; onRemove: () => void } => !!chip)
 
   const runExport = async (format: 'xlsx' | 'csv', columns?: string[]) => {
+    setIsExporting(true)
     try {
       const blob = await exportDeliveries({
         format,
@@ -262,6 +264,26 @@ export function DeliveryListPage() {
       toast.success('Export started — check your downloads.')
     } catch (error) {
       toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const runSummaryExport = async (format: 'xlsx' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const blob = await exportDeliveries({
+        format,
+        mode: 'summary',
+        ids: selection.selectedIdsForRequest ?? undefined,
+        ...queryFilters,
+      })
+      downloadBlob(`DeliveryOrderListing_Summary.${format}`, blob)
+      toast.success('Export started — check your downloads.')
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -289,15 +311,39 @@ export function DeliveryListPage() {
         description="Deliver ordered goods from a warehouse against an approved Sales Order."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} deliveries` : undefined}
         actions={
-          <div className="flex items-center gap-2">
-            <ActionBar actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching }]} />
+          <>
+            {selection.hasSelection && (
+              <Button type="button" variant="outline" onClick={printListSummary}>
+                <Printer className="size-4" />
+                Print
+              </Button>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline">
+                <Button type="button" variant="outline" disabled={isExporting}>
                   <Download className="size-4" />
-                  Export
-                  <ChevronDown className="size-3.5" />
+                  Export CSV
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setPendingExportFormat('csv')
+                    setExportPickerOpen(true)
+                  }}
+                >
+                  Detail
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => runSummaryExport('csv')}>Summary</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" disabled={isExporting}>
+                  <Download className="size-4" />
+                  Export XLSX
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -307,32 +353,17 @@ export function DeliveryListPage() {
                     setExportPickerOpen(true)
                   }}
                 >
-                  Export XLSX
+                  Detail
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setPendingExportFormat('csv')
-                    setExportPickerOpen(true)
-                  }}
-                >
-                  Export CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={printListSummary}>Export PDF (Print Preview)</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => runSummaryExport('xlsx')}>Summary</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button type="button" variant="outline" onClick={printListSummary}>
-              <Printer className="size-4" />
-              Print List Summary
-            </Button>
-
-            {canCreate && (
-              <Button type="button" onClick={() => navigate('/sales/deliveries/new')}>
-                <Plus className="size-4" />
-                New Delivery
-              </Button>
-            )}
-          </div>
+            <ActionBar
+              actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching }]}
+              primary={canCreate ? { label: 'New Delivery', icon: Plus, onClick: () => navigate('/sales/deliveries/new') } : undefined}
+            />
+          </>
         }
       />
 

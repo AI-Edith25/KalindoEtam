@@ -54,6 +54,8 @@ export async function reverseDebitNote(id: string): Promise<DebitNote> {
 
 export interface DebitNoteExportParams {
   format: 'xlsx' | 'csv'
+  /** Omit/'detail' = today's column-selectable export; 'summary' = the fixed legacy-report layout, no columns param. */
+  mode?: 'detail' | 'summary'
   columns?: string[]
   ids?: string[]
   search?: string

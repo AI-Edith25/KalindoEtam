@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown, Download, Eye, Pencil, Plus, Printer, RotateCcw, RotateCw, Send, Trash2 } from 'lucide-react'
+import { Download, Eye, Pencil, Plus, Printer, RotateCcw, RotateCw, Send, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
@@ -79,6 +79,7 @@ export function CreditNoteListPage() {
   const [deletingCreditNote, setDeletingCreditNote] = useState<CreditNote | null>(null)
   const [exportPickerOpen, setExportPickerOpen] = useState(false)
   const [pendingExportFormat, setPendingExportFormat] = useState<'xlsx' | 'csv' | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters<AdvancedFilterValue>(EMPTY_FILTERS)
   const [draft, setDraft] = useState<AdvancedFilterValue>(urlFilters)
@@ -264,6 +265,7 @@ export function CreditNoteListPage() {
   ].filter((chip): chip is { key: string; label: string; onRemove: () => void } => !!chip)
 
   const runExport = async (format: 'xlsx' | 'csv', columns?: string[]) => {
+    setIsExporting(true)
     try {
       const blob = await exportCreditNotes({
         format,
@@ -276,6 +278,26 @@ export function CreditNoteListPage() {
       toast.success('Export started — check your downloads.')
     } catch (error) {
       toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const runSummaryExport = async (format: 'xlsx' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const blob = await exportCreditNotes({
+        format,
+        mode: 'summary',
+        ids: selection.selectedIdsForRequest ?? undefined,
+        ...queryFilters,
+      })
+      downloadBlob(`CreditNoteToCustomerListing_Summary.${format}`, blob)
+      toast.success('Export started — check your downloads.')
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -303,15 +325,39 @@ export function CreditNoteListPage() {
         description="The only accounting-correction path for a posted Invoice — corrections never flow through cancelling the Invoice itself."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} credit notes` : undefined}
         actions={
-          <div className="flex items-center gap-2">
-            <ActionBar actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching }]} />
+          <>
+            {selection.hasSelection && (
+              <Button type="button" variant="outline" onClick={printListSummary}>
+                <Printer className="size-4" />
+                Print
+              </Button>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline">
+                <Button type="button" variant="outline" disabled={isExporting}>
                   <Download className="size-4" />
-                  Export
-                  <ChevronDown className="size-3.5" />
+                  Export CSV
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setPendingExportFormat('csv')
+                    setExportPickerOpen(true)
+                  }}
+                >
+                  Detail
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => runSummaryExport('csv')}>Summary</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" disabled={isExporting}>
+                  <Download className="size-4" />
+                  Export XLSX
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -321,32 +367,17 @@ export function CreditNoteListPage() {
                     setExportPickerOpen(true)
                   }}
                 >
-                  Export XLSX
+                  Detail
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setPendingExportFormat('csv')
-                    setExportPickerOpen(true)
-                  }}
-                >
-                  Export CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={printListSummary}>Export PDF (Print Preview)</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => runSummaryExport('xlsx')}>Summary</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button type="button" variant="outline" onClick={printListSummary}>
-              <Printer className="size-4" />
-              Print List Summary
-            </Button>
-
-            {canCreate && (
-              <Button type="button" onClick={() => navigate('/sales/credit-notes/new')}>
-                <Plus className="size-4" />
-                New Credit Note
-              </Button>
-            )}
-          </div>
+            <ActionBar
+              actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching }]}
+              primary={canCreate ? { label: 'New Credit Note', icon: Plus, onClick: () => navigate('/sales/credit-notes/new') } : undefined}
+            />
+          </>
         }
       />
 

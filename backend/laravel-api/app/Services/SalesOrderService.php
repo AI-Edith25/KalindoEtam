@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Enums\SalesOrderStatus;
 use App\Exceptions\BusinessException;
+use App\Exports\Concerns\BuildsSalesSummaryReport;
 use App\Models\Item;
 use App\Models\SalesOrder;
+use App\Repositories\CompanyRepository;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -15,12 +17,15 @@ use Illuminate\Support\Facades\DB;
 
 class SalesOrderService
 {
+    use BuildsSalesSummaryReport;
+
     public function __construct(
         protected SalesOrderRepository $salesOrderRepository,
         protected SalesOrderItemRepository $salesOrderItemRepository,
         protected AuditLogService $auditLogService,
         protected CustomerCreditService $customerCreditService,
         protected TaxService $taxService,
+        protected CompanyRepository $companyRepository,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -32,6 +37,56 @@ class SalesOrderService
     public function listAll(array $filters = [], ?array $ids = null): Collection
     {
         return $this->salesOrderRepository->searchAll($filters, $ids);
+    }
+
+    /**
+     * The "Summary" export variant — see BuildsSalesSummaryReport. Tax is
+     * grouped at header level ($order->tax, already eager-loaded).
+     *
+     * @return array{rows: array, meta: array}
+     */
+    public function summaryExportRows(array $filters, ?array $ids = null): array
+    {
+        $orders = $this->salesOrderRepository->searchAll($filters, $ids);
+
+        $bodyRows = $orders->map(fn (SalesOrder $order) => [
+            $this->summaryExcelDate($order->order_date),
+            $order->document_number,
+            $order->customer?->customer_code,
+            $order->customer?->customer_name,
+            (float) $order->total_amount,
+            0.0,
+            (float) $order->tax_amount,
+            (float) $order->grand_total,
+            $order->salesPerson?->code,
+            $order->branch?->code,
+            $order->branch?->code,
+        ])->all();
+
+        $bodyRows[] = [
+            null, null, null, 'Total By Header',
+            round($orders->sum(fn (SalesOrder $o) => (float) $o->total_amount), 2),
+            0.0,
+            round($orders->sum(fn (SalesOrder $o) => (float) $o->tax_amount), 2),
+            round($orders->sum(fn (SalesOrder $o) => (float) $o->grand_total), 2),
+            null, null, null,
+        ];
+
+        $taxGroups = $this->groupTaxSummary($orders, fn (SalesOrder $o) => [
+            [$o->tax?->code, (float) ($o->tax?->rate ?? 0), (float) $o->total_amount, (float) $o->tax_amount],
+        ]);
+
+        return $this->buildSalesSummaryReport(
+            title: 'SALES ORDER LISTING - SUMMARY',
+            periodLabel: $this->summaryPeriodLabel($filters, $orders, 'order_date'),
+            companyName: $this->companyRepository->defaultOrById(null)?->name ?? 'PT. KALINDO ETAM',
+            headingRow: ['Date', 'Document', 'Customer', 'Customer Name', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax', 'Sales Person', 'Delivery Location', 'Branch'],
+            bodyRows: $bodyRows,
+            taxGroups: $taxGroups,
+            printedBy: Auth::user()?->name ?? 'System',
+            lastColumn: 'K',
+            numberFormatColumns: ['E', 'F', 'G', 'H'],
+        );
     }
 
     public function create(array $data): SalesOrder
