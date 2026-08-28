@@ -55,6 +55,10 @@ const EMPTY_FILTERS: AdvancedFilterValue = {
   customer_id: '',
   sales_person_id: '',
   warehouse_id: '',
+  reason: '',
+  sales_order_number: '',
+  min_amount: '',
+  max_amount: '',
 }
 
 export function SalesOrderListPage() {

@@ -52,6 +52,8 @@ class DeliveryRepository extends BaseRepository
             ->when($filters['sales_person_id'] ?? null, fn ($q, $salesPersonId) => $q
                 ->whereHas('salesOrder', fn ($sq) => $sq->where('sales_person_id', $salesPersonId)))
             ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->whereHas('items', fn ($sq) => $sq->where('item_id', $itemId)))
+            ->when($filters['sales_order_number'] ?? null, fn ($q, $number) => $q
+                ->whereHas('salesOrder', fn ($sq) => $sq->where('document_number', 'like', "%{$number}%")))
             ->when($filters['date_from'] ?? null, fn ($q, $date) => $q->whereDate('delivery_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($q, $date) => $q->whereDate('delivery_date', '<=', $date))
             // Same predicate as the New Invoice flow's eligible-deliveries filter (complete +
@@ -62,6 +64,7 @@ class DeliveryRepository extends BaseRepository
             ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(
                 fn ($sq) => $sq->where('document_number', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($sq2) => $sq2->where('customer_name', 'like', "%{$search}%"))
+                    ->orWhereHas('salesOrder', fn ($sq2) => $sq2->where('document_number', 'like', "%{$search}%"))
             ));
     }
 

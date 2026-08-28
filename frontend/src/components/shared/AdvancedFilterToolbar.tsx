@@ -13,6 +13,8 @@ export interface FilterOption {
   label: string
 }
 
+const ALL_REASONS = '__all__'
+
 export interface AdvancedFilterValue {
   search: string
   date_from: string
@@ -22,6 +24,10 @@ export interface AdvancedFilterValue {
   customer_id: string
   sales_person_id: string
   warehouse_id: string
+  reason: string
+  sales_order_number: string
+  min_amount: string
+  max_amount: string
 }
 
 export interface FilterChip {
@@ -44,6 +50,12 @@ interface AdvancedFilterToolbarProps {
   salesPersonOptions?: SearchableSelectOption[]
   /** Omit to hide the field entirely — only Deliveries has a Warehouse today. */
   warehouseOptions?: SearchableSelectOption[]
+  /** Omit to hide the field entirely — only Credit/Debit Notes have a Reason concept today. */
+  reasonOptions?: FilterOption[]
+  /** Omit to hide the field entirely — only Deliveries filter by their originating Sales Order's number (no bounded lookup exists to back a select, so this is a plain LIKE-match text field). */
+  showSalesOrderReference?: boolean
+  /** Omit to hide the field entirely — only Credit/Debit Notes have a "Rentang Nominal" filter today. */
+  showAmountRange?: boolean
 }
 
 /**
@@ -69,6 +81,9 @@ export function AdvancedFilterToolbar({
   customerLoading,
   salesPersonOptions,
   warehouseOptions,
+  reasonOptions,
+  showSalesOrderReference,
+  showAmountRange,
 }: AdvancedFilterToolbarProps) {
   const handlePresetChange = (preset: string) => {
     if (preset === 'custom') {
@@ -186,6 +201,59 @@ export function AdvancedFilterToolbar({
               placeholder="Semua Gudang"
             />
           </div>
+        )}
+
+        {reasonOptions && (
+          <div className="flex w-44 flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Alasan</label>
+            <Select value={value.reason || ALL_REASONS} onValueChange={(next) => onChange({ reason: next === ALL_REASONS ? '' : next })}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Semua Alasan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_REASONS}>Semua Alasan</SelectItem>
+                {reasonOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showSalesOrderReference && (
+          <div className="flex w-40 flex-col gap-1">
+            <label className="text-xs text-muted-foreground">No. Sales Order</label>
+            <Input
+              value={value.sales_order_number}
+              onChange={(event) => onChange({ sales_order_number: event.target.value })}
+              placeholder="Nomor SO…"
+            />
+          </div>
+        )}
+
+        {showAmountRange && (
+          <>
+            <div className="flex w-32 flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Nominal Min</label>
+              <Input
+                type="number"
+                value={value.min_amount}
+                onChange={(event) => onChange({ min_amount: event.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div className="flex w-32 flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Nominal Maks</label>
+              <Input
+                type="number"
+                value={value.max_amount}
+                onChange={(event) => onChange({ max_amount: event.target.value })}
+                placeholder="—"
+              />
+            </div>
+          </>
         )}
 
         <Button type="button" onClick={onApply} className="mb-0.5">

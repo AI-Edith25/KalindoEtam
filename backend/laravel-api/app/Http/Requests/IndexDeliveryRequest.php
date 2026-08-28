@@ -37,6 +37,9 @@ class IndexDeliveryRequest extends FormRequest
             'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
             'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
             'item_id' => ['sometimes', 'nullable', 'uuid', 'exists:items,id'],
+            // No bounded Sales Order lookup exists to back a select (unlike Customer/Warehouse) — plain
+            // number match against the originating Sales Order's document_number instead.
+            'sales_order_number' => ['sometimes', 'nullable', 'string', 'max:255'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
             'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],

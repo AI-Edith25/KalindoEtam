@@ -48,6 +48,8 @@ class DebitNoteRepository extends BaseRepository
             ->when($filters['invoice_id'] ?? null, fn ($q, $invoiceId) => $q->where('invoice_id', $invoiceId))
             ->when($filters['date_from'] ?? null, fn ($q, $date) => $q->whereDate('debit_note_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($q, $date) => $q->whereDate('debit_note_date', '<=', $date))
+            ->when($filters['min_amount'] ?? null, fn ($q, $amount) => $q->where('total_amount', '>=', $amount))
+            ->when($filters['max_amount'] ?? null, fn ($q, $amount) => $q->where('total_amount', '<=', $amount))
             ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(
                 fn ($sq) => $sq->where('document_number', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($sq2) => $sq2->where('customer_name', 'like', "%{$search}%"))

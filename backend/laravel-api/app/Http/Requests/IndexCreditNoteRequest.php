@@ -34,6 +34,8 @@ class IndexCreditNoteRequest extends FormRequest
             'invoice_id' => ['sometimes', 'nullable', 'uuid', 'exists:invoices,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
+            'min_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'max_amount' => ['sometimes', 'nullable', 'numeric', 'gte:min_amount'],
             'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
         ];
     }

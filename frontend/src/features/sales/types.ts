@@ -163,12 +163,6 @@ export interface DeliveryFormValues {
   items: { sales_order_item_id: string; qty: number }[]
 }
 
-export interface DeliveryFilterValues {
-  status: DeliveryStatus | null
-  dateFrom: string
-  dateTo: string
-}
-
 export type InvoiceDisplayStatus = 'draft' | 'unpaid' | 'partial' | 'paid' | 'cancelled'
 
 export interface InvoiceItem {
@@ -375,13 +369,6 @@ export interface CreditNoteFormValues {
   items: { invoice_item_id: string; qty_credited: number; amount: number; restock: boolean }[]
 }
 
-export interface CreditNoteFilterValues {
-  status: DocumentStatus | null
-  reason: CreditNoteReason | null
-  dateFrom: string
-  dateTo: string
-}
-
 export interface InvoiceDebitNoteHistoryLine {
   id: string
   document_number: string | null
@@ -447,9 +434,3 @@ export interface DebitNoteFormValues {
   items: { invoice_item_id: string | null; description: string | null; qty_adjusted: number; rate: number | null; amount: number }[]
 }
 
-export interface DebitNoteFilterValues {
-  status: DocumentStatus | null
-  reason: DebitNoteReason | null
-  dateFrom: string
-  dateTo: string
-}

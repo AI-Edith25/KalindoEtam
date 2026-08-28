@@ -5,10 +5,12 @@ import type { Delivery, DeliveryFormValues } from '../types'
 export interface DeliveryListParams {
   page: number
   search?: string
-  status?: string
+  status?: string | string[]
   warehouse_id?: string
   customer_id?: string
+  sales_person_id?: string
   item_id?: string
+  sales_order_number?: string
   date_from?: string
   date_to?: string
   per_page?: number
@@ -46,3 +48,23 @@ export async function completeDelivery(id: string): Promise<Delivery> {
 }
 
 /** No cancelDelivery — the backend has no route. Delivery::cancel() always throws; reversal is only via the (not yet implemented) Return workflow. */
+
+export interface DeliveryExportParams {
+  format: 'xlsx' | 'csv'
+  columns?: string[]
+  ids?: string[]
+  search?: string
+  status?: string[]
+  warehouse_id?: string
+  customer_id?: string
+  sales_person_id?: string
+  sales_order_number?: string
+  date_from?: string
+  date_to?: string
+}
+
+/** Bulk export — same filter contract as fetchDeliveries, plus `ids`/`columns`. See DeliveryController::export(). */
+export async function exportDeliveries(params: DeliveryExportParams): Promise<Blob> {
+  const { data } = await apiClient.get('/deliveries/export', { params, responseType: 'blob' })
+  return data
+}

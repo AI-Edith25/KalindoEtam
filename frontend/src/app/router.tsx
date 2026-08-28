@@ -36,6 +36,7 @@ import { DeliveryListPage } from '@/features/sales/pages/DeliveryListPage'
 import { DeliveryEditorPage } from '@/features/sales/pages/DeliveryEditorPage'
 import { DeliveryDetailPage } from '@/features/sales/pages/DeliveryDetailPage'
 import { DeliveryPrintPage } from '@/features/sales/pages/DeliveryPrintPage'
+import { DeliveryListPrintPage } from '@/features/sales/pages/DeliveryListPrintPage'
 import { InvoiceListPage } from '@/features/sales/pages/InvoiceListPage'
 import { InvoiceEditorPage } from '@/features/sales/pages/InvoiceEditorPage'
 import { InvoiceDetailPage } from '@/features/sales/pages/InvoiceDetailPage'
@@ -45,9 +46,11 @@ import { LaporanPenagihanHarianPrintPage } from '@/features/sales/pages/LaporanP
 import { CreditNoteListPage } from '@/features/sales/pages/CreditNoteListPage'
 import { CreditNoteEditorPage } from '@/features/sales/pages/CreditNoteEditorPage'
 import { CreditNoteDetailPage } from '@/features/sales/pages/CreditNoteDetailPage'
+import { CreditNoteListPrintPage } from '@/features/sales/pages/CreditNoteListPrintPage'
 import { DebitNoteListPage } from '@/features/sales/pages/DebitNoteListPage'
 import { DebitNoteEditorPage } from '@/features/sales/pages/DebitNoteEditorPage'
 import { DebitNoteDetailPage } from '@/features/sales/pages/DebitNoteDetailPage'
+import { DebitNoteListPrintPage } from '@/features/sales/pages/DebitNoteListPrintPage'
 import { StockBalanceListPage } from '@/features/inventory/pages/StockBalanceListPage'
 import { StockLedgerListPage } from '@/features/inventory/pages/StockLedgerListPage'
 import { StockAdjustmentListPage } from '@/features/inventory/pages/StockAdjustmentListPage'
@@ -151,6 +154,7 @@ export function AppRouter() {
         <Route path="/sales/deliveries/:id/edit" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryEditorPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryDetailPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id/print" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/deliveries/print-list" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPrintPage /></ProtectedRoute>} />
         <Route path="/sales/invoices" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceListPage /></ProtectedRoute>} />
         {/* Retired Semua/Outstanding toggle (2026-08-20) — without this, "outstanding" falls through to the :id route below and renders a bogus invoice detail lookup instead of the list. */}
         <Route path="/sales/invoices/outstanding" element={<Navigate to="/sales/invoices" replace />} />
@@ -178,10 +182,12 @@ export function AppRouter() {
         <Route path="/sales/credit-notes/new" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/credit-notes/:id/edit" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/credit-notes/:id" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteDetailPage /></ProtectedRoute>} />
+        <Route path="/sales/credit-notes/print-list" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteListPrintPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/new" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/:id/edit" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/:id" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteDetailPage /></ProtectedRoute>} />
+        <Route path="/sales/debit-notes/print-list" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPrintPage /></ProtectedRoute>} />
         <Route path="/inventory/stock-balance" element={<ProtectedRoute permission="inventory.stock_balance.view"><StockBalanceListPage /></ProtectedRoute>} />
         <Route path="/inventory/stock-ledger" element={<ProtectedRoute permission="inventory.stock_ledger.view"><StockLedgerListPage /></ProtectedRoute>} />
         <Route path="/inventory/adjustments" element={<ProtectedRoute permission="inventory.adjustments.view"><StockAdjustmentListPage /></ProtectedRoute>} />

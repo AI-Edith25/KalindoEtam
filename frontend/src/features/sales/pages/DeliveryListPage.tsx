@@ -2,28 +2,61 @@ import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
-import { SearchBox } from '@/components/shared/SearchBox'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { AdvancedFilterToolbar, type AdvancedFilterValue } from '@/components/shared/AdvancedFilterToolbar'
+import { ExportColumnPickerDialog, type ExportColumn } from '@/components/shared/ExportColumnPickerDialog'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
+import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
+import { useRowSelection } from '@/shared/hooks/useRowSelection'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { completeDelivery, deleteDelivery, fetchDeliveries } from '../api/deliveryApi'
-import { DeliveryFiltersBar } from '../components/DeliveryFiltersBar'
-import { emptyDeliveryFilters } from '../lib/deliveryFilters'
-import type { Delivery, DeliveryFilterValues } from '../types'
+import { fetchCustomersLookup, fetchSalesPersonsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { completeDelivery, deleteDelivery, exportDeliveries, fetchDeliveries } from '../api/deliveryApi'
+import type { Delivery } from '../types'
 
 const SORTERS: Record<string, (delivery: Delivery) => string | number> = {
   document_number: (delivery) => delivery.document_number ?? '',
   delivery_date: (delivery) => delivery.delivery_date,
+}
+
+const STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'complete', label: 'Complete' },
+]
+
+const EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'delivery_date', label: 'Date' },
+  { key: 'document_number', label: 'Document' },
+  { key: 'reference', label: 'Reference' },
+  { key: 'customer_name', label: 'Customer Name' },
+  { key: 'amount', label: 'Amount' },
+  { key: 'status', label: 'Status' },
+]
+
+const EMPTY_FILTERS: AdvancedFilterValue = {
+  search: '',
+  date_from: '',
+  date_to: '',
+  preset: 'custom',
+  status: [],
+  customer_id: '',
+  sales_person_id: '',
+  warehouse_id: '',
+  reason: '',
+  sales_order_number: '',
+  min_amount: '',
+  max_amount: '',
 }
 
 export function DeliveryListPage() {
@@ -35,22 +68,36 @@ export function DeliveryListPage() {
   const canDelete = useHasPermission('sales.deliveries.delete')
 
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState<DeliveryFilterValues>(emptyDeliveryFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingDelivery, setDeletingDelivery] = useState<Delivery | null>(null)
+  const [exportPickerOpen, setExportPickerOpen] = useState(false)
+  const [pendingExportFormat, setPendingExportFormat] = useState<'xlsx' | 'csv' | null>(null)
+
+  const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters<AdvancedFilterValue>(EMPTY_FILTERS)
+  const [draft, setDraft] = useState<AdvancedFilterValue>(urlFilters)
+
+  const customersQuery = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
+  const salesPersonsQuery = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
+  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const customerOptions = (customersQuery.data ?? []).map((customer) => ({ value: customer.id, label: customer.customer_name }))
+  const salesPersonOptions = (salesPersonsQuery.data ?? []).map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name }))
+  const warehouseOptions = (warehousesQuery.data ?? []).map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))
+
+  const queryFilters = {
+    ...(urlFilters.search ? { search: urlFilters.search } : {}),
+    ...(urlFilters.status.length > 0 ? { status: urlFilters.status } : {}),
+    ...(urlFilters.date_from ? { date_from: urlFilters.date_from } : {}),
+    ...(urlFilters.date_to ? { date_to: urlFilters.date_to } : {}),
+    ...(urlFilters.customer_id ? { customer_id: urlFilters.customer_id } : {}),
+    ...(urlFilters.sales_person_id ? { sales_person_id: urlFilters.sales_person_id } : {}),
+    ...(urlFilters.warehouse_id ? { warehouse_id: urlFilters.warehouse_id } : {}),
+    ...(urlFilters.sales_order_number ? { sales_order_number: urlFilters.sales_order_number } : {}),
+    ...(isOutstanding ? { outstanding: true } : {}),
+  }
 
   const listQuery = useQuery({
-    queryKey: ['deliveries', page, search, filters.status, filters.dateFrom, filters.dateTo, isOutstanding],
-    queryFn: () =>
-      fetchDeliveries({
-        page,
-        ...(search ? { search } : {}),
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
-        ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-        ...(isOutstanding ? { outstanding: true } : {}),
-      }),
+    queryKey: ['deliveries', page, queryFilters, isOutstanding],
+    queryFn: () => fetchDeliveries({ page, ...queryFilters }),
     placeholderData: (previous) => previous,
   })
 
@@ -90,6 +137,9 @@ export function DeliveryListPage() {
     })
   }, [listQuery.data, sort])
 
+  const totalFiltered = listQuery.data?.meta?.total ?? 0
+  const selection = useRowSelection<Delivery>(rows, totalFiltered, { resetKey: [page, JSON.stringify(queryFilters)].join('|') })
+
   const handleSortChange = (key: string) => {
     setSort((prev) => (prev?.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }))
   }
@@ -117,6 +167,7 @@ export function DeliveryListPage() {
   }
 
   const columns: DataTableColumn<Delivery>[] = [
+    selection.selectionColumn,
     { header: 'Date', accessor: (row) => formatDate(row.delivery_date), sortKey: 'delivery_date' },
     { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
     { header: 'Reference', accessor: (row) => row.sales_order?.document_number ?? '—' },
@@ -138,7 +189,96 @@ export function DeliveryListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(
+    urlFilters.search ||
+    urlFilters.status.length > 0 ||
+    urlFilters.date_from ||
+    urlFilters.date_to ||
+    urlFilters.customer_id ||
+    urlFilters.sales_person_id ||
+    urlFilters.warehouse_id ||
+    urlFilters.sales_order_number
+  )
+
+  const applyFilters = () => {
+    setUrlFilters(draft)
+    setPage(1)
+  }
+
+  const resetFilters = () => {
+    setDraft(EMPTY_FILTERS)
+    resetUrlFilters()
+    setPage(1)
+  }
+
+  const removeFilter = (patch: Partial<AdvancedFilterValue>) => {
+    const next = { ...urlFilters, ...patch }
+    setDraft(next)
+    setUrlFilters(patch)
+    setPage(1)
+  }
+
+  const chips = [
+    urlFilters.search && { key: 'search', label: `Cari: ${urlFilters.search}`, onRemove: () => removeFilter({ search: '' }) },
+    urlFilters.date_from && { key: 'date_from', label: `Dari: ${urlFilters.date_from}`, onRemove: () => removeFilter({ date_from: '', preset: 'custom' as const }) },
+    urlFilters.date_to && { key: 'date_to', label: `Sampai: ${urlFilters.date_to}`, onRemove: () => removeFilter({ date_to: '', preset: 'custom' as const }) },
+    ...urlFilters.status.map((status) => ({
+      key: `status-${status}`,
+      label: STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status,
+      onRemove: () => removeFilter({ status: urlFilters.status.filter((s) => s !== status) }),
+    })),
+    urlFilters.customer_id && {
+      key: 'customer',
+      label: `Customer: ${customerOptions.find((option) => option.value === urlFilters.customer_id)?.label ?? '—'}`,
+      onRemove: () => removeFilter({ customer_id: '' }),
+    },
+    urlFilters.sales_person_id && {
+      key: 'sales_person',
+      label: `Sales: ${salesPersonOptions.find((option) => option.value === urlFilters.sales_person_id)?.label ?? '—'}`,
+      onRemove: () => removeFilter({ sales_person_id: '' }),
+    },
+    urlFilters.warehouse_id && {
+      key: 'warehouse',
+      label: `Gudang: ${warehouseOptions.find((option) => option.value === urlFilters.warehouse_id)?.label ?? '—'}`,
+      onRemove: () => removeFilter({ warehouse_id: '' }),
+    },
+    urlFilters.sales_order_number && {
+      key: 'sales_order_number',
+      label: `No. SO: ${urlFilters.sales_order_number}`,
+      onRemove: () => removeFilter({ sales_order_number: '' }),
+    },
+  ].filter((chip): chip is { key: string; label: string; onRemove: () => void } => !!chip)
+
+  const runExport = async (format: 'xlsx' | 'csv', columns?: string[]) => {
+    try {
+      const blob = await exportDeliveries({
+        format,
+        columns,
+        ids: selection.selectedIdsForRequest ?? undefined,
+        ...queryFilters,
+      })
+      const today = new Date().toISOString().slice(0, 10)
+      downloadBlob(`deliveries_${urlFilters.date_from || today}_${urlFilters.date_to || today}.${format}`, blob)
+      toast.success('Export started — check your downloads.')
+    } catch (error) {
+      toastApiError(error)
+    }
+  }
+
+  const hasExplicitSelection = !!selection.selectedIdsForRequest && selection.selectedIdsForRequest.length > 0
+
+  const printListSummary = () => {
+    if (hasExplicitSelection) {
+      navigate(`/sales/deliveries/print-list?ids=${selection.selectedIdsForRequest!.join(',')}`)
+      return
+    }
+    const params = new URLSearchParams()
+    Object.entries(queryFilters).forEach(([key, value]) => {
+      if (Array.isArray(value)) value.forEach((v) => params.append(key, v))
+      else params.set(key, String(value))
+    })
+    navigate(`/sales/deliveries/print-list?${params.toString()}`)
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -149,14 +289,50 @@ export function DeliveryListPage() {
         description="Deliver ordered goods from a warehouse against an approved Sales Order."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} deliveries` : undefined}
         actions={
-          <ActionBar
-            actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
-            ]}
-            primary={canCreate ? { label: 'New Delivery', icon: Plus, onClick: () => navigate('/sales/deliveries/new') } : undefined}
-          />
+          <div className="flex items-center gap-2">
+            <ActionBar actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching }]} />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline">
+                  <Download className="size-4" />
+                  Export
+                  <ChevronDown className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setPendingExportFormat('xlsx')
+                    setExportPickerOpen(true)
+                  }}
+                >
+                  Export XLSX
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setPendingExportFormat('csv')
+                    setExportPickerOpen(true)
+                  }}
+                >
+                  Export CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={printListSummary}>Export PDF (Print Preview)</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button type="button" variant="outline" onClick={printListSummary}>
+              <Printer className="size-4" />
+              Print List Summary
+            </Button>
+
+            {canCreate && (
+              <Button type="button" onClick={() => navigate('/sales/deliveries/new')}>
+                <Plus className="size-4" />
+                New Delivery
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -169,22 +345,39 @@ export function DeliveryListPage() {
             Outstanding
           </Button>
         </div>
-        <SearchBox
-          value={search}
-          onChange={(value) => {
-            setSearch(value)
-            setPage(1)
-          }}
-          placeholder="Search delivery number or customer…"
-        />
-        <DeliveryFiltersBar
-          value={filters}
-          onChange={(value) => {
-            setFilters(value)
-            setPage(1)
-          }}
-        />
       </div>
+
+      <AdvancedFilterToolbar
+        value={draft}
+        onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        hasActiveFilters={hasFilters}
+        chips={chips}
+        statusOptions={STATUS_OPTIONS}
+        customerOptions={customerOptions}
+        customerLoading={customersQuery.isLoading}
+        salesPersonOptions={salesPersonOptions}
+        warehouseOptions={warehouseOptions}
+        showSalesOrderReference
+      />
+
+      {selection.hasSelection && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/40 p-2.5">
+          <span className="text-sm font-medium">
+            {selection.selectAllFiltered ? `Semua ${selection.selectedCount} hasil filter dipilih` : `${selection.selectedCount} dipilih`}
+          </span>
+          {!selection.selectAllFiltered && rows.length > 0 && rows.every((row) => selection.selectedIds.has(row.id)) && totalFiltered > rows.length && (
+            <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => selection.setSelectAllFiltered(true)}>
+              Pilih semua {totalFiltered} hasil filter
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="sm" onClick={selection.clear}>
+            Batalkan
+          </Button>
+          <span className="ml-auto text-xs text-muted-foreground">Export/Print di atas akan menggunakan seleksi ini.</span>
+        </div>
+      )}
 
       <DataTable
         columns={columns}
@@ -213,6 +406,20 @@ export function DeliveryListPage() {
         itemLabel={deletingDelivery?.document_number ?? undefined}
         onConfirm={() => {
           if (deletingDelivery) deleteMutation.mutate(deletingDelivery.id)
+        }}
+      />
+
+      <ExportColumnPickerDialog
+        open={exportPickerOpen}
+        onOpenChange={setExportPickerOpen}
+        columns={EXPORT_COLUMNS}
+        targetDescription={
+          hasExplicitSelection
+            ? `${selection.selectedCount} dokumen terpilih akan diekspor.`
+            : `Semua ${totalFiltered} hasil filter saat ini akan diekspor.`
+        }
+        onConfirm={(selectedColumns) => {
+          if (pendingExportFormat) runExport(pendingExportFormat, selectedColumns)
         }}
       />
     </div>

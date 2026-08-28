@@ -5,12 +5,15 @@ import type { CreditNote, CreditNoteFormValues } from '../types'
 export interface CreditNoteListParams {
   page: number
   search?: string
-  status?: string
+  status?: string | string[]
   reason?: string
   customer_id?: string
+  sales_person_id?: string
   invoice_id?: string
   date_from?: string
   date_to?: string
+  min_amount?: string
+  max_amount?: string
   per_page?: number
 }
 
@@ -47,4 +50,26 @@ export async function submitCreditNote(id: string): Promise<CreditNote> {
 export async function reverseCreditNote(id: string): Promise<CreditNote> {
   const { data } = await apiClient.post<ApiResponse<CreditNote>>(`/credit-notes/${id}/reverse`)
   return data.data
+}
+
+export interface CreditNoteExportParams {
+  format: 'xlsx' | 'csv'
+  columns?: string[]
+  ids?: string[]
+  search?: string
+  status?: string[]
+  reason?: string
+  customer_id?: string
+  sales_person_id?: string
+  invoice_id?: string
+  date_from?: string
+  date_to?: string
+  min_amount?: string
+  max_amount?: string
+}
+
+/** Bulk export — same filter contract as fetchCreditNotes, plus `ids`/`columns`. See CreditNoteController::export(). */
+export async function exportCreditNotes(params: CreditNoteExportParams): Promise<Blob> {
+  const { data } = await apiClient.get('/credit-notes/export', { params, responseType: 'blob' })
+  return data
 }

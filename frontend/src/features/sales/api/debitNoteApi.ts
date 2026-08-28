@@ -5,12 +5,15 @@ import type { DebitNote, DebitNoteFormValues } from '../types'
 export interface DebitNoteListParams {
   page: number
   search?: string
-  status?: string
+  status?: string | string[]
   reason?: string
   customer_id?: string
+  sales_person_id?: string
   invoice_id?: string
   date_from?: string
   date_to?: string
+  min_amount?: string
+  max_amount?: string
   per_page?: number
 }
 
@@ -47,4 +50,26 @@ export async function submitDebitNote(id: string): Promise<DebitNote> {
 export async function reverseDebitNote(id: string): Promise<DebitNote> {
   const { data } = await apiClient.post<ApiResponse<DebitNote>>(`/debit-notes/${id}/reverse`)
   return data.data
+}
+
+export interface DebitNoteExportParams {
+  format: 'xlsx' | 'csv'
+  columns?: string[]
+  ids?: string[]
+  search?: string
+  status?: string[]
+  reason?: string
+  customer_id?: string
+  sales_person_id?: string
+  invoice_id?: string
+  date_from?: string
+  date_to?: string
+  min_amount?: string
+  max_amount?: string
+}
+
+/** Bulk export — same filter contract as fetchDebitNotes, plus `ids`/`columns`. See DebitNoteController::export(). */
+export async function exportDebitNotes(params: DebitNoteExportParams): Promise<Blob> {
+  const { data } = await apiClient.get('/debit-notes/export', { params, responseType: 'blob' })
+  return data
 }
