@@ -31,7 +31,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['sales_person_id', 'branch_id', 'period_month', 'period_year']);
+            $table->unique(['sales_person_id', 'branch_id', 'period_month', 'period_year'], 'sales_targets_person_branch_period_unique');
             // Achievement panel queries by period alone across every sales person.
             $table->index(['period_year', 'period_month']);
         });
