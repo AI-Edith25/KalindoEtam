@@ -5,10 +5,19 @@ import JsBarcode from 'jsbarcode'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
-import { PRINT_PAPER_PAGE_CSS, type PrintOptions } from '@/shared/lib/printOptions'
+import {
+  loadInvoicePaperTypePreference,
+  loadShowDiscountPreference,
+  PRINT_FONT_SIZE_PX_HALF,
+  PRINT_PAPER_PAGE_CSS,
+  saveInvoicePaperTypePreference,
+  saveShowDiscountPreference,
+  type PrintOptions,
+} from '@/shared/lib/printOptions'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
+import { discountLabel } from '../lib/discount'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -26,6 +35,13 @@ const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
  * here once confirmed.
  */
 const CONTINUOUS_CONTENT_HEIGHT_CM = 11 * 2.54 - 1.2
+
+/** "Setengah A4" — 148 x 210mm, tighter 6mm margin than A4's 12mm wrapper padding. Same margin-via-@page + zero wrapper padding convention as Continuous (PRINT_PAPER_PAGE_CSS.half), so this is the single source of truth for the page box. */
+const HALF_PAGE_WIDTH_MM = 148
+const HALF_PAGE_HEIGHT_MM = 210
+const HALF_PAGE_MARGIN_MM = 6
+/** Available content height per printed page, after the @page margin on both edges — the divisor for estimating how many physical pages the table will span (see the halfPageCount effect below). */
+const HALF_CONTENT_HEIGHT_MM = HALF_PAGE_HEIGHT_MM - HALF_PAGE_MARGIN_MM * 2
 
 /** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
 function formatNum(value: number | string, decimals: number): string {
@@ -92,21 +108,35 @@ export function InvoicePrintPage() {
   // picker — so the actual content height is measured after render and fed in as the second
   // length, faking "auto" instead of using the unsupported keyword.
   const [rollHeightMm, setRollHeightMm] = useState(150)
+  const halfContentRef = useRef<HTMLDivElement>(null)
+  const [halfPageCount, setHalfPageCount] = useState(1)
   const { user } = useAuth()
-  const [printOptions, setPrintOptions] = useState<PrintOptions>({
+  const [printOptions, setPrintOptions] = useState<PrintOptions>(() => ({
     fontSize: 'medium',
-    paperType: 'a4',
+    paperType: loadInvoicePaperTypePreference(),
     // SI.pdf shows plain "200" for Qty (no decimals) but "21,000.00" / "4,200,000.00" for
     // price/amount — unlike SO.pdf's uniform 2-decimal default.
     qtyDecimals: 0,
     priceDecimals: 2,
     amountDecimals: 2,
-  })
+    showDiscount: loadShowDiscountPreference(),
+  }))
+  // Persists paperType/showDiscount the same way OutgoingPaymentPrintPage/IncomingPaymentPrintPage
+  // already do — load-on-init above, save-on-every-change here. paperType is saved through the
+  // Invoice-specific key (loadInvoicePaperTypePreference's own doc comment explains why it isn't
+  // the shared PRINT_PAPER_TYPE_STORAGE_KEY Payment print uses).
+  const handlePrintOptionsChange = (next: PrintOptions) => {
+    setPrintOptions(next)
+    saveInvoicePaperTypePreference(next.paperType)
+    saveShowDiscountPreference(next.showDiscount ?? false)
+  }
   const [optionsOpen, setOptionsOpen] = useState(false)
-  // Continuous is a paper-size variant of the A4 layout (same classic tabular content, just a
-  // different @page size/margin) — orthogonal to the Roll format above, which is a completely
-  // different 80mm thermal-receipt layout. Only meaningful when format === 'a4'.
+  // Continuous/Half are both paper-size variants of the A4 layout (same classic tabular content,
+  // just a different @page size/margin) — orthogonal to the Roll format above, which is a
+  // completely different 80mm thermal-receipt layout. Only meaningful when format === 'a4'.
   const isContinuous = format === 'a4' && printOptions.paperType === 'continuous'
+  const isHalf = format === 'a4' && printOptions.paperType === 'half'
+  const showDiscount = printOptions.showDiscount ?? false
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -134,6 +164,18 @@ export function InvoicePrintPage() {
     }
   }, [format, documentNumber, printOptions.qtyDecimals, printOptions.priceDecimals, printOptions.amountDecimals])
 
+  // Half's own "Page No: 1 of N" — this file has no repeating per-page header/footer (that's a
+  // materially bigger feature than "the number is right"), so N is estimated by measuring the
+  // whole flowing content's rendered height and dividing by one page's available content height
+  // (HALF_CONTENT_HEIGHT_MM) — same "measure the DOM, feed the number back in" technique as
+  // rollHeightMm above, just producing a page count instead of a page size.
+  useEffect(() => {
+    if (isHalf && halfContentRef.current) {
+      const heightMm = (halfContentRef.current.scrollHeight * 25.4) / 96
+      setHalfPageCount(Math.max(1, Math.ceil(heightMm / HALF_CONTENT_HEIGHT_MM)))
+    }
+  }, [isHalf, documentNumber, printOptions.qtyDecimals, printOptions.priceDecimals, printOptions.amountDecimals, showDiscount])
+
   if (invoiceQuery.isLoading) {
     return (
       <div className="flex min-h-64 items-center justify-center">
@@ -156,34 +198,69 @@ export function InvoicePrintPage() {
       className={
         format === 'roll'
           ? 'mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:p-[2mm]'
-          : isContinuous
-            // @page's own margin (PRINT_PAPER_PAGE_CSS.continuous) does the inset here — no
-            // extra wrapper padding on top of it, unlike A4's margin:0-on-@page + p-[12mm].
-            ? 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0'
-            : 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]'
+          : isHalf
+            // Same margin-via-@page, zero-wrapper-padding convention as Continuous just below —
+            // explicit width/minHeight (not max-w-3xl) so the on-screen preview is proportioned
+            // like a 148x210mm sheet too, not just the print output. See PRINT_PAPER_PAGE_CSS.half.
+            ? 'mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0'
+            : isContinuous
+              // @page's own margin (PRINT_PAPER_PAGE_CSS.continuous) does the inset here — no
+              // extra wrapper padding on top of it, unlike A4's margin:0-on-@page + p-[12mm].
+              ? 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0'
+              : 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]'
       }
-      style={format === 'roll' ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` } : undefined}
+      style={
+        format === 'roll'
+          ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` }
+          : isHalf
+            ? { width: `${HALF_PAGE_WIDTH_MM}mm`, minHeight: `${HALF_PAGE_HEIGHT_MM}mm` }
+            : undefined
+      }
     >
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
           + date on top, URL + page number on bottom) — that's not part of the document, it's
           browser UI. Document margins come from this wrapper's own padding instead (A4/Roll) or
-          @page's own margin (Continuous, see PRINT_PAPER_PAGE_CSS — kept as a single source of
-          truth rather than a second hardcoded copy here). */}
+          @page's own margin (Continuous/Half, see PRINT_PAPER_PAGE_CSS — kept as a single source
+          of truth rather than a second hardcoded copy here). */}
       <style>
         {format === 'roll'
           ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
-          : (isContinuous ? PRINT_PAPER_PAGE_CSS.continuous : '@page { size: A4; margin: 0; }')}
+          : isHalf
+            ? PRINT_PAPER_PAGE_CSS.half
+            : isContinuous
+              ? PRINT_PAPER_PAGE_CSS.continuous
+              : '@page { size: A4; margin: 0; }'}
       </style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-md border p-1">
-            <Button size="sm" variant={format === 'a4' ? 'default' : 'ghost'} onClick={() => setSearchParams({})}>
+            {/* format and paperType are two separate pieces of state (see isContinuous/isHalf
+                above) — the A4/Half buttons here set both together so this 3-way group reads as
+                one coherent "paper type" choice, even though only Half needs to touch paperType. */}
+            <Button
+              size="sm"
+              variant={format === 'a4' && !isHalf ? 'default' : 'ghost'}
+              onClick={() => {
+                setSearchParams({})
+                handlePrintOptionsChange({ ...printOptions, paperType: 'a4' })
+              }}
+            >
               A4
             </Button>
             <Button size="sm" variant={format === 'roll' ? 'default' : 'ghost'} onClick={() => setSearchParams({ format: 'roll' })}>
               Roll
+            </Button>
+            <Button
+              size="sm"
+              variant={isHalf ? 'default' : 'ghost'}
+              onClick={() => {
+                setSearchParams({})
+                handlePrintOptionsChange({ ...printOptions, paperType: 'half' })
+              }}
+            >
+              Half
             </Button>
           </div>
           {/* Roll already picks its own fixed 80mm size — Paper Type only makes sense against
@@ -201,15 +278,24 @@ export function InvoicePrintPage() {
 
       {format === 'a4' && (
       <div
+        ref={halfContentRef}
         className="flex flex-col text-black"
         style={{
-          minHeight: isContinuous ? `${CONTINUOUS_CONTENT_HEIGHT_CM}cm` : '27.3cm',
+          minHeight: isHalf ? `${HALF_CONTENT_HEIGHT_MM}mm` : isContinuous ? `${CONTINUOUS_CONTENT_HEIGHT_CM}cm` : '27.3cm',
           fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
-          fontSize: printOptions.fontSize === 'small' ? '11px' : printOptions.fontSize === 'large' ? '15px' : '13px',
+          fontSize: isHalf
+            ? PRINT_FONT_SIZE_PX_HALF[printOptions.fontSize]
+            : printOptions.fontSize === 'small'
+              ? '11px'
+              : printOptions.fontSize === 'large'
+                ? '15px'
+                : '13px',
         }}
       >
-        <div className="flex flex-col gap-0.5">
-          <p className="text-xl font-bold">{companyName}</p>
+        <div className={isHalf ? 'flex flex-col' : 'flex flex-col gap-0.5'}>
+          <p className={isHalf ? 'text-base font-bold' : 'text-xl font-bold'}>{companyName}</p>
+          {/* "header perusahaan lebih ringkas" on Half — tighter line spacing via the smaller
+              base font + no gap-0.5, not fewer fields; every line below still renders as normal. */}
           {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
           {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
           {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
@@ -236,7 +322,7 @@ export function InvoicePrintPage() {
             <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} />
             <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} />
             <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} />
-            <MetaRow label="Page No" value="1 of 1" />
+            <MetaRow label="Page No" value={isHalf ? `1 of ${halfPageCount}` : '1 of 1'} />
             <MetaRow label="Location" value={location} />
           </div>
         </div>
@@ -256,10 +342,10 @@ export function InvoicePrintPage() {
           </thead>
           <tbody>
             {invoice.items.map((item, index) => (
-              // break-inside-avoid only for Continuous — a genuinely multi-page invoice on
-              // continuous stock must not split a row across the perforation; A4 is left
-              // exactly as it already behaved (no page-break rule at all).
-              <tr key={item.id} className={isContinuous ? 'break-inside-avoid' : undefined}>
+              // break-inside-avoid for Continuous/Half — a genuinely multi-page invoice on
+              // continuous stock or a Half page must not split a row across the page break; A4 is
+              // left exactly as it already behaved (no page-break rule at all).
+              <tr key={item.id} className={isContinuous || isHalf ? 'break-inside-avoid' : undefined}>
                 <td className="py-1 pr-2 align-top">{index + 1}</td>
                 <td className="py-1 pr-2 align-top">{item.item_code ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{item.item_name}</td>
@@ -292,8 +378,19 @@ export function InvoicePrintPage() {
             </ol>
           </div>
 
-          <div className="self-start border border-black">
-            <div className="flex items-center justify-between gap-8 px-2 py-1 font-bold">
+          <div className="self-start">
+            {/* Real header-level data only — Invoice's discount is a single figure on the
+                Invoice itself (discount_amount/discount_type/discount_percentage), never
+                per line item (InvoiceItem has no discount column at all), so this is one row,
+                not a per-item breakdown. Same discountLabel() util InvoiceDetailPage/
+                InvoiceEditorPage already use for this exact line. */}
+            {showDiscount && (
+              <div className="flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1">
+                <span>{discountLabel(invoice.discount_type, invoice.discount_percentage)}</span>
+                <span>-RP {formatNum(invoice.discount_amount, printOptions.amountDecimals)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-8 border border-black px-2 py-1 font-bold">
               <span>Grand Total</span>
               <span>RP {formatNum(invoice.grand_total, printOptions.amountDecimals)}</span>
             </div>
@@ -377,7 +474,13 @@ export function InvoicePrintPage() {
           </tbody>
         </table>
 
-        <div className="flex items-center justify-between border-t border-black pt-1 font-bold">
+        {showDiscount && (
+          <div className="flex items-center justify-between border-t border-black pt-1">
+            <span>{discountLabel(invoice.discount_type, invoice.discount_percentage)}</span>
+            <span>-{formatNum(invoice.discount_amount, printOptions.amountDecimals)}</span>
+          </div>
+        )}
+        <div className={`flex items-center justify-between pt-1 font-bold ${showDiscount ? '' : 'border-t border-black'}`}>
           <span>TOTAL</span>
           <span>{formatNum(invoice.grand_total, printOptions.amountDecimals)}</span>
         </div>
@@ -400,9 +503,11 @@ export function InvoicePrintPage() {
         open={optionsOpen}
         onOpenChange={setOptionsOpen}
         options={printOptions}
-        onChange={setPrintOptions}
+        onChange={handlePrintOptionsChange}
         fields={['qty', 'price', 'amount']}
         showPaperType={format === 'a4'}
+        paperTypeOptions={['a4', 'continuous', 'half']}
+        showDiscount
       />
     </div>
   )

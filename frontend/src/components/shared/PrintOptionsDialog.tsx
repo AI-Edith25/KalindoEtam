@@ -1,3 +1,4 @@
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -20,6 +21,10 @@ interface PrintOptionsDialogProps {
   fields?: Array<'qty' | 'price' | 'amount'>
   /** Only Invoice/Delivery print pages actually act on paperType (render @page CSS + resize the preview) — every other consumer leaves it hidden so the control isn't shown with no effect. */
   showPaperType?: boolean
+  /** Which values the Paper Type dropdown offers, when shown — defaults to the original 2-value set so every existing caller (Payment print) is unaffected by newer values like 'half' that only Invoice print has layout support for. */
+  paperTypeOptions?: PrintPaperType[]
+  /** Only Invoice print renders/acts on this (the Total Discount line) — every other consumer leaves it hidden, same convention as showPaperType. */
+  showDiscount?: boolean
 }
 
 /**
@@ -34,6 +39,8 @@ export function PrintOptionsDialog({
   onChange,
   fields = ['qty', 'price', 'amount'],
   showPaperType = false,
+  paperTypeOptions = ['a4', 'continuous'],
+  showDiscount = false,
 }: PrintOptionsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -51,9 +58,9 @@ export function PrintOptionsDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(PRINT_PAPER_TYPE_LABELS).map(([value, label]) => (
+                  {paperTypeOptions.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {label}
+                      {PRINT_PAPER_TYPE_LABELS[value]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -125,6 +132,15 @@ export function PrintOptionsDialog({
                 </SelectContent>
               </Select>
             </div>
+          )}
+          {showDiscount && (
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={options.showDiscount ?? false}
+                onCheckedChange={(checked) => onChange({ ...options, showDiscount: checked === true })}
+              />
+              Tampilkan Diskon
+            </label>
           )}
         </div>
         <DialogFooter>
