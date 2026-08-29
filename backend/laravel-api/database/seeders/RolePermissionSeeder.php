@@ -27,6 +27,7 @@ class RolePermissionSeeder extends Seeder
         'administration.audit_log' => ['view'],
         'administration.naming_series' => ['view', 'create', 'update', 'delete'],
         'administration.purchase_settings' => ['view', 'update'],
+        'administration.invoice_print_settings' => ['view', 'update'],
         'master.items' => ['view', 'create', 'update', 'delete'],
         'master.item_groups' => ['view', 'create', 'update', 'delete'],
         'master.uoms' => ['view', 'create', 'update', 'delete'],

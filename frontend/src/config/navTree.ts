@@ -173,6 +173,7 @@ export const navTree: NavGroup[] = [
       { key: 'roles', label: 'Roles & Permissions', path: '/administration/roles', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'naming_series', label: 'Naming Series', path: '/administration/naming-series', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'purchase_settings', label: 'Purchase Settings', path: '/administration/purchase-settings', actions: ['view', 'update'] },
+      { key: 'invoice_print_settings', label: 'Invoice Print Settings', path: '/administration/invoice-print-settings', actions: ['view', 'update'] },
       { key: 'audit_log', label: 'Audit Log', path: '/administration/audit-log', actions: ['view'] },
     ],
   },

@@ -97,6 +97,7 @@ import { RoleListPage } from '@/features/administration/pages/RoleListPage'
 import { AuditLogListPage } from '@/features/administration/pages/AuditLogListPage'
 import { NamingSeriesListPage } from '@/features/administration/pages/NamingSeriesListPage'
 import { PurchaseSettingsPage } from '@/features/administration/pages/PurchaseSettingsPage'
+import { InvoicePrintSettingsPage } from '@/features/administration/pages/InvoicePrintSettingsPage'
 import { ProtectedRoute } from './ProtectedRoute'
 
 export function AppRouter() {
@@ -250,6 +251,7 @@ export function AppRouter() {
         <Route path="/administration/audit-log" element={<ProtectedRoute permission="administration.audit_log.view"><AuditLogListPage /></ProtectedRoute>} />
         <Route path="/administration/naming-series" element={<ProtectedRoute permission="administration.naming_series.view"><NamingSeriesListPage /></ProtectedRoute>} />
         <Route path="/administration/purchase-settings" element={<ProtectedRoute permission="administration.purchase_settings.view"><PurchaseSettingsPage /></ProtectedRoute>} />
+        <Route path="/administration/invoice-print-settings" element={<ProtectedRoute permission="administration.invoice_print_settings.view"><InvoicePrintSettingsPage /></ProtectedRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
