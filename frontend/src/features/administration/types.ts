@@ -51,35 +51,6 @@ export interface PurchaseSetting {
   updated_at: string
 }
 
-/** Company-wide default for Invoice Print Preview's "Print Options" — see InvoicePrintSettingsPage and printOptions.ts's PrintOptions (the camelCase, session-editable counterpart of this same shape). */
-export interface InvoicePrintSetting {
-  id: string
-  paper_type: 'a4' | 'continuous' | 'half'
-  orientation: 'portrait' | 'landscape'
-  /** Keyed by paper type — A4 defaults to 12mm all sides, Continuous/Half to 6mm (their pre-existing hardcoded margins), so one flat value can't represent all three without changing at least one. */
-  margins: Record<'a4' | 'continuous' | 'half', { top: number; bottom: number; left: number; right: number }>
-  scale_percent: number
-  font_family: string
-  font_size: 'small' | 'medium' | 'large'
-  qty_decimals: number
-  price_decimals: number
-  amount_decimals: number
-  number_format: 'id' | 'en'
-  show_currency_symbol: boolean
-  show_discount: boolean
-  visible_columns: string[]
-  show_logo: boolean
-  show_address: boolean
-  show_phone: boolean
-  show_email: boolean
-  footer_notes: string | null
-  show_signature_block: boolean
-  signature_left_label: string
-  signature_right_label: string
-  show_page_number: boolean
-  updated_at: string
-}
-
 export interface DocumentAttachment {
   id: string
   attachable_type: string

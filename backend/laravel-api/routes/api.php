@@ -41,7 +41,6 @@ use App\Http\Controllers\Api\V1\ProductSalesController;
 use App\Http\Controllers\Api\V1\PurchaseInvoiceController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReturnController;
-use App\Http\Controllers\Api\V1\InvoicePrintSettingController;
 use App\Http\Controllers\Api\V1\PurchaseSettingController;
 use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\RoleController;
@@ -116,11 +115,6 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('branches', BranchController::class), 'administration.branch');
     Route::get('purchase-settings', [PurchaseSettingController::class, 'show'])->middleware('permission:administration.purchase_settings.view');
     Route::put('purchase-settings', [PurchaseSettingController::class, 'update'])->middleware('permission:administration.purchase_settings.update');
-    // GET is unguarded (no administration.invoice_print_settings.view needed) — every
-    // authenticated user who can open Invoice Print Preview needs the company default, not just
-    // whoever can reach the Administration settings page. Same reasoning as company/print-header.
-    Route::get('invoice-print-settings', [InvoicePrintSettingController::class, 'show']);
-    Route::put('invoice-print-settings', [InvoicePrintSettingController::class, 'update'])->middleware('permission:administration.invoice_print_settings.update');
     $withPagePermissions(Route::apiResource('warehouses', WarehouseController::class), 'master.warehouses');
 
     $withPagePermissions(Route::apiResource('roles', RoleController::class), 'administration.roles');

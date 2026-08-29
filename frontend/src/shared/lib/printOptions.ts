@@ -1,45 +1,5 @@
 export type PrintFontSize = 'small' | 'medium' | 'large'
 export type PrintPaperType = 'a4' | 'continuous' | 'half'
-export type PrintOrientation = 'portrait' | 'landscape'
-export type PrintNumberFormat = 'id' | 'en'
-export type PrintColumnKey = 'itemCode' | 'description' | 'sales' | 'qty' | 'uom' | 'unitCost' | 'lineAmt'
-
-export const ALL_PRINT_COLUMNS: PrintColumnKey[] = ['itemCode', 'description', 'sales', 'qty', 'uom', 'unitCost', 'lineAmt']
-
-export const PRINT_COLUMN_LABELS: Record<PrintColumnKey, string> = {
-  itemCode: 'ItemCode',
-  description: 'Description',
-  sales: 'Sales',
-  qty: 'Qty',
-  uom: 'UOM',
-  unitCost: 'HCUnitCost',
-  lineAmt: 'HCLineAmt',
-}
-
-export interface PrintColumnRow {
-  key: PrintColumnKey
-  visible: boolean
-}
-
-/**
- * Turns "which columns are visible, in order" (the only thing actually persisted —
- * PrintOptions.visibleColumns) into a full checkbox-list row for every column, hidden ones
- * included. Order of the whole array (visible + hidden) is the saved column order — a hidden
- * column keeps its position so re-checking it doesn't jump it to the end. Shared by
- * PrintOptionsDialog's advanced section and InvoicePrintSettingsPage's column editor so the two
- * don't grow slightly different reordering behavior over time.
- */
-export function buildPrintColumnRows(visibleColumns: PrintColumnKey[]): PrintColumnRow[] {
-  const hidden = ALL_PRINT_COLUMNS.filter((key) => !visibleColumns.includes(key))
-  return [...visibleColumns.map((key) => ({ key, visible: true })), ...hidden.map((key) => ({ key, visible: false }))]
-}
-
-export interface PrintMargins {
-  top: number
-  bottom: number
-  left: number
-  right: number
-}
 
 export interface PrintOptions {
   fontSize: PrintFontSize
@@ -49,89 +9,6 @@ export interface PrintOptions {
   amountDecimals: number
   /** Only Invoice print acts on this (renders the Total Discount line) — every other consumer leaves it unset, same convention as paperType/showPaperType below. */
   showDiscount?: boolean
-  /**
-   * Invoice print's own extended layout controls (Administration > Invoice Print Settings +
-   * Print Preview's "Print Options" dialog, advanced section) — every other PrintOptionsDialog
-   * consumer (SO/DO/Payment print) leaves all of these unset, same convention as showDiscount.
-   */
-  orientation?: PrintOrientation
-  /** Keyed by paper type — A4/Continuous/Half had different hardcoded margins before this setting existed (12mm vs 6mm), so one flat margin can't represent "unset" for all three without changing at least one of them. Missing entries fall back to INVOICE_DEFAULT_MARGINS[paperType], see getPrintMargins. */
-  margins?: Partial<Record<PrintPaperType, PrintMargins>>
-  scalePercent?: number
-  fontFamily?: string
-  numberFormat?: PrintNumberFormat
-  showCurrencySymbol?: boolean
-  /** Order IS the display order — a column absent from this array is hidden, not just "unordered". */
-  visibleColumns?: PrintColumnKey[]
-  showLogo?: boolean
-  showAddress?: boolean
-  showPhone?: boolean
-  showEmail?: boolean
-  footerNotes?: string
-  showSignatureBlock?: boolean
-  signatureLeftLabel?: string
-  signatureRightLabel?: string
-  showPageNumber?: boolean
-}
-
-/** Pre-existing hardcoded margins per paper type (A4 12mm, Continuous/Half 6mm) — the fallback whenever PrintOptions.margins has no entry for a paper type, so this feature shipping never silently changes an existing invoice's look. */
-export const INVOICE_DEFAULT_MARGINS: Record<PrintPaperType, PrintMargins> = {
-  a4: { top: 12, bottom: 12, left: 12, right: 12 },
-  continuous: { top: 6, bottom: 6, left: 6, right: 6 },
-  half: { top: 6, bottom: 6, left: 6, right: 6 },
-}
-
-export function getPrintMargins(options: Pick<PrintOptions, 'margins'>, paperType: PrintPaperType): PrintMargins {
-  return options.margins?.[paperType] ?? INVOICE_DEFAULT_MARGINS[paperType]
-}
-
-type InvoiceAdvancedOptions = Required<
-  Pick<
-    PrintOptions,
-    | 'orientation'
-    | 'scalePercent'
-    | 'fontFamily'
-    | 'numberFormat'
-    | 'showCurrencySymbol'
-    | 'visibleColumns'
-    | 'showLogo'
-    | 'showAddress'
-    | 'showPhone'
-    | 'showEmail'
-    | 'footerNotes'
-    | 'showSignatureBlock'
-    | 'signatureLeftLabel'
-    | 'signatureRightLabel'
-    | 'showPageNumber'
-  >
-> & { margins: Record<PrintPaperType, PrintMargins> }
-
-/**
- * Fallback when there is no company default yet (or it hasn't loaded) — matches
- * InvoicePrintPage's pre-existing hardcoded layout exactly, so this feature shipping never
- * silently changes an existing invoice's look. Kept in sync by hand with the seeded row in
- * database/migrations/..._create_invoice_print_settings_table.php.
- */
-export const INVOICE_ADVANCED_DEFAULTS: InvoiceAdvancedOptions = {
-  orientation: 'portrait',
-  margins: INVOICE_DEFAULT_MARGINS,
-  scalePercent: 100,
-  fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
-  numberFormat: 'en',
-  // Table cells never showed a currency symbol before this setting existed (only the Grand
-  // Total line did, via its own hardcoded "RP" literal, unaffected by this flag) — false keeps
-  // that exact look until an admin opts in.
-  showCurrencySymbol: false,
-  visibleColumns: ALL_PRINT_COLUMNS,
-  showLogo: false,
-  showAddress: true,
-  showPhone: true,
-  showEmail: true,
-  footerNotes: '',
-  showSignatureBlock: true,
-  signatureLeftLabel: 'AUTHORISED SIGNATURE',
-  signatureRightLabel: 'AUTHORISED SIGNATURE',
-  showPageNumber: true,
 }
 
 /** Matches the pre-existing print output exactly (formatNumber/formatCurrency both rendered 0 decimals, A4/browser-default paper) so opening this dialog is opt-in, never a silent format change. */
@@ -168,13 +45,35 @@ export function savePaperTypePreference(paperType: PrintPaperType): void {
 }
 
 /**
- * Invoice print used to persist paperType/showDiscount per-browser via localStorage under its
- * own keys (deliberately separate from PRINT_PAPER_TYPE_STORAGE_KEY above, which Payment print
- * still uses — Payment has no layout support for 'half'). That's superseded by the company
- * default (Administration > Invoice Print Settings, fetched fresh each session) plus an
- * explicit "Reset to company default" button — see InvoicePrintPage — so there is no longer a
- * separate per-browser sticky preference for Invoice specifically.
+ * Invoice print's own paper-type preference — deliberately a SEPARATE key
+ * from PRINT_PAPER_TYPE_STORAGE_KEY above. That key is shared with
+ * Incoming/Outgoing Payment print, neither of which has any layout support
+ * for 'half'; if Invoice wrote 'half' into the shared key, a Payment print
+ * opened afterward would silently inherit an unsupported paper size. Same
+ * load/save-preference pattern, just scoped to the one page that supports
+ * the full 'a4' | 'continuous' | 'half' range.
  */
+const INVOICE_PRINT_PAPER_TYPE_STORAGE_KEY = 'print-paper-type-invoice'
+
+export function loadInvoicePaperTypePreference(): PrintPaperType {
+  const stored = localStorage.getItem(INVOICE_PRINT_PAPER_TYPE_STORAGE_KEY)
+  return stored === 'continuous' || stored === 'half' ? stored : 'a4'
+}
+
+export function saveInvoicePaperTypePreference(paperType: PrintPaperType): void {
+  localStorage.setItem(INVOICE_PRINT_PAPER_TYPE_STORAGE_KEY, paperType)
+}
+
+const PRINT_SHOW_DISCOUNT_STORAGE_KEY = 'print-show-discount'
+
+/** Same per-user-preference reasoning as loadPaperTypePreference — Invoice print only, see PrintOptions.showDiscount. */
+export function loadShowDiscountPreference(): boolean {
+  return localStorage.getItem(PRINT_SHOW_DISCOUNT_STORAGE_KEY) === '1'
+}
+
+export function saveShowDiscountPreference(showDiscount: boolean): void {
+  localStorage.setItem(PRINT_SHOW_DISCOUNT_STORAGE_KEY, showDiscount ? '1' : '0')
+}
 
 export const PRINT_FONT_SIZE_PX: Record<PrintFontSize, string> = {
   small: '11px',
@@ -208,22 +107,4 @@ export function formatMoney(value: number | string, decimals: number): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(Number(value))
-}
-
-/**
- * Invoice print's own number formatter — separate from formatQty/formatMoney above, which are
- * fixed to id-ID grouping/currency style. numberFormat picks plain grouping only ('en' = comma
- * thousands + dot decimal, 'id' = dot thousands + comma decimal); showCurrencySymbol prepends
- * "RP" (matching the legacy Grand Total line's own literal), never Intl's own currency style,
- * so the symbol placement stays identical regardless of numberFormat.
- */
-export function formatPrintNumber(
-  value: number | string,
-  decimals: number,
-  numberFormat: PrintNumberFormat = 'en',
-  showCurrencySymbol = false,
-): string {
-  const locale = numberFormat === 'id' ? 'id-ID' : 'en-US'
-  const formatted = new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))
-  return showCurrencySymbol ? `RP ${formatted}` : formatted
 }
