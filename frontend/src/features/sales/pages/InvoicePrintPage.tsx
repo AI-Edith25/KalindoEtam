@@ -8,7 +8,6 @@ import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import {
   loadInvoicePaperTypePreference,
   loadShowDiscountPreference,
-  PRINT_FONT_SIZE_PX_HALF,
   PRINT_PAPER_PAGE_CSS,
   saveInvoicePaperTypePreference,
   saveShowDiscountPreference,
@@ -36,9 +35,15 @@ const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
  */
 const CONTINUOUS_CONTENT_HEIGHT_CM = 11 * 2.54 - 1.2
 
-/** "Setengah A4" — 148 x 210mm, tighter 6mm margin than A4's 12mm wrapper padding. Same margin-via-@page + zero wrapper padding convention as Continuous (PRINT_PAPER_PAGE_CSS.half), so this is the single source of truth for the page box. */
-const HALF_PAGE_WIDTH_MM = 148
-const HALF_PAGE_HEIGHT_MM = 210
+/**
+ * Half is A5 LANDSCAPE — 210 x 148mm (595.276 x 420.945pt in the reference PDF's own page box),
+ * not a portrait 148 x 210mm sheet. Tighter 6mm margin than A4's 12mm wrapper padding, same
+ * margin-via-@page + zero wrapper padding convention as Continuous (PRINT_PAPER_PAGE_CSS.half),
+ * so this is the single source of truth for the page box (on-screen preview included — see the
+ * wrapper's own width/minHeight style below, which reads these same two constants).
+ */
+const HALF_PAGE_WIDTH_MM = 210
+const HALF_PAGE_HEIGHT_MM = 148
 const HALF_PAGE_MARGIN_MM = 6
 /** Available content height per printed page, after the @page margin on both edges — the divisor for estimating how many physical pages the table will span (see the halfPageCount effect below). */
 const HALF_CONTENT_HEIGHT_MM = HALF_PAGE_HEIGHT_MM - HALF_PAGE_MARGIN_MM * 2
@@ -124,6 +129,10 @@ export function InvoicePrintPage() {
     showDiscount: loadShowDiscountPreference(),
     showTax: false,
     showDecimalTotals: false,
+    fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
+    fontSizePt: 10,
+    signatureLeftLabel: 'AUTHORISED SIGNATURE',
+    signatureRightLabel: 'AUTHORISED SIGNATURE',
   }))
   // Persists paperType/showDiscount the same way OutgoingPaymentPrintPage/IncomingPaymentPrintPage
   // already do — load-on-init above, save-on-every-change here. paperType is saved through the
@@ -263,14 +272,8 @@ export function InvoicePrintPage() {
         className="flex flex-col text-black"
         style={{
           minHeight: isHalf ? `${HALF_CONTENT_HEIGHT_MM}mm` : isContinuous ? `${CONTINUOUS_CONTENT_HEIGHT_CM}cm` : '27.3cm',
-          fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
-          fontSize: isHalf
-            ? PRINT_FONT_SIZE_PX_HALF[printOptions.fontSize]
-            : printOptions.fontSize === 'small'
-              ? '11px'
-              : printOptions.fontSize === 'large'
-                ? '15px'
-                : '13px',
+          fontFamily: printOptions.fontFamily ?? '"Times New Roman", "Tinos", "Liberation Serif", serif',
+          fontSize: `${printOptions.fontSizePt ?? 10}pt`,
         }}
       >
         <div className={isHalf ? 'flex flex-col' : 'flex flex-col gap-0.5'}>
@@ -397,11 +400,11 @@ export function InvoicePrintPage() {
         <div className="grid grid-cols-2 gap-8 pt-10">
           <div className="text-center">
             <p className="font-semibold">{invoice.customer?.customer_name ?? '—'}</p>
-            <div className="mt-10 border-t border-black pt-1">(AUTHORISED SIGNATURE)</div>
+            <div className="mt-10 border-t border-black pt-1">({printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
           <div className="text-center">
             <p className="font-semibold">{companyName}</p>
-            <div className="mt-10 border-t border-black pt-1">(AUTHORISED SIGNATURE)</div>
+            <div className="mt-10 border-t border-black pt-1">({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
         </div>
       </div>
@@ -520,9 +523,12 @@ export function InvoicePrintPage() {
         fields={[]}
         showPaperType
         paperTypeOptions={['a4', 'half', 'continuous', 'roll']}
+        useNumericFontSize
+        showFontFamily
         showTax
         showDecimalToggle
         showDiscount
+        showSignatureLabels
       />
     </div>
   )

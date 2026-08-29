@@ -14,6 +14,13 @@ export interface PrintOptions {
   showTax?: boolean
   /** Only Invoice print acts on this (2 vs 0 decimals in the totals block) — every other consumer leaves it unset, same convention as showDiscount. */
   showDecimalTotals?: boolean
+  /** Only Invoice print acts on this (Font Family dropdown) — every other consumer leaves it unset, same convention as showDiscount. */
+  fontFamily?: string
+  /** Only Invoice print acts on this — a numeric point size replacing the small/medium/large `fontSize` above for Invoice specifically (every other consumer keeps using `fontSize`, unaffected). */
+  fontSizePt?: number
+  /** Only Invoice print acts on this (editable signature block labels, both default to "AUTHORISED SIGNATURE") — every other consumer leaves it unset, same convention as showDiscount. */
+  signatureLeftLabel?: string
+  signatureRightLabel?: string
 }
 
 /** Matches the pre-existing print output exactly (formatNumber/formatCurrency both rendered 0 decimals, A4/browser-default paper) so opening this dialog is opt-in, never a silent format change. */
@@ -28,15 +35,24 @@ export const defaultPrintOptions: PrintOptions = {
 export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
   a4: 'A4',
   continuous: 'Continuous 9.5" × 11" (Dot Matrix)',
-  half: 'Half (148 × 210mm)',
+  half: 'Half (A5 Landscape, 210 × 148mm)',
   roll: 'Roll (Thermal 80mm)',
 }
 
-/** Only Continuous/Half get an explicit @page override — A4 relies on the browser/printer default, exactly like before this option existed. Roll computes its own @page string at render time (paper height depends on measured content), so it's left null here too. */
+/**
+ * Only Continuous/Half get an explicit @page override — A4 relies on the browser/printer
+ * default, exactly like before this option existed. Roll computes its own @page string at
+ * render time (paper height depends on measured content), so it's left null here too.
+ *
+ * Half is A5 LANDSCAPE — 210 x 148mm (595.276 x 420.945pt per the reference PDF's own page
+ * box), not the 148 x 210mm portrait box this shipped with initially. Explicit size here
+ * (rather than relying on the printer's own paper-size setting) is what makes the printed
+ * output match this regardless of what the OS print dialog defaults to.
+ */
 export const PRINT_PAPER_PAGE_CSS: Record<PrintPaperType, string | null> = {
   a4: null,
   continuous: '@page { size: 9.5in 11in; margin: 6mm; }',
-  half: '@page { size: 148mm 210mm; margin: 6mm; }',
+  half: '@page { size: 210mm 148mm; margin: 6mm; }',
   roll: null,
 }
 
@@ -86,13 +102,6 @@ export const PRINT_FONT_SIZE_PX: Record<PrintFontSize, string> = {
   small: '11px',
   medium: '13px',
   large: '15px',
-}
-
-/** "font default lebih kecil" for Half — 2px under the A4/Continuous map at every tier, same three fontSize choices still apply. */
-export const PRINT_FONT_SIZE_PX_HALF: Record<PrintFontSize, string> = {
-  small: '9px',
-  medium: '11px',
-  large: '13px',
 }
 
 export const PRINT_FONT_SIZE_LABELS: Record<PrintFontSize, string> = {
