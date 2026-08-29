@@ -23,8 +23,12 @@ interface PrintOptionsDialogProps {
   showPaperType?: boolean
   /** Which values the Paper Type dropdown offers, when shown — defaults to the original 2-value set so every existing caller (Payment print) is unaffected by newer values like 'half' that only Invoice print has layout support for. */
   paperTypeOptions?: PrintPaperType[]
-  /** Only Invoice print renders/acts on this (the Total Discount line) — every other consumer leaves it hidden, same convention as showPaperType. */
+  /** Only Invoice print renders/acts on this (the DISC line in the totals block) — every other consumer leaves it hidden, same convention as showPaperType. */
   showDiscount?: boolean
+  /** Only Invoice print renders/acts on this (the HCTax column + TAX line in the totals block) — every other consumer leaves it hidden, same convention as showDiscount. */
+  showTax?: boolean
+  /** Only Invoice print renders/acts on this (2 vs 0 decimals in the totals block only — table columns stay fixed at their own decimals) — every other consumer leaves it hidden, same convention as showDiscount. Distinct from `fields`, which controls the pre-existing per-column decimal Selects other pages still use. */
+  showDecimalToggle?: boolean
 }
 
 /**
@@ -41,6 +45,8 @@ export function PrintOptionsDialog({
   showPaperType = false,
   paperTypeOptions = ['a4', 'continuous'],
   showDiscount = false,
+  showTax = false,
+  showDecimalToggle = false,
 }: PrintOptionsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -132,6 +138,21 @@ export function PrintOptionsDialog({
                 </SelectContent>
               </Select>
             </div>
+          )}
+          {showTax && (
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox checked={options.showTax ?? false} onCheckedChange={(checked) => onChange({ ...options, showTax: checked === true })} />
+              Tampilkan Tax
+            </label>
+          )}
+          {showDecimalToggle && (
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={options.showDecimalTotals ?? false}
+                onCheckedChange={(checked) => onChange({ ...options, showDecimalTotals: checked === true })}
+              />
+              Tampilkan Desimal
+            </label>
           )}
           {showDiscount && (
             <label className="flex items-center gap-2 text-sm font-medium">

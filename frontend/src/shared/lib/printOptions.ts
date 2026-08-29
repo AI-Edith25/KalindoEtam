@@ -1,5 +1,6 @@
 export type PrintFontSize = 'small' | 'medium' | 'large'
-export type PrintPaperType = 'a4' | 'continuous' | 'half'
+/** 'roll' only has layout support in Invoice print — every other consumer's own `paperTypeOptions` list simply never offers it, same convention as 'half' already being Invoice-only. */
+export type PrintPaperType = 'a4' | 'continuous' | 'half' | 'roll'
 
 export interface PrintOptions {
   fontSize: PrintFontSize
@@ -7,8 +8,12 @@ export interface PrintOptions {
   qtyDecimals: number
   priceDecimals: number
   amountDecimals: number
-  /** Only Invoice print acts on this (renders the Total Discount line) — every other consumer leaves it unset, same convention as paperType/showPaperType below. */
+  /** Only Invoice print acts on this (renders the DISC line in the totals block) — every other consumer leaves it unset, same convention as paperType/showPaperType below. */
   showDiscount?: boolean
+  /** Only Invoice print acts on this (HCTax column + TAX line in the totals block) — every other consumer leaves it unset, same convention as showDiscount. */
+  showTax?: boolean
+  /** Only Invoice print acts on this (2 vs 0 decimals in the totals block) — every other consumer leaves it unset, same convention as showDiscount. */
+  showDecimalTotals?: boolean
 }
 
 /** Matches the pre-existing print output exactly (formatNumber/formatCurrency both rendered 0 decimals, A4/browser-default paper) so opening this dialog is opt-in, never a silent format change. */
@@ -24,13 +29,15 @@ export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
   a4: 'A4',
   continuous: 'Continuous 9.5" × 11" (Dot Matrix)',
   half: 'Half (148 × 210mm)',
+  roll: 'Roll (Thermal 80mm)',
 }
 
-/** Only Continuous/Half get an explicit @page override — A4 relies on the browser/printer default, exactly like before this option existed. */
+/** Only Continuous/Half get an explicit @page override — A4 relies on the browser/printer default, exactly like before this option existed. Roll computes its own @page string at render time (paper height depends on measured content), so it's left null here too. */
 export const PRINT_PAPER_PAGE_CSS: Record<PrintPaperType, string | null> = {
   a4: null,
   continuous: '@page { size: 9.5in 11in; margin: 6mm; }',
   half: '@page { size: 148mm 210mm; margin: 6mm; }',
+  roll: null,
 }
 
 const PRINT_PAPER_TYPE_STORAGE_KEY = 'print-paper-type'
@@ -51,13 +58,13 @@ export function savePaperTypePreference(paperType: PrintPaperType): void {
  * for 'half'; if Invoice wrote 'half' into the shared key, a Payment print
  * opened afterward would silently inherit an unsupported paper size. Same
  * load/save-preference pattern, just scoped to the one page that supports
- * the full 'a4' | 'continuous' | 'half' range.
+ * the full 'a4' | 'continuous' | 'half' | 'roll' range.
  */
 const INVOICE_PRINT_PAPER_TYPE_STORAGE_KEY = 'print-paper-type-invoice'
 
 export function loadInvoicePaperTypePreference(): PrintPaperType {
   const stored = localStorage.getItem(INVOICE_PRINT_PAPER_TYPE_STORAGE_KEY)
-  return stored === 'continuous' || stored === 'half' ? stored : 'a4'
+  return stored === 'continuous' || stored === 'half' || stored === 'roll' ? stored : 'a4'
 }
 
 export function saveInvoicePaperTypePreference(paperType: PrintPaperType): void {

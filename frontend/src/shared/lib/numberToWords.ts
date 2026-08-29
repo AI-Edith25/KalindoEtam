@@ -81,3 +81,26 @@ export function terbilangUsdWithCents(amount: number | string): string {
 
   return `${integerToWords(integerPart)} AND CENTS ${integerToWords(cents)} ONLY`
 }
+
+const ID_SATUAN = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas']
+
+/** Classic recursive Indonesian terbilang — handles the "se-" irregulars (sebelas/seratus/seribu) a naive digit-by-digit reader would get wrong. Rupiah has no spelled-out subunit, unlike terbilangUsd's cents clause. */
+function angkaToKata(n: number): string {
+  if (n < 12) return ID_SATUAN[n]
+  if (n < 20) return `${angkaToKata(n - 10)} belas`
+  if (n < 100) return `${angkaToKata(Math.floor(n / 10))} puluh${n % 10 !== 0 ? ` ${angkaToKata(n % 10)}` : ''}`
+  if (n < 200) return `seratus${n - 100 !== 0 ? ` ${angkaToKata(n - 100)}` : ''}`
+  if (n < 1000) return `${angkaToKata(Math.floor(n / 100))} ratus${n % 100 !== 0 ? ` ${angkaToKata(n % 100)}` : ''}`
+  if (n < 2000) return `seribu${n - 1000 !== 0 ? ` ${angkaToKata(n - 1000)}` : ''}`
+  if (n < 1_000_000) return `${angkaToKata(Math.floor(n / 1000))} ribu${n % 1000 !== 0 ? ` ${angkaToKata(n % 1000)}` : ''}`
+  if (n < 1_000_000_000) return `${angkaToKata(Math.floor(n / 1_000_000))} juta${n % 1_000_000 !== 0 ? ` ${angkaToKata(n % 1_000_000)}` : ''}`
+  if (n < 1_000_000_000_000) return `${angkaToKata(Math.floor(n / 1_000_000_000))} miliar${n % 1_000_000_000 !== 0 ? ` ${angkaToKata(n % 1_000_000_000)}` : ''}`
+  return `${angkaToKata(Math.floor(n / 1_000_000_000_000))} triliun${n % 1_000_000_000_000 !== 0 ? ` ${angkaToKata(n % 1_000_000_000_000)}` : ''}`
+}
+
+/** Indonesian terbilang, ALL CAPS, e.g. 1470000 -> "SATU JUTA EMPAT RATUS TUJUH PULUH RIBU RUPIAH". Rounds to the nearest Rupiah — no sen clause, unlike terbilangUsd's cents. */
+export function terbilangIdr(amount: number | string): string {
+  const rounded = Math.round(Number(amount))
+  if (rounded === 0) return 'NOL RUPIAH'
+  return `${angkaToKata(rounded)} rupiah`.toUpperCase()
+}

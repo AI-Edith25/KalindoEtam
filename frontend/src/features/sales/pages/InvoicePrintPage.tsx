@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import JsBarcode from 'jsbarcode'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
@@ -14,10 +14,10 @@ import {
   saveShowDiscountPreference,
   type PrintOptions,
 } from '@/shared/lib/printOptions'
+import { terbilangIdr } from '@/shared/lib/numberToWords'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
-import { discountLabel } from '../lib/discount'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -88,26 +88,25 @@ function MetaRow({ label, value, bold }: { label: string; value: ReactNode; bold
  * system convention this schema doesn't capture — confirmed with the user not to fabricate
  * placeholder text for either field.
  *
- * A second "Roll" format (?format=roll, matching Roll_paper.pdf) renders alongside this A4
- * layout from the same query/data — an 80mm thermal-receipt style with its own sans-serif font,
- * a Code128 barcode of the document number, and one more schema gap of its own: "BIN" has no
- * backing column anywhere (Item/InvoiceItem/Warehouse all lack it), so it renders blank for
- * every invoice, not just Transportation.
+ * A second "Roll" format renders alongside this A4/Continuous/Half layout from the same
+ * query/data — an 80mm thermal-receipt style with its own sans-serif font, a Code128 barcode of
+ * the document number, and one more schema gap of its own: "BIN" has no backing column anywhere
+ * (Item/InvoiceItem/Warehouse all lack it), so it renders blank for every invoice, not just
+ * Transportation. Paper Type is a single field inside "Print Options" (A4 / Half / Continuous /
+ * Roll) — there is no separate toolbar toggle for it.
+ *
+ * Tax/Decimal/Discount are three independent checkboxes layered on top of every paper type:
+ * Tax adds an HCTax column (A4/Continuous/Half) or TAX column (Roll) plus a TAX line in the
+ * totals block; Discount adds a DISC line; Decimal switches the totals block between 0 and 2
+ * decimals (table columns always show their own fixed decimals — Qty 0, money columns 2 —
+ * regardless of this toggle). The totals block itself only expands into TOTAL/TAX/DISC/Grand
+ * Total when Tax or Discount is on; with both off it collapses back to a bare Grand Total, same
+ * as before either checkbox existed.
  */
 export function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const format = searchParams.get('format') === 'roll' ? 'roll' : 'a4'
   const barcodeRef = useRef<SVGSVGElement>(null)
   const rollContentRef = useRef<HTMLDivElement>(null)
-  // CSS @page's `size` descriptor has no valid syntax for "fixed width, auto height" (`80mm
-  // auto` is not a legal value per the Paged Media spec — browsers drop the whole declaration
-  // and fall back to the previous/default paper, which is how this shipped broken: Chrome kept
-  // defaulting to A4 with the receipt rendered small in the corner). Two explicit lengths *is*
-  // valid and Chrome does select it as the print paper size without the user touching the paper
-  // picker — so the actual content height is measured after render and fed in as the second
-  // length, faking "auto" instead of using the unsupported keyword.
-  const [rollHeightMm, setRollHeightMm] = useState(150)
   const halfContentRef = useRef<HTMLDivElement>(null)
   const [halfPageCount, setHalfPageCount] = useState(1)
   const { user } = useAuth()
@@ -115,28 +114,39 @@ export function InvoicePrintPage() {
     fontSize: 'medium',
     paperType: loadInvoicePaperTypePreference(),
     // SI.pdf shows plain "200" for Qty (no decimals) but "21,000.00" / "4,200,000.00" for
-    // price/amount — unlike SO.pdf's uniform 2-decimal default.
+    // price/amount — these are no longer user-configurable (Print Options dropped the three
+    // decimal Selects for a single "Decimal" checkbox that only affects the totals block below),
+    // so these three just carry their old defaults as fixed values now — see formatNum call
+    // sites, which pass literal 0 / 2 / 2 directly rather than reading these fields.
     qtyDecimals: 0,
     priceDecimals: 2,
     amountDecimals: 2,
     showDiscount: loadShowDiscountPreference(),
+    showTax: false,
+    showDecimalTotals: false,
   }))
   // Persists paperType/showDiscount the same way OutgoingPaymentPrintPage/IncomingPaymentPrintPage
   // already do — load-on-init above, save-on-every-change here. paperType is saved through the
   // Invoice-specific key (loadInvoicePaperTypePreference's own doc comment explains why it isn't
-  // the shared PRINT_PAPER_TYPE_STORAGE_KEY Payment print uses).
+  // the shared PRINT_PAPER_TYPE_STORAGE_KEY Payment print uses). showTax/showDecimalTotals are
+  // new and deliberately NOT persisted — every print starts from the "Default OFF" ticket spec.
   const handlePrintOptionsChange = (next: PrintOptions) => {
     setPrintOptions(next)
     saveInvoicePaperTypePreference(next.paperType)
     saveShowDiscountPreference(next.showDiscount ?? false)
   }
   const [optionsOpen, setOptionsOpen] = useState(false)
-  // Continuous/Half are both paper-size variants of the A4 layout (same classic tabular content,
-  // just a different @page size/margin) — orthogonal to the Roll format above, which is a
-  // completely different 80mm thermal-receipt layout. Only meaningful when format === 'a4'.
+  // Roll used to be a separate ?format=roll URL toggle with its own button, independent of the
+  // in-dialog Paper Type dropdown that offered A4/Continuous only. Print Options now has exactly
+  // one Paper Type field (A4/Half/Continuous/Roll) driving all four, so `format` is just derived
+  // from it instead of tracked separately.
+  const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
   const isContinuous = format === 'a4' && printOptions.paperType === 'continuous'
   const isHalf = format === 'a4' && printOptions.paperType === 'half'
   const showDiscount = printOptions.showDiscount ?? false
+  const showTax = printOptions.showTax ?? false
+  const showBreakdown = showTax || showDiscount
+  const totalsDecimals = printOptions.showDecimalTotals ? 2 : 0
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -148,6 +158,7 @@ export function InvoicePrintPage() {
   // Above the loading/null early returns so this hook always runs — the barcode <svg> only
   // exists once format is 'roll' and the invoice has loaded, hence the ref-null guard inside.
   const documentNumber = invoiceQuery.data?.document_number
+  const [rollHeightMm, setRollHeightMm] = useState(150)
   useEffect(() => {
     if (format === 'roll' && barcodeRef.current && documentNumber) {
       JsBarcode(barcodeRef.current, documentNumber, { format: 'CODE128', width: 1, height: 35, margin: 0, displayValue: false })
@@ -162,7 +173,7 @@ export function InvoicePrintPage() {
       const heightPx = rollContentRef.current.scrollHeight
       setRollHeightMm(Math.ceil((heightPx * 25.4) / 96) + 2)
     }
-  }, [format, documentNumber, printOptions.qtyDecimals, printOptions.priceDecimals, printOptions.amountDecimals])
+  }, [format, documentNumber, showTax])
 
   // Half's own "Page No: 1 of N" — this file has no repeating per-page header/footer (that's a
   // materially bigger feature than "the number is right"), so N is estimated by measuring the
@@ -174,7 +185,7 @@ export function InvoicePrintPage() {
       const heightMm = (halfContentRef.current.scrollHeight * 25.4) / 96
       setHalfPageCount(Math.max(1, Math.ceil(heightMm / HALF_CONTENT_HEIGHT_MM)))
     }
-  }, [isHalf, documentNumber, printOptions.qtyDecimals, printOptions.priceDecimals, printOptions.amountDecimals, showDiscount])
+  }, [isHalf, documentNumber, showTax, showDiscount])
 
   if (invoiceQuery.isLoading) {
     return (
@@ -235,36 +246,6 @@ export function InvoicePrintPage() {
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-md border p-1">
-            {/* format and paperType are two separate pieces of state (see isContinuous/isHalf
-                above) — the A4/Half buttons here set both together so this 3-way group reads as
-                one coherent "paper type" choice, even though only Half needs to touch paperType. */}
-            <Button
-              size="sm"
-              variant={format === 'a4' && !isHalf ? 'default' : 'ghost'}
-              onClick={() => {
-                setSearchParams({})
-                handlePrintOptionsChange({ ...printOptions, paperType: 'a4' })
-              }}
-            >
-              A4
-            </Button>
-            <Button size="sm" variant={format === 'roll' ? 'default' : 'ghost'} onClick={() => setSearchParams({ format: 'roll' })}>
-              Roll
-            </Button>
-            <Button
-              size="sm"
-              variant={isHalf ? 'default' : 'ghost'}
-              onClick={() => {
-                setSearchParams({})
-                handlePrintOptionsChange({ ...printOptions, paperType: 'half' })
-              }}
-            >
-              Half
-            </Button>
-          </div>
-          {/* Roll already picks its own fixed 80mm size — Paper Type only makes sense against
-              the A4-style tabular layout, so it's hidden while format === 'roll'. */}
           <Button variant="outline" onClick={() => setOptionsOpen(true)}>
             <Settings2 className="size-4" />
             Print Options
@@ -337,6 +318,7 @@ export function InvoicePrintPage() {
               <th className="py-1 pr-2 text-right font-normal">Qty</th>
               <th className="py-1 pr-2 font-normal">UOM</th>
               <th className="py-1 pr-2 text-right font-normal">HCUnitCost</th>
+              {showTax && <th className="py-1 pr-2 text-right font-normal">HCTax</th>}
               <th className="py-1 text-right font-normal">HCLineAmt</th>
             </tr>
           </thead>
@@ -350,14 +332,17 @@ export function InvoicePrintPage() {
                 <td className="py-1 pr-2 align-top">{item.item_code ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{item.item_name}</td>
                 <td className="py-1 pr-2 align-top">{item.sales_person?.name ?? invoice.sales_person?.name ?? ''}</td>
-                <td className="py-1 pr-2 text-right align-top">{formatNum(item.qty, printOptions.qtyDecimals)}</td>
+                <td className="py-1 pr-2 text-right align-top">{formatNum(item.qty, 0)}</td>
                 <td className="py-1 pr-2 align-top">{item.uom ?? ''}</td>
-                <td className="py-1 pr-2 text-right align-top">{formatNum(item.rate, printOptions.priceDecimals)}</td>
-                <td className="py-1 text-right align-top">{formatNum(item.amount, printOptions.amountDecimals)}</td>
+                <td className="py-1 pr-2 text-right align-top">{formatNum(item.rate, 2)}</td>
+                {showTax && <td className="py-1 pr-2 text-right align-top">{formatNum(item.tax_amount, 2)}</td>}
+                <td className="py-1 text-right align-top">{formatNum(item.amount, 2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        {isHalf && <p className="mt-2">{terbilangIdr(invoice.grand_total)}</p>}
 
         <div className="flex-1" />
 
@@ -379,20 +364,32 @@ export function InvoicePrintPage() {
           </div>
 
           <div className="self-start">
-            {/* Real header-level data only — Invoice's discount is a single figure on the
-                Invoice itself (discount_amount/discount_type/discount_percentage), never
-                per line item (InvoiceItem has no discount column at all), so this is one row,
-                not a per-item breakdown. Same discountLabel() util InvoiceDetailPage/
-                InvoiceEditorPage already use for this exact line. */}
+            {/* TOTAL only appears once there's a breakdown to show (Tax and/or Discount on) —
+                with both off this collapses to a bare Grand Total, same as before either
+                checkbox existed. Real header-level figures only (Invoice.subtotal/tax_amount/
+                discount_amount/grand_total) — never recomputed here, matching InvoiceService's
+                own grand_total = subtotal - discount_amount + tax_amount. */}
+            {showBreakdown && (
+              <div className="flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1">
+                <span>TOTAL</span>
+                <span>RP {formatNum(invoice.subtotal, totalsDecimals)}</span>
+              </div>
+            )}
+            {showTax && (
+              <div className="flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1">
+                <span>TAX</span>
+                <span>RP {formatNum(invoice.tax_amount, totalsDecimals)}</span>
+              </div>
+            )}
             {showDiscount && (
               <div className="flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1">
-                <span>{discountLabel(invoice.discount_type, invoice.discount_percentage)}</span>
-                <span>-RP {formatNum(invoice.discount_amount, printOptions.amountDecimals)}</span>
+                <span>DISC</span>
+                <span>RP {formatNum(invoice.discount_amount, totalsDecimals)}</span>
               </div>
             )}
             <div className="flex items-center justify-between gap-8 border border-black px-2 py-1 font-bold">
               <span>Grand Total</span>
-              <span>RP {formatNum(invoice.grand_total, printOptions.amountDecimals)}</span>
+              <span>RP {formatNum(invoice.grand_total, totalsDecimals)}</span>
             </div>
           </div>
         </div>
@@ -446,6 +443,7 @@ export function InvoicePrintPage() {
               <th className="py-0.5 pr-1 text-right font-normal">QTY</th>
               <th className="py-0.5 pr-1 font-normal">UOM</th>
               <th className="py-0.5 pr-1 text-right font-normal">PRICE</th>
+              {showTax && <th className="py-0.5 pr-1 text-right font-normal">TAX</th>}
               <th className="py-0.5 text-right font-normal">AMOUNT</th>
             </tr>
           </thead>
@@ -454,15 +452,16 @@ export function InvoicePrintPage() {
               <tr key={item.id}>
                 <td className="pt-1 pr-1 align-top font-bold">{item.item_code ?? ''}</td>
                 <td className="pt-1 pr-1 align-top"></td>
-                <td className="pt-1 pr-1 text-right align-top">{formatNum(item.qty, printOptions.qtyDecimals)}</td>
+                <td className="pt-1 pr-1 text-right align-top">{formatNum(item.qty, 0)}</td>
                 <td className="pt-1 pr-1 align-top">{item.uom ?? ''}</td>
-                <td className="pt-1 pr-1 text-right align-top">{formatNum(item.rate, printOptions.priceDecimals)}</td>
-                <td className="pt-1 text-right align-top">{formatNum(item.amount, printOptions.amountDecimals)}</td>
+                <td className="pt-1 pr-1 text-right align-top">{formatNum(item.rate, 2)}</td>
+                {showTax && <td className="pt-1 pr-1 text-right align-top">{formatNum(item.tax_amount, 2)}</td>}
+                <td className="pt-1 text-right align-top">{formatNum(item.amount, 2)}</td>
               </tr>,
               <tr key={`${item.id}-desc`}>
-                <td className="pb-1" colSpan={6}>
+                <td className="pb-1" colSpan={showTax ? 7 : 6}>
                   <div>{item.item_name}</div>
-                  {/* Appended below the description rather than as its own column — a 7th
+                  {/* Appended below the description rather than as its own column — a 7th/8th
                       column on this 80mm width risks overflow/truncation the narrow Roll
                       layout can't afford (see ROLL_CONTENT_WIDTH_MM). */}
                   {(item.sales_person?.name ?? invoice.sales_person?.name) && (
@@ -474,15 +473,29 @@ export function InvoicePrintPage() {
           </tbody>
         </table>
 
-        {showDiscount && (
-          <div className="flex items-center justify-between border-t border-black pt-1">
-            <span>{discountLabel(invoice.discount_type, invoice.discount_percentage)}</span>
-            <span>-{formatNum(invoice.discount_amount, printOptions.amountDecimals)}</span>
+        <div className="mt-1 flex flex-col gap-0.5 border-t border-black pt-1">
+          {showBreakdown && (
+            <div className="flex items-center justify-between">
+              <span>TOTAL</span>
+              <span>{formatNum(invoice.subtotal, totalsDecimals)}</span>
+            </div>
+          )}
+          {showTax && (
+            <div className="flex items-center justify-between">
+              <span>TAX</span>
+              <span>{formatNum(invoice.tax_amount, totalsDecimals)}</span>
+            </div>
+          )}
+          {showDiscount && (
+            <div className="flex items-center justify-between">
+              <span>DISC</span>
+              <span>{formatNum(invoice.discount_amount, totalsDecimals)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between font-bold">
+            <span>GRAND TOTAL</span>
+            <span>{formatNum(invoice.grand_total, totalsDecimals)}</span>
           </div>
-        )}
-        <div className={`flex items-center justify-between pt-1 font-bold ${showDiscount ? '' : 'border-t border-black'}`}>
-          <span>TOTAL</span>
-          <span>{formatNum(invoice.grand_total, printOptions.amountDecimals)}</span>
         </div>
 
         <p>ISSUED BY : {user?.name ?? ''}</p>
@@ -504,9 +517,11 @@ export function InvoicePrintPage() {
         onOpenChange={setOptionsOpen}
         options={printOptions}
         onChange={handlePrintOptionsChange}
-        fields={['qty', 'price', 'amount']}
-        showPaperType={format === 'a4'}
-        paperTypeOptions={['a4', 'continuous', 'half']}
+        fields={[]}
+        showPaperType
+        paperTypeOptions={['a4', 'half', 'continuous', 'roll']}
+        showTax
+        showDecimalToggle
         showDiscount
       />
     </div>
