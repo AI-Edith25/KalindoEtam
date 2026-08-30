@@ -48,7 +48,7 @@ export function GeneralLedgerListPage() {
       <SectionNav group="accounting" />
 
       <PageHeader
-        title="General Ledger"
+        title="Print Ledger"
         description="A read-only report of every account's balance for the selected period — opening, debit, credit, and ending — derived entirely from posted Journal Entries, never a separate ledger table. For account master data, see Chart of Accounts."
         count={rows.length ? `${formatNumber(rows.length)} accounts` : undefined}
         actions={
