@@ -160,6 +160,41 @@ export interface CashBookFilterValues {
   dateTo: string
 }
 
+/**
+ * Journal List's Sales Journal tab — screen rows reuse SalesListingRow (see
+ * @/features/reports/types) as-is: SalesJournalRepository's screen query is
+ * SalesListingRepository::query() pinned to one type, same row shape the
+ * Reports > Sales Report > Sales Listing tab already renders.
+ */
+export type SalesJournalView = 'invoice' | 'credit_note'
+
+export interface SalesJournalFilterValues {
+  branchId: string | null
+  dateFrom: string
+  dateTo: string
+}
+
+/** Journal List's Purchase Journal tab — no Branch (Purchase has no branch_id anywhere in the schema, unlike Sales) and no Salesman concept. */
+export type PurchaseJournalView = 'purchase_invoice' | 'purchase_return'
+
+export interface PurchaseJournalRow {
+  id: string
+  type: PurchaseJournalView
+  document_number: string | null
+  date: string
+  reference_number: string | null
+  supplier_code: string
+  supplier_name: string
+  amount: number
+  tax: number
+  amount_incl_tax: number
+}
+
+export interface PurchaseJournalFilterValues {
+  dateFrom: string
+  dateTo: string
+}
+
 export type TrialBalancePeriodPreset = 'this_month' | 'this_quarter' | 'this_fiscal_year' | 'custom'
 export type ProfitLossPeriodPreset = TrialBalancePeriodPreset
 

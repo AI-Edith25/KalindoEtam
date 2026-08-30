@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\PaymentEntryController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\ProductSalesController;
 use App\Http\Controllers\Api\V1\PurchaseInvoiceController;
+use App\Http\Controllers\Api\V1\PurchaseJournalController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReturnController;
 use App\Http\Controllers\Api\V1\PurchaseSettingController;
@@ -47,6 +48,7 @@ use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
 use App\Http\Controllers\Api\V1\SalesPersonController;
 use App\Http\Controllers\Api\V1\SalesTargetController;
+use App\Http\Controllers\Api\V1\SalesJournalController;
 use App\Http\Controllers\Api\V1\SalesListingController;
 use App\Http\Controllers\Api\V1\SalesReportController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
@@ -332,6 +334,16 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // stays unpopulated, same as General Ledger's — this report deliberately doesn't touch it).
     Route::get('cash-book', [CashBookController::class, 'index'])->middleware('permission:accounting.journal_list.view');
     Route::get('journal-list/export', [JournalListController::class, 'export'])->middleware('permission:accounting.journal_list.view');
+
+    // Journal List's Sales Journal / Purchase Journal tabs (Sales Invoice/Credit Note,
+    // Purchase Invoice/Purchase Return sub-tabs) — same permission as Cash Book/General Journal
+    // above, reused unchanged (all 4 are sub-tabs of one "Journal List" page). Screen is
+    // document-level (SalesJournalController/PurchaseJournalController); export walks the source
+    // documents' own items, not journal_entries — see SalesJournalExport/PurchaseJournalExport.
+    Route::get('sales-journal', [SalesJournalController::class, 'index'])->middleware('permission:accounting.journal_list.view');
+    Route::get('sales-journal/export', [SalesJournalController::class, 'export'])->middleware('permission:accounting.journal_list.view');
+    Route::get('purchase-journal', [PurchaseJournalController::class, 'index'])->middleware('permission:accounting.journal_list.view');
+    Route::get('purchase-journal/export', [PurchaseJournalController::class, 'export'])->middleware('permission:accounting.journal_list.view');
 
     // Trial Balance (Sprint 16A): a presentation layer over GeneralLedgerService::listAccounts()
     // — no new balance calculation, no new accounting table. See docs/TRIAL_BALANCE_DESIGN.md.
