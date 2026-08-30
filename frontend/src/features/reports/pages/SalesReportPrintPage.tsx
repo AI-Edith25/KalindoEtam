@@ -9,26 +9,25 @@ import { defaultPrintOptions, formatMoney, formatQty, PRINT_FONT_SIZE_PX, type P
 import { fetchProductSales } from '../api/productSalesApi'
 import { fetchCustomerSales } from '../api/customerSalesApi'
 import { fetchOpenOrders } from '../api/openOrdersApi'
+import { fetchSalesListing } from '../api/salesListingApi'
 
-type PrintTab = 'products' | 'customers' | 'open-orders'
+type PrintTab = 'products' | 'customers' | 'open-orders' | 'listing'
 
 const TITLES: Record<PrintTab, { preview: string; report: string }> = {
   products: { preview: 'Product Sales', report: 'PRODUCT SALES REPORT' },
   customers: { preview: 'Customer Sales', report: 'CUSTOMER SALES REPORT' },
   'open-orders': { preview: 'Open Orders', report: 'OPEN ORDERS REPORT' },
+  listing: { preview: 'Sales Listing', report: 'SALES LISTING REPORT' },
 }
 
-/**
- * Read-only print view of the active Sales Report tab's current filters. Product/Customer/Open
- * Orders are built — Sales Listing's print view lands alongside its own tab.
- */
+/** Read-only print view of the active Sales Report tab's current filters. */
 export function SalesReportPrintPage() {
   const [searchParams] = useSearchParams()
   const [printOptions, setPrintOptions] = useState<PrintOptions>(defaultPrintOptions)
   const [optionsOpen, setOptionsOpen] = useState(false)
 
   const rawTab = searchParams.get('tab')
-  const tab: PrintTab = rawTab === 'customers' || rawTab === 'open-orders' ? rawTab : 'products'
+  const tab: PrintTab = rawTab === 'customers' || rawTab === 'open-orders' || rawTab === 'listing' ? rawTab : 'products'
   const dateFrom = searchParams.get('date_from') ?? undefined
   const dateTo = searchParams.get('date_to') ?? undefined
   const params = {
@@ -60,10 +59,17 @@ export function SalesReportPrintPage() {
     enabled: tab === 'open-orders',
   })
 
+  const listingQuery = useQuery({
+    queryKey: ['sales-listing-print', params],
+    queryFn: () => fetchSalesListing({ page: 1, per_page: 500, ...params }),
+    enabled: tab === 'listing',
+  })
+
   const total =
     tab === 'products' ? (productsQuery.data?.meta.total ?? 0)
     : tab === 'customers' ? (customersQuery.data?.meta.total ?? 0)
-    : (openOrdersQuery.data?.meta.total ?? 0)
+    : tab === 'open-orders' ? (openOrdersQuery.data?.meta.total ?? 0)
+    : (listingQuery.data?.meta.total ?? 0)
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0">
@@ -111,6 +117,12 @@ export function SalesReportPrintPage() {
             <p>
               Open Sales Orders: {openOrdersQuery.data.meta.kpis.open_so_count} — Total Open Order Value:{' '}
               {formatMoney(openOrdersQuery.data.meta.kpis.total_outstanding_value, printOptions.amountDecimals)}
+            </p>
+          )}
+          {tab === 'listing' && listingQuery.data?.meta.kpis && (
+            <p>
+              Net Sales: {formatMoney(listingQuery.data.meta.kpis.net_sales, printOptions.amountDecimals)} — Gross:{' '}
+              {formatMoney(listingQuery.data.meta.kpis.gross, printOptions.amountDecimals)}
             </p>
           )}
         </div>
@@ -190,6 +202,33 @@ export function SalesReportPrintPage() {
                   <td className="border-r-2 border-foreground/80 p-2">{row.item_name}</td>
                   <td className="border-r-2 border-foreground/80 p-2 text-right">{formatQty(row.qty_outstanding, printOptions.qtyDecimals)}</td>
                   <td className="p-2 text-right">{formatMoney(row.outstanding_value, printOptions.amountDecimals)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {tab === 'listing' && (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b-2 border-foreground/80 text-left">
+                <th className="border-r-2 border-foreground/80 p-2">Date</th>
+                <th className="border-r-2 border-foreground/80 p-2">Document</th>
+                <th className="border-r-2 border-foreground/80 p-2">Customer</th>
+                <th className="border-r-2 border-foreground/80 p-2">Type</th>
+                <th className="border-r-2 border-foreground/80 p-2 text-right">Amount Excl. Tax</th>
+                <th className="p-2 text-right">Amount Incl. Tax</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(listingQuery.data?.data ?? []).map((row) => (
+                <tr key={row.id} className="border-b border-foreground/30">
+                  <td className="border-r-2 border-foreground/80 p-2">{formatDate(row.date)}</td>
+                  <td className="border-r-2 border-foreground/80 p-2">{row.document_number ?? '—'}</td>
+                  <td className="border-r-2 border-foreground/80 p-2">{row.customer_name}</td>
+                  <td className="border-r-2 border-foreground/80 p-2 capitalize">{row.type.replace('_', ' ')}</td>
+                  <td className="border-r-2 border-foreground/80 p-2 text-right">{formatMoney(row.amount, printOptions.amountDecimals)}</td>
+                  <td className="p-2 text-right">{formatMoney(row.amount_incl_tax, printOptions.amountDecimals)}</td>
                 </tr>
               ))}
             </tbody>

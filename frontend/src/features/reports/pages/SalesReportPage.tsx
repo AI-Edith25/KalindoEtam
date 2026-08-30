@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { ProductSalesPanel } from '../components/ProductSalesPanel'
 import { CustomerSalesPanel } from '../components/CustomerSalesPanel'
 import { OpenOrdersPanel } from '../components/OpenOrdersPanel'
+import { SalesListingPanel } from '../components/SalesListingPanel'
 import { emptySalesReportFilters } from '../lib/reportFilters'
 import type { SalesReportFilterValues } from '../types'
 
@@ -14,15 +15,13 @@ const TABS: { value: SalesReportTab; label: string; enabled: boolean }[] = [
   { value: 'products', label: 'Product Sales', enabled: true },
   { value: 'customers', label: 'Customer Sales', enabled: true },
   { value: 'open-orders', label: 'Open Orders', enabled: true },
-  { value: 'listing', label: 'Sales Listing', enabled: false },
+  { value: 'listing', label: 'Sales Listing', enabled: true },
 ]
 
 /**
  * Sales Report — 4 tabs (Product Sales, Customer Sales, Open Orders, Sales Listing), each its own
  * server-side aggregate so KPIs always reflect the full filtered set, never just the loaded page
- * (the bug the old single-table page had — see git history). Product/Customer/Open Orders are
- * built; Sales Listing lands in its own follow-up commit, same "ship the final tab shape early"
- * pattern as Journal List (frontend/src/features/accounting/pages/JournalListPage.tsx).
+ * (the bug the old single-table page had — see git history). All 4 tabs are built.
  *
  * All URL-synced state (tab, filters, page) is owned here via useSearchParams directly — same
  * reasoning as JournalListPage: this is the only page that needs it, so no shared hook.
@@ -96,6 +95,7 @@ export function SalesReportPage() {
       {tab === 'products' && <ProductSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
       {tab === 'customers' && <CustomerSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
       {tab === 'open-orders' && <OpenOrdersPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'listing' && <SalesListingPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
     </div>
   )
 }

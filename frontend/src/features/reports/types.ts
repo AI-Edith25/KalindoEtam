@@ -165,6 +165,42 @@ export interface OpenOrdersKpis {
   avg_age_days: number
 }
 
+/**
+ * Sales Listing tab — one row per Invoice or Credit Note document. A Credit Note row's amount/
+ * discount/tax/amount_incl_tax are already negative (see SalesListingRowResource on the backend),
+ * so a plain sum nets correctly. payment_status/outstanding_ar are null for Credit Note rows.
+ */
+export type SalesListingType = 'invoice' | 'credit_note'
+export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid'
+
+export interface SalesListingRow {
+  id: string
+  type: SalesListingType
+  document_number: string | null
+  date: string
+  reference_so_number: string | null
+  reference_do_number: string | null
+  customer_code: string
+  customer_name: string
+  sales_person_name: string
+  branch_name: string | null
+  amount: number
+  discount: number
+  tax: number
+  amount_incl_tax: number
+  payment_status: PaymentStatus | null
+  outstanding_ar: number | null
+}
+
+export interface SalesListingKpis {
+  net_sales: number
+  total_tax: number
+  gross: number
+  invoice_count: number
+  paid_value: number
+  unpaid_value: number
+}
+
 export interface DeliveryReportFilterValues {
   customer_id: string
   item_id: string
