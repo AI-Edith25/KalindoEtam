@@ -134,7 +134,7 @@ export const navTree: NavGroup[] = [
       { key: 'ar_detail', label: 'AR Detail', path: '/reports/ar-detail', actions: ['view'] },
       // permissionGroup keeps this tab gated on the same accounting.general_ledger.view that
       // already governs the content it leads to — see the `accounting` group below.
-      { key: 'general_ledger', label: 'Print Ledger', path: '/reports/general-ledger', actions: ['view'], permissionGroup: 'accounting' },
+      { key: 'general_ledger', label: 'General Ledger', path: '/reports/general-ledger', actions: ['view'], permissionGroup: 'accounting' },
     ],
   },
   {
