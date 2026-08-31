@@ -1,0 +1,57 @@
+<?php
+
+namespace App\Models;
+
+use App\Enums\ImportBatchStatus;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * An import run's operational state — not master data, so no HasAuditTrail/
+ * SoftDeletes; one AuditLogService line per completed batch covers auditability.
+ * No per-row child table: preview results live in preview_summary (counts
+ * only), failed-row detail lives in a CSV at error_report_path.
+ */
+class ImportBatch extends Model
+{
+    use HasUuids;
+
+    protected $fillable = [
+        'module',
+        'status',
+        'original_filename',
+        'disk',
+        'file_path',
+        'mapping',
+        'clean_settings',
+        'fk_resolutions',
+        'commit_mode',
+        'write_mode',
+        'preview_summary',
+        'total_rows',
+        'processed_rows',
+        'success_rows',
+        'failed_rows',
+        'error_report_path',
+        'failure_reason',
+        'created_by',
+    ];
+
+    protected $casts = [
+        'status' => ImportBatchStatus::class,
+        'mapping' => 'array',
+        'clean_settings' => 'array',
+        'fk_resolutions' => 'array',
+        'preview_summary' => 'array',
+        'total_rows' => 'integer',
+        'processed_rows' => 'integer',
+        'success_rows' => 'integer',
+        'failed_rows' => 'integer',
+    ];
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+}

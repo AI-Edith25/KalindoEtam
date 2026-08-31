@@ -27,6 +27,8 @@ use App\Http\Controllers\Api\V1\PeriodController;
 use App\Http\Controllers\Api\V1\GoodsReceiptController;
 use App\Http\Controllers\Api\V1\InvoiceChangeRequestController;
 use App\Http\Controllers\Api\V1\InvoiceController;
+use App\Http\Controllers\Api\V1\ImportController;
+use App\Http\Controllers\Api\V1\ImportMappingPresetController;
 use App\Http\Controllers\Api\V1\ItemController;
 use App\Http\Controllers\Api\V1\ItemGroupController;
 use App\Http\Controllers\Api\V1\JournalEntryController;
@@ -150,6 +152,26 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('terms-of-payments', TermsOfPaymentController::class), 'master.terms_of_payment');
 
     $withPagePermissions(Route::apiResource('items', ItemController::class), 'master.items');
+    // Import Wizard — {module} is shared across Items/Item Groups/UOMs. The `permission:`
+    // middleware only takes a static string, so per-module authorization happens inside
+    // ImportController itself (checks master.{module}.import against the resolved module).
+    Route::prefix('import/{module}')->where(['module' => 'items|item-groups|uoms'])->group(function () {
+        Route::get('fields', [ImportController::class, 'fields']);
+        Route::get('template', [ImportController::class, 'template']);
+        Route::post('batches', [ImportController::class, 'store']);
+        Route::get('mapping-presets', [ImportMappingPresetController::class, 'index']);
+    });
+    Route::prefix('import/batches')->group(function () {
+        Route::get('{batch}', [ImportController::class, 'show']);
+        Route::patch('{batch}/mapping', [ImportController::class, 'updateMapping']);
+        Route::get('{batch}/fk-candidates', [ImportController::class, 'fkCandidates']);
+        Route::patch('{batch}/fk-resolutions', [ImportController::class, 'updateFkResolutions']);
+        Route::post('{batch}/preview', [ImportController::class, 'preview']);
+        Route::post('{batch}/commit', [ImportController::class, 'commit']);
+        Route::get('{batch}/failed-rows', [ImportController::class, 'failedRows']);
+        Route::post('{batch}/mapping-presets', [ImportMappingPresetController::class, 'store']);
+    });
+    Route::delete('import/mapping-presets/{preset}', [ImportMappingPresetController::class, 'destroy']);
     Route::get('items/{item}/stock-ledger', [StockLedgerController::class, 'index'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view');
     // Bulk, warehouse-scoped current balance — exposes the existing StockLedgerService::getCurrentBalance()
     // (already used internally by DeliveryService::assertSufficientStock()) for editors that need to

@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Services\Import;
+
+use App\Services\Import\Contracts\ImportTemplate;
+use App\Services\Import\Templates\ItemGroupImportTemplate;
+use App\Services\Import\Templates\ItemImportTemplate;
+use App\Services\Import\Templates\UomImportTemplate;
+use InvalidArgumentException;
+
+/** Plain array map — keyed by the URL module slug used throughout the Import Wizard routes. */
+final class ImportTemplateRegistry
+{
+    /** @var array<string, class-string<ImportTemplate>> */
+    private const TEMPLATES = [
+        'items' => ItemImportTemplate::class,
+        'item-groups' => ItemGroupImportTemplate::class,
+        'uoms' => UomImportTemplate::class,
+    ];
+
+    public function resolve(string $key): ImportTemplate
+    {
+        $class = self::TEMPLATES[$key] ?? null;
+
+        if ($class === null) {
+            throw new InvalidArgumentException("Unknown import module \"{$key}\".");
+        }
+
+        return new $class;
+    }
+}

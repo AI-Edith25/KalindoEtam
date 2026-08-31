@@ -1,4 +1,5 @@
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -21,9 +22,11 @@ const SORTERS: Record<string, (g: ItemGroup) => string | number> = {
 }
 
 export function ItemGroupListPage() {
+  const navigate = useNavigate()
   const canCreate = useHasPermission('master.item_groups.create')
   const canUpdate = useHasPermission('master.item_groups.update')
   const canDelete = useHasPermission('master.item_groups.delete')
+  const canImport = useHasPermission('master.item_groups.import')
   const list = useEntityListPage<ItemGroup, ItemGroupFilterValues>({
     queryKey: 'item-groups-paged',
     fetchList: fetchItemGroupsPaged,
@@ -65,7 +68,7 @@ export function ItemGroupListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/item-groups/import') },
             ]}
             primary={canCreate ? { label: 'New Item Group', icon: Plus, onClick: list.openCreate } : undefined}
           />

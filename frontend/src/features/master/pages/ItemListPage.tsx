@@ -1,4 +1,5 @@
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -26,9 +27,11 @@ const SORTERS: Record<string, (item: Item) => string | number> = {
 }
 
 export function ItemListPage() {
+  const navigate = useNavigate()
   const canCreate = useHasPermission('master.items.create')
   const canUpdate = useHasPermission('master.items.update')
   const canDelete = useHasPermission('master.items.delete')
+  const canImport = useHasPermission('master.items.import')
   const list = useEntityListPage<Item, ItemFilterValues>({
     queryKey: 'items',
     fetchList: fetchItems,
@@ -85,7 +88,7 @@ export function ItemListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/items/import') },
             ]}
             primary={canCreate ? { label: 'New Item', icon: Plus, onClick: list.openCreate } : undefined}
           />

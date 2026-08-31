@@ -1,4 +1,5 @@
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -21,9 +22,11 @@ const SORTERS: Record<string, (u: Uom) => string | number> = {
 }
 
 export function UomListPage() {
+  const navigate = useNavigate()
   const canCreate = useHasPermission('master.uoms.create')
   const canUpdate = useHasPermission('master.uoms.update')
   const canDelete = useHasPermission('master.uoms.delete')
+  const canImport = useHasPermission('master.uoms.import')
   const list = useEntityListPage<Uom, UomFilterValues>({
     queryKey: 'uoms-paged',
     fetchList: fetchUomsPaged,
@@ -65,7 +68,7 @@ export function UomListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/uoms/import') },
             ]}
             primary={canCreate ? { label: 'New UOM', icon: Plus, onClick: list.openCreate } : undefined}
           />
