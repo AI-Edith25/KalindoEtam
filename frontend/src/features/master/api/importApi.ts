@@ -5,6 +5,7 @@ import type {
   DecimalStyle,
   FkCandidates,
   FkResolutions,
+  HeaderSettingsResult,
   ImportBatch,
   ImportFieldMeta,
   ImportMappingPreset,
@@ -52,10 +53,20 @@ export async function updateImportMapping(
   batchId: string,
   mapping: Record<string, string | null>,
   cleanSettings: Record<string, DecimalStyle>,
+  fieldDefaults: Record<string, string> = {},
 ): Promise<MappingResult> {
   const { data } = await apiClient.patch<ApiResponse<MappingResult>>(`/import/batches/${batchId}/mapping`, {
     mapping,
     clean_settings: cleanSettings,
+    field_defaults: fieldDefaults,
+  })
+  return data.data
+}
+
+export async function updateHeaderSettings(batchId: string, headerRow: number, dataStartRow: number): Promise<HeaderSettingsResult> {
+  const { data } = await apiClient.patch<ApiResponse<HeaderSettingsResult>>(`/import/batches/${batchId}/header-settings`, {
+    header_row: headerRow,
+    data_start_row: dataStartRow,
   })
   return data.data
 }

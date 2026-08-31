@@ -35,9 +35,12 @@ export interface ImportBatch {
   module: string
   status: ImportBatchStatus
   original_filename: string
+  header_row: number
+  data_start_row: number
   mapping: Record<string, string | null> | null
   clean_settings: Record<string, DecimalStyle> | null
   fk_resolutions: FkResolutions | null
+  field_defaults: Record<string, string> | null
   commit_mode: CommitMode | null
   write_mode: WriteMode | null
   preview_summary: ImportPreviewSummary | null
@@ -70,6 +73,19 @@ export interface UploadResult {
   suggested_mapping: Record<string, string | null>
   cleaning_report: CleaningReport
   sample_rows: Record<string, unknown>[]
+  header_row: number
+  data_start_row: number
+  raw_preview_rows: unknown[][]
+}
+
+/** Response of PATCH .../header-settings — same shape as UploadResult minus `fields` (unchanged). */
+export interface HeaderSettingsResult {
+  batch: ImportBatch
+  headers: string[]
+  suggested_mapping: Record<string, string | null>
+  cleaning_report: CleaningReport
+  sample_rows: Record<string, unknown>[]
+  raw_preview_rows: unknown[][]
 }
 
 export interface MappingResult {
@@ -107,6 +123,9 @@ export interface ImportMappingPreset {
   id: string
   module: string
   name: string
+  header_row: number
+  data_start_row: number
   mapping: Record<string, string | null>
   clean_settings: Record<string, DecimalStyle> | null
+  field_defaults: Record<string, string> | null
 }

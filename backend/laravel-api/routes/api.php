@@ -163,6 +163,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     });
     Route::prefix('import/batches')->group(function () {
         Route::get('{batch}', [ImportController::class, 'show']);
+        Route::patch('{batch}/header-settings', [ImportController::class, 'updateHeaderSettings']);
         Route::patch('{batch}/mapping', [ImportController::class, 'updateMapping']);
         Route::get('{batch}/fk-candidates', [ImportController::class, 'fkCandidates']);
         Route::patch('{batch}/fk-resolutions', [ImportController::class, 'updateFkResolutions']);

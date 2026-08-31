@@ -13,13 +13,19 @@ class ImportMappingPreset extends Model
     protected $fillable = [
         'module',
         'name',
+        'header_row',
+        'data_start_row',
         'mapping',
         'clean_settings',
+        'field_defaults',
         'created_by',
     ];
 
     protected $casts = [
+        'header_row' => 'integer',
+        'data_start_row' => 'integer',
         'mapping' => 'array',
         'clean_settings' => 'array',
+        'field_defaults' => 'array',
     ];
 }

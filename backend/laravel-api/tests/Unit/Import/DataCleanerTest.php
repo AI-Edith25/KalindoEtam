@@ -28,9 +28,45 @@ class DataCleanerTest extends TestCase
         $this->assertNull(DataCleaner::normalizeNumber(null, 'dot_thousands'));
     }
 
+    /**
+     * A genuinely-numeric Excel cell (PhpSpreadsheet gives floats/ints, not strings) is never
+     * ambiguous and must pass straight through — re-stringifying it once turned a real
+     * 255945.95 into 25594595.0 under the default 'dot_thousands' style.
+     */
+    public function test_normalize_number_passes_through_already_numeric_values_regardless_of_style(): void
+    {
+        $this->assertSame(255945.95, DataCleaner::normalizeNumber(255945.95, 'dot_thousands'));
+        $this->assertSame(255945.95, DataCleaner::normalizeNumber(255945.95, 'dot_decimal'));
+        $this->assertSame(0.0, DataCleaner::normalizeNumber(0, 'dot_thousands'));
+        $this->assertSame(50000.0, DataCleaner::normalizeNumber(50000, 'dot_decimal'));
+    }
+
+    public function test_detect_decimal_style_from_decimal_shaped_string_values(): void
+    {
+        $this->assertSame('dot_decimal', DataCleaner::detectDecimalStyle(['255945.95', '46846.85', '0']));
+    }
+
+    public function test_detect_decimal_style_from_thousands_shaped_string_values(): void
+    {
+        $this->assertSame('dot_thousands', DataCleaner::detectDecimalStyle(['1.000', '25.500', '540.541']));
+    }
+
+    public function test_detect_decimal_style_defaults_to_thousands_when_no_evidence(): void
+    {
+        $this->assertSame('dot_thousands', DataCleaner::detectDecimalStyle([null, '', '0']));
+        $this->assertSame('dot_thousands', DataCleaner::detectDecimalStyle([255945.95, 46846.85, 0]));
+    }
+
     public function test_normalize_text_trims_strips_leading_hash_and_collapses_spaces(): void
     {
         $this->assertSame('Semen Portland', DataCleaner::normalizeText('  # Semen   Portland  '));
+    }
+
+    /** Regression: item codes/names legitimately contain commas and inch-marks (e.g. real xlsItemListing.xlsx rows) — normalizeText must never strip them. */
+    public function test_normalize_text_leaves_commas_and_quotes_untouched(): void
+    {
+        $this->assertSame('8,5 KG_TOKKA_2"', DataCleaner::normalizeText('8,5 KG_TOKKA_2"'));
+        $this->assertSame('PAKU TOKKA 2"@ 8,5 KG', DataCleaner::normalizeText('PAKU TOKKA 2"@ 8,5 KG'));
     }
 
     public function test_normalize_text_blank_is_null(): void

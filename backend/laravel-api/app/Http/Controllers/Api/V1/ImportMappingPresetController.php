@@ -33,8 +33,11 @@ class ImportMappingPresetController extends Controller
         $preset = $this->presets->create([
             'module' => $batch->module,
             'name' => $request->validated('name'),
+            'header_row' => $batch->header_row,
+            'data_start_row' => $batch->data_start_row,
             'mapping' => $batch->mapping,
             'clean_settings' => $batch->clean_settings,
+            'field_defaults' => $batch->field_defaults,
             'created_by' => Auth::id(),
         ]);
 

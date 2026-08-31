@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CommitImportBatchRequest;
 use App\Http\Requests\StoreImportBatchRequest;
 use App\Http\Requests\UpdateImportFkResolutionsRequest;
+use App\Http\Requests\UpdateImportHeaderSettingsRequest;
 use App\Http\Requests\UpdateImportMappingRequest;
 use App\Http\Resources\ImportBatchResource;
 use App\Models\ImportBatch;
@@ -61,6 +62,9 @@ class ImportController extends Controller
             'suggested_mapping' => $result['suggested_mapping'],
             'cleaning_report' => $result['cleaning_report'],
             'sample_rows' => $result['sample_rows'],
+            'header_row' => $result['header_row'],
+            'data_start_row' => $result['data_start_row'],
+            'raw_preview_rows' => $result['raw_preview_rows'],
         ], 'File uploaded.', 201);
     }
 
@@ -71,12 +75,33 @@ class ImportController extends Controller
         return $this->success(new ImportBatchResource($batch));
     }
 
+    /** Manual override for the auto-detected header/data-start rows — re-suggests mapping against the new header. */
+    public function updateHeaderSettings(UpdateImportHeaderSettingsRequest $request, ImportBatch $batch): JsonResponse
+    {
+        $this->authorizeBatch($batch);
+
+        $result = $this->importBatchService->updateHeaderSettings(
+            $batch,
+            $request->validated('header_row'),
+            $request->validated('data_start_row'),
+        );
+
+        return $this->success([
+            'batch' => new ImportBatchResource($batch->refresh()),
+            'headers' => $result['headers'],
+            'suggested_mapping' => $result['suggested_mapping'],
+            'cleaning_report' => $result['cleaning_report'],
+            'sample_rows' => $result['sample_rows'],
+            'raw_preview_rows' => $result['raw_preview_rows'],
+        ], 'Header settings updated.');
+    }
+
     public function updateMapping(UpdateImportMappingRequest $request, ImportBatch $batch): JsonResponse
     {
         $this->authorizeBatch($batch);
 
         $data = $request->validated();
-        $result = $this->importBatchService->updateMapping($batch, $data['mapping'], $data['clean_settings'] ?? []);
+        $result = $this->importBatchService->updateMapping($batch, $data['mapping'], $data['clean_settings'] ?? [], $data['field_defaults'] ?? []);
 
         return $this->success([
             'batch' => new ImportBatchResource($batch->refresh()),

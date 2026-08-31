@@ -19,6 +19,10 @@ class UpdateImportMappingRequest extends FormRequest
             'mapping.*' => ['nullable', 'string'],
             'clean_settings' => ['sometimes', 'array'],
             'clean_settings.*' => ['string', 'in:dot_decimal,dot_thousands'],
+            // field_defaults: {systemFieldName: constantValue} — applied to every row for a
+            // required field with no source column (e.g. Group when the file has none).
+            'field_defaults' => ['sometimes', 'array'],
+            'field_defaults.*' => ['nullable', 'string'],
         ];
     }
 }

@@ -36,14 +36,85 @@ class ImportBatchService
         return $this->registry->resolve($module);
     }
 
-    /** @return array{batch: ImportBatch, headers: string[], fields: array, suggested_mapping: array, cleaning_report: array, sample_rows: array} */
+    /** @return array{batch: ImportBatch, headers: string[], fields: array, suggested_mapping: array, cleaning_report: array, sample_rows: array, header_row: int, data_start_row: int, raw_preview_rows: array} */
     public function upload(string $module, UploadedFile $file): array
     {
         $template = $this->registry->resolve($module);
         $path = $file->store('imports', self::DISK);
         $extension = strtolower($file->getClientOriginalExtension());
 
-        [$headers, $rows] = $this->readFile($path, $extension);
+        $rawRows = ImportFileReader::readRaw(Storage::disk(self::DISK)->path($path), $extension);
+        $headerSettings = HeaderDetector::detect($rawRows);
+
+        $derived = $this->deriveHeaderState($template, $path, $extension, $headerSettings['header_row'], $headerSettings['data_start_row']);
+
+        $batch = $this->importBatchRepository->create([
+            'module' => $module,
+            'status' => ImportBatchStatus::UPLOADED,
+            'original_filename' => $file->getClientOriginalName(),
+            'disk' => self::DISK,
+            'file_path' => $path,
+            'header_row' => $headerSettings['header_row'],
+            'data_start_row' => $headerSettings['data_start_row'],
+            'mapping' => $derived['suggested_mapping'],
+            'clean_settings' => $derived['suggested_clean_settings'],
+            'total_rows' => $derived['total_rows'],
+            'created_by' => Auth::id(),
+        ]);
+
+        return [
+            'batch' => $batch,
+            'headers' => $derived['headers'],
+            'fields' => array_map(fn (ImportFieldDefinition $f) => $f->toArray(), $template->fields()),
+            'suggested_mapping' => $derived['suggested_mapping'],
+            'cleaning_report' => $derived['cleaning_report'],
+            'sample_rows' => $derived['sample_rows'],
+            'header_row' => $headerSettings['header_row'],
+            'data_start_row' => $headerSettings['data_start_row'],
+            'raw_preview_rows' => array_slice($rawRows, 0, 15),
+        ];
+    }
+
+    /**
+     * Re-derives headers/suggested-mapping/cleaning-report/sample-rows for a
+     * manual header_row/data_start_row override — same computation upload()
+     * runs for the auto-detected defaults, kept in one place so the two can
+     * never disagree about what "given these row settings" means.
+     *
+     * @return array{batch: ImportBatch, headers: string[], suggested_mapping: array, cleaning_report: array, sample_rows: array, header_row: int, data_start_row: int, raw_preview_rows: array}
+     */
+    public function updateHeaderSettings(ImportBatch $batch, int $headerRow, int $dataStartRow): array
+    {
+        $template = $this->registry->resolve($batch->module);
+        $extension = $this->extensionOf($batch);
+        $derived = $this->deriveHeaderState($template, $batch->file_path, $extension, $headerRow, $dataStartRow);
+
+        $batch->update([
+            'header_row' => $headerRow,
+            'data_start_row' => $dataStartRow,
+            'mapping' => $derived['suggested_mapping'],
+            'clean_settings' => $derived['suggested_clean_settings'],
+            'total_rows' => $derived['total_rows'],
+        ]);
+
+        $rawRows = ImportFileReader::readRaw(Storage::disk(self::DISK)->path($batch->file_path), $extension);
+
+        return [
+            'batch' => $batch,
+            'headers' => $derived['headers'],
+            'suggested_mapping' => $derived['suggested_mapping'],
+            'cleaning_report' => $derived['cleaning_report'],
+            'sample_rows' => $derived['sample_rows'],
+            'header_row' => $headerRow,
+            'data_start_row' => $dataStartRow,
+            'raw_preview_rows' => array_slice($rawRows, 0, 15),
+        ];
+    }
+
+    /** @return array{headers: string[], suggested_mapping: array, suggested_clean_settings: array, cleaning_report: array, sample_rows: array, total_rows: int} */
+    private function deriveHeaderState(ImportTemplate $template, string $path, string $extension, int $headerRow, int $dataStartRow): array
+    {
+        [$headers, $rows] = $this->readFile($path, $extension, $headerRow, $dataStartRow);
         $cleaned = DataCleaner::dropEmptyAndConstantColumns($rows);
 
         $fields = $template->fields();
@@ -57,37 +128,42 @@ class ImportBatchService
             $suggestedMapping[$droppedHeader] = null;
         }
 
-        $batch = $this->importBatchRepository->create([
-            'module' => $module,
-            'status' => ImportBatchStatus::UPLOADED,
-            'original_filename' => $file->getClientOriginalName(),
-            'disk' => self::DISK,
-            'file_path' => $path,
-            'mapping' => $suggestedMapping,
-            'total_rows' => count($rows),
-            'created_by' => Auth::id(),
-        ]);
+        // Seed each mapped numeric field's decimal style from the column's own data instead of
+        // always defaulting to 'dot_thousands' — a genuinely-numeric Excel column never needs
+        // this (normalizeNumber short-circuits it), but a text/CSV numeric column does.
+        $suggestedCleanSettings = [];
+        $headerForField = array_flip(array_filter($suggestedMapping));
+        foreach ($fields as $field) {
+            if ($field->type !== 'number' || ! isset($headerForField[$field->name])) {
+                continue;
+            }
+
+            $header = $headerForField[$field->name];
+            $columnValues = array_map(fn ($row) => $row[$header] ?? null, $rows);
+            $suggestedCleanSettings[$field->name] = DataCleaner::detectDecimalStyle($columnValues);
+        }
 
         return [
-            'batch' => $batch,
             'headers' => $headers,
-            'fields' => array_map(fn (ImportFieldDefinition $f) => $f->toArray(), $fields),
             'suggested_mapping' => $suggestedMapping,
+            'suggested_clean_settings' => $suggestedCleanSettings,
             'cleaning_report' => (new CleaningReport($cleaned['droppedEmpty'], $cleaned['droppedConstant']))->toArray(),
             'sample_rows' => array_slice($rows, 0, 5),
+            'total_rows' => count($rows),
         ];
     }
 
     /** @return array{sample_rows: array} */
-    public function updateMapping(ImportBatch $batch, array $mapping, array $cleanSettings): array
+    public function updateMapping(ImportBatch $batch, array $mapping, array $cleanSettings, array $fieldDefaults = []): array
     {
         $batch->update([
             'mapping' => $mapping,
             'clean_settings' => $cleanSettings,
+            'field_defaults' => $fieldDefaults,
             'status' => ImportBatchStatus::MAPPED,
         ]);
 
-        [, $rows] = $this->readFile($batch->file_path, $this->extensionOf($batch));
+        [, $rows] = $this->readFile($batch->file_path, $this->extensionOf($batch), $batch->header_row, $batch->data_start_row);
         $template = $this->registry->resolve($batch->module);
         $fieldsByName = $this->fieldsByName($template);
         $headerForField = array_flip(array_filter($mapping));
@@ -118,18 +194,21 @@ class ImportBatchService
         $template = $this->registry->resolve($batch->module);
         $fieldsByName = $this->fieldsByName($template);
         $mapping = $batch->mapping ?? [];
+        $fieldDefaults = $batch->field_defaults ?? [];
         $headerForField = array_flip(array_filter($mapping));
 
-        [, $rows] = $this->readFile($batch->file_path, $this->extensionOf($batch));
+        [, $rows] = $this->readFile($batch->file_path, $this->extensionOf($batch), $batch->header_row, $batch->data_start_row);
 
         $candidates = [];
         foreach ($fieldsByName as $fieldName => $field) {
-            if ($field->type !== 'fk' || ! isset($headerForField[$fieldName])) {
+            if ($field->type !== 'fk' || (! isset($headerForField[$fieldName]) && ! isset($fieldDefaults[$fieldName]))) {
                 continue;
             }
 
-            $header = $headerForField[$fieldName];
-            $values = array_map(fn ($row) => $row[$header] ?? null, $rows);
+            $header = $headerForField[$fieldName] ?? null;
+            $values = $header !== null
+                ? array_map(fn ($row) => $row[$header] ?? null, $rows)
+                : array_fill(0, count($rows), $fieldDefaults[$fieldName]);
 
             $candidates[$fieldName] = $this->fkResolver->classify(
                 $field->fkTarget['model'],
@@ -239,18 +318,21 @@ class ImportBatchService
         $mapping = $batch->mapping ?? [];
         $cleanSettings = $batch->clean_settings ?? [];
         $fkResolutions = $batch->fk_resolutions ?? [];
+        $fieldDefaults = $batch->field_defaults ?? [];
         $headerForField = array_flip(array_filter($mapping));
 
-        [, $rawRows] = $this->readFile($batch->file_path, $this->extensionOf($batch));
+        [, $rawRows] = $this->readFile($batch->file_path, $this->extensionOf($batch), $batch->header_row, $batch->data_start_row);
 
         $fkClassifications = [];
         foreach ($fieldsByName as $fieldName => $field) {
-            if ($field->type !== 'fk' || ! isset($headerForField[$fieldName])) {
+            if ($field->type !== 'fk' || (! isset($headerForField[$fieldName]) && ! isset($fieldDefaults[$fieldName]))) {
                 continue;
             }
 
-            $header = $headerForField[$fieldName];
-            $values = array_map(fn ($row) => $row[$header] ?? null, $rawRows);
+            $header = $headerForField[$fieldName] ?? null;
+            $values = $header !== null
+                ? array_map(fn ($row) => $row[$header] ?? null, $rawRows)
+                : array_fill(0, count($rawRows), $fieldDefaults[$fieldName]);
             $fkClassifications[$fieldName] = $this->fkResolver->classify(
                 $field->fkTarget['model'],
                 $field->fkTarget['displayColumn'],
@@ -268,7 +350,7 @@ class ImportBatchService
 
             foreach ($fields as $field) {
                 $header = $headerForField[$field->name] ?? null;
-                $raw = $header !== null ? ($rawRow[$header] ?? null) : null;
+                $raw = $header !== null ? ($rawRow[$header] ?? null) : ($fieldDefaults[$field->name] ?? null);
 
                 if ($field->type === 'fk') {
                     [$id, $fieldStatus, $fieldMessage] = $this->resolveFk($field, $raw, $fkResolutions, $fkClassifications, $fkIdOverrides);
@@ -390,10 +472,10 @@ class ImportBatchService
     }
 
     /** @return array{0: string[], 1: array<int, array<string, mixed>>} */
-    private function readFile(string $path, string $extension): array
+    private function readFile(string $path, string $extension, int $headerRow = 1, int $dataStartRow = 2): array
     {
         $absolutePath = Storage::disk(self::DISK)->path($path);
-        $result = ImportFileReader::read($absolutePath, $extension);
+        $result = ImportFileReader::read($absolutePath, $extension, $headerRow, $dataStartRow);
 
         return [$result['headers'], $result['rows']];
     }

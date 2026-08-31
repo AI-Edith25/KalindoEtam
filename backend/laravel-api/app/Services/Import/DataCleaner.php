@@ -62,10 +62,18 @@ final class DataCleaner
      * 'dot_thousands' (default) treats `.` as a thousands separator and `,`
      * as the decimal point; 'dot_decimal' treats `.` as the decimal point.
      * Indonesian source files are ambiguous either way, so this is a setting
-     * the user confirms per column, never guessed.
+     * the user confirms per column, never guessed — EXCEPT when the cell
+     * arrives already numeric (a genuinely-numeric Excel column, via
+     * PhpSpreadsheet), which is never ambiguous and must never be
+     * re-stringified: doing so once turned a real `255945.95` into
+     * `25594595` under the default thousands style.
      */
-    public static function normalizeNumber(?string $value, string $decimalStyle = 'dot_thousands'): ?float
+    public static function normalizeNumber(mixed $value, string $decimalStyle = 'dot_thousands'): ?float
     {
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
         if (self::blank($value)) {
             return null;
         }
@@ -77,6 +85,40 @@ final class DataCleaner
             : str_replace(',', '.', str_replace('.', '', $stripped));
 
         return $normalized === '' || $normalized === '.' ? null : (float) $normalized;
+    }
+
+    /**
+     * Evidence-based default for a numeric column's decimal style, used to
+     * seed clean_settings instead of always guessing 'dot_thousands'. Only
+     * string values carry real ambiguity (an already-numeric Excel cell is
+     * handled by normalizeNumber()'s type short-circuit above and never
+     * needs a style at all) — a value like "255945.95" (dot then exactly
+     * 1-2 digits, no other dot) is decimal evidence; "540.541" (dot then
+     * exactly 3 digits, no decimal remainder) is thousands evidence. Mixed
+     * or absent evidence keeps today's 'dot_thousands' default.
+     *
+     * @param  array<int, mixed>  $values  raw, uncleaned column values
+     */
+    public static function detectDecimalStyle(array $values): string
+    {
+        $sawDecimal = false;
+        $sawThousands = false;
+
+        foreach ($values as $value) {
+            if (! is_string($value) || self::blank($value)) {
+                continue;
+            }
+
+            $trimmed = trim($value);
+
+            if (preg_match('/^\d+\.\d{1,2}$/', $trimmed) === 1) {
+                $sawDecimal = true;
+            } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $trimmed) === 1) {
+                $sawThousands = true;
+            }
+        }
+
+        return $sawDecimal && ! $sawThousands ? 'dot_decimal' : 'dot_thousands';
     }
 
     /** Trims, strips a leading `#`, and collapses internal whitespace runs to a single space. */
