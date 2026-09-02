@@ -1,0 +1,13 @@
+[Unit]
+Description=Laravel queue worker (import batches, etc.)
+After=network.target mysql.service
+
+[Service]
+User=edithclinic
+WorkingDirectory=/home/edithclinic/apps/KalindoEtam/backend/laravel-api
+ExecStart=/usr/bin/php artisan queue:work database --queue=default --tries=3 --timeout=600 --sleep=3
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
