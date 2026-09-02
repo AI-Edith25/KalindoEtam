@@ -48,7 +48,7 @@ export function PriceZoneFormDrawer({ open, onOpenChange, priceZone }: PriceZone
       return isEdit ? updatePriceZone(priceZone.id, payload) : createPriceZone(payload)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['price-zones'] })
+      queryClient.invalidateQueries({ queryKey: ['price-zones-paged'] })
       toast.success(isEdit ? 'Price Zone updated.' : 'Price Zone created.')
       onOpenChange(false)
     },
