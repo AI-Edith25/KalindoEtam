@@ -121,17 +121,37 @@ final class DataCleaner
         return $sawDecimal && ! $sawThousands ? 'dot_decimal' : 'dot_thousands';
     }
 
-    /** Trims, strips a leading `#`, and collapses internal whitespace runs to a single space. */
+    /**
+     * Trims, unwraps an Excel "forced text" formula, strips a leading `#`, and collapses
+     * internal whitespace runs to a single space.
+     */
     public static function normalizeText(?string $value): ?string
     {
         if (self::blank($value)) {
             return null;
         }
 
+        $value = self::unwrapExcelForcedText(trim($value));
         $value = ltrim(trim($value), '#');
         $value = preg_replace('/\s+/', ' ', trim($value)) ?? '';
 
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * A CSV re-saved by Excel wraps a value that looks numeric (e.g. an item code starting
+     * with a digit) in `="..."` so Excel treats it as forced text instead of a number/formula,
+     * doubling any `"` already inside the value per CSV quoting rules — e.g. a code that should
+     * read `8,5 KG_TOKKA_2"` arrives as the literal string `="8,5 KG_TOKKA_2"""`. Left unhandled,
+     * that formula wrapper is imported verbatim as the item code.
+     */
+    private static function unwrapExcelForcedText(string $value): string
+    {
+        if (preg_match('/^="(.*)"$/s', $value, $matches) !== 1) {
+            return $value;
+        }
+
+        return str_replace('""', '"', $matches[1]);
     }
 
     private const DATE_FORMATS = ['d/m/Y', 'd-m-Y', 'Y-m-d', 'Y/m/d', 'd/m/y', 'd-m-y', 'm/d/Y'];

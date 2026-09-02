@@ -77,6 +77,18 @@ class DataCleanerTest extends TestCase
         $this->assertSame('PAKU TOKKA 2"@ 8,5 KG', DataCleaner::normalizeText('PAKU TOKKA 2"@ 8,5 KG'));
     }
 
+    /**
+     * Regression: a CSV re-saved by Excel wraps a digit-leading code in `="..."` to force text,
+     * doubling any internal `"` — this polluted production with literal `="..."""` item codes
+     * until normalizeText learned to unwrap it.
+     */
+    public function test_normalize_text_unwraps_excel_forced_text_formula(): void
+    {
+        $this->assertSame('8,5 KG_TOKKA_2"', DataCleaner::normalizeText('="8,5 KG_TOKKA_2"""'));
+        $this->assertSame('TOKKA_2_13KG', DataCleaner::normalizeText('="TOKKA_2_13KG"'));
+        $this->assertSame('8,5 KG_TOKKA_2.5"', DataCleaner::normalizeText('="8,5 KG_TOKKA_2.5"""'));
+    }
+
     public function test_normalize_text_blank_is_null(): void
     {
         $this->assertNull(DataCleaner::normalizeText('   '));
