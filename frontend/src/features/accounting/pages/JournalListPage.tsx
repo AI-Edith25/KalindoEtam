@@ -91,11 +91,15 @@ export function JournalListPage() {
   const setView = (next: CashBookView) => update({ view: next === 'all' ? null : next, page: null })
   const setSalesJournalView = (next: SalesJournalView) => update({ view: next === 'invoice' ? null : next, page: null })
   const setPurchaseJournalView = (next: PurchaseJournalView) => update({ view: next === 'purchase_invoice' ? null : next, page: null })
-  const setSearch = (next: string) => update({ search: next || null })
+  const setSearch = (next: string) => update({ search: next || null, page: null })
   const setPage = (next: number) => update({ page: next > 1 ? String(next) : null })
 
+  // page:null is merged into the same update() call as the filter patch — react-router's
+  // setSearchParams builds the next URL from a render-time snapshot, so a second, separate
+  // setSearchParams call (e.g. a trailing onPageChange(1)) would clobber this one instead of
+  // composing with it. Callers must not pair these with their own page reset.
   const setCashBookFilters = (next: CashBookFilterValues) =>
-    update({ branch_id: next.branchId, status: next.status, date_from: next.dateFrom || null, date_to: next.dateTo || null })
+    update({ branch_id: next.branchId, status: next.status, date_from: next.dateFrom || null, date_to: next.dateTo || null, page: null })
 
   const setGeneralJournalFilters = (next: JournalEntryFilterValues) =>
     update({
@@ -105,13 +109,14 @@ export function JournalListPage() {
       account_id: next.accountId,
       date_from: next.dateFrom || null,
       date_to: next.dateTo || null,
+      page: null,
     })
 
   const setSalesJournalFilters = (next: SalesJournalFilterValues) =>
-    update({ branch_id: next.branchId, date_from: next.dateFrom || null, date_to: next.dateTo || null })
+    update({ branch_id: next.branchId, date_from: next.dateFrom || null, date_to: next.dateTo || null, page: null })
 
   const setPurchaseJournalFilters = (next: PurchaseJournalFilterValues) =>
-    update({ date_from: next.dateFrom || null, date_to: next.dateTo || null })
+    update({ date_from: next.dateFrom || null, date_to: next.dateTo || null, page: null })
 
   return (
     <div className="flex flex-col gap-4">

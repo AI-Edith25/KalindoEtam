@@ -92,21 +92,8 @@ export function GeneralJournalPanel({ search, onSearchChange, filters, onFilters
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SearchBox
-          value={search}
-          onChange={(value) => {
-            onSearchChange(value)
-            onPageChange(1)
-          }}
-          placeholder="Search journal number or description…"
-        />
-        <JournalEntryFiltersBar
-          value={filters}
-          onChange={(value) => {
-            onFiltersChange(value)
-            onPageChange(1)
-          }}
-        />
+        <SearchBox value={search} onChange={onSearchChange} placeholder="Search journal number or description…" />
+        <JournalEntryFiltersBar value={filters} onChange={onFiltersChange} />
       </div>
 
       <DataTable

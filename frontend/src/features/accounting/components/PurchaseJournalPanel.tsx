@@ -97,21 +97,8 @@ export function PurchaseJournalPanel({ view, onViewChange, search, onSearchChang
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SearchBox
-          value={search}
-          onChange={(value) => {
-            onSearchChange(value)
-            onPageChange(1)
-          }}
-          placeholder="Search document number or supplier…"
-        />
-        <PurchaseJournalFiltersBar
-          value={filters}
-          onChange={(value) => {
-            onFiltersChange(value)
-            onPageChange(1)
-          }}
-        />
+        <SearchBox value={search} onChange={onSearchChange} placeholder="Search document number or supplier…" />
+        <PurchaseJournalFiltersBar value={filters} onChange={onFiltersChange} />
       </div>
 
       <DataTable
