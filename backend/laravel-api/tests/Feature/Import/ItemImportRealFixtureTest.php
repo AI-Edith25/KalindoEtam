@@ -118,6 +118,46 @@ class ItemImportRealFixtureTest extends TestCase
         $this->assertSame('PAKU TOKKA 2"@ 8,5 KG', $quoteRow['data']['item_name']);
     }
 
+    /**
+     * Regression for a stuck-batch report: field_defaults.item_group_id = "-" combined with a
+     * "skip" fk_resolution for that value applies to every row (it's a constant default, not a
+     * mapped column) and item_group_id is a required, non-nullable FK — so every row must fail,
+     * with a message that explains why (required + skip), not a generic "skipped" note.
+     */
+    public function test_skip_resolution_on_required_field_default_fails_every_row_with_a_clear_message(): void
+    {
+        $upload = $this->post('/api/v1/import/items/batches', ['file' => $this->fixtureFile()]);
+        $batchId = $upload->json('data.batch.id');
+
+        $this->patchJson("/api/v1/import/batches/{$batchId}/mapping", [
+            'mapping' => [
+                'ItemCode' => 'item_code',
+                'Description' => 'item_name',
+                'UnitPrice' => 'standard_rate',
+                'UOM' => 'uom_id',
+            ],
+            'field_defaults' => ['item_group_id' => '-'],
+        ])->assertOk();
+
+        $resolutions = ['item_group_id' => ['-' => ['action' => 'skip']], 'uom_id' => []];
+        foreach (array_keys($this->getJson("/api/v1/import/batches/{$batchId}/fk-candidates")->json('data.uom_id') ?? []) as $uomValue) {
+            $resolutions['uom_id'][$uomValue] = ['action' => 'create'];
+        }
+        $this->patchJson("/api/v1/import/batches/{$batchId}/fk-resolutions", ['resolutions' => $resolutions])->assertOk();
+
+        $preview = $this->postJson("/api/v1/import/batches/{$batchId}/preview");
+        $preview->assertOk();
+        $summary = $preview->json('data.summary');
+        $this->assertSame(95, $summary['total']);
+        $this->assertSame(0, $summary['valid']);
+        $this->assertSame(95, $summary['error']);
+
+        $firstRow = $preview->json('data.rows')[0];
+        $this->assertSame('error', $firstRow['status']);
+        $this->assertStringContainsString('is required', implode('; ', $firstRow['messages']));
+        $this->assertStringContainsString('Skip', implode('; ', $firstRow['messages']));
+    }
+
     public function test_full_commit_with_a_default_group_value_and_resolved_uoms(): void
     {
         $upload = $this->post('/api/v1/import/items/batches', ['file' => $this->fixtureFile()]);

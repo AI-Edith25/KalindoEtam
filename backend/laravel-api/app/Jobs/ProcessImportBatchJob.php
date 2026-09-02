@@ -27,12 +27,16 @@ class ProcessImportBatchJob implements ShouldQueue
 
     private const CHUNK_SIZE = 500;
 
+    public int $tries = 1;
+
+    public int $timeout = 600;
+
     public function __construct(public string $importBatchId) {}
 
     public function handle(ImportBatchService $service, AuditLogService $auditLogService): void
     {
         $batch = ImportBatch::query()->findOrFail($this->importBatchId);
-        $batch->update(['status' => ImportBatchStatus::PROCESSING]);
+        $batch->update(['status' => ImportBatchStatus::PROCESSING, 'started_at' => now()]);
 
         $template = $service->templateFor($batch->module);
         $modelClass = $template->model();
@@ -47,41 +51,45 @@ class ProcessImportBatchJob implements ShouldQueue
         $failed = 0;
 
         foreach (array_chunk($rows, self::CHUNK_SIZE) as $chunk) {
-            DB::transaction(function () use ($chunk, $modelClass, $uniqueKey, $batch, $failedHandle, &$wroteFailedHeader, &$success, &$failed) {
-                foreach ($chunk as $row) {
-                    if ($row['status'] === 'error') {
-                        $failed++;
-                        $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
+            foreach ($chunk as $row) {
+                if ($row['status'] === 'error') {
+                    $failed++;
+                    $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
 
-                        continue;
-                    }
-
-                    $keyValue = $row['data'][$uniqueKey];
-                    $exists = $modelClass::query()->where($uniqueKey, $keyValue)->exists();
-
-                    if ($batch->write_mode === 'insert_only' && $exists) {
-                        $failed++;
-                        $row['messages'][] = 'Already exists (insert-only mode).';
-                        $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
-
-                        continue;
-                    }
-
-                    if ($batch->write_mode === 'update_only' && ! $exists) {
-                        $failed++;
-                        $row['messages'][] = 'Not found (update-only mode).';
-                        $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
-
-                        continue;
-                    }
-
-                    $modelClass::query()->updateOrCreate([$uniqueKey => $keyValue], $row['data']);
-                    $success++;
+                    continue;
                 }
 
-                $batch->increment('processed_rows', count($chunk));
-                $batch->update(['success_rows' => $success, 'failed_rows' => $failed]);
-            });
+                $keyValue = $row['data'][$uniqueKey];
+                $exists = $modelClass::query()->where($uniqueKey, $keyValue)->exists();
+
+                if ($batch->write_mode === 'insert_only' && $exists) {
+                    $failed++;
+                    $row['messages'][] = 'Already exists (insert-only mode).';
+                    $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
+
+                    continue;
+                }
+
+                if ($batch->write_mode === 'update_only' && ! $exists) {
+                    $failed++;
+                    $row['messages'][] = 'Not found (update-only mode).';
+                    $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
+
+                    continue;
+                }
+
+                try {
+                    DB::transaction(fn () => $modelClass::query()->updateOrCreate([$uniqueKey => $keyValue], $row['data']));
+                    $success++;
+                } catch (Throwable $e) {
+                    $failed++;
+                    $row['messages'][] = $e->getMessage();
+                    $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
+                }
+            }
+
+            $batch->increment('processed_rows', count($chunk));
+            $batch->update(['success_rows' => $success, 'failed_rows' => $failed]);
         }
 
         rewind($failedHandle);

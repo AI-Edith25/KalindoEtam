@@ -264,6 +264,7 @@ class ImportBatchService
             'write_mode' => $writeMode,
             'commit_mode' => $commitMode,
             'status' => ImportBatchStatus::QUEUED,
+            'queued_at' => now(),
         ]);
 
         ProcessImportBatchJob::dispatch($batch->id);
@@ -408,7 +409,9 @@ class ImportBatchService
                 'create' => isset($fkIdOverrides[$field->name.'|'.mb_strtolower($value)])
                     ? [$fkIdOverrides[$field->name.'|'.mb_strtolower($value)], 'valid', null]
                     : [null, 'warning', "{$field->label} \"{$value}\" will be created."],
-                'skip' => [null, 'error', "{$field->label} \"{$value}\" skipped."],
+                'skip' => [null, 'error', $field->required
+                    ? "{$field->label} is required — \"{$value}\" was set to Skip. Go back to Resolve Relations and choose Map or Create instead."
+                    : "{$field->label} \"{$value}\" skipped."],
                 default => [null, 'error', "{$field->label} \"{$value}\" has an unrecognized resolution."],
             };
         }

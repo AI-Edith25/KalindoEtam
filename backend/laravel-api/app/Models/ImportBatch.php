@@ -38,6 +38,8 @@ class ImportBatch extends Model
         'failed_rows',
         'error_report_path',
         'failure_reason',
+        'queued_at',
+        'started_at',
         'created_by',
     ];
 
@@ -54,6 +56,8 @@ class ImportBatch extends Model
         'processed_rows' => 'integer',
         'success_rows' => 'integer',
         'failed_rows' => 'integer',
+        'queued_at' => 'datetime',
+        'started_at' => 'datetime',
     ];
 
     public function creator(): BelongsTo

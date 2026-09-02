@@ -73,6 +73,12 @@ export function ImportStepPreview({ batchId, onCommitted, onBack }: ImportStepPr
         <span className="text-destructive">Error: {result.summary.error}</span>
       </div>
 
+      {result.summary.valid === 0 && result.summary.total > 0 && (
+        <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          No valid rows to import. Check the Messages column below, then go back to fix mapping or FK resolutions.
+        </p>
+      )}
+
       <DataTable columns={columns} data={result.rows} rowKey={(row) => String(row.row_number)} />
 
       <div className="flex flex-wrap items-center gap-4">
@@ -107,7 +113,11 @@ export function ImportStepPreview({ batchId, onCommitted, onBack }: ImportStepPr
         <Button type="button" variant="outline" onClick={onBack}>
           Back
         </Button>
-        <Button type="button" onClick={() => commitMutation.mutate()} disabled={commitMutation.isPending || result.summary.total === 0}>
+        <Button
+          type="button"
+          onClick={() => commitMutation.mutate()}
+          disabled={commitMutation.isPending || result.summary.total === 0 || result.summary.valid === 0}
+        >
           {commitMutation.isPending && <Loader2 className="size-4 animate-spin" />}
           Commit Import
         </Button>

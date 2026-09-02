@@ -22,6 +22,14 @@ class DataCleanerTest extends TestCase
         $this->assertSame(540.541, DataCleaner::normalizeNumber('540.541', 'dot_decimal'));
     }
 
+    /** dot_thousands: every '.' is a thousands separator, a trailing ',NN' is the decimal part. */
+    public function test_normalize_number_dot_thousands_with_comma_decimal(): void
+    {
+        $this->assertSame(1250000.0, DataCleaner::normalizeNumber('1.250.000', 'dot_thousands'));
+        $this->assertSame(1250000.0, DataCleaner::normalizeNumber('1.250.000,00', 'dot_thousands'));
+        $this->assertSame(1250000.5, DataCleaner::normalizeNumber('1.250.000,50', 'dot_thousands'));
+    }
+
     public function test_normalize_number_blank_is_null(): void
     {
         $this->assertNull(DataCleaner::normalizeNumber('', 'dot_thousands'));

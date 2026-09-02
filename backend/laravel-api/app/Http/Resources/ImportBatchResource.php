@@ -29,6 +29,8 @@ class ImportBatchResource extends JsonResource
             'failed_rows' => $this->failed_rows,
             'has_failed_rows' => $this->error_report_path !== null,
             'failure_reason' => $this->failure_reason,
+            'queued_at' => $this->queued_at,
+            'started_at' => $this->started_at,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
