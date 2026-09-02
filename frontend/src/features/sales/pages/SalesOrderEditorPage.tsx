@@ -50,7 +50,6 @@ export function SalesOrderEditorPage() {
   })
 
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
@@ -59,6 +58,15 @@ export function SalesOrderEditorPage() {
   const form = useForm<SalesOrderEditorValues>({
     resolver: zodResolver(salesOrderFormSchema),
     defaultValues: emptySalesOrderEditorValues,
+  })
+
+  // Items are re-fetched whenever the selected customer's Price Zone changes, so each item's
+  // effective_rate reflects that zone's override (falls back to standard_rate with no zone/no
+  // override) — see ItemController::index and SalesOrderLineItemTable's handleItemChange.
+  const selectedCustomerPriceZoneId = customers.data?.find((c) => c.id === form.watch('customer_id'))?.price_zone_id ?? undefined
+  const items = useQuery({
+    queryKey: ['items-lookup', selectedCustomerPriceZoneId],
+    queryFn: () => fetchItemsLookup(selectedCustomerPriceZoneId),
   })
 
   useEffect(() => {

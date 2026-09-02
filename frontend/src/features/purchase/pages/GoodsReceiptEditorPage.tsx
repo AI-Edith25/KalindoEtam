@@ -92,7 +92,7 @@ export function GoodsReceiptEditorPage() {
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup, enabled: isDirectMode })
-  const itemsLookup = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup, enabled: isDirectMode })
+  const itemsLookup = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup(), enabled: isDirectMode })
 
   // Both forms always exist (Rules of Hooks) — only the one matching the active mode is rendered/submitted.
   const form = useForm<GoodsReceiptEditorValues>({

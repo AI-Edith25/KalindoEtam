@@ -1,14 +1,20 @@
 import { fetchLookupList } from '@/shared/services/lookupApi'
-import type { Branch, ChartOfAccount, Company, Customer, Item, ItemGroup, SalesPerson, Supplier, Tax, TermsOfPayment, Uom, Warehouse } from '../types'
+import type { Branch, ChartOfAccount, Company, Customer, Item, ItemGroup, PriceZone, SalesPerson, Supplier, Tax, TermsOfPayment, Uom, Warehouse } from '../types'
 
 export const fetchItemGroups = () => fetchLookupList<ItemGroup>('/item-groups')
 export const fetchUoms = () => fetchLookupList<Uom>('/uoms')
 export const fetchBranches = () => fetchLookupList<Branch>('/branches')
 export const fetchCompaniesLookup = () => fetchLookupList<Company>('/companies')
 export const fetchSalesPersonsLookup = () => fetchLookupList<SalesPerson>('/sales-persons')
+export const fetchPriceZonesLookup = () => fetchLookupList<PriceZone>('/price-zones')
 
-/** Cross-feature reuse: Purchase's and Sales's editors need these same page-1 lookups. */
-export const fetchItemsLookup = () => fetchLookupList<Item>('/items')
+/**
+ * Cross-feature reuse: Purchase's and Sales's editors need these same page-1 lookups.
+ * `priceZoneId` (Sales Order only) makes each item's `effective_rate` reflect that zone's
+ * override — see ItemController::index. Omit it and behavior is identical to before.
+ */
+export const fetchItemsLookup = (priceZoneId?: string) =>
+  fetchLookupList<Item>('/items', priceZoneId ? { price_zone_id: priceZoneId } : undefined)
 export const fetchSuppliersLookup = () => fetchLookupList<Supplier>('/suppliers')
 export const fetchWarehousesLookup = () => fetchLookupList<Warehouse>('/warehouses')
 export const fetchCustomersLookup = () => fetchLookupList<Customer>('/customers')

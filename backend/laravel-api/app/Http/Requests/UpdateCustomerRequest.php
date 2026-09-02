@@ -22,6 +22,7 @@ class UpdateCustomerRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
+            'price_zone_id' => ['nullable', 'uuid', 'exists:price_zones,id'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

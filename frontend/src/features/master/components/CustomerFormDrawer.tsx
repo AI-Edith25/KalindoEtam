@@ -12,11 +12,12 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchTermsOfPaymentLookup } from '../api/lookupsApi'
+import { fetchPriceZonesLookup, fetchTermsOfPaymentLookup } from '../api/lookupsApi'
 import { createCustomer, updateCustomer } from '../api/customerApi'
 import type { Customer } from '../types'
 
 const NO_TOP = '__none__'
+const NO_ZONE = '__none__'
 
 const customerFormSchema = z.object({
   customer_code: z.string().min(1, 'Customer Code is required').max(255),
@@ -30,6 +31,7 @@ const customerFormSchema = z.object({
     .or(z.literal(''))
     .refine((value) => !value || (!Number.isNaN(Number(value)) && Number(value) >= 0), 'Must be zero or greater'),
   terms_of_payment_id: z.string().optional().or(z.literal('')),
+  price_zone_id: z.string().optional().or(z.literal('')),
   is_active: z.boolean(),
 })
 
@@ -43,6 +45,7 @@ const emptyValues: CustomerFormValues = {
   address: '',
   credit_limit: '',
   terms_of_payment_id: '',
+  price_zone_id: '',
   is_active: true,
 }
 
@@ -56,6 +59,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
   const isEdit = !!customer
   const queryClient = useQueryClient()
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+  const priceZones = useQuery({ queryKey: ['price-zones-lookup'], queryFn: fetchPriceZonesLookup })
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerFormSchema),
@@ -75,6 +79,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
             address: customer.address ?? '',
             credit_limit: customer.credit_limit != null ? String(customer.credit_limit) : '',
             terms_of_payment_id: customer.terms_of_payment_id ?? '',
+            price_zone_id: customer.price_zone_id ?? '',
             is_active: customer.is_active,
           }
         : emptyValues,
@@ -90,6 +95,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
         address: values.address || null,
         credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
         terms_of_payment_id: values.terms_of_payment_id || null,
+        price_zone_id: values.price_zone_id || null,
       }
       return isEdit ? updateCustomer(customer.id, payload) : createCustomer(payload)
     },
@@ -211,6 +217,31 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                         {termsOfPayment.data?.map((top) => (
                           <SelectItem key={top.id} value={top.id}>
                             {top.name} ({top.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="price_zone_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price Zone</FormLabel>
+                    <Select value={field.value || NO_ZONE} onValueChange={(value) => field.onChange(value === NO_ZONE ? '' : value)}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={priceZones.isLoading ? 'Loading…' : 'No price zone'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_ZONE}>No price zone (use Standard Rate)</SelectItem>
+                        {priceZones.data?.map((zone) => (
+                          <SelectItem key={zone.id} value={zone.id}>
+                            {zone.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

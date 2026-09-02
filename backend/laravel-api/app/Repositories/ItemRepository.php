@@ -13,9 +13,15 @@ class ItemRepository extends BaseRepository
         parent::__construct($model);
     }
 
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?string $priceZoneId = null): LengthAwarePaginator
     {
-        return $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax'])->paginate($perPage);
+        $query = $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax']);
+
+        if ($priceZoneId !== null) {
+            $query->with(['itemPrices' => fn ($q) => $q->where('price_zone_id', $priceZoneId)]);
+        }
+
+        return $query->paginate($perPage);
     }
 
     public function findOrFail(string $id): Model

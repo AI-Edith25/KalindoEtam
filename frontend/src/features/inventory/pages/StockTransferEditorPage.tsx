@@ -44,7 +44,7 @@ export function StockTransferEditorPage() {
   })
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
+  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
 
   const form = useForm<StockTransferEditorValues>({
     resolver: zodResolver(stockTransferFormSchema),

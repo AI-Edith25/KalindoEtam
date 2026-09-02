@@ -44,7 +44,7 @@ export function PurchaseOrderEditorPage() {
   })
 
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
+  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
 
   const form = useForm<PurchaseOrderEditorValues>({

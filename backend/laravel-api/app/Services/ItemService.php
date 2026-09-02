@@ -15,9 +15,9 @@ class ItemService
         protected AuditLogService $auditLogService,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    public function list(int $perPage = 15, ?string $priceZoneId = null): LengthAwarePaginator
     {
-        return $this->itemRepository->paginate($perPage);
+        return $this->itemRepository->paginate($perPage, $priceZoneId);
     }
 
     public function create(array $data): Item

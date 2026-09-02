@@ -16,7 +16,7 @@ interface StockBalanceFiltersBarProps {
 export function StockBalanceFiltersBar({ value, onChange }: StockBalanceFiltersBarProps) {
   const warehouses = useWarehousesLookup()
   const itemGroups = useQuery({ queryKey: ['item-groups-lookup'], queryFn: fetchItemGroups })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
+  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
 
   return (
     <FilterPanel onClear={() => onChange(emptyStockBalanceFilters)} hasActiveFilters={hasActiveStockBalanceFilters(value)}>

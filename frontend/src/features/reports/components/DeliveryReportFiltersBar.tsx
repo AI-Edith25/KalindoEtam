@@ -16,7 +16,7 @@ interface DeliveryReportFiltersBarProps {
 export function DeliveryReportFiltersBar({ value, onChange }: DeliveryReportFiltersBarProps) {
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
+  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
 
   return (
     <FilterPanel onClear={() => onChange(emptyDeliveryReportFilters)} hasActiveFilters={hasActiveDeliveryReportFilters(value)}>

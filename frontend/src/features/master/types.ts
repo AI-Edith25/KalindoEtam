@@ -94,6 +94,8 @@ export interface Item {
   allow_over_receipt: boolean
   /** Decides qty input type everywhere this item appears — 'unit' (integer, e.g. zak) or 'weight' (2 decimals, e.g. bulk cement). */
   qty_category: 'unit' | 'weight'
+  /** Only meaningful when the /items request carried a price_zone_id — otherwise equals standard_rate. */
+  effective_rate: string | number
   created_at: string
   updated_at: string
 }
@@ -112,6 +114,36 @@ export interface ItemFormValues {
 export interface ItemGroupFormValues {
   name: string
   description: string | null
+}
+
+export interface PriceZone {
+  id: string
+  name: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PriceZoneFormValues {
+  name: string
+  description: string | null
+}
+
+export interface ItemPrice {
+  id: string
+  item_id: string
+  item: Item | null
+  price_zone_id: string
+  price_zone: PriceZone | null
+  rate: string | number
+  created_at: string
+  updated_at: string
+}
+
+export interface ItemPriceFormValues {
+  item_id: string
+  price_zone_id: string
+  rate: number
 }
 
 export interface UomFormValues {
@@ -179,6 +211,8 @@ export interface Customer {
   address: string | null
   credit_limit: string | number | null
   terms_of_payment_id: string | null
+  price_zone_id: string | null
+  price_zone: PriceZone | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -192,6 +226,7 @@ export interface CustomerFormValues {
   address: string | null
   credit_limit: number | null
   terms_of_payment_id: string | null
+  price_zone_id: string | null
   is_active: boolean
 }
 

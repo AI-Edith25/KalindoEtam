@@ -63,4 +63,9 @@ class Item extends Model
     {
         return $this->hasMany(StockLedger::class);
     }
+
+    public function itemPrices(): HasMany
+    {
+        return $this->hasMany(ItemPrice::class);
+    }
 }

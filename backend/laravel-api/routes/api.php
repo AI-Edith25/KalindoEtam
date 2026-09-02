@@ -39,6 +39,8 @@ use App\Http\Controllers\Api\V1\PaymentAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\ItemPriceController;
+use App\Http\Controllers\Api\V1\PriceZoneController;
 use App\Http\Controllers\Api\V1\ProductSalesController;
 use App\Http\Controllers\Api\V1\PurchaseInvoiceController;
 use App\Http\Controllers\Api\V1\PurchaseJournalController;
@@ -146,6 +148,13 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('taxes', TaxController::class), 'master.taxes');
     $withPagePermissions(Route::apiResource('miscellaneous-items', MiscellaneousItemController::class), 'master.miscellaneous');
     $withPagePermissions(Route::apiResource('customers', CustomerController::class), 'master.customers');
+    $withPagePermissions(Route::apiResource('price-zones', PriceZoneController::class), 'master.price_zones');
+    $withPagePermissions(
+        Route::apiResource('item-prices', ItemPriceController::class)->only(['index', 'store', 'update', 'destroy']),
+        'master.item_prices',
+    );
+    Route::get('item-prices/export', [ItemPriceController::class, 'export'])->middleware('permission:master.item_prices.view');
+    Route::post('item-prices/import', [ItemPriceController::class, 'import'])->middleware('permission:master.item_prices.import');
     $withPagePermissions(Route::apiResource('suppliers', SupplierController::class), 'master.suppliers');
     $withPagePermissions(Route::apiResource('sales-persons', SalesPersonController::class), 'master.sales_persons');
     $withPagePermissions(Route::apiResource('sales-targets', SalesTargetController::class), 'master.sales_targets');

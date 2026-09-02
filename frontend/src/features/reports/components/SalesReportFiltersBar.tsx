@@ -27,7 +27,7 @@ const DEFAULT_STATUS_OPTIONS = [
 
 export function SalesReportFiltersBar({ value, onChange, hide = [], statusOptions = DEFAULT_STATUS_OPTIONS }: SalesReportFiltersBarProps) {
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup, enabled: !hide.includes('customer') })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup, enabled: !hide.includes('item') })
+  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup(), enabled: !hide.includes('item') })
   const itemGroups = useQuery({ queryKey: ['item-groups'], queryFn: fetchItemGroups, enabled: !hide.includes('itemGroup') })
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup, enabled: !hide.includes('salesPerson') })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches, enabled: !hide.includes('branch') })

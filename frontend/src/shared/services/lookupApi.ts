@@ -9,7 +9,7 @@ import type { ApiListResponse } from '@/shared/types/api'
  * docs/ERP_DESIGN_SYSTEM.md as the seam to revisit if any of these
  * lists outgrows one page.
  */
-export async function fetchLookupList<T>(path: string): Promise<T[]> {
-  const { data } = await apiClient.get<ApiListResponse<T>>(path)
+export async function fetchLookupList<T>(path: string, params?: Record<string, string>): Promise<T[]> {
+  const { data } = await apiClient.get<ApiListResponse<T>>(path, { params })
   return data.data
 }

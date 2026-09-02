@@ -17,7 +17,7 @@ interface StockLedgerFiltersBarProps {
 /** Same server-side shape as every other transaction FiltersBar — values are sent straight to the server. */
 export function StockLedgerFiltersBar({ value, onChange }: StockLedgerFiltersBarProps) {
   const warehouses = useWarehousesLookup()
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: fetchItemsLookup })
+  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
 
   return (
     <FilterPanel onClear={() => onChange(emptyStockLedgerFilters)} hasActiveFilters={hasActiveStockLedgerFilters(value)}>

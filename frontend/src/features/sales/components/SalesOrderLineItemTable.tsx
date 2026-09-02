@@ -23,11 +23,13 @@ interface SalesOrderLineItemTableProps {
 
 /**
  * Same editable-grid pattern as PurchaseOrderLineItemTable — Add/Remove
- * row, Item lookup autofilling Unit Price from standard_rate and Tax from
- * the Item's own sales_tax_id, live per-row Amount/Tax. Tax stays
- * editable per line afterward — the Item default is only a starting
- * point. No stock check on qty: Sales Order may exceed current inventory
- * (that validation belongs to Delivery, not here).
+ * row, Item lookup autofilling Unit Price from effective_rate (the
+ * selected customer's Price Zone override, or standard_rate when there
+ * isn't one — see fetchItemsLookup(priceZoneId) in SalesOrderEditorPage)
+ * and Tax from the Item's own sales_tax_id, live per-row Amount/Tax. Tax
+ * and rate both stay editable per line afterward — the Item default is
+ * only a starting point. No stock check on qty: Sales Order may exceed
+ * current inventory (that validation belongs to Delivery, not here).
  */
 export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disabled }: SalesOrderLineItemTableProps) {
   const { control, setValue } = form
@@ -39,7 +41,7 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
 
     const selected = items.find((item) => item.id === itemId)
     if (selected) {
-      setValue(`items.${index}.rate`, String(selected.standard_rate), { shouldValidate: true })
+      setValue(`items.${index}.rate`, String(selected.effective_rate), { shouldValidate: true })
       setValue(`items.${index}.tax_id`, selected.sales_tax_id ?? '', { shouldValidate: true })
     }
   }
