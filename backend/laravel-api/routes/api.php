@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\ImportMappingPresetController;
 use App\Http\Controllers\Api\V1\ItemController;
 use App\Http\Controllers\Api\V1\ItemGroupController;
+use App\Http\Controllers\Api\V1\ItemWarehousePriceController;
 use App\Http\Controllers\Api\V1\JournalEntryController;
 use App\Http\Controllers\Api\V1\JournalListController;
 use App\Http\Controllers\Api\V1\NamingSeriesController;
@@ -155,12 +156,20 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     );
     Route::get('item-prices/export', [ItemPriceController::class, 'export'])->middleware('permission:master.item_prices.view');
     Route::post('item-prices/import', [ItemPriceController::class, 'import'])->middleware('permission:master.item_prices.import');
+    // Per-Warehouse Pricing — reuses master.item_prices.* permissions verbatim (same page, no
+    // apiResource: every write, including a single cell, goes through the one bulk endpoint).
+    Route::get('item-warehouse-prices', [ItemWarehousePriceController::class, 'index'])->middleware('permission:master.item_prices.view');
+    Route::post('item-warehouse-prices/bulk', [ItemWarehousePriceController::class, 'bulkUpdate'])->middleware('permission:master.item_prices.update');
+    Route::get('item-warehouse-prices/export', [ItemWarehousePriceController::class, 'export'])->middleware('permission:master.item_prices.view');
+    Route::post('item-warehouse-prices/import-preview', [ItemWarehousePriceController::class, 'importPreview'])->middleware('permission:master.item_prices.import');
+    Route::post('item-warehouse-prices/import-commit', [ItemWarehousePriceController::class, 'importCommit'])->middleware('permission:master.item_prices.import');
     $withPagePermissions(Route::apiResource('suppliers', SupplierController::class), 'master.suppliers');
     $withPagePermissions(Route::apiResource('sales-persons', SalesPersonController::class), 'master.sales_persons');
     $withPagePermissions(Route::apiResource('sales-targets', SalesTargetController::class), 'master.sales_targets');
     $withPagePermissions(Route::apiResource('terms-of-payments', TermsOfPaymentController::class), 'master.terms_of_payment');
 
     $withPagePermissions(Route::apiResource('items', ItemController::class), 'master.items');
+    Route::post('items/bulk-sync-to-main-wh', [ItemController::class, 'bulkSyncToMainWh'])->middleware('permission:master.item_prices.update');
     // Import Wizard — {module} is shared across Items/Item Groups/UOMs. The `permission:`
     // middleware only takes a static string, so per-module authorization happens inside
     // ImportController itself (checks master.{module}.import against the resolved module).

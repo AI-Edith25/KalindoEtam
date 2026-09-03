@@ -1,4 +1,5 @@
 import { apiClient } from '@/shared/services/apiClient'
+import { triggerBlobDownload } from '@/shared/services/downloadFile'
 import type { ApiResponse } from '@/shared/types/api'
 import type { ItemPrice, ItemPriceFormValues } from '../types'
 
@@ -6,15 +7,6 @@ export interface ItemPriceImportSummary {
   created: number
   updated: number
   skipped: { row: number; reason: string }[]
-}
-
-function triggerBlobDownload(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
 }
 
 /** Unpaginated — the item x zone override table is small, unlike the entity list pages that use createCrudApi. */

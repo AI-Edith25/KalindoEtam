@@ -24,6 +24,7 @@ class SalesOrder extends Model
         'customer_id',
         'sales_person_id',
         'branch_id',
+        'warehouse_id',
         'order_date',
         'expected_delivery_date',
         'total_amount',
@@ -103,6 +104,11 @@ class SalesOrder extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 
     public function termsOfPayment(): BelongsTo

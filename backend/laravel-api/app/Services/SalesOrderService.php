@@ -107,6 +107,7 @@ class SalesOrderService
                 'customer_id' => $data['customer_id'],
                 'sales_person_id' => $data['sales_person_id'] ?? null,
                 'branch_id' => $data['branch_id'] ?? null,
+                'warehouse_id' => $data['warehouse_id'] ?? null,
                 'order_date' => $data['order_date'],
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
@@ -131,7 +132,7 @@ class SalesOrderService
                 'grand_total' => round($subtotal + $taxAmount, 2),
             ]);
 
-            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'tax', 'items.item', 'items.tax']);
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'warehouse', 'termsOfPayment', 'tax', 'items.item', 'items.tax']);
             $this->auditLogService->record('created', 'sales_order', "Created Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;
@@ -163,7 +164,7 @@ class SalesOrderService
 
             $this->salesOrderRepository->update($salesOrder, $headerData);
 
-            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'tax', 'items.item', 'items.tax']);
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'warehouse', 'termsOfPayment', 'tax', 'items.item', 'items.tax']);
             $this->auditLogService->record('updated', 'sales_order', "Updated Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;

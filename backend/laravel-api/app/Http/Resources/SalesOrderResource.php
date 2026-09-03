@@ -20,6 +20,8 @@ class SalesOrderResource extends JsonResource
             'sales_person' => new SalesPersonResource($this->whenLoaded('salesPerson')),
             'branch_id' => $this->branch_id,
             'branch' => new BranchResource($this->whenLoaded('branch')),
+            'warehouse_id' => $this->warehouse_id,
+            'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
             'order_date' => $this->order_date?->format('Y-m-d'),
             'expected_delivery_date' => $this->expected_delivery_date?->format('Y-m-d'),
             'total_amount' => $this->total_amount,

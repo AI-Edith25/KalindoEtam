@@ -10,11 +10,15 @@ export const fetchPriceZonesLookup = () => fetchLookupList<PriceZone>('/price-zo
 
 /**
  * Cross-feature reuse: Purchase's and Sales's editors need these same page-1 lookups.
- * `priceZoneId` (Sales Order only) makes each item's `effective_rate` reflect that zone's
- * override — see ItemController::index. Omit it and behavior is identical to before.
+ * `priceZoneId`/`warehouseId` (Sales Order only) make each item's `effective_rate` reflect
+ * that zone/warehouse override — see ItemController::index. Omit both and behavior is
+ * identical to before.
  */
-export const fetchItemsLookup = (priceZoneId?: string) =>
-  fetchLookupList<Item>('/items', priceZoneId ? { price_zone_id: priceZoneId } : undefined)
+export const fetchItemsLookup = (priceZoneId?: string, warehouseId?: string) =>
+  fetchLookupList<Item>('/items', {
+    ...(priceZoneId && { price_zone_id: priceZoneId }),
+    ...(warehouseId && { warehouse_id: warehouseId }),
+  })
 export const fetchSuppliersLookup = () => fetchLookupList<Supplier>('/suppliers')
 export const fetchWarehousesLookup = () => fetchLookupList<Warehouse>('/warehouses')
 export const fetchCustomersLookup = () => fetchLookupList<Customer>('/customers')

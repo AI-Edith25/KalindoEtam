@@ -25,6 +25,7 @@ import {
   fetchSalesPersonsLookup,
   fetchTaxesLookup,
   fetchTermsOfPaymentLookup,
+  fetchWarehousesLookup,
 } from '@/features/master/api/lookupsApi'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { approveSalesOrder, createSalesOrder, fetchSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
@@ -52,6 +53,7 @@ export function SalesOrderEditorPage() {
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
+  const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
 
@@ -60,13 +62,15 @@ export function SalesOrderEditorPage() {
     defaultValues: emptySalesOrderEditorValues,
   })
 
-  // Items are re-fetched whenever the selected customer's Price Zone changes, so each item's
-  // effective_rate reflects that zone's override (falls back to standard_rate with no zone/no
-  // override) — see ItemController::index and SalesOrderLineItemTable's handleItemChange.
+  // Items are re-fetched whenever the selected customer's Price Zone or the order's Warehouse
+  // changes, so each item's effective_rate reflects the resolved warehouse/zone override (falls
+  // back to standard_rate with neither) — see ItemController::index, ItemPriceResolver, and
+  // SalesOrderLineItemTable's handleItemChange.
   const selectedCustomerPriceZoneId = customers.data?.find((c) => c.id === form.watch('customer_id'))?.price_zone_id ?? undefined
+  const selectedWarehouseId = form.watch('warehouse_id') || undefined
   const items = useQuery({
-    queryKey: ['items-lookup', selectedCustomerPriceZoneId],
-    queryFn: () => fetchItemsLookup(selectedCustomerPriceZoneId),
+    queryKey: ['items-lookup', selectedCustomerPriceZoneId, selectedWarehouseId],
+    queryFn: () => fetchItemsLookup(selectedCustomerPriceZoneId, selectedWarehouseId),
   })
 
   useEffect(() => {
@@ -83,6 +87,7 @@ export function SalesOrderEditorPage() {
       customer_id: order.customer_id,
       sales_person_id: order.sales_person_id ?? '',
       branch_id: order.branch_id ?? '',
+      warehouse_id: order.warehouse_id ?? '',
       order_date: order.order_date,
       expected_delivery_date: order.expected_delivery_date ?? '',
       remarks: order.remarks ?? '',
@@ -116,6 +121,17 @@ export function SalesOrderEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branches.data, isEdit])
 
+  // New order only — default to the Main warehouse, same "don't make every order pick the
+  // obvious default" reasoning as the branch default above.
+  useEffect(() => {
+    if (isEdit || !warehouses.data?.length) return
+    if (form.getValues('warehouse_id')) return
+
+    const main = warehouses.data.find((w) => w.warehouse_type === 'main') ?? warehouses.data[0]
+    form.setValue('warehouse_id', main.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warehouses.data, isEdit])
+
   // Prefills Tel from the selected customer's master phone — only Customer.phone exists on the
   // master (no attn/fax there), so those two stay plain manual input. Only fills an empty Tel, so
   // it never stomps a value the user already typed or loaded from a saved order.
@@ -132,6 +148,7 @@ export function SalesOrderEditorPage() {
     customer_id: values.customer_id,
     sales_person_id: values.sales_person_id || null,
     branch_id: values.branch_id,
+    warehouse_id: values.warehouse_id,
     order_date: values.order_date,
     expected_delivery_date: values.expected_delivery_date || null,
     remarks: values.remarks || null,
@@ -337,6 +354,30 @@ export function SalesOrderEditorPage() {
                         {branches.data?.map((branch) => (
                           <SelectItem key={branch.id} value={branch.id}>
                             {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="warehouse_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Warehouse</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {warehouses.data?.map((warehouse) => (
+                          <SelectItem key={warehouse.id} value={warehouse.id}>
+                            {warehouse.name} ({warehouse.code})
                           </SelectItem>
                         ))}
                       </SelectContent>

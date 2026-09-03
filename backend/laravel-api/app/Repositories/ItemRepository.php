@@ -13,15 +13,34 @@ class ItemRepository extends BaseRepository
         parent::__construct($model);
     }
 
-    public function paginate(int $perPage = 15, ?string $priceZoneId = null): LengthAwarePaginator
-    {
+    public function paginate(
+        int $perPage = 15,
+        ?string $priceZoneId = null,
+        ?string $warehouseId = null,
+        ?string $mainWarehouseId = null,
+        ?string $search = null,
+        ?string $itemGroupId = null,
+    ): LengthAwarePaginator {
         $query = $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax']);
 
         if ($priceZoneId !== null) {
             $query->with(['itemPrices' => fn ($q) => $q->where('price_zone_id', $priceZoneId)]);
         }
 
-        return $query->paginate($perPage);
+        if ($warehouseId !== null) {
+            $warehouseIds = array_values(array_unique(array_filter([$warehouseId, $mainWarehouseId])));
+            $query->with(['itemWarehousePrices' => fn ($q) => $q->whereIn('warehouse_id', $warehouseIds)]);
+        }
+
+        if ($search) {
+            $query->where(fn ($q) => $q->where('item_code', 'like', "%{$search}%")->orWhere('item_name', 'like', "%{$search}%"));
+        }
+
+        if ($itemGroupId) {
+            $query->where('item_group_id', $itemGroupId);
+        }
+
+        return $query->orderBy('item_code')->paginate($perPage);
     }
 
     public function findOrFail(string $id): Model

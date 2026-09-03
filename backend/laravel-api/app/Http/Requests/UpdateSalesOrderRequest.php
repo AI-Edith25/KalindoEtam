@@ -17,6 +17,7 @@ class UpdateSalesOrderRequest extends FormRequest
             'customer_id' => ['sometimes', 'required', 'uuid', 'exists:customers,id'],
             'sales_person_id' => ['nullable', 'uuid', 'exists:sales_persons,id'],
             'branch_id' => ['sometimes', 'required', 'uuid', 'exists:branches,id'],
+            'warehouse_id' => ['sometimes', 'required', 'uuid', 'exists:warehouses,id'],
             'order_date' => ['sometimes', 'required', 'date'],
             'expected_delivery_date' => ['nullable', 'date', 'after_or_equal:order_date'],
             'remarks' => ['nullable', 'string'],

@@ -94,8 +94,10 @@ export interface Item {
   allow_over_receipt: boolean
   /** Decides qty input type everywhere this item appears — 'unit' (integer, e.g. zak) or 'weight' (2 decimals, e.g. bulk cement). */
   qty_category: 'unit' | 'weight'
-  /** Only meaningful when the /items request carried a price_zone_id — otherwise equals standard_rate. */
+  /** Only meaningful when the /items request carried a price_zone_id and/or warehouse_id — otherwise equals standard_rate. */
   effective_rate: string | number
+  /** "Samakan dengan Main WH" — when true, every non-Main-warehouse price for this item resolves live from the Main warehouse's own price. */
+  sync_to_main_wh: boolean
   created_at: string
   updated_at: string
 }
@@ -144,6 +146,28 @@ export interface ItemPriceFormValues {
   item_id: string
   price_zone_id: string
   rate: number
+}
+
+export interface ItemWarehousePrice {
+  id: string
+  item_id: string
+  item: Item | null
+  warehouse_id: string
+  warehouse: Warehouse | null
+  rate: string | number
+  created_at: string
+  updated_at: string
+}
+
+export interface ItemWarehousePriceCell {
+  item_id: string
+  warehouse_id: string
+  /** null = delete the override, falls back to Standard Rate (or Main WH's price when sync_to_main_wh is on). */
+  rate: number | null
+}
+
+export interface ItemWarehousePriceCellResult extends ItemWarehousePriceCell {
+  status: 'saved' | 'error'
 }
 
 export interface UomFormValues {

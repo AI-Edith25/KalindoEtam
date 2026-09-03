@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Enums\QtyCategory;
+use App\Enums\WarehouseType;
 use App\Models\Item;
+use App\Models\Warehouse;
 use App\Repositories\ItemRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -13,11 +15,48 @@ class ItemService
     public function __construct(
         protected ItemRepository $itemRepository,
         protected AuditLogService $auditLogService,
+        protected ItemPriceResolver $itemPriceResolver,
     ) {}
 
-    public function list(int $perPage = 15, ?string $priceZoneId = null): LengthAwarePaginator
+    public function list(
+        int $perPage = 15,
+        ?string $priceZoneId = null,
+        ?string $warehouseId = null,
+        ?string $search = null,
+        ?string $itemGroupId = null,
+    ): LengthAwarePaginator {
+        $mainWarehouseId = $warehouseId !== null
+            ? Warehouse::query()->where('warehouse_type', WarehouseType::MAIN)->value('id')
+            : null;
+
+        $items = $this->itemRepository->paginate($perPage, $priceZoneId, $warehouseId, $mainWarehouseId, $search, $itemGroupId);
+        $this->itemPriceResolver->apply($items, $warehouseId, $mainWarehouseId);
+
+        return $items;
+    }
+
+    /**
+     * One path for both the header "select all" and a single-row toggle. Loops model saves
+     * (not a raw query-builder update) so AuditableObserver still stamps updated_by per row.
+     *
+     * @param  string[]  $itemIds
+     */
+    public function bulkSetSyncToMainWh(array $itemIds, bool $value): void
     {
-        return $this->itemRepository->paginate($perPage, $priceZoneId);
+        DB::transaction(function () use ($itemIds, $value) {
+            $items = Item::query()->whereIn('id', $itemIds)->get();
+
+            foreach ($items as $item) {
+                $this->itemRepository->update($item, ['sync_to_main_wh' => $value]);
+            }
+
+            $this->auditLogService->record(
+                'sync_to_main_wh_changed',
+                'item',
+                ($value ? 'Enabled' : 'Disabled')." \"Sync to Main WH\" for ".count($items).' item(s).',
+                ['item_ids' => $itemIds, 'value' => $value],
+            );
+        });
     }
 
     public function create(array $data): Item

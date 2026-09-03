@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\WarehouseType;
 use App\Http\Requests\StoreSalesOrderRequest;
 use App\Models\Branch;
 use App\Models\Company;
@@ -10,6 +11,7 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\SalesPerson;
 use App\Models\UnitOfMeasurement;
+use App\Models\Warehouse;
 use App\Repositories\SalesOrderRepository;
 use App\Services\BranchService;
 use App\Services\SalesOrderService;
@@ -33,6 +35,7 @@ class SalesPersonBranchDimensionTest extends TestCase
     protected Item $item;
     protected Branch $branchA;
     protected Branch $branchB;
+    protected Warehouse $warehouse;
     protected SalesPerson $salesPersonA;
     protected SalesPerson $salesPersonB;
 
@@ -52,6 +55,7 @@ class SalesPersonBranchDimensionTest extends TestCase
         $this->branchA = Branch::query()->create(['company_id' => $company->id, 'name' => 'Head Office', 'code' => 'HQ', 'is_head_office' => true]);
         $this->branchB = Branch::query()->create(['company_id' => $company->id, 'name' => 'Balikpapan', 'code' => 'BPN']);
 
+        $this->warehouse = Warehouse::query()->create(['name' => 'Balikpapan', 'code' => 'BPP', 'warehouse_type' => WarehouseType::MAIN]);
         $this->customer = Customer::query()->create(['customer_code' => 'C001', 'customer_name' => 'Acme']);
 
         $itemGroup = ItemGroup::query()->create(['name' => 'General']);
@@ -175,6 +179,7 @@ class SalesPersonBranchDimensionTest extends TestCase
         $withBranchOnly = Validator::make([
             'customer_id' => $this->customer->id,
             'branch_id' => $this->branchA->id,
+            'warehouse_id' => $this->warehouse->id,
             'order_date' => now()->toDateString(),
             'items' => [['item_id' => $this->item->id, 'qty' => 1, 'rate' => 10000]],
         ], $rules);

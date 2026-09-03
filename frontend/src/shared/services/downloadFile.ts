@@ -1,0 +1,9 @@
+/** Shared by every feature that downloads a blob response (CSV/XLSX exports) as a file. */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}

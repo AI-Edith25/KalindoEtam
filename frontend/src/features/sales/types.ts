@@ -41,6 +41,8 @@ export interface SalesOrder {
   sales_person: { id: string; code: string; name: string } | null
   branch_id: string | null
   branch: { id: string; code: string; name: string } | null
+  warehouse_id: string | null
+  warehouse: { id: string; code: string; name: string } | null
   order_date: string
   expected_delivery_date: string | null
   total_amount: string | number
@@ -68,6 +70,7 @@ export interface SalesOrderFormValues {
   customer_id: string
   sales_person_id: string | null
   branch_id: string
+  warehouse_id: string
   order_date: string
   expected_delivery_date: string | null
   remarks: string | null

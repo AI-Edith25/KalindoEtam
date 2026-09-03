@@ -230,6 +230,7 @@ export function SalesOrderDetailPage() {
             <DetailField label="Customer Code" value={order.customer?.customer_code ?? '—'} />
             <DetailField label="Sales Person" value={order.sales_person?.name ?? '—'} />
             <DetailField label="Branch" value={order.branch?.name ?? '—'} />
+            <DetailField label="Warehouse" value={order.warehouse ? `${order.warehouse.name} (${order.warehouse.code})` : '—'} />
             <DetailField label="Order Date" value={formatDate(order.order_date)} />
             <DetailField label="Expected Delivery Date" value={formatDate(order.expected_delivery_date)} />
             <DetailField label="Attn" value={order.attention || '—'} />

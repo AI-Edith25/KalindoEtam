@@ -16,7 +16,8 @@ import { cn } from '@/lib/utils'
 export interface DataTableColumn<T> {
   /** Usually a plain string; a ReactNode (e.g. a header "select all" checkbox) needs `id` set too, since `header` alone can no longer serve as the React key below. */
   header: ReactNode
-  accessor: (row: T) => ReactNode
+  /** `index` is this row's position within the current page's `data` array — useful for grid-style keyboard navigation (see ItemPriceMatrixPage's warehouse price cells). */
+  accessor: (row: T, index: number) => ReactNode
   className?: string
   /** Enables a clickable sort header for this column. Requires `sort`/`onSortChange` on DataTable. */
   sortKey?: string
@@ -41,6 +42,8 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void
   sort?: DataTableSort
   onSortChange?: (key: string) => void
+  /** Pins the header row while the table body scrolls — pair with a `max-h-*` wrapper. Sticky columns need no prop here: pass a `sticky left-* bg-background` className directly on that column. */
+  stickyHeader?: boolean
 }
 
 /** String headers use themselves as the React key (unchanged behavior for every existing caller); a ReactNode header needs `column.id` or falls back to its column index. */
@@ -63,6 +66,7 @@ export function DataTable<T>({
   onRowClick,
   sort,
   onSortChange,
+  stickyHeader,
 }: DataTableProps<T>) {
   if (isError) {
     return <ErrorState onRetry={onRetry} />
@@ -74,7 +78,7 @@ export function DataTable<T>({
         <TableHeader>
           <TableRow>
             {columns.map((column, index) => (
-              <TableHead key={columnKey(column, index)} className={column.className}>
+              <TableHead key={columnKey(column, index)} className={cn(stickyHeader && 'sticky top-0 z-20 bg-background', column.className)}>
                 {column.sortKey && onSortChange ? (
                   <button
                     type="button"
@@ -117,7 +121,7 @@ export function DataTable<T>({
               </TableCell>
             </TableRow>
           ) : (
-            data.map((row) => (
+            data.map((row, rowIndex) => (
               <TableRow
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -125,7 +129,7 @@ export function DataTable<T>({
               >
                 {columns.map((column, index) => (
                   <TableCell key={columnKey(column, index)} className={column.className}>
-                    {column.accessor(row)}
+                    {column.accessor(row, rowIndex)}
                   </TableCell>
                 ))}
               </TableRow>

@@ -25,6 +25,7 @@ class Item extends Model
         'sales_tax_id',
         'allow_over_receipt',
         'qty_category',
+        'sync_to_main_wh',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class Item extends Model
         'current_stock' => 'decimal:4',
         'allow_over_receipt' => 'boolean',
         'qty_category' => QtyCategory::class,
+        'sync_to_main_wh' => 'boolean',
     ];
 
     public function itemGroup(): BelongsTo
@@ -67,5 +69,10 @@ class Item extends Model
     public function itemPrices(): HasMany
     {
         return $this->hasMany(ItemPrice::class);
+    }
+
+    public function itemWarehousePrices(): HasMany
+    {
+        return $this->hasMany(ItemWarehousePrice::class);
     }
 }
