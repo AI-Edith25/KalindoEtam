@@ -196,9 +196,9 @@ class ItemWarehousePriceService
 
     /**
      * Fixed-shape wide CSV/XLSX (item_code, item_name, standard_rate, <one column per warehouse
-     * code>, sync_to_main_wh) — same small-dedicated-importer approach as ItemPriceService::
-     * import(), not the 5-step Import Wizard (composite item+warehouse key). item_name/
-     * standard_rate are read-only context for the user in Excel, never written back.
+     * code>, sync_to_main_wh) — a small dedicated importer, not the 5-step Import Wizard
+     * (composite item+warehouse key). item_name/standard_rate are read-only context for the
+     * user in Excel, never written back.
      *
      * @return array{
      *     cells: array<int, array{item_id: string, warehouse_id: string, rate: ?float}>,

@@ -16,9 +16,8 @@ import { Button } from '@/components/ui/button'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { fetchItemsForPriceMatrix } from '../api/itemApi'
-import { fetchPriceZonesLookup, fetchWarehousesLookup, fetchItemGroups } from '../api/lookupsApi'
-import { createItemPrice, deleteItemPrice, downloadItemPricesExport, fetchItemPrices, importItemPrices, updateItemPrice } from '../api/itemPriceApi'
+import { fetchItemsForPriceMatrix, updateItemStandardRate } from '../api/itemApi'
+import { fetchWarehousesLookup, fetchItemGroups } from '../api/lookupsApi'
 import {
   bulkSetSyncToMainWh,
   bulkUpdateItemWarehousePrices,
@@ -28,51 +27,37 @@ import {
   previewItemWarehousePricesImport,
   type ItemWarehousePriceImportPreview,
 } from '../api/itemWarehousePriceApi'
-import type { Item, ItemPrice, ItemWarehousePrice, ItemWarehousePriceCell, PriceZone, Warehouse } from '../types'
+import type { Item, ItemWarehousePrice, ItemWarehousePriceCell, Warehouse } from '../types'
 
 const PER_PAGE = 50
 
-interface PriceCellProps {
+interface StandardRateCellProps {
   item: Item
-  zone: PriceZone
-  override?: ItemPrice
   onSaved: () => void
 }
 
-/** One item x zone cell — blank means "use Standard Rate" (shown as the placeholder), typing a value creates/updates the override, clearing it back to blank deletes it. */
-function PriceCell({ item, zone, override, onSaved }: PriceCellProps) {
-  const [value, setValue] = useState(override ? String(override.rate) : '')
+/** Standard Rate is a plain field on Item — edited via the existing PUT /items/{id}, same per-cell autosave-on-blur convention as the warehouse cells. */
+function StandardRateCell({ item, onSaved }: StandardRateCellProps) {
+  const [value, setValue] = useState(String(item.standard_rate))
 
-  useEffect(() => {
-    setValue(override ? String(override.rate) : '')
-  }, [override?.rate])
+  useEffect(() => setValue(String(item.standard_rate)), [item.standard_rate])
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
-      const trimmed = value.trim()
-
-      if (trimmed === '') {
-        if (override) await deleteItemPrice(override.id)
-        return
-      }
-
-      const rate = Number(trimmed)
-      if (override) {
-        await updateItemPrice(override.id, rate)
-      } else {
-        await createItemPrice({ item_id: item.id, price_zone_id: zone.id, rate })
-      }
-    },
+    mutationFn: () => updateItemStandardRate(item.id, Number(value)),
     onSuccess: onSaved,
     onError: (error) => {
       toastApiError(error)
-      setValue(override ? String(override.rate) : '')
+      setValue(String(item.standard_rate))
     },
   })
 
   const handleBlur = () => {
-    const current = override ? String(override.rate) : ''
-    if (value.trim() === current.trim()) return
+    const trimmed = value.trim()
+    if (trimmed === '' || Number.isNaN(Number(trimmed)) || Number(trimmed) < 0) {
+      setValue(String(item.standard_rate))
+      return
+    }
+    if (trimmed === String(item.standard_rate)) return
     saveMutation.mutate()
   }
 
@@ -81,7 +66,6 @@ function PriceCell({ item, zone, override, onSaved }: PriceCellProps) {
       type="number"
       min={0}
       step="0.01"
-      placeholder={String(item.standard_rate)}
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={handleBlur}
@@ -173,7 +157,6 @@ export function ItemPriceMatrixPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [itemGroupId, setItemGroupId] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const whFileInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
 
@@ -191,19 +174,9 @@ export function ItemPriceMatrixPage() {
     queryKey: ['items-for-price-matrix', page, search, itemGroupId],
     queryFn: () => fetchItemsForPriceMatrix({ page, per_page: PER_PAGE, search: search || undefined, item_group_id: itemGroupId || undefined }),
   })
-  const zonesQuery = useQuery({ queryKey: ['price-zones-lookup'], queryFn: fetchPriceZonesLookup })
-  const pricesQuery = useQuery({ queryKey: ['item-prices'], queryFn: fetchItemPrices })
   const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const warehousePricesQuery = useQuery({ queryKey: ['item-warehouse-prices'], queryFn: fetchItemWarehousePrices })
   const itemGroupsQuery = useQuery({ queryKey: ['item-groups-lookup'], queryFn: fetchItemGroups })
-
-  const priceMap = useMemo(() => {
-    const map = new Map<string, ItemPrice>()
-    for (const price of pricesQuery.data ?? []) {
-      map.set(`${price.item_id}:${price.price_zone_id}`, price)
-    }
-    return map
-  }, [pricesQuery.data])
 
   const whMap = useMemo(() => {
     const map = new Map<string, ItemWarehousePrice>()
@@ -213,12 +186,10 @@ export function ItemPriceMatrixPage() {
     return map
   }, [warehousePricesQuery.data])
 
-  const zones = zonesQuery.data ?? []
   const warehouses = warehousesQuery.data ?? []
   const items = itemsQuery.data?.data ?? []
   const mainWarehouse = warehouses.find((w) => w.warehouse_type === 'main')
 
-  const invalidatePrices = () => queryClient.invalidateQueries({ queryKey: ['item-prices'] })
   const invalidateWarehousePrices = () => queryClient.invalidateQueries({ queryKey: ['item-warehouse-prices'] })
   const invalidateItems = () => queryClient.invalidateQueries({ queryKey: ['items-for-price-matrix'] })
 
@@ -314,27 +285,8 @@ export function ItemPriceMatrixPage() {
 
   const invalidateAll = () => {
     itemsQuery.refetch()
-    pricesQuery.refetch()
     warehousePricesQuery.refetch()
     warehousesQuery.refetch()
-  }
-
-  const importMutation = useMutation({
-    mutationFn: importItemPrices,
-    onSuccess: (summary) => {
-      invalidatePrices()
-      toast.success(`Import finished: ${summary.created} created, ${summary.updated} updated.`)
-      if (summary.skipped.length > 0) {
-        toast.warning(`${summary.skipped.length} row(s) skipped — e.g. row ${summary.skipped[0].row}: ${summary.skipped[0].reason}`)
-      }
-    },
-    onError: (error) => toastApiError(error),
-  })
-
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) importMutation.mutate(file)
-    event.target.value = ''
   }
 
   const previewMutation = useMutation({
@@ -382,19 +334,9 @@ export function ItemPriceMatrixPage() {
     },
     {
       header: 'Standard Rate',
-      className: 'sticky left-[180px] z-10 bg-background text-right',
-      accessor: (row) => formatCurrency(Number(row.standard_rate)),
+      className: 'sticky left-[180px] z-10 bg-background',
+      accessor: (row) => (canUpdate ? <StandardRateCell item={row} onSaved={invalidateItems} /> : formatCurrency(Number(row.standard_rate))),
     },
-    ...zones.map((zone) => ({
-      header: zone.name,
-      id: `zone-${zone.id}`,
-      accessor: (row: Item) =>
-        canUpdate ? (
-          <PriceCell item={row} zone={zone} override={priceMap.get(`${row.id}:${zone.id}`)} onSaved={invalidatePrices} />
-        ) : (
-          (priceMap.get(`${row.id}:${zone.id}`)?.rate ?? '—')
-        ),
-    })),
     ...warehouses.map((warehouse, colIndex) => ({
       header: warehouse.code,
       id: `wh-${warehouse.id}`,
@@ -454,13 +396,11 @@ export function ItemPriceMatrixPage() {
 
       <PageHeader
         title="Item Prices"
-        description="Per-zone and per-warehouse sale price overrides — an empty cell falls back to the item's Standard Rate."
+        description="Standard Rate and per-warehouse sale price overrides — an empty warehouse cell falls back to the item's Standard Rate."
         actions={
           <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: invalidateAll, disabled: itemsQuery.isFetching },
-              { label: 'Export Zones', icon: Download, onClick: () => downloadItemPricesExport() },
-              { label: 'Import Zones', icon: Upload, disabled: !canImport || importMutation.isPending, onClick: () => fileInputRef.current?.click() },
               { label: 'Export', icon: Download, onClick: () => downloadItemWarehousePricesExport() },
               { label: 'Import', icon: Upload, disabled: !canImport || previewMutation.isPending, onClick: () => whFileInputRef.current?.click() },
             ]}
@@ -468,7 +408,6 @@ export function ItemPriceMatrixPage() {
         }
       />
 
-      <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileChange} />
       <input ref={whFileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleWhFileChange} />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -488,9 +427,6 @@ export function ItemPriceMatrixPage() {
         </Select>
       </div>
 
-      {zones.length === 0 && !zonesQuery.isLoading && (
-        <p className="text-sm text-muted-foreground">No price zones yet — create one under Maintenance &gt; Price Zones first.</p>
-      )}
       {warehouses.length === 0 && !warehousesQuery.isLoading && (
         <p className="text-sm text-muted-foreground">No warehouses yet — create one under Master &gt; Area first.</p>
       )}
@@ -500,7 +436,7 @@ export function ItemPriceMatrixPage() {
           columns={columns}
           data={items}
           rowKey={(row) => row.id}
-          isLoading={itemsQuery.isLoading || zonesQuery.isLoading || warehousesQuery.isLoading}
+          isLoading={itemsQuery.isLoading || warehousesQuery.isLoading}
           isError={itemsQuery.isError}
           onRetry={() => itemsQuery.refetch()}
           emptyMessage="No items yet."
@@ -521,7 +457,7 @@ export function ItemPriceMatrixPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Import Warehouse Prices</DialogTitle>
+            <DialogTitle>Import Item Prices</DialogTitle>
             <DialogDescription>Review the changes below before committing them.</DialogDescription>
           </DialogHeader>
 

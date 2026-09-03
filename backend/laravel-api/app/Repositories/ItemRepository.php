@@ -15,17 +15,12 @@ class ItemRepository extends BaseRepository
 
     public function paginate(
         int $perPage = 15,
-        ?string $priceZoneId = null,
         ?string $warehouseId = null,
         ?string $mainWarehouseId = null,
         ?string $search = null,
         ?string $itemGroupId = null,
     ): LengthAwarePaginator {
         $query = $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax']);
-
-        if ($priceZoneId !== null) {
-            $query->with(['itemPrices' => fn ($q) => $q->where('price_zone_id', $priceZoneId)]);
-        }
 
         if ($warehouseId !== null) {
             $warehouseIds = array_values(array_unique(array_filter([$warehouseId, $mainWarehouseId])));

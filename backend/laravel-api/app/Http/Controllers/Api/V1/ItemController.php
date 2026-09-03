@@ -19,12 +19,11 @@ class ItemController extends Controller
 
     public function __construct(protected ItemService $itemService) {}
 
-    /** `price_zone_id`/`warehouse_id`/`search`/`item_group_id` are all optional — callers that omit them get today's response unchanged. */
+    /** `warehouse_id`/`search`/`item_group_id` are all optional — callers that omit them get today's response unchanged. */
     public function index(Request $request): JsonResponse
     {
         return $this->success(ItemResource::collection($this->itemService->list(
             perPage: (int) ($request->query('per_page') ?? 15),
-            priceZoneId: $request->query('price_zone_id'),
             warehouseId: $request->query('warehouse_id'),
             search: $request->query('search'),
             itemGroupId: $request->query('item_group_id'),

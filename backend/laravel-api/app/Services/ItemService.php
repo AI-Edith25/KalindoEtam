@@ -20,7 +20,6 @@ class ItemService
 
     public function list(
         int $perPage = 15,
-        ?string $priceZoneId = null,
         ?string $warehouseId = null,
         ?string $search = null,
         ?string $itemGroupId = null,
@@ -29,7 +28,7 @@ class ItemService
             ? Warehouse::query()->where('warehouse_type', WarehouseType::MAIN)->value('id')
             : null;
 
-        $items = $this->itemRepository->paginate($perPage, $priceZoneId, $warehouseId, $mainWarehouseId, $search, $itemGroupId);
+        $items = $this->itemRepository->paginate($perPage, $warehouseId, $mainWarehouseId, $search, $itemGroupId);
         $this->itemPriceResolver->apply($items, $warehouseId, $mainWarehouseId);
 
         return $items;

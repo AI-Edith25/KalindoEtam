@@ -24,8 +24,8 @@ interface SalesOrderLineItemTableProps {
 /**
  * Same editable-grid pattern as PurchaseOrderLineItemTable — Add/Remove
  * row, Item lookup autofilling Unit Price from effective_rate (the
- * selected customer's Price Zone override, or standard_rate when there
- * isn't one — see fetchItemsLookup(priceZoneId) in SalesOrderEditorPage)
+ * order's Warehouse override, or standard_rate when there isn't one —
+ * see fetchItemsLookup(warehouseId) in SalesOrderEditorPage)
  * and Tax from the Item's own sales_tax_id, live per-row Amount/Tax. Tax
  * and rate both stay editable per line afterward — the Item default is
  * only a starting point. No stock check on qty: Sales Order may exceed

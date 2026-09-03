@@ -19,11 +19,9 @@ class ItemResource extends JsonResource
             'uom' => new UomResource($this->whenLoaded('uom')),
             'standard_rate' => $this->standard_rate,
             'sync_to_main_wh' => $this->sync_to_main_wh,
-            // Set by ItemPriceResolver when the request asked for a warehouse_id and/or
-            // price_zone_id (see ItemController::index); otherwise falls back to the old
-            // zone-only computation, and finally to standard_rate.
-            'effective_rate' => $this->effective_rate
-                ?? $this->whenLoaded('itemPrices', fn () => $this->itemPrices->first()->rate ?? $this->standard_rate, $this->standard_rate),
+            // Set by ItemPriceResolver when the request asked for a warehouse_id (see
+            // ItemController::index); otherwise falls back to standard_rate.
+            'effective_rate' => $this->effective_rate ?? $this->standard_rate,
             'current_stock' => $this->current_stock,
             'allow_over_receipt' => $this->allow_over_receipt,
             'qty_category' => $this->qty_category,

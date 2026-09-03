@@ -18,7 +18,7 @@ export interface ItemWarehousePriceImportSummary {
   errors: { row: number; reason: string }[]
 }
 
-/** Unpaginated — the item x warehouse override table is small, same as fetchItemPrices. */
+/** Unpaginated — the item x warehouse override table is small, bounded by items×warehouses. */
 export async function fetchItemWarehousePrices(): Promise<ItemWarehousePrice[]> {
   const { data } = await apiClient.get<ApiResponse<ItemWarehousePrice[]>>('/item-warehouse-prices')
   return data.data

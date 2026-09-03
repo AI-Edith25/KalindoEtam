@@ -18,8 +18,6 @@ class CustomerResource extends JsonResource
             'address' => $this->address,
             'credit_limit' => $this->credit_limit,
             'terms_of_payment_id' => $this->terms_of_payment_id,
-            'price_zone_id' => $this->price_zone_id,
-            'price_zone' => new PriceZoneResource($this->whenLoaded('priceZone')),
             'is_active' => $this->is_active,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

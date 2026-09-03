@@ -5,11 +5,13 @@ namespace App\Services;
 use App\Models\Item;
 
 /**
- * The one place the "warehouse -> zone -> standard rate" fallback chain is computed — used by
+ * The one place the "warehouse -> standard rate" fallback chain is computed — used by
  * ItemService::list() (which backs both the Item Prices matrix's read-only context and, more
  * importantly, Sales Order's item lookup once a warehouse is selected). Callers must eager-load
- * itemWarehousePrices (filtered to [$warehouseId, $mainWarehouseId]) and itemPrices (filtered to
- * the zone) before calling apply() — see ItemRepository::paginate().
+ * itemWarehousePrices (filtered to [$warehouseId, $mainWarehouseId]) before calling apply() —
+ * see ItemRepository::paginate(). (Price Zone, a third fallback layer between warehouse and
+ * standard rate, was removed 2026-09-03 — never used beyond a test zone, and Area/Warehouse
+ * already covered the same region concept.)
  */
 class ItemPriceResolver
 {
@@ -32,10 +34,6 @@ class ItemPriceResolver
             if ($override) {
                 return $override->rate;
             }
-        }
-
-        if ($item->relationLoaded('itemPrices') && $item->itemPrices->first()) {
-            return $item->itemPrices->first()->rate;
         }
 
         return $item->standard_rate;

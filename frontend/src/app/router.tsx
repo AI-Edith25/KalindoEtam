@@ -13,7 +13,6 @@ import { TermsOfPaymentListPage } from '@/features/master/pages/TermsOfPaymentLi
 import { WarehouseListPage } from '@/features/master/pages/WarehouseListPage'
 import { ItemGroupListPage } from '@/features/master/pages/ItemGroupListPage'
 import { UomListPage } from '@/features/master/pages/UomListPage'
-import { PriceZoneListPage } from '@/features/master/pages/PriceZoneListPage'
 import { ItemPriceMatrixPage } from '@/features/master/pages/ItemPriceMatrixPage'
 import { ChartOfAccountsPage } from '@/features/master/pages/ChartOfAccountsPage'
 import { TaxListPage } from '@/features/master/pages/TaxListPage'
@@ -150,7 +149,6 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         />
-        <Route path="/master/price-zones" element={<ProtectedRoute permission="master.price_zones.view"><PriceZoneListPage /></ProtectedRoute>} />
         <Route path="/master/item-prices" element={<ProtectedRoute permission="master.item_prices.view"><ItemPriceMatrixPage /></ProtectedRoute>} />
         <Route path="/master/taxes" element={<ProtectedRoute permission="master.taxes.view"><TaxListPage /></ProtectedRoute>} />
         <Route path="/master/miscellaneous" element={<ProtectedRoute permission="master.miscellaneous.view"><MiscellaneousItemListPage /></ProtectedRoute>} />

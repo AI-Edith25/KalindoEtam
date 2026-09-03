@@ -20,7 +20,6 @@ class Customer extends Model
         'address',
         'credit_limit',
         'terms_of_payment_id',
-        'price_zone_id',
         'is_active',
     ];
 
@@ -32,10 +31,5 @@ class Customer extends Model
     public function termsOfPayment(): BelongsTo
     {
         return $this->belongsTo(TermsOfPayment::class);
-    }
-
-    public function priceZone(): BelongsTo
-    {
-        return $this->belongsTo(PriceZone::class);
     }
 }

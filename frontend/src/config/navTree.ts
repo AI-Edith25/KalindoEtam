@@ -67,9 +67,6 @@ export const navTree: NavGroup[] = [
       { key: 'item_groups', label: 'Item Groups', path: '/master/item-groups', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'uoms', label: 'UOMs', path: '/master/uoms', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'taxes', label: 'Taxes', path: '/master/taxes', actions: ['view', 'create', 'update', 'delete'] },
-      // Separate from `warehouses` (Area) on purpose — that's gudang/warehouse, this is the
-      // sales-side "which region does this customer/delivery belong to for pricing" concept.
-      { key: 'price_zones', label: 'Price Zones', path: '/master/price-zones', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'item_prices', label: 'Item Prices', path: '/master/item-prices', actions: ['view', 'create', 'update', 'delete'] },
     ],
   },

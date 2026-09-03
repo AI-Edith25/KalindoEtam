@@ -62,15 +62,13 @@ export function SalesOrderEditorPage() {
     defaultValues: emptySalesOrderEditorValues,
   })
 
-  // Items are re-fetched whenever the selected customer's Price Zone or the order's Warehouse
-  // changes, so each item's effective_rate reflects the resolved warehouse/zone override (falls
-  // back to standard_rate with neither) — see ItemController::index, ItemPriceResolver, and
-  // SalesOrderLineItemTable's handleItemChange.
-  const selectedCustomerPriceZoneId = customers.data?.find((c) => c.id === form.watch('customer_id'))?.price_zone_id ?? undefined
+  // Items are re-fetched whenever the order's Warehouse changes, so each item's effective_rate
+  // reflects the resolved warehouse override (falls back to standard_rate with none selected)
+  // — see ItemController::index, ItemPriceResolver, and SalesOrderLineItemTable's handleItemChange.
   const selectedWarehouseId = form.watch('warehouse_id') || undefined
   const items = useQuery({
-    queryKey: ['items-lookup', selectedCustomerPriceZoneId, selectedWarehouseId],
-    queryFn: () => fetchItemsLookup(selectedCustomerPriceZoneId, selectedWarehouseId),
+    queryKey: ['items-lookup', selectedWarehouseId],
+    queryFn: () => fetchItemsLookup(selectedWarehouseId),
   })
 
   useEffect(() => {
