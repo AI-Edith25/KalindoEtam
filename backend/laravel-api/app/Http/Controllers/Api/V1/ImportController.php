@@ -78,6 +78,14 @@ class ImportController extends Controller
     {
         $this->authorizeModule($module);
 
+        // autoImport() re-parses the uploaded file from disk several times in one request
+        // (header detect, mapping, preview all call back into the file reader independently
+        // — same as the manual wizard, just condensed into a single request instead of one
+        // per wizard step) — for a large real master-data file (Customers: ~2,100 rows) that
+        // can exceed the default 30s max_execution_time even though no single step is slow
+        // on its own. Scoped to this one action only, not a global php.ini change.
+        set_time_limit(120);
+
         $result = $this->importBatchService->autoImport($module, $request->file('file'));
 
         if (! $result['ok']) {
