@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchBranches, fetchCustomersLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
@@ -29,23 +30,6 @@ import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues }
 import { INVOICE_TYPE_LABELS, INVOICE_TYPE_OPTIONS } from '../lib/invoiceTypeLabels'
 import { discountLabel } from '../lib/discount'
 import type { Delivery, Invoice, InvoiceFormValues, InvoiceType } from '../types'
-
-/** Digits-only value in RHF (string-then-convert), formatted with Indonesian thousand separators while editing. */
-function RupiahInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const display = value ? new Intl.NumberFormat('id-ID').format(Number(value)) : ''
-  return (
-    <div className="relative">
-      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
-      <Input
-        className="pl-9"
-        inputMode="numeric"
-        placeholder="0"
-        value={display}
-        onChange={(event) => onChange(event.target.value.replace(/\D/g, ''))}
-      />
-    </div>
-  )
-}
 
 const NO_TAX = '__none__'
 const NO_TOP = '__none__'

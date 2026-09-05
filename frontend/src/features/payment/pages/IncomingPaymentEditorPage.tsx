@@ -8,6 +8,7 @@ import { Loader2, Save, Send } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -256,7 +257,7 @@ export function IncomingPaymentEditorPage() {
                   <FormItem>
                     <FormLabel>Amount Received</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="0" disabled={allocations.size > 0} {...field} />
+                      <RupiahInput value={field.value} onChange={field.onChange} disabled={allocations.size > 0} />
                     </FormControl>
                     <FormDescription>
                       {allocations.size > 0
