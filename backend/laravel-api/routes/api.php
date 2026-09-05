@@ -165,7 +165,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // `permission:` middleware only takes a static string, so per-module authorization
     // happens inside ImportController itself (checks master.{module}.import against the
     // resolved module).
-    Route::prefix('import/{module}')->where(['module' => 'items|item-groups|uoms|terms-of-payments|warehouses|suppliers|customers|item-standard-rates'])->group(function () {
+    Route::prefix('import/{module}')->where(['module' => 'items|item-groups|uoms|terms-of-payments|warehouses|suppliers|customers|item-standard-rates|sales-persons|miscellaneous'])->group(function () {
         Route::get('fields', [ImportController::class, 'fields']);
         Route::get('template', [ImportController::class, 'template']);
         Route::post('batches', [ImportController::class, 'store']);

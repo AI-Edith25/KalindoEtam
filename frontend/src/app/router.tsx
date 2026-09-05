@@ -153,6 +153,14 @@ export function AppRouter() {
           }
         />
         <Route path="/master/sales-persons" element={<ProtectedRoute permission="master.sales_persons.view"><SalesPersonListPage /></ProtectedRoute>} />
+        <Route
+          path="/master/sales-persons/quick-import"
+          element={
+            <ProtectedRoute permission="master.sales_persons.import">
+              <AutoImportPage module="sales-persons" label="Sales Persons" listPath="/master/sales-persons" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/sales-targets" element={<ProtectedRoute permission="master.sales_targets.view"><SalesTargetListPage /></ProtectedRoute>} />
         <Route path="/master/terms-of-payment" element={<ProtectedRoute permission="master.terms_of_payment.view"><TermsOfPaymentListPage /></ProtectedRoute>} />
         <Route
@@ -217,6 +225,14 @@ export function AppRouter() {
         />
         <Route path="/master/taxes" element={<ProtectedRoute permission="master.taxes.view"><TaxListPage /></ProtectedRoute>} />
         <Route path="/master/miscellaneous" element={<ProtectedRoute permission="master.miscellaneous.view"><MiscellaneousItemListPage /></ProtectedRoute>} />
+        <Route
+          path="/master/miscellaneous/quick-import"
+          element={
+            <ProtectedRoute permission="master.miscellaneous.import">
+              <AutoImportPage module="miscellaneous" label="Miscellaneous" listPath="/master/miscellaneous" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/chart-of-accounts" element={<Navigate to="/finance/chart-of-accounts" replace />} />
         <Route path="/purchase/orders" element={<ProtectedRoute permission="purchase.orders.view"><PurchaseOrderListPage /></ProtectedRoute>} />
         <Route path="/purchase/orders/new" element={<ProtectedRoute permission="purchase.orders.view"><PurchaseOrderEditorPage /></ProtectedRoute>} />

@@ -7,6 +7,8 @@ use App\Services\Import\Templates\CustomerImportTemplate;
 use App\Services\Import\Templates\ItemGroupImportTemplate;
 use App\Services\Import\Templates\ItemImportTemplate;
 use App\Services\Import\Templates\ItemStandardRateImportTemplate;
+use App\Services\Import\Templates\MiscellaneousItemImportTemplate;
+use App\Services\Import\Templates\SalesPersonImportTemplate;
 use App\Services\Import\Templates\SupplierImportTemplate;
 use App\Services\Import\Templates\TermsOfPaymentImportTemplate;
 use App\Services\Import\Templates\UomImportTemplate;
@@ -26,6 +28,8 @@ final class ImportTemplateRegistry
         'suppliers' => SupplierImportTemplate::class,
         'customers' => CustomerImportTemplate::class,
         'item-standard-rates' => ItemStandardRateImportTemplate::class,
+        'sales-persons' => SalesPersonImportTemplate::class,
+        'miscellaneous' => MiscellaneousItemImportTemplate::class,
     ];
 
     public function resolve(string $key): ImportTemplate
