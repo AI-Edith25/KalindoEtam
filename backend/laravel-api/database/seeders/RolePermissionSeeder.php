@@ -32,13 +32,23 @@ class RolePermissionSeeder extends Seeder
         'master.uoms' => ['view', 'create', 'update', 'delete', 'import'],
         'master.currencies' => ['view', 'create', 'update', 'delete'],
         'master.taxes' => ['view', 'create', 'update', 'delete'],
-        'master.customers' => ['view', 'create', 'update', 'delete'],
-        'master.suppliers' => ['view', 'create', 'update', 'delete'],
+        'master.customers' => ['view', 'create', 'update', 'delete', 'import'],
+        'master.suppliers' => ['view', 'create', 'update', 'delete', 'import'],
         'master.sales_persons' => ['view', 'create', 'update', 'delete'],
         'master.sales_targets' => ['view', 'create', 'update', 'delete'],
         'master.terms_of_payment' => ['view', 'create', 'update', 'delete'],
-        'master.warehouses' => ['view', 'create', 'update', 'delete'],
+        'master.warehouses' => ['view', 'create', 'update', 'delete', 'import'],
         'master.item_prices' => ['view', 'create', 'update', 'delete', 'import'],
+        // Neither a CRUD page of its own — Terms of Payment's import permission is named
+        // after its import-route module slug ("terms-of-payments", plural), which doesn't
+        // match "master.terms_of_payment" (singular) used by this page's own view/create/
+        // update/delete above — a pre-existing singular/plural inconsistency in this app
+        // (the CRUD route itself is also plural: Route::apiResource('terms-of-payments', ...)).
+        // Item Standard Rates has no CRUD page at all — it's the Item Prices page's second
+        // import action (updates items.standard_rate from a legacy price file, see
+        // ItemStandardRateImportTemplate).
+        'master.terms_of_payments' => ['import'],
+        'master.item_standard_rates' => ['import'],
         'master.chart_of_accounts' => ['view', 'create', 'update', 'delete'],
         'master.miscellaneous' => ['view', 'create', 'update', 'delete'],
         'inventory.stock_balance' => ['view'],
