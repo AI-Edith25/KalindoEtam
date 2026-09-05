@@ -3,9 +3,11 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { RupiahInput } from '@/components/shared/RupiahInput'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import type { JournalEntryEditorValues } from '../lib/journalEntryFormSchema'
 
@@ -19,14 +21,15 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
   const { control } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const accounts = useChartOfAccountsLookup()
+  const accountOptions = accounts.data?.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` })) ?? []
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-md border">
+      <LineItemTableScroll>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Chart of Account</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background">Chart of Account</TableHead>
               <TableHead className="w-36">Debit</TableHead>
               <TableHead className="w-36">Credit</TableHead>
               <TableHead>Description</TableHead>
@@ -43,24 +46,20 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
             ) : (
               fields.map((field, index) => (
                 <TableRow key={field.id}>
-                  <TableCell>
+                  <TableCell className="sticky left-0 z-10 bg-background">
                     <FormField
                       control={control}
                       name={`lines.${index}.chart_of_account_id`}
                       render={({ field: accountField }) => (
                         <FormItem className="gap-0">
-                          <Select value={accountField.value} onValueChange={accountField.onChange} disabled={disabled}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={accounts.isLoading ? 'Loading…' : 'Select account'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {accounts.data?.map((account) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  {account.code} — {account.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchableSelect
+                            options={accountOptions}
+                            value={accountField.value}
+                            onChange={(value) => accountField.onChange(value ?? '')}
+                            loading={accounts.isLoading}
+                            disabled={disabled}
+                            placeholder="Select account"
+                          />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -72,7 +71,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
                       name={`lines.${index}.debit`}
                       render={({ field: debitField }) => (
                         <FormItem className="gap-0">
-                          <Input type="number" min={0} step="0.01" placeholder="0" disabled={disabled} {...debitField} />
+                          <RupiahInput value={debitField.value} onChange={debitField.onChange} disabled={disabled} />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -84,7 +83,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
                       name={`lines.${index}.credit`}
                       render={({ field: creditField }) => (
                         <FormItem className="gap-0">
-                          <Input type="number" min={0} step="0.01" placeholder="0" disabled={disabled} {...creditField} />
+                          <RupiahInput value={creditField.value} onChange={creditField.onChange} disabled={disabled} />
                         </FormItem>
                       )}
                     />
@@ -118,7 +117,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
             )}
           </TableBody>
         </Table>
-      </div>
+      </LineItemTableScroll>
 
       <Button
         type="button"

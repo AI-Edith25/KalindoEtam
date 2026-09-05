@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { formatQty, parseLocaleQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { GoodsReceiptEditorValues } from '../lib/goodsReceiptFormSchema'
 import type { PurchaseOrderItem } from '../types'
@@ -60,11 +61,11 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-md border">
+      <LineItemTableScroll>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
               <TableHead className="text-right">Ordered Qty</TableHead>
               <TableHead className="text-right">Already Received</TableHead>
               <TableHead className="text-right">Remaining</TableHead>
@@ -94,7 +95,7 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
 
                 return (
                   <TableRow key={field.id}>
-                    <TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-background">
                       <FormField
                         control={control}
                         name={`items.${index}.purchase_order_item_id`}
@@ -166,7 +167,7 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
             )}
           </TableBody>
         </Table>
-      </div>
+      </LineItemTableScroll>
 
       <Button
         type="button"

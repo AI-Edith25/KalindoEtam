@@ -8,6 +8,8 @@ import { Loader2, Plus, Save, Send, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -298,7 +300,7 @@ export function DebitNoteEditorPage() {
                   <FormItem>
                     <FormLabel>Additional Tax</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" placeholder="0" {...field} />
+                      <RupiahInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -326,11 +328,11 @@ export function DebitNoteEditorPage() {
                 <CardTitle>Line Adjustments</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto rounded-md border">
+                <LineItemTableScroll>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Item</TableHead>
+                        <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
                         <TableHead className="text-right">Original Qty</TableHead>
                         <TableHead className="text-right">Original Amount</TableHead>
                         <TableHead className="w-32">Qty Adjusted</TableHead>
@@ -343,7 +345,7 @@ export function DebitNoteEditorPage() {
 
                         return (
                           <TableRow key={line.id}>
-                            <TableCell>
+                            <TableCell className="sticky left-0 z-10 bg-background">
                               <div className="flex flex-col">
                                 <span className="font-medium">{line.item_name}</span>
                                 <span className="text-xs text-muted-foreground">{line.item_code}</span>
@@ -362,21 +364,14 @@ export function DebitNoteEditorPage() {
                               />
                             </TableCell>
                             <TableCell>
-                              <Input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                placeholder="0"
-                                value={existing?.amount ?? ''}
-                                onChange={(event) => setItemLine(line.id, { amount: event.target.value })}
-                              />
+                              <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setItemLine(line.id, { amount: value })} />
                             </TableCell>
                           </TableRow>
                         )
                       })}
                     </TableBody>
                   </Table>
-                </div>
+                </LineItemTableScroll>
               </CardContent>
             </Card>
           )}
@@ -391,11 +386,11 @@ export function DebitNoteEditorPage() {
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto rounded-md border">
+                <LineItemTableScroll>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Description</TableHead>
+                        <TableHead className="sticky left-0 z-10 bg-background">Description</TableHead>
                         <TableHead className="w-40">Amount</TableHead>
                         <TableHead className="w-12" />
                       </TableRow>
@@ -410,7 +405,7 @@ export function DebitNoteEditorPage() {
                       )}
                       {freeLines.map((line) => (
                         <TableRow key={line.key}>
-                          <TableCell>
+                          <TableCell className="sticky left-0 z-10 bg-background">
                             <Input
                               placeholder="e.g. Expedited handling fee"
                               value={line.description}
@@ -418,14 +413,7 @@ export function DebitNoteEditorPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              placeholder="0"
-                              value={line.amount}
-                              onChange={(event) => setFreeLine(line.key, { amount: event.target.value })}
-                            />
+                            <RupiahInput value={line.amount} onChange={(value) => setFreeLine(line.key, { amount: value })} />
                           </TableCell>
                           <TableCell>
                             <Button type="button" variant="ghost" size="icon" onClick={() => removeFreeLine(line.key)}>
@@ -436,7 +424,7 @@ export function DebitNoteEditorPage() {
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </LineItemTableScroll>
               </CardContent>
             </Card>
           )}

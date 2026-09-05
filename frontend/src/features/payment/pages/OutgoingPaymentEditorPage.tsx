@@ -12,6 +12,7 @@ import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -49,6 +50,7 @@ export function OutgoingPaymentEditorPage() {
   })
 
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
+  const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code} — ${supplier.supplier_name}` })) ?? []
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
   const expenseAccountOptions = chartOfAccounts.data?.filter((account) => account.account_type === 'expense') ?? []
   const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank) ?? []
@@ -268,30 +270,20 @@ export function OutgoingPaymentEditorPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Supplier</FormLabel>
-                      <Select
+                      <SearchableSelect
+                        options={supplierOptions}
                         value={field.value}
-                        onValueChange={(next) => {
-                          field.onChange(next)
+                        onChange={(next) => {
+                          field.onChange(next ?? '')
                           // A supplier switch invalidates any payable selection made for the
                           // previous one. Scoped to this handler (not a supplierId-watching
                           // effect) so it never fires from form.reset() restoring an existing
                           // draft's supplier_id/amount on edit-mode load.
                           commitAllocations(new Map())
                         }}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'Select supplier'} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {suppliers.data?.map((supplier) => (
-                            <SelectItem key={supplier.id} value={supplier.id}>
-                              {supplier.supplier_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        loading={suppliers.isLoading}
+                        placeholder="Select supplier"
+                      />
                       <FormMessage />
                     </FormItem>
                   )}

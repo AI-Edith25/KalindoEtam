@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { RupiahInput } from '@/components/shared/RupiahInput'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
 import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import type { SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
@@ -35,6 +38,7 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
+  const itemOptions = items.map((item) => ({ value: item.id, label: `${item.item_code} — ${item.item_name}` }))
 
   const handleItemChange = (index: number, itemId: string) => {
     setValue(`items.${index}.item_id`, itemId, { shouldValidate: true })
@@ -48,11 +52,11 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-md border">
+      <LineItemTableScroll>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
               <TableHead className="w-28">Qty</TableHead>
               <TableHead className="w-36">Unit Price</TableHead>
               <TableHead className="w-44">Tax</TableHead>
@@ -71,24 +75,20 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
             ) : (
               fields.map((field, index) => (
                 <TableRow key={field.id}>
-                  <TableCell>
+                  <TableCell className="sticky left-0 z-10 bg-background">
                     <FormField
                       control={control}
                       name={`items.${index}.item_id`}
                       render={({ field: itemField }) => (
                         <FormItem className="gap-0">
-                          <Select value={itemField.value} onValueChange={(value) => handleItemChange(index, value)} disabled={disabled}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={itemsLoading ? 'Loading…' : 'Select item'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {items.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                  {item.item_code} — {item.item_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchableSelect
+                            options={itemOptions}
+                            value={itemField.value}
+                            onChange={(value) => handleItemChange(index, value ?? '')}
+                            loading={itemsLoading}
+                            disabled={disabled}
+                            placeholder="Select item"
+                          />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -112,7 +112,7 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
                       name={`items.${index}.rate`}
                       render={({ field: rateField }) => (
                         <FormItem className="gap-0">
-                          <Input type="number" min={0} step="0.01" disabled={disabled} {...rateField} />
+                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={disabled} />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -175,7 +175,7 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
             )}
           </TableBody>
         </Table>
-      </div>
+      </LineItemTableScroll>
 
       <Button
         type="button"

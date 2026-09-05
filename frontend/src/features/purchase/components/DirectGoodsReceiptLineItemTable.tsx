@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { formatCurrency } from '@/lib/utils'
 import { lineAmount } from '@/shared/lib/documentTotals'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
@@ -44,11 +46,11 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-md border">
+      <LineItemTableScroll>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
               <TableHead className="w-28">Qty</TableHead>
               <TableHead className="w-36">Rate</TableHead>
               <TableHead className="w-36 text-right">Amount</TableHead>
@@ -71,7 +73,7 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
 
                 return (
                 <TableRow key={field.id}>
-                  <TableCell>
+                  <TableCell className="sticky left-0 z-10 bg-background">
                     <FormField
                       control={control}
                       name={`items.${index}.item_id`}
@@ -121,7 +123,7 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
                       name={`items.${index}.rate`}
                       render={({ field: rateField }) => (
                         <FormItem className="gap-0">
-                          <Input type="number" min={0} step="0.01" disabled={disabled} {...rateField} />
+                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={disabled} />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -149,7 +151,7 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
             )}
           </TableBody>
         </Table>
-      </div>
+      </LineItemTableScroll>
 
       <Button
         type="button"

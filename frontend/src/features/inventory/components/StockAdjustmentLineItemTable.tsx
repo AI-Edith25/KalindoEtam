@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { cn } from '@/lib/utils'
 import { formatQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { StockAdjustmentEditorValues } from '../lib/stockAdjustmentFormSchema'
@@ -46,11 +47,11 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-md border">
+      <LineItemTableScroll>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
               <TableHead className="text-right">System Qty</TableHead>
               <TableHead className="w-32 text-right">Physical Qty</TableHead>
               <TableHead className="text-right">Difference</TableHead>
@@ -75,7 +76,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
 
                 return (
                   <TableRow key={field.id}>
-                    <TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-background">
                       <FormField
                         control={control}
                         name={`items.${index}.item_id`}
@@ -158,7 +159,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
             )}
           </TableBody>
         </Table>
-      </div>
+      </LineItemTableScroll>
 
       <Button
         type="button"

@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -51,6 +52,7 @@ export function SalesOrderEditorPage() {
   })
 
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
+  const customerOptions = customers.data?.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}` })) ?? []
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
@@ -248,20 +250,13 @@ export function SalesOrderEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Customer</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={customers.isLoading ? 'Loading…' : 'Select customer'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {customers.data?.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.customer_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={customerOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={customers.isLoading}
+                      placeholder="Select customer"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

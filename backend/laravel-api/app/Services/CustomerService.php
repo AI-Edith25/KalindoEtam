@@ -14,7 +14,14 @@ class CustomerService
         protected AuditLogService $auditLogService,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    /**
+     * Default raised from the app-wide 15 — same reasoning as
+     * ChartOfAccountService::list(): this feeds dropdown lookups
+     * (fetchCustomersLookup() in lookupApi.ts) that only ever read page 1,
+     * so a customer past position 15 would otherwise silently disappear
+     * from every Customer picker.
+     */
+    public function list(int $perPage = 200): LengthAwarePaginator
     {
         return $this->customerRepository->paginate($perPage);
     }

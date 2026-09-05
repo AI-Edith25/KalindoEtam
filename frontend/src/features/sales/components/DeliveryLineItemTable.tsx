@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { cn, formatNumber } from '@/lib/utils'
 import type { DeliveryEditorValues } from '../lib/deliveryFormSchema'
 
@@ -36,11 +37,11 @@ export function DeliveryLineItemTable({ form, disabled }: DeliveryLineItemTableP
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <LineItemTableScroll>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Item</TableHead>
+            <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
             <TableHead className="text-right">Ordered Qty</TableHead>
             <TableHead className="text-right">Already Delivered</TableHead>
             <TableHead className="text-right">Remaining</TableHead>
@@ -56,7 +57,7 @@ export function DeliveryLineItemTable({ form, disabled }: DeliveryLineItemTableP
 
             return (
               <TableRow key={field.id}>
-                <TableCell>
+                <TableCell className="sticky left-0 z-10 bg-background">
                   <div className="font-medium">{field.item_code}</div>
                   <div className="text-xs text-muted-foreground">{field.item_name}</div>
                 </TableCell>
@@ -90,6 +91,6 @@ export function DeliveryLineItemTable({ form, disabled }: DeliveryLineItemTableP
           })}
         </TableBody>
       </Table>
-    </div>
+    </LineItemTableScroll>
   )
 }

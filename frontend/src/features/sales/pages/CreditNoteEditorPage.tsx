@@ -8,6 +8,8 @@ import { Loader2, Save, Send } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -306,7 +308,7 @@ export function CreditNoteEditorPage() {
                   <FormItem>
                     <FormLabel>Discount Reversed</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" placeholder="0" {...field} />
+                      <RupiahInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -319,7 +321,7 @@ export function CreditNoteEditorPage() {
                   <FormItem>
                     <FormLabel>Tax Reversed</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" placeholder="0" {...field} />
+                      <RupiahInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -346,11 +348,11 @@ export function CreditNoteEditorPage() {
               <CardTitle>Line Selection</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto rounded-md border">
+              <LineItemTableScroll>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Item</TableHead>
+                      <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
                       <TableHead className="text-right">Remaining Qty</TableHead>
                       <TableHead className="text-right">Remaining Amount</TableHead>
                       <TableHead className="w-32">Qty Credited</TableHead>
@@ -362,14 +364,12 @@ export function CreditNoteEditorPage() {
                     {invoiceItems.map((line) => {
                       const existing = lines[line.id]
                       const ownQty = existing ? Number(existing.qtyCredited) : 0
-                      const ownAmount = existing ? Number(existing.amount) : 0
                       const capQty = Number(line.creditable_qty) + ownQty
-                      const capAmount = Number(line.creditable_amount) + ownAmount
                       const quantityAllowed = reasonAllowsQuantity((reason || 'partial_credit') as CreditNoteReason)
 
                       return (
                         <TableRow key={line.id}>
-                          <TableCell>
+                          <TableCell className="sticky left-0 z-10 bg-background">
                             <div className="flex flex-col">
                               <span className="font-medium">{line.item_name}</span>
                               <span className="text-xs text-muted-foreground">{line.item_code}</span>
@@ -390,15 +390,7 @@ export function CreditNoteEditorPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={capAmount}
-                              step="0.01"
-                              placeholder="0"
-                              value={existing?.amount ?? ''}
-                              onChange={(event) => setLine(line.id, { amount: event.target.value })}
-                            />
+                            <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setLine(line.id, { amount: value })} />
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -415,7 +407,7 @@ export function CreditNoteEditorPage() {
                     })}
                   </TableBody>
                 </Table>
-              </div>
+              </LineItemTableScroll>
             </CardContent>
           </Card>
 

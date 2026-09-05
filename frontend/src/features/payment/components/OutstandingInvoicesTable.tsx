@@ -1,7 +1,7 @@
 import { Loader2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -93,16 +93,12 @@ export function OutstandingInvoicesTable({
                   </TableCell>
                   <TableCell className="text-right">
                     {checked ? (
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        max={outstanding}
-                        value={amount}
+                      <RupiahInput
+                        value={String(amount)}
                         className="ml-auto w-32 text-right"
                         aria-label={`To allocate for ${ar.invoice?.document_number ?? ar.reference_number}`}
-                        onChange={(e) => {
-                          const raw = e.target.value === '' ? 0 : Number(e.target.value)
+                        onChange={(v) => {
+                          const raw = v === '' ? 0 : Number(v)
                           // ponytail: hard-clamp on every keystroke instead of a separate over-limit
                           // error state, mirrors backend assertWithinOutstanding so the invariant can
                           // never be violated even mid-edit. Soften to type-freely+clamp-on-blur only

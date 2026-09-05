@@ -13,7 +13,7 @@ export const fetchSalesPersonsLookup = () => fetchLookupList<SalesPerson>('/sale
  * warehouse's override — see ItemController::index. Omit it and behavior is identical to before.
  */
 export const fetchItemsLookup = (warehouseId?: string) =>
-  fetchLookupList<Item>('/items', warehouseId ? { warehouse_id: warehouseId } : undefined)
+  fetchLookupList<Item>('/items', { per_page: '200', ...(warehouseId ? { warehouse_id: warehouseId } : {}) })
 export const fetchSuppliersLookup = () => fetchLookupList<Supplier>('/suppliers')
 export const fetchWarehousesLookup = () => fetchLookupList<Warehouse>('/warehouses')
 export const fetchCustomersLookup = () => fetchLookupList<Customer>('/customers')

@@ -9,9 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -44,6 +44,7 @@ export function PurchaseOrderEditorPage() {
   })
 
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
+  const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code} — ${supplier.supplier_name}` })) ?? []
   const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
 
@@ -166,20 +167,13 @@ export function PurchaseOrderEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Supplier</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'Select supplier'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {suppliers.data?.map((supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.supplier_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={supplierOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={suppliers.isLoading}
+                      placeholder="Select supplier"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

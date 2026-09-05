@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
@@ -808,11 +809,11 @@ function InvoiceForm({
             </CardHeader>
             <CardContent>
               {!isEdit && isTransportation ? (
-                <div className="overflow-x-auto rounded-md border">
+                <LineItemTableScroll>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Description</TableHead>
+                        <TableHead className="sticky left-0 z-10 bg-background">Description</TableHead>
                         <TableHead className="w-32 text-right">Qty</TableHead>
                         <TableHead className="w-40 text-right">Rate</TableHead>
                         <TableHead className="w-40 text-right">Amount</TableHead>
@@ -829,7 +830,7 @@ function InvoiceForm({
                       )}
                       {transportLines.map((line) => (
                         <TableRow key={line.key}>
-                          <TableCell>
+                          <TableCell className="sticky left-0 z-10 bg-background">
                             <Input
                               placeholder="e.g. Ongkos Angkut Semen 50kg"
                               value={line.description}
@@ -847,14 +848,7 @@ function InvoiceForm({
                             />
                           </TableCell>
                           <TableCell>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              className="text-right"
-                              value={line.rate}
-                              onChange={(event) => setTransportLine(line.key, { rate: event.target.value })}
-                            />
+                            <RupiahInput value={line.rate} onChange={(value) => setTransportLine(line.key, { rate: value })} />
                           </TableCell>
                           <TableCell className="text-right">{formatCurrency(lineAmount(line))}</TableCell>
                           <TableCell>
@@ -866,7 +860,7 @@ function InvoiceForm({
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </LineItemTableScroll>
               ) : (
                 <>
                   <DataTable

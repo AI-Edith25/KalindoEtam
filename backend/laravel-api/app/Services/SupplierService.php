@@ -14,7 +14,14 @@ class SupplierService
         protected AuditLogService $auditLogService,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    /**
+     * Default raised from the app-wide 15 — same reasoning as
+     * ChartOfAccountService::list(): this feeds dropdown lookups
+     * (fetchSuppliersLookup() in lookupApi.ts) that only ever read page 1,
+     * so a supplier past position 15 would otherwise silently disappear
+     * from every Supplier picker.
+     */
+    public function list(int $perPage = 200): LengthAwarePaginator
     {
         return $this->supplierRepository->paginate($perPage);
     }

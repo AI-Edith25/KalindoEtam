@@ -9,6 +9,7 @@ import { Loader2, Save, Send } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
@@ -354,7 +355,7 @@ function PurchaseInvoiceForm({
                   <FormItem>
                     <FormLabel>Tax Amount</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" step="0.01" placeholder="0" {...field} />
+                      <RupiahInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

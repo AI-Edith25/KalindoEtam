@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { formatQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { StockTransferEditorValues } from '../lib/stockTransferFormSchema'
 import type { Item } from '@/features/master/types'
@@ -42,11 +43,11 @@ export function StockTransferLineItemTable({ form, items, itemsLoading, disabled
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-md border">
+      <LineItemTableScroll>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
               <TableHead className="text-right">Available Qty</TableHead>
               <TableHead className="w-32 text-right">Qty to Transfer</TableHead>
               <TableHead className="w-10" />
@@ -67,7 +68,7 @@ export function StockTransferLineItemTable({ form, items, itemsLoading, disabled
 
                 return (
                   <TableRow key={field.id}>
-                    <TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-background">
                       <FormField
                         control={control}
                         name={`items.${index}.item_id`}
@@ -128,7 +129,7 @@ export function StockTransferLineItemTable({ form, items, itemsLoading, disabled
             )}
           </TableBody>
         </Table>
-      </div>
+      </LineItemTableScroll>
 
       <Button
         type="button"
