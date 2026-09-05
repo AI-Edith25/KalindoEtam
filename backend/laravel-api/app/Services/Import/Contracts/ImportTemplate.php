@@ -33,4 +33,16 @@ interface ImportTemplate
      * @return array<string, mixed>
      */
     public function validationRules(array $row, array $context): array;
+
+    /**
+     * Runs on one raw (header-keyed) row before field-mapping is applied — lets a
+     * template synthesize a derived column (e.g. joining Address1-4 into one
+     * address string) that a batch's mapping can then point a field at, since
+     * mapping itself is strictly one real file header -> one field. Most
+     * templates have nothing to derive and just return $row unchanged.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    public function transformRow(array $row): array;
 }

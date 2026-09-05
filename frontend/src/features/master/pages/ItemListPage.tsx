@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -8,16 +10,19 @@ import { RowActionsMenu } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { SectionNav } from '@/components/shared/SectionNav'
+import { Button } from '@/components/ui/button'
 import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { formatQty } from '@/shared/lib/qty'
 import { deleteItem, fetchItems } from '../api/itemApi'
+import { fetchItemWarehousePrices } from '../api/itemWarehousePriceApi'
+import { fetchWarehousesLookup } from '../api/lookupsApi'
 import { ItemFormDrawer } from '../components/ItemFormDrawer'
 import { ItemDetailDrawer } from '../components/ItemDetailDrawer'
 import { ItemFiltersBar } from '../components/ItemFiltersBar'
 import { applyItemFilters, emptyItemFilters, type ItemFilterValues } from '../lib/itemFilters'
-import type { Item } from '../types'
+import type { Item, ItemWarehousePrice } from '../types'
 
 const SORTERS: Record<string, (item: Item) => string | number> = {
   item_code: (i) => i.item_code,
@@ -42,6 +47,36 @@ export function ItemListPage() {
     deletedMessage: 'Item deleted.',
   })
 
+  // Same unpaginated whole-table fetch ItemPriceMatrixPage uses — one extra request per
+  // page load, not per row, to compute "does this item's price vary by warehouse".
+  const warehousePricesQuery = useQuery({ queryKey: ['item-warehouse-prices'], queryFn: fetchItemWarehousePrices })
+  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const mainWarehouse = warehousesQuery.data?.find((w) => w.warehouse_type === 'main')
+
+  const overridesByItem = useMemo(() => {
+    const map = new Map<string, ItemWarehousePrice[]>()
+    for (const price of warehousePricesQuery.data ?? []) {
+      const existing = map.get(price.item_id)
+      if (existing) existing.push(price)
+      else map.set(price.item_id, [price])
+    }
+    return map
+  }, [warehousePricesQuery.data])
+
+  /** Mirrors ItemPriceMatrixPage's resolvedValue logic — a synced item's price is whatever the Main warehouse resolves to, not its own (inert) overrides. */
+  const priceVaries = (item: Item): boolean => {
+    const standardRate = Number(item.standard_rate)
+
+    if (item.sync_to_main_wh) {
+      if (!mainWarehouse) return false
+      const mainOverride = overridesByItem.get(item.id)?.find((o) => o.warehouse_id === mainWarehouse.id)
+      const resolved = mainOverride ? Number(mainOverride.rate) : standardRate
+      return resolved !== standardRate
+    }
+
+    return (overridesByItem.get(item.id) ?? []).some((o) => Number(o.rate) !== standardRate)
+  }
+
   const columns: DataTableColumn<Item>[] = [
     { header: 'Code', accessor: (row) => row.item_code, sortKey: 'item_code' },
     { header: 'Name', accessor: (row) => row.item_name, sortKey: 'item_name' },
@@ -50,7 +85,22 @@ export function ItemListPage() {
     { header: 'Qty Category', accessor: (row) => (row.qty_category === 'weight' ? 'Weight' : 'Unit') },
     {
       header: 'Standard Rate',
-      accessor: (row) => formatCurrency(row.standard_rate),
+      accessor: (row) =>
+        priceVaries(row) ? (
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto p-0"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/master/item-prices?item_code=${encodeURIComponent(row.item_code)}`)
+            }}
+          >
+            Price Vary
+          </Button>
+        ) : (
+          formatCurrency(row.standard_rate)
+        ),
       className: 'text-right',
       sortKey: 'standard_rate',
     },
@@ -88,7 +138,7 @@ export function ItemListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/items/import') },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/items/quick-import') },
             ]}
             primary={canCreate ? { label: 'New Item', icon: Plus, onClick: list.openCreate } : undefined}
           />

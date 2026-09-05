@@ -2,9 +2,12 @@
 
 namespace Tests\Feature\Import;
 
+use App\Enums\TaxTransactionType;
+use App\Enums\TaxType;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Permission;
+use App\Models\Tax;
 use App\Models\UnitOfMeasurement;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -180,6 +183,42 @@ class ItemImportTest extends TestCase
         $group = ItemGroup::query()->where('name', 'Grosir')->first();
         $this->assertNotNull($group);
         $this->assertSame($group->id, Item::query()->where('item_code', 'ITM-003')->first()->item_group_id);
+    }
+
+    public function test_purchase_tax_code_resolves_by_code_and_unmatched_sales_tax_only_warns(): void
+    {
+        Tax::query()->create(['code' => 'PPN11', 'name' => 'PPN 11%', 'type' => TaxType::VAT, 'transaction_type' => TaxTransactionType::PURCHASE, 'rate' => 11, 'is_active' => true]);
+
+        $csv = "Kode Barang,Nama Barang,Kategori,Satuan,Harga,Pajak Beli,Pajak Jual\n"
+            ."ITM-004,Pipa PVC,General,Pcs,15000,PPN11,DOES-NOT-EXIST\n";
+
+        $upload = $this->post('/api/v1/import/items/batches', ['file' => $this->csvFile('items.csv', $csv)]);
+        $batchId = $upload->json('data.batch.id');
+
+        $this->patchJson("/api/v1/import/batches/{$batchId}/mapping", [
+            'mapping' => [
+                'Kode Barang' => 'item_code',
+                'Nama Barang' => 'item_name',
+                'Kategori' => 'item_group_id',
+                'Satuan' => 'uom_id',
+                'Harga' => 'standard_rate',
+                'Pajak Beli' => 'purchase_tax_id',
+                'Pajak Jual' => 'sales_tax_id',
+            ],
+        ])->assertOk();
+
+        $preview = $this->postJson("/api/v1/import/batches/{$batchId}/preview");
+        $this->assertSame(['total' => 1, 'valid' => 0, 'warning' => 1, 'error' => 0], $preview->json('data.summary'));
+
+        $this->postJson("/api/v1/import/batches/{$batchId}/commit", [
+            'write_mode' => 'upsert',
+            'commit_mode' => 'skip_invalid',
+        ])->assertOk();
+
+        $item = Item::query()->where('item_code', 'ITM-004')->first();
+        $this->assertNotNull($item);
+        $this->assertSame('PPN11', $item->purchaseTax->code);
+        $this->assertNull($item->sales_tax_id);
     }
 
     public function test_forbidden_without_import_permission(): void

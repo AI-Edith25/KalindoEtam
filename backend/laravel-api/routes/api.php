@@ -161,13 +161,15 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
 
     $withPagePermissions(Route::apiResource('items', ItemController::class), 'master.items');
     Route::post('items/bulk-sync-to-main-wh', [ItemController::class, 'bulkSyncToMainWh'])->middleware('permission:master.item_prices.update');
-    // Import Wizard — {module} is shared across Items/Item Groups/UOMs. The `permission:`
-    // middleware only takes a static string, so per-module authorization happens inside
-    // ImportController itself (checks master.{module}.import against the resolved module).
-    Route::prefix('import/{module}')->where(['module' => 'items|item-groups|uoms'])->group(function () {
+    // Import Wizard — {module} is shared across every registered ImportTemplate. The
+    // `permission:` middleware only takes a static string, so per-module authorization
+    // happens inside ImportController itself (checks master.{module}.import against the
+    // resolved module).
+    Route::prefix('import/{module}')->where(['module' => 'items|item-groups|uoms|terms-of-payments|warehouses|suppliers|customers|item-standard-rates'])->group(function () {
         Route::get('fields', [ImportController::class, 'fields']);
         Route::get('template', [ImportController::class, 'template']);
         Route::post('batches', [ImportController::class, 'store']);
+        Route::post('auto', [ImportController::class, 'auto']);
         Route::get('mapping-presets', [ImportMappingPresetController::class, 'index']);
     });
     Route::prefix('import/batches')->group(function () {

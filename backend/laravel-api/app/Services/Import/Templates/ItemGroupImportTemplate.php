@@ -5,9 +5,12 @@ namespace App\Services\Import\Templates;
 use App\Models\ItemGroup;
 use App\Services\Import\Contracts\ImportTemplate;
 use App\Services\Import\ImportFieldDefinition;
+use App\Services\Import\Templates\Concerns\HasNoRowTransform;
 
 final class ItemGroupImportTemplate implements ImportTemplate
 {
+    use HasNoRowTransform;
+
     public function key(): string
     {
         return 'item-groups';

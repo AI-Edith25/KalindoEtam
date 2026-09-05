@@ -44,6 +44,22 @@ export async function uploadImportBatch(module: string, file: File): Promise<Upl
   return data.data
 }
 
+/**
+ * 1-step import: upload -> auto-map -> preview -> commit, no manual screens. On success
+ * returns the queued batch immediately (poll it the same way ImportStepCommit does). On a
+ * 422 rejection (a required column wasn't confidently recognized) this throws — the caller
+ * reads `error.response.data.message` / `.data.missing_fields` (see getAutoImportRejection).
+ */
+export async function autoImportBatch(module: string, file: File): Promise<ImportBatch> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const { data } = await apiClient.post<ApiResponse<ImportBatch>>(`/import/${module}/auto`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data.data
+}
+
 export async function fetchImportBatch(batchId: string): Promise<ImportBatch> {
   const { data } = await apiClient.get<ApiResponse<ImportBatch>>(`/import/batches/${batchId}`)
   return data.data

@@ -68,6 +68,25 @@ class ImportController extends Controller
         ], 'File uploaded.', 201);
     }
 
+    /**
+     * 1-step import: upload -> auto-map -> preview -> commit, no manual screens.
+     * Rejects (422) if any required field isn't confidently recognized in the
+     * file's headers — the caller falls back to Download Template or the
+     * manual wizard (still reachable at its existing route for this module).
+     */
+    public function auto(StoreImportBatchRequest $request, string $module): JsonResponse
+    {
+        $this->authorizeModule($module);
+
+        $result = $this->importBatchService->autoImport($module, $request->file('file'));
+
+        if (! $result['ok']) {
+            return $this->success(['missing_fields' => $result['missing_fields']], $result['message'], 422);
+        }
+
+        return $this->success(new ImportBatchResource($result['batch']), 'Import queued.', 201);
+    }
+
     public function show(ImportBatch $batch): JsonResponse
     {
         $this->authorizeBatch($batch);

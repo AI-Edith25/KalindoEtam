@@ -1,0 +1,3 @@
+# Real legacy-system data exports (customer/supplier PII, business data) — reference
+# files for the import feature, not meant for version control.
+/DataExport/

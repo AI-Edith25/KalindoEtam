@@ -5,6 +5,7 @@ import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { ItemListPage } from '@/features/master/pages/ItemListPage'
 import { ImportWizardPage } from '@/features/master/components/import/ImportWizardPage'
+import { AutoImportPage } from '@/features/master/components/import/AutoImportPage'
 import { SupplierListPage } from '@/features/master/pages/SupplierListPage'
 import { CustomerListPage } from '@/features/master/pages/CustomerListPage'
 import { SalesPersonListPage } from '@/features/master/pages/SalesPersonListPage'
@@ -125,18 +126,66 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/master/items/quick-import"
+          element={
+            <ProtectedRoute permission="master.items.import">
+              <AutoImportPage module="items" label="Items" listPath="/master/items" manualWizardPath="/master/items/import" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/suppliers" element={<ProtectedRoute permission="master.suppliers.view"><SupplierListPage /></ProtectedRoute>} />
+        <Route
+          path="/master/suppliers/quick-import"
+          element={
+            <ProtectedRoute permission="master.suppliers.import">
+              <AutoImportPage module="suppliers" label="Suppliers" listPath="/master/suppliers" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/customers" element={<ProtectedRoute permission="master.customers.view"><CustomerListPage /></ProtectedRoute>} />
+        <Route
+          path="/master/customers/quick-import"
+          element={
+            <ProtectedRoute permission="master.customers.import">
+              <AutoImportPage module="customers" label="Customers" listPath="/master/customers" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/sales-persons" element={<ProtectedRoute permission="master.sales_persons.view"><SalesPersonListPage /></ProtectedRoute>} />
         <Route path="/master/sales-targets" element={<ProtectedRoute permission="master.sales_targets.view"><SalesTargetListPage /></ProtectedRoute>} />
         <Route path="/master/terms-of-payment" element={<ProtectedRoute permission="master.terms_of_payment.view"><TermsOfPaymentListPage /></ProtectedRoute>} />
+        <Route
+          path="/master/terms-of-payment/quick-import"
+          element={
+            <ProtectedRoute permission="master.terms_of_payments.import">
+              <AutoImportPage module="terms-of-payments" label="Terms of Payment" listPath="/master/terms-of-payment" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/warehouses" element={<ProtectedRoute permission="master.warehouses.view"><WarehouseListPage /></ProtectedRoute>} />
+        <Route
+          path="/master/warehouses/quick-import"
+          element={
+            <ProtectedRoute permission="master.warehouses.import">
+              <AutoImportPage module="warehouses" label="Warehouses (Area)" listPath="/master/warehouses" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/item-groups" element={<ProtectedRoute permission="master.item_groups.view"><ItemGroupListPage /></ProtectedRoute>} />
         <Route
           path="/master/item-groups/import"
           element={
             <ProtectedRoute permission="master.item_groups.import">
               <ImportWizardPage module="item-groups" label="Item Groups" listPath="/master/item-groups" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/master/item-groups/quick-import"
+          element={
+            <ProtectedRoute permission="master.item_groups.import">
+              <AutoImportPage module="item-groups" label="Item Groups" listPath="/master/item-groups" manualWizardPath="/master/item-groups/import" />
             </ProtectedRoute>
           }
         />
@@ -149,7 +198,23 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/master/uoms/quick-import"
+          element={
+            <ProtectedRoute permission="master.uoms.import">
+              <AutoImportPage module="uoms" label="UOMs" listPath="/master/uoms" manualWizardPath="/master/uoms/import" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/item-prices" element={<ProtectedRoute permission="master.item_prices.view"><ItemPriceMatrixPage /></ProtectedRoute>} />
+        <Route
+          path="/master/item-prices/quick-import"
+          element={
+            <ProtectedRoute permission="master.item_standard_rates.import">
+              <AutoImportPage module="item-standard-rates" label="Item Standard Rates" listPath="/master/item-prices" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/master/taxes" element={<ProtectedRoute permission="master.taxes.view"><TaxListPage /></ProtectedRoute>} />
         <Route path="/master/miscellaneous" element={<ProtectedRoute permission="master.miscellaneous.view"><MiscellaneousItemListPage /></ProtectedRoute>} />
         <Route path="/master/chart-of-accounts" element={<Navigate to="/finance/chart-of-accounts" replace />} />

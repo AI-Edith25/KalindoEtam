@@ -68,7 +68,7 @@ export function UomListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/uoms/import') },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/uoms/quick-import') },
             ]}
             primary={canCreate ? { label: 'New UOM', icon: Plus, onClick: list.openCreate } : undefined}
           />

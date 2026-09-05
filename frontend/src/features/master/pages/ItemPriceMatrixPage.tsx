@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Check, Download, Loader2, RotateCw, Upload, X } from 'lucide-react'
@@ -152,10 +153,15 @@ function WarehousePriceCell({
 }
 
 export function ItemPriceMatrixPage() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const canUpdate = useHasPermission('master.item_prices.update')
   const canImport = useHasPermission('master.item_prices.import')
+  const canImportStandardRates = useHasPermission('master.item_standard_rates.import')
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  // Seeded once from a "Price Vary" deep link (ItemListPage) — item_code, not item_id,
+  // since filtering here is the existing free-text search-by-code/name, not an ID lookup.
+  const [search, setSearch] = useState(() => searchParams.get('item_code') ?? '')
   const [itemGroupId, setItemGroupId] = useState('')
   const whFileInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
@@ -403,6 +409,12 @@ export function ItemPriceMatrixPage() {
               { label: 'Refresh', icon: RotateCw, onClick: invalidateAll, disabled: itemsQuery.isFetching },
               { label: 'Export', icon: Download, onClick: () => downloadItemWarehousePricesExport() },
               { label: 'Import', icon: Upload, disabled: !canImport || previewMutation.isPending, onClick: () => whFileInputRef.current?.click() },
+              {
+                label: 'Import Standard Rates',
+                icon: Upload,
+                disabled: !canImportStandardRates,
+                onClick: () => navigate('/master/item-prices/quick-import'),
+              },
             ]}
           />
         }

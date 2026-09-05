@@ -10,6 +10,9 @@ namespace App\Services\Import;
  * @param  string  $type  'string' | 'number' | 'date' | 'fk'
  * @param  array{model: class-string<\Illuminate\Database\Eloquent\Model>, displayColumn: string}|null  $fkTarget
  * @param  string[]  $synonyms  lower-cased alternative header names used for mapping auto-suggest
+ * @param  ?string  $autoMapFrom  a synthetic row key (see ImportTemplate::transformRow()) this field
+ *   should always map from in the 1-step auto-import flow, instead of a real file header — e.g.
+ *   Supplier/Customer's `address` field maps from `_address` (Address1-4 joined by transformRow()).
  */
 final class ImportFieldDefinition
 {
@@ -22,6 +25,7 @@ final class ImportFieldDefinition
         public readonly ?array $fkTarget = null,
         public readonly array $synonyms = [],
         public readonly string $example = '',
+        public readonly ?string $autoMapFrom = null,
     ) {}
 
     public function toArray(): array

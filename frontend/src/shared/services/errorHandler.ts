@@ -69,6 +69,20 @@ export function isOverReceiptConfirmationRequired(error: unknown): boolean {
   return data?.data?.requires_confirmation === true
 }
 
+/**
+ * True for the 1-step import auto-endpoint's 422 rejection (a required column wasn't
+ * confidently recognized) — callers show the message + missing_fields inline (with a link
+ * to the manual wizard where one exists) instead of a plain toast.
+ */
+export function getAutoImportRejection(error: unknown): { message: string; missingFields: string[] } | null {
+  if (!axios.isAxiosError(error) || error.response?.status !== 422) return null
+
+  const data = error.response.data as { message?: string; data?: { missing_fields?: string[] } } | undefined
+  if (!data?.data?.missing_fields) return null
+
+  return { message: data.message ?? '', missingFields: data.data.missing_fields }
+}
+
 export function getFieldErrors(error: unknown): Record<string, string[]> | null {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as Partial<ValidationErrorBody> | undefined

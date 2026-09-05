@@ -5,9 +5,12 @@ namespace App\Services\Import\Templates;
 use App\Models\UnitOfMeasurement;
 use App\Services\Import\Contracts\ImportTemplate;
 use App\Services\Import\ImportFieldDefinition;
+use App\Services\Import\Templates\Concerns\HasNoRowTransform;
 
 final class UomImportTemplate implements ImportTemplate
 {
+    use HasNoRowTransform;
+
     public function key(): string
     {
         return 'uoms';
@@ -27,7 +30,7 @@ final class UomImportTemplate implements ImportTemplate
                 type: 'string',
                 required: true,
                 isUniqueKey: true,
-                synonyms: ['name', 'nama', 'uom', 'unit', 'satuan'],
+                synonyms: ['name', 'nama', 'uom', 'unit', 'satuan', 'uom singular'],
                 example: 'Pcs',
             ),
             new ImportFieldDefinition(

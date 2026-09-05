@@ -270,6 +270,163 @@ class ImportBatchService
         ProcessImportBatchJob::dispatch($batch->id);
     }
 
+    /** Per-module policy the 1-step flow needs that isn't a property of any one field. */
+    private const MODULE_FIELD_DEFAULTS = [
+        // warehouse_type has no DB default and no source column in the legacy Area/Branch
+        // export — every imported row becomes a Transit warehouse, matching the fallback
+        // the user specified rather than guessing Main for any of them.
+        'warehouses' => ['warehouse_type' => 'transit'],
+        // items.standard_rate is NOT NULL with a DB default of 0.00 — but an explicit NULL
+        // insert (what an unmapped field would otherwise produce) still violates NOT NULL,
+        // the DB default only applies when a column is omitted from the insert entirely.
+        // Since this module's mapping for standard_rate is always stripped below (never
+        // populated from a price column here — see the class docblock), it needs an
+        // explicit 0 default so the row can actually be written.
+        'items' => ['standard_rate' => '0'],
+    ];
+
+    private const MODULE_WRITE_MODES = [
+        // item-standard-rates only ever updates an existing Item's standard_rate — an
+        // unmatched item_code must fail the row, never create a bare Item.
+        'item-standard-rates' => 'update_only',
+    ];
+
+    /**
+     * 1-step import: upload -> (reject if any required field isn't confidently
+     * recognized) -> auto-map -> preview -> commit, with no manual screens in
+     * between. Reuses upload()/updateMapping()/preview()/commit() as-is — this
+     * is orchestration only, no new row-processing logic.
+     *
+     * @return array{ok: bool, batch: ?ImportBatch, message: ?string, missing_fields: string[]}
+     */
+    public function autoImport(string $module, UploadedFile $file): array
+    {
+        $template = $this->registry->resolve($module);
+        $fields = $template->fields();
+
+        $upload = $this->upload($module, $file);
+        $batch = $upload['batch'];
+
+        // The 1-step flow's mapping is built from EXACT matches only — never
+        // suggestMapping()'s fuzzy 50%+ guesses. A real legacy export can carry 60-100+
+        // unrelated columns whose header text coincidentally scores well against a field's
+        // synonyms (e.g. "AnalysisCode1" against "sales_tax_id"'s synonyms) — the manual
+        // wizard is safe leaving that as an editable suggestion because a human reviews it
+        // before committing; this flow has no such review step, so a wrong fuzzy guess
+        // would silently write bad data instead of just being an ignorable hint.
+        $mapping = $this->exactMapping($upload['headers'], $fields);
+
+        $missing = $this->unmatchedRequiredFields($mapping, $fields);
+
+        if ($missing !== []) {
+            return [
+                'ok' => false,
+                'batch' => $batch,
+                'message' => 'Kolom wajib tidak dikenali di file ini: '.implode(', ', $missing).'. Gunakan Download Template, atau import manual lewat wizard.',
+                'missing_fields' => $missing,
+            ];
+        }
+
+        // A field with autoMapFrom always maps from its synthetic transformRow() key —
+        // strip any real header exactMapping() might independently have matched to the
+        // same field (e.g. a literal "UnitPrice" column can legitimately exact-match
+        // standard_rate's own synonyms) so the two can never both claim it.
+        foreach ($fields as $field) {
+            if ($field->autoMapFrom === null) {
+                continue;
+            }
+
+            foreach ($mapping as $header => $mappedField) {
+                if ($mappedField === $field->name) {
+                    $mapping[$header] = null;
+                }
+            }
+
+            $mapping[$field->autoMapFrom] = $field->name;
+        }
+
+        // Items (step 5): standard_rate is deliberately never populated from this module,
+        // even if a column like "Unit Price" auto-matched it — it comes from the separate
+        // item-standard-rates module instead (see ItemImportTemplate's class docblock).
+        if ($module === 'items') {
+            foreach ($mapping as $header => $mappedField) {
+                if ($mappedField === 'standard_rate') {
+                    $mapping[$header] = null;
+                }
+            }
+        }
+
+        $this->updateMapping($batch, $mapping, [], self::MODULE_FIELD_DEFAULTS[$module] ?? []);
+        $this->preview($batch);
+        $this->commit($batch, self::MODULE_WRITE_MODES[$module] ?? 'upsert', 'skip_invalid');
+
+        return ['ok' => true, 'batch' => $batch->refresh(), 'message' => null, 'missing_fields' => []];
+    }
+
+    /**
+     * Which of the template's required fields ended up unmapped in an exactMapping()
+     * result — used to decide whether the 1-step flow can proceed or must reject the
+     * file outright. autoMapFrom fields are always considered satisfied (populated via
+     * transformRow()'s synthetic key, never a real file header).
+     *
+     * @param  array<string, ?string>  $mapping  header => field name (or null)
+     * @param  \App\Services\Import\ImportFieldDefinition[]  $fields
+     * @return string[] labels of unmatched required fields
+     */
+    private function unmatchedRequiredFields(array $mapping, array $fields): array
+    {
+        $mappedFieldNames = array_filter($mapping);
+
+        return array_values(array_map(
+            fn ($field) => $field->label,
+            array_filter($fields, fn ($field) => $field->required
+                && $field->autoMapFrom === null
+                && ! in_array($field->name, $mappedFieldNames, true)),
+        ));
+    }
+
+    /**
+     * A mapping built from EXACT (normalized name/label/synonym) matches only — every
+     * header gets at most one field, every field gets at most one header (first header
+     * in file-column order wins if more than one would otherwise exactly match, which
+     * shouldn't normally happen with distinct synonym lists but is guarded regardless).
+     *
+     * @param  string[]  $headers
+     * @param  \App\Services\Import\ImportFieldDefinition[]  $fields
+     * @return array<string, ?string> header => field name (or null)
+     */
+    private function exactMapping(array $headers, array $fields): array
+    {
+        $mapping = [];
+        $claimedFields = [];
+
+        foreach ($headers as $header) {
+            $normalizedHeader = $this->normalizeHeader($header);
+            $matched = null;
+
+            foreach ($fields as $field) {
+                if (in_array($field->name, $claimedFields, true)) {
+                    continue;
+                }
+
+                foreach ([$field->name, $field->label, ...$field->synonyms] as $candidate) {
+                    if ($this->normalizeHeader($candidate) === $normalizedHeader) {
+                        $matched = $field->name;
+                        break 2;
+                    }
+                }
+            }
+
+            $mapping[$header] = $matched;
+
+            if ($matched !== null) {
+                $claimedFields[] = $matched;
+            }
+        }
+
+        return $mapping;
+    }
+
     /**
      * Creates any master records the user chose to auto-create for an
      * unmatched FK value, once, before the commit chunks run. firstOrCreate
@@ -343,6 +500,8 @@ class ImportBatchService
 
         $built = [];
         foreach ($rawRows as $rawRow) {
+            $rawRow = $template->transformRow($rawRow);
+
             $data = [];
             $messages = [];
             $status = 'valid';
@@ -420,6 +579,13 @@ class ImportBatchService
 
         if ($classification !== null && $classification['status'] === 'match') {
             return [$classification['id'], 'valid', null];
+        }
+
+        // An optional FK with a genuinely unmatched value (not merely blank — that's the
+        // early-return above) behaves like a blank cell: null it out and warn, don't fail
+        // the whole row. Required FK fields keep the old hard-stop behavior unchanged.
+        if (! $field->required) {
+            return [null, 'warning', "{$field->label} \"{$value}\" not found — left blank."];
         }
 
         return [null, 'error', "{$field->label} \"{$value}\" is not resolved — go back to Mapping."];

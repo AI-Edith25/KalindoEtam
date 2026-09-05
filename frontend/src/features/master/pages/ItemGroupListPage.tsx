@@ -68,7 +68,7 @@ export function ItemGroupListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/item-groups/import') },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/item-groups/quick-import') },
             ]}
             primary={canCreate ? { label: 'New Item Group', icon: Plus, onClick: list.openCreate } : undefined}
           />

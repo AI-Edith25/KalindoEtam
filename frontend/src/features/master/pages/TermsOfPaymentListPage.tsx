@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -24,9 +25,11 @@ const SORTERS: Record<string, (t: TermsOfPayment) => string | number> = {
 }
 
 export function TermsOfPaymentListPage() {
+  const navigate = useNavigate()
   const canCreate = useHasPermission('master.terms_of_payment.create')
   const canUpdate = useHasPermission('master.terms_of_payment.update')
   const canDelete = useHasPermission('master.terms_of_payment.delete')
+  const canImport = useHasPermission('master.terms_of_payments.import')
   const list = useEntityListPage<TermsOfPayment, TermsOfPaymentFilterValues>({
     queryKey: 'terms-of-payments',
     fetchList: fetchTermsOfPayments,
@@ -70,7 +73,7 @@ export function TermsOfPaymentListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/terms-of-payment/quick-import') },
             ]}
             primary={canCreate ? { label: 'New Terms of Payment', icon: Plus, onClick: list.openCreate } : undefined}
           />

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -24,9 +25,11 @@ const SORTERS: Record<string, (c: Customer) => string | number> = {
 }
 
 export function CustomerListPage() {
+  const navigate = useNavigate()
   const canCreate = useHasPermission('master.customers.create')
   const canUpdate = useHasPermission('master.customers.update')
   const canDelete = useHasPermission('master.customers.delete')
+  const canImport = useHasPermission('master.customers.import')
   const list = useEntityListPage<Customer, CustomerFilterValues>({
     queryKey: 'customers',
     fetchList: fetchCustomers,
@@ -71,7 +74,7 @@ export function CustomerListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/customers/quick-import') },
             ]}
             primary={canCreate ? { label: 'New Customer', icon: Plus, onClick: list.openCreate } : undefined}
           />

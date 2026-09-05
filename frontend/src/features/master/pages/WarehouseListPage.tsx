@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -24,9 +25,11 @@ const SORTERS: Record<string, (w: Warehouse) => string | number> = {
 }
 
 export function WarehouseListPage() {
+  const navigate = useNavigate()
   const canCreate = useHasPermission('master.warehouses.create')
   const canUpdate = useHasPermission('master.warehouses.update')
   const canDelete = useHasPermission('master.warehouses.delete')
+  const canImport = useHasPermission('master.warehouses.import')
   const list = useEntityListPage<Warehouse, WarehouseFilterValues>({
     queryKey: 'warehouses',
     fetchList: fetchWarehouses,
@@ -69,7 +72,7 @@ export function WarehouseListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/warehouses/quick-import') },
             ]}
             primary={canCreate ? { label: 'New Area', icon: Plus, onClick: list.openCreate } : undefined}
           />
