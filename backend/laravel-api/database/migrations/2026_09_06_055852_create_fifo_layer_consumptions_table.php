@@ -24,7 +24,11 @@ return new class extends Migration
             $table->dateTime('reversed_at')->nullable();
             $table->timestamps();
 
-            $table->index(['consuming_source_type', 'consuming_source_id']);
+            // Explicit short name — Laravel's auto-generated name for this column pair
+            // (fifo_layer_consumptions_consuming_source_type_consuming_source_id_index, 72
+            // chars) exceeds MySQL's 64-character identifier limit. SQLite (this repo's test
+            // DB) doesn't enforce that limit, so this only ever surfaces against real MySQL.
+            $table->index(['consuming_source_type', 'consuming_source_id'], 'flc_consuming_source_index');
         });
     }
 
