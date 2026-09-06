@@ -11,6 +11,8 @@ export type VoucherType =
   | 'purchase_return'
   | 'credit_note'
   | 'opening_stock'
+  | 'issue_stock'
+  | 'receipt_stock'
 
 export interface StockLedgerEntry {
   id: string
@@ -152,6 +154,93 @@ export interface OpeningStockFilterValues {
   dateFrom: string
   dateTo: string
   importBatchId: string
+}
+
+export interface IssueStockItem {
+  id: string
+  item_id: string
+  item_code: string
+  item_name: string
+  uom: string
+  qty_category: 'unit' | 'weight'
+  qty: string | number
+  // Null while Draft — filled from FIFO consumption's weighted-average cost only once Submitted.
+  unit_cost: string | number | null
+  amount: string | number | null
+}
+
+export interface IssueStock {
+  id: string
+  document_number: string | null
+  status: DocumentStatus
+  revision: number
+  warehouse_id: string
+  warehouse: { id: string; name: string; code: string } | null
+  issue_date: string
+  remarks: string | null
+  items: IssueStockItem[]
+  line_count: number | null
+  total_value: number | null
+  submitted_at: string | null
+  cancelled_at: string | null
+  created_at: string
+}
+
+export interface IssueStockFormValues {
+  warehouse_id: string
+  issue_date: string
+  remarks: string | null
+  items: { item_id: string; qty: number }[]
+}
+
+export interface IssueStockFilterValues {
+  warehouse_id: string
+  status: DocumentStatus | null
+  dateFrom: string
+  dateTo: string
+}
+
+export interface ReceiptStockItem {
+  id: string
+  item_id: string
+  item_code: string
+  item_name: string
+  uom: string
+  qty_category: 'unit' | 'weight'
+  qty: string | number
+  unit_cost: string | number
+  amount: string | number
+}
+
+export interface ReceiptStock {
+  id: string
+  document_number: string | null
+  status: DocumentStatus
+  revision: number
+  warehouse_id: string
+  warehouse: { id: string; name: string; code: string } | null
+  receipt_date: string
+  remarks: string | null
+  items: ReceiptStockItem[]
+  line_count: number | null
+  total_value: number | null
+  submitted_at: string | null
+  cancelled_at: string | null
+  created_at: string
+}
+
+export interface ReceiptStockFormValues {
+  warehouse_id: string
+  receipt_date: string
+  remarks: string | null
+  items: { item_id: string; qty: number; unit_cost: number }[]
+}
+
+export interface ReceiptStockFilterValues {
+  warehouse_id: string
+  status: DocumentStatus | null
+  dateFrom: string
+  dateTo: string
 }
 
 export interface StockTransferItem {

@@ -55,7 +55,9 @@ use App\Http\Controllers\Api\V1\SalesTargetController;
 use App\Http\Controllers\Api\V1\SalesJournalController;
 use App\Http\Controllers\Api\V1\SalesListingController;
 use App\Http\Controllers\Api\V1\SalesReportController;
+use App\Http\Controllers\Api\V1\IssueStockController;
 use App\Http\Controllers\Api\V1\OpeningStockController;
+use App\Http\Controllers\Api\V1\ReceiptStockController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StockInController;
@@ -186,15 +188,15 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
         Route::post('{batch}/mapping-presets', [ImportMappingPresetController::class, 'store']);
     });
     Route::delete('import/mapping-presets/{preset}', [ImportMappingPresetController::class, 'destroy']);
-    Route::get('items/{item}/stock-ledger', [StockLedgerController::class, 'index'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view');
+    Route::get('items/{item}/stock-ledger', [StockLedgerController::class, 'index'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view|reports.inventory_stock.view');
     // Bulk, warehouse-scoped current balance — exposes the existing StockLedgerService::getCurrentBalance()
     // (already used internally by DeliveryService::assertSufficientStock()) for editors that need to
     // preview available stock before submitting. Additive only, no new business logic.
-    Route::get('stock-ledger/balances', [StockLedgerController::class, 'balances'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view');
+    Route::get('stock-ledger/balances', [StockLedgerController::class, 'balances'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view|reports.inventory_stock.view');
     // Inventory module (Phase 2G): full ledger listing + a current-balance-per-item/warehouse report.
     // Both read-only, both additive, both reuse StockLedgerService — no new business logic.
-    Route::get('stock-ledger', [StockLedgerController::class, 'list'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view');
-    Route::get('stock-ledger/balances/report', [StockLedgerController::class, 'balancesReport'])->middleware('permission:inventory.stock_balance.view|reports.inventory_balance.view');
+    Route::get('stock-ledger', [StockLedgerController::class, 'list'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view|reports.inventory_stock.view');
+    Route::get('stock-ledger/balances/report', [StockLedgerController::class, 'balancesReport'])->middleware('permission:inventory.stock_balance.view|reports.inventory_balance.view|reports.inventory_stock.view');
     Route::post('stock-in', [StockInController::class, 'store'])->middleware('permission:inventory.stock_ledger.create');
     Route::get('fifo-layers/export', [FifoValuationController::class, 'export'])->middleware('permission:inventory.fifo_layers.view');
     Route::get('fifo-layers', [FifoValuationController::class, 'index'])->middleware('permission:inventory.fifo_layers.view');
@@ -321,6 +323,19 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('opening-stocks/{openingStock}/cancel', [OpeningStockController::class, 'cancel'])->middleware('permission:inventory.opening_stock.update');
     Route::post('opening-stocks/batches/{importBatchId}/submit', [OpeningStockController::class, 'submitBatch'])->middleware('permission:inventory.opening_stock.update');
     Route::post('opening-stocks/batches/{importBatchId}/cancel', [OpeningStockController::class, 'cancelBatch'])->middleware('permission:inventory.opening_stock.update');
+
+    // Issue Stock: stock leaving the warehouse outside of a sale (internal use, damage, samples).
+    // Submit consumes FIFO layers oldest-first, cancel restores them exactly — see IssueStockService.
+    Route::get('issue-stocks/preview-cost', [IssueStockController::class, 'previewCost'])->middleware('permission:inventory.issue_stock.view');
+    $withPagePermissions(Route::apiResource('issue-stocks', IssueStockController::class), 'inventory.issue_stock');
+    Route::post('issue-stocks/{issueStock}/submit', [IssueStockController::class, 'submit'])->middleware('permission:inventory.issue_stock.update');
+    Route::post('issue-stocks/{issueStock}/cancel', [IssueStockController::class, 'cancel'])->middleware('permission:inventory.issue_stock.update');
+
+    // Receipt Stock: stock entering the warehouse outside of a purchase (returns, found stock,
+    // supplier gifts). Submit creates a new FIFO layer at the user-entered cost — see ReceiptStockService.
+    $withPagePermissions(Route::apiResource('receipt-stocks', ReceiptStockController::class), 'inventory.receipt_stock');
+    Route::post('receipt-stocks/{receiptStock}/submit', [ReceiptStockController::class, 'submit'])->middleware('permission:inventory.receipt_stock.update');
+    Route::post('receipt-stocks/{receiptStock}/cancel', [ReceiptStockController::class, 'cancel'])->middleware('permission:inventory.receipt_stock.update');
 
     // Stock Transfer: direct-effect warehouse-to-warehouse move (submit -> stock ledger OUT+IN in one step,
     // no in-transit status). No cancel route, same precedent as StockAdjustment::cancel(). No journal entry

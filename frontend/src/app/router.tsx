@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
@@ -56,8 +56,12 @@ import { DebitNoteListPage } from '@/features/sales/pages/DebitNoteListPage'
 import { DebitNoteEditorPage } from '@/features/sales/pages/DebitNoteEditorPage'
 import { DebitNoteDetailPage } from '@/features/sales/pages/DebitNoteDetailPage'
 import { DebitNoteListPrintPage } from '@/features/sales/pages/DebitNoteListPrintPage'
-import { StockBalanceListPage } from '@/features/inventory/pages/StockBalanceListPage'
-import { StockLedgerListPage } from '@/features/inventory/pages/StockLedgerListPage'
+import { IssueStockListPage } from '@/features/inventory/pages/IssueStockListPage'
+import { IssueStockEditorPage } from '@/features/inventory/pages/IssueStockEditorPage'
+import { IssueStockDetailPage } from '@/features/inventory/pages/IssueStockDetailPage'
+import { ReceiptStockListPage } from '@/features/inventory/pages/ReceiptStockListPage'
+import { ReceiptStockEditorPage } from '@/features/inventory/pages/ReceiptStockEditorPage'
+import { ReceiptStockDetailPage } from '@/features/inventory/pages/ReceiptStockDetailPage'
 import { StockAdjustmentListPage } from '@/features/inventory/pages/StockAdjustmentListPage'
 import { StockAdjustmentEditorPage } from '@/features/inventory/pages/StockAdjustmentEditorPage'
 import { StockAdjustmentDetailPage } from '@/features/inventory/pages/StockAdjustmentDetailPage'
@@ -67,15 +71,13 @@ import { StockTransferDetailPage } from '@/features/inventory/pages/StockTransfe
 import { OpeningStockListPage } from '@/features/inventory/pages/OpeningStockListPage'
 import { OpeningStockEditorPage } from '@/features/inventory/pages/OpeningStockEditorPage'
 import { OpeningStockDetailPage } from '@/features/inventory/pages/OpeningStockDetailPage'
-import { FifoValuationListPage } from '@/features/inventory/pages/FifoValuationListPage'
 import { PurchaseReportPage } from '@/features/reports/pages/PurchaseReportPage'
 import { GoodsReceiptReportPage } from '@/features/reports/pages/GoodsReceiptReportPage'
 import { SalesReportPage } from '@/features/reports/pages/SalesReportPage'
 import { SalesReportPrintPage } from '@/features/reports/pages/SalesReportPrintPage'
 import { DeliveryReportPage } from '@/features/reports/pages/DeliveryReportPage'
 import { DeliveryReportPrintPage } from '@/features/reports/pages/DeliveryReportPrintPage'
-import { InventoryMovementReportPage } from '@/features/reports/pages/InventoryMovementReportPage'
-import { InventoryBalanceReportPage } from '@/features/reports/pages/InventoryBalanceReportPage'
+import { InventoryStockReportPage } from '@/features/reports/pages/InventoryStockReportPage'
 import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/AccountsReceivableDetailReportPage'
 import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/pages/AccountsReceivableDetailReportPrintPage'
 import { IncomingPaymentListPage } from '@/features/payment/pages/IncomingPaymentListPage'
@@ -106,6 +108,18 @@ import { AuditLogListPage } from '@/features/administration/pages/AuditLogListPa
 import { NamingSeriesListPage } from '@/features/administration/pages/NamingSeriesListPage'
 import { PurchaseSettingsPage } from '@/features/administration/pages/PurchaseSettingsPage'
 import { ProtectedRoute } from './ProtectedRoute'
+
+/**
+ * Redirects to a fixed path while preserving the incoming query string — a plain
+ * <Navigate to="..."> can't carry it through. Used for /inventory/stock-ledger and
+ * /reports/inventory-movement: Stock Balance links to Stock Ledger with
+ * ?item_id=&warehouse_id=, and old bookmarks with those params must still land pre-filtered.
+ */
+function RedirectPreservingQuery({ to }: { to: string }) {
+  const location = useLocation()
+  const separator = to.includes('?') ? (location.search ? '&' : '') : location.search ? '?' : ''
+  return <Navigate to={`${to}${separator}${location.search.replace(/^\?/, '')}`} replace />
+}
 
 export function AppRouter() {
   return (
@@ -343,8 +357,9 @@ export function AppRouter() {
         <Route path="/sales/debit-notes/:id/edit" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/:id" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteDetailPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/print-list" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPrintPage /></ProtectedRoute>} />
-        <Route path="/inventory/stock-balance" element={<ProtectedRoute permission="inventory.stock_balance.view"><StockBalanceListPage /></ProtectedRoute>} />
-        <Route path="/inventory/stock-ledger" element={<ProtectedRoute permission="inventory.stock_ledger.view"><StockLedgerListPage /></ProtectedRoute>} />
+        {/* Moved to Reports > Inventory Stock — old bookmarks redirect, ?item_id=/&warehouse_id= preserved for the Ledger tab. */}
+        <Route path="/inventory/stock-balance" element={<Navigate to="/reports/inventory-stock?tab=balance" replace />} />
+        <Route path="/inventory/stock-ledger" element={<RedirectPreservingQuery to="/reports/inventory-stock?tab=ledger" />} />
         <Route path="/inventory/adjustments" element={<ProtectedRoute permission="inventory.adjustments.view"><StockAdjustmentListPage /></ProtectedRoute>} />
         <Route path="/inventory/adjustments/new" element={<ProtectedRoute permission="inventory.adjustments.view"><StockAdjustmentEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/adjustments/:id/edit" element={<ProtectedRoute permission="inventory.adjustments.view"><StockAdjustmentEditorPage /></ProtectedRoute>} />
@@ -378,15 +393,24 @@ export function AppRouter() {
         <Route path="/inventory/opening-stock/new" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/opening-stock/:id/edit" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/opening-stock/:id" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockDetailPage /></ProtectedRoute>} />
-        <Route path="/inventory/fifo-layers" element={<ProtectedRoute permission="inventory.fifo_layers.view"><FifoValuationListPage /></ProtectedRoute>} />
+        <Route path="/inventory/issue-stock" element={<ProtectedRoute permission="inventory.issue_stock.view"><IssueStockListPage /></ProtectedRoute>} />
+        <Route path="/inventory/issue-stock/new" element={<ProtectedRoute permission="inventory.issue_stock.view"><IssueStockEditorPage /></ProtectedRoute>} />
+        <Route path="/inventory/issue-stock/:id/edit" element={<ProtectedRoute permission="inventory.issue_stock.view"><IssueStockEditorPage /></ProtectedRoute>} />
+        <Route path="/inventory/issue-stock/:id" element={<ProtectedRoute permission="inventory.issue_stock.view"><IssueStockDetailPage /></ProtectedRoute>} />
+        <Route path="/inventory/receipt-stock" element={<ProtectedRoute permission="inventory.receipt_stock.view"><ReceiptStockListPage /></ProtectedRoute>} />
+        <Route path="/inventory/receipt-stock/new" element={<ProtectedRoute permission="inventory.receipt_stock.view"><ReceiptStockEditorPage /></ProtectedRoute>} />
+        <Route path="/inventory/receipt-stock/:id/edit" element={<ProtectedRoute permission="inventory.receipt_stock.view"><ReceiptStockEditorPage /></ProtectedRoute>} />
+        <Route path="/inventory/receipt-stock/:id" element={<ProtectedRoute permission="inventory.receipt_stock.view"><ReceiptStockDetailPage /></ProtectedRoute>} />
         <Route path="/reports/purchase" element={<ProtectedRoute permission="reports.purchase.view"><PurchaseReportPage /></ProtectedRoute>} />
         <Route path="/reports/goods-receipts" element={<ProtectedRoute permission="reports.goods_receipts.view"><GoodsReceiptReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales/print" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries/print" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPrintPage /></ProtectedRoute>} />
-        <Route path="/reports/inventory-movement" element={<ProtectedRoute permission="reports.inventory_movement.view"><InventoryMovementReportPage /></ProtectedRoute>} />
-        <Route path="/reports/inventory-balance" element={<ProtectedRoute permission="reports.inventory_balance.view"><InventoryBalanceReportPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory-stock" element={<ProtectedRoute permission="reports.inventory_stock.view"><InventoryStockReportPage /></ProtectedRoute>} />
+        {/* Inventory Movement (duplicate of Stock Ledger) and Inventory Balance (duplicate of the Balance tab) were both deleted in favor of this one page. */}
+        <Route path="/reports/inventory-movement" element={<RedirectPreservingQuery to="/reports/inventory-stock?tab=ledger" />} />
+        <Route path="/reports/inventory-balance" element={<Navigate to="/reports/inventory-stock?tab=balance" replace />} />
         <Route path="/reports/ar-detail" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />

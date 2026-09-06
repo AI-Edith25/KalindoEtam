@@ -76,12 +76,15 @@ export const navTree: NavGroup[] = [
     label: 'Inventory',
     icon: Warehouse,
     pages: [
-      { key: 'stock_balance', label: 'Stock Balance', path: '/inventory/stock-balance', actions: ['view'] },
-      { key: 'stock_ledger', label: 'Stock Ledger', path: '/inventory/stock-ledger', actions: ['view', 'create'] },
+      // adjustments is first — SidebarNav's targetPathFor() derives the main "Inventory" link
+      // from whichever page here comes first that the user holds .view for, so this order is
+      // also what decides that link (Stock Balance/Stock Ledger moved to Reports > Inventory
+      // Stock, no longer live here to claim it).
       { key: 'adjustments', label: 'Adjustments', path: '/inventory/adjustments', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'transfers', label: 'Transfer Stock', path: '/inventory/transfers', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'opening_stock', label: 'Opening Stock', path: '/inventory/opening-stock', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'fifo_layers', label: 'FIFO Layers', path: '/inventory/fifo-layers', actions: ['view'] },
+      { key: 'issue_stock', label: 'Issue Stock', path: '/inventory/issue-stock', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'receipt_stock', label: 'Receipt Stock', path: '/inventory/receipt-stock', actions: ['view', 'create', 'update', 'delete'] },
     ],
   },
   {
@@ -133,8 +136,7 @@ export const navTree: NavGroup[] = [
       { key: 'goods_receipts', label: 'Goods Receipt', path: '/reports/goods-receipts', actions: ['view'] },
       { key: 'sales', label: 'Sales', path: '/reports/sales', actions: ['view'] },
       { key: 'deliveries', label: 'Delivery', path: '/reports/deliveries', actions: ['view'] },
-      { key: 'inventory_movement', label: 'Inventory Movement', path: '/reports/inventory-movement', actions: ['view'] },
-      { key: 'inventory_balance', label: 'Inventory Balance', path: '/reports/inventory-balance', actions: ['view'] },
+      { key: 'inventory_stock', label: 'Inventory Stock', path: '/reports/inventory-stock', actions: ['view'] },
       { key: 'ar_detail', label: 'AR Detail', path: '/reports/ar-detail', actions: ['view'] },
       // permissionGroup keeps this tab gated on the same accounting.general_ledger.view that
       // already governs the content it leads to — see the `accounting` group below.

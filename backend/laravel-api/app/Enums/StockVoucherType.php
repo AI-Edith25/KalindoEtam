@@ -12,4 +12,6 @@ enum StockVoucherType: string
     case PURCHASE_RETURN = 'purchase_return';
     case CREDIT_NOTE = 'credit_note';
     case OPENING_STOCK = 'opening_stock';
+    case ISSUE_STOCK = 'issue_stock';
+    case RECEIPT_STOCK = 'receipt_stock';
 }

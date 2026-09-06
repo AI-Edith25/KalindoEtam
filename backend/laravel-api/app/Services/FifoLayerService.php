@@ -192,6 +192,39 @@ class FifoLayerService
      * per-layer restore, since a Credit Note can partially credit a Delivery and consumption
      * rows aren't split at that granularity).
      */
+    /**
+     * Read-only preview of what consume() would do, for a line still in Draft — walks the same
+     * oldest-first layers without locking or writing anything. Used by Issue Stock's line item
+     * table to show the FIFO-computed Unit Cost before Submit (the ticket's "read-only, system-
+     * calculated" column). available_qty lets the form flag an over-limit qty inline, ahead of
+     * the real rejection consume() throws at submit time.
+     *
+     * @return array{unit_cost: float, available_qty: float}
+     */
+    public function previewConsumption(string $itemId, string $warehouseId, float $qty): array
+    {
+        $layers = $this->fifoLayerRepository->candidatesForPreview($itemId, $warehouseId);
+        $available = (float) $layers->sum(fn (FifoLayer $l) => (float) $l->qty_remaining);
+
+        $remaining = $qty;
+        $totalCost = 0.0;
+
+        foreach ($layers as $layer) {
+            if ($remaining <= 0.00005) {
+                break;
+            }
+
+            $take = min($remaining, (float) $layer->qty_remaining);
+            $totalCost += $take * (float) $layer->unit_cost;
+            $remaining -= $take;
+        }
+
+        $consumed = $qty - max($remaining, 0);
+        $unitCost = $consumed > 0 ? round($totalCost / $consumed, 2) : 0.0;
+
+        return ['unit_cost' => $unitCost, 'available_qty' => $available];
+    }
+
     public function averageConsumedCost(string $itemId, StockVoucherType $sourceType, string $sourceId): float
     {
         $consumptions = $this->fifoLayerConsumptionRepository->forSourceAndItem($sourceType->value, $sourceId, $itemId);

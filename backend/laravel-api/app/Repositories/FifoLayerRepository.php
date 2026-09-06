@@ -97,6 +97,18 @@ class FifoLayerRepository extends BaseRepository
             ->get();
     }
 
+    /** Same oldest-first order as candidatesForConsumption(), without the lock — a non-mutating preview never needs to block a concurrent writer. */
+    public function candidatesForPreview(string $itemId, string $warehouseId): Collection
+    {
+        return $this->model->query()
+            ->where('item_id', $itemId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('qty_remaining', '>', 0)
+            ->orderBy('received_date')
+            ->orderBy('created_at')
+            ->get();
+    }
+
     /** Every layer a given voucher created — used by reverseReceipt(). */
     public function bySource(string $sourceType, string $sourceId): Collection
     {

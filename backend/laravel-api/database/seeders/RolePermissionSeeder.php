@@ -56,6 +56,8 @@ class RolePermissionSeeder extends Seeder
         'inventory.stock_ledger' => ['view', 'create'],
         'inventory.adjustments' => ['view', 'create', 'update', 'delete'],
         'inventory.opening_stock' => ['view', 'create', 'update', 'delete', 'import'],
+        'inventory.issue_stock' => ['view', 'create', 'update', 'delete'],
+        'inventory.receipt_stock' => ['view', 'create', 'update', 'delete'],
         'inventory.transfers' => ['view', 'create', 'update', 'delete'],
         'purchase.orders' => ['view', 'create', 'update', 'delete', 'approve'],
         'purchase.goods_receipts' => ['view', 'create', 'update', 'delete'],
@@ -87,6 +89,11 @@ class RolePermissionSeeder extends Seeder
         'reports.deliveries' => ['view'],
         'reports.inventory_movement' => ['view'],
         'reports.inventory_balance' => ['view'],
+        // Inventory restructure (2026-09-06): Balance/Ledger moved here as tabs of one page,
+        // replacing the two report entries above — see the backfill block in run() that keeps
+        // any role already holding one of those (or the Inventory-side stock_balance/stock_ledger
+        // permissions) able to reach the new page, additive only.
+        'reports.inventory_stock' => ['view'],
         'reports.ar_detail' => ['view'],
         'reports.tanda_terima_invoice' => ['view'],
         'reports.penagihan_harian' => ['view'],
@@ -152,6 +159,25 @@ class RolePermissionSeeder extends Seeder
 
             if ($hasAccountingAccess && ! $role->hasPermissionTo('finance.general_journal.view')) {
                 $role->givePermissionTo('finance.general_journal.view');
+            }
+        });
+
+        // reports.inventory_stock is the new entry point replacing Reports > Inventory Movement /
+        // Inventory Balance (now tabs of one page) — any role that could already reach one of those,
+        // or Inventory's own Stock Balance/Stock Ledger pages, keeps that access. Additive only,
+        // same precedent as the finance.general_journal.view backfill above.
+        $inventoryStockPredecessors = [
+            'reports.inventory_movement.view',
+            'reports.inventory_balance.view',
+            'inventory.stock_balance.view',
+            'inventory.stock_ledger.view',
+        ];
+
+        Role::query()->where('name', '!=', 'Admin')->with('permissions')->each(function (Role $role) use ($inventoryStockPredecessors) {
+            $hasPredecessorAccess = $role->permissions->pluck('name')->intersect($inventoryStockPredecessors)->isNotEmpty();
+
+            if ($hasPredecessorAccess && ! $role->hasPermissionTo('reports.inventory_stock.view')) {
+                $role->givePermissionTo('reports.inventory_stock.view');
             }
         });
     }

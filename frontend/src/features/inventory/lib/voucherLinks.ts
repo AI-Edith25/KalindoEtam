@@ -23,6 +23,10 @@ export function resolveVoucherLink(voucherType: VoucherType, voucherId: string):
       return `/sales/credit-notes/${voucherId}`
     case 'opening_stock':
       return `/inventory/opening-stock/${voucherId}`
+    case 'issue_stock':
+      return `/inventory/issue-stock/${voucherId}`
+    case 'receipt_stock':
+      return `/inventory/receipt-stock/${voucherId}`
     case 'stock_in':
       return null
   }

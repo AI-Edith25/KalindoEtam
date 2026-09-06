@@ -2,21 +2,24 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Coins, Download, Package, RotateCw, Upload } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
-import { SectionNav } from '@/components/shared/SectionNav'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchStockBalanceReport } from '../api/stockBalanceApi'
-import { StockBalanceFiltersBar } from '../components/StockBalanceFiltersBar'
+import { StockBalanceFiltersBar } from './StockBalanceFiltersBar'
 import { emptyStockBalanceFilters } from '../lib/stockBalanceFilters'
 import type { StockBalanceFilterValues, StockBalanceRow } from '../types'
 
-/** Landing page for Inventory — "what do we have, where." Row click drills into Stock Ledger, pre-filtered to that item+warehouse. */
-export function StockBalanceListPage() {
+/**
+ * "Balance" tab of Reports > Inventory Stock — moved as-is from the old
+ * /inventory/stock-balance page (same query, columns, filters, Export/Import
+ * buttons). Row click now drills into the Ledger tab of the same page
+ * instead of a separate route.
+ */
+export function StockBalancePanel() {
   const navigate = useNavigate()
 
   const [page, setPage] = useState(1)
@@ -54,22 +57,16 @@ export function StockBalanceListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav group="inventory" />
-
-      <PageHeader
-        title="Stock Balance"
-        description="Current on-hand quantity per item and warehouse."
-        count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} rows` : undefined}
-        actions={
-          <ActionBar
-            actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
-            ]}
-          />
-        }
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Current on-hand quantity per item and warehouse.</p>
+        <ActionBar
+          actions={[
+            { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+            { label: 'Export', icon: Download, disabled: true },
+            { label: 'Import', icon: Upload, disabled: true },
+          ]}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <SummaryCard title="Total Inventory Value" value={formatCurrency(summary?.total_value ?? 0)} icon={Coins} isLoading={listQuery.isLoading} />
@@ -102,7 +99,7 @@ export function StockBalanceListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No stock matches your search or filters.' : 'No stock on hand yet.'}
-        onRowClick={(row) => navigate(`/inventory/stock-ledger?item_id=${row.item_id}&warehouse_id=${row.warehouse_id}`)}
+        onRowClick={(row) => navigate(`/reports/inventory-stock?tab=ledger&item_id=${row.item_id}&warehouse_id=${row.warehouse_id}`)}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}

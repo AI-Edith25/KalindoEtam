@@ -2,23 +2,27 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, ExternalLink, RotateCw, Upload } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchStockLedgerEntries } from '../api/stockLedgerApi'
-import { StockLedgerFiltersBar } from '../components/StockLedgerFiltersBar'
+import { StockLedgerFiltersBar } from './StockLedgerFiltersBar'
 import { resolveVoucherLink } from '../lib/voucherLinks'
 import { emptyStockLedgerFilters } from '../lib/stockLedgerFilters'
 import type { StockLedgerEntry, StockLedgerFilterValues } from '../types'
 
-/** Every stock movement, across every item and warehouse. Reachable pre-filtered from Stock Balance (?item_id=&warehouse_id=) or opened directly. */
-export function StockLedgerListPage() {
+/**
+ * "Ledger" tab of Reports > Inventory Stock — moved as-is from the old
+ * /inventory/stock-ledger page, plus a new Voucher Type column (the source
+ * document type — Opening Stock/Goods Receipt/Delivery/etc. — distinct from
+ * the existing generic In/Out "Movement Type" badge), the one column that
+ * used to only exist on the now-deleted Inventory Movement report.
+ */
+export function StockLedgerPanel() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -60,6 +64,7 @@ export function StockLedgerListPage() {
     { header: 'Date', accessor: (row) => formatDate(row.posting_datetime) },
     { header: 'Item', accessor: (row) => (row.item ? `${row.item.item_code} — ${row.item.item_name}` : '—') },
     { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
+    { header: 'Voucher Type', accessor: (row) => <StatusBadge status={row.voucher_type} /> },
     {
       header: 'Reference Document',
       accessor: (row) => {
@@ -103,22 +108,16 @@ export function StockLedgerListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionNav group="inventory" />
-
-      <PageHeader
-        title="Stock Ledger"
-        description="Every inventory movement, across every item and warehouse."
-        count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} entries` : undefined}
-        actions={
-          <ActionBar
-            actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
-            ]}
-          />
-        }
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Every inventory movement, across every item and warehouse.</p>
+        <ActionBar
+          actions={[
+            { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+            { label: 'Export', icon: Download, disabled: true },
+            { label: 'Import', icon: Upload, disabled: true },
+          ]}
+        />
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox

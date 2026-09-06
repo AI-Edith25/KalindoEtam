@@ -14,7 +14,7 @@ export function InventoryMovementChart() {
   const { data, isLoading } = useQuery({ queryKey: ['dashboard', 'inventory-movement'], queryFn: fetchInventoryMovement })
 
   return (
-    <Card className="cursor-pointer transition-colors hover:bg-accent/50" onClick={() => navigate('/inventory/stock-ledger')}>
+    <Card className="cursor-pointer transition-colors hover:bg-accent/50" onClick={() => navigate('/reports/inventory-stock?tab=ledger')}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Boxes className="size-4 text-primary" />
@@ -28,7 +28,7 @@ export function InventoryMovementChart() {
           <EmptyState message="No stock movement in this period." />
         ) : (
           <ResponsiveContainer width="100%" height={256}>
-            <BarChart data={data} onClick={(event) => event && navigate('/inventory/stock-ledger')}>
+            <BarChart data={data} onClick={(event) => event && navigate('/reports/inventory-stock?tab=ledger')}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="date" tickFormatter={(value: string) => formatDate(value)} fontSize={12} />
               <YAxis tickFormatter={(value: number) => formatNumber(value)} width={50} fontSize={12} />
