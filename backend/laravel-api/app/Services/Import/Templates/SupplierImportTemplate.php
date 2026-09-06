@@ -49,6 +49,13 @@ final class SupplierImportTemplate implements ImportTemplate
                 example: '0541-123456',
             ),
             new ImportFieldDefinition(
+                name: 'telephone',
+                label: 'Telephone',
+                type: 'string',
+                synonyms: ['telephone', 'telepon kantor', 'kantor'],
+                example: '0541-223344',
+            ),
+            new ImportFieldDefinition(
                 name: 'email',
                 label: 'Email',
                 type: 'string',
@@ -82,6 +89,7 @@ final class SupplierImportTemplate implements ImportTemplate
             'supplier_code' => ['required', 'string', 'max:255'],
             'supplier_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:255'],
+            'telephone' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string'],
         ];

@@ -44,6 +44,7 @@ export function CustomerListPage() {
     { header: 'Code', accessor: (row) => row.customer_code, sortKey: 'customer_code' },
     { header: 'Name', accessor: (row) => row.customer_name, sortKey: 'customer_name' },
     { header: 'Phone', accessor: (row) => row.phone ?? '—' },
+    { header: 'Telephone', accessor: (row) => row.telephone ?? '—' },
     { header: 'Email', accessor: (row) => row.email ?? '—' },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.is_active ? 'active' : 'inactive'} /> },
     {

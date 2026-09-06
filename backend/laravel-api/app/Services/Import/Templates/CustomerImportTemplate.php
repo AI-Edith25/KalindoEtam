@@ -51,6 +51,13 @@ final class CustomerImportTemplate implements ImportTemplate
                 example: '0541-123456',
             ),
             new ImportFieldDefinition(
+                name: 'telephone',
+                label: 'Telephone',
+                type: 'string',
+                synonyms: ['telephone', 'telepon kantor', 'kantor'],
+                example: '0541-223344',
+            ),
+            new ImportFieldDefinition(
                 name: 'email',
                 label: 'Email',
                 type: 'string',
@@ -99,6 +106,7 @@ final class CustomerImportTemplate implements ImportTemplate
             'customer_code' => ['required', 'string', 'max:255'],
             'customer_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:255'],
+            'telephone' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string'],
             'terms_of_payment_id' => ['nullable', 'uuid', Rule::exists('terms_of_payments', 'id')],

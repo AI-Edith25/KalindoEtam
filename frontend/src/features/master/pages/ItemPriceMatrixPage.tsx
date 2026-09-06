@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Check, Download, Loader2, RotateCw, Upload, X } from 'lucide-react'
@@ -13,11 +13,12 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { fetchItemsForPriceMatrix, updateItemStandardRate } from '../api/itemApi'
+import { fetchItemsForPriceMatrix } from '../api/itemApi'
 import { fetchWarehousesLookup, fetchItemGroups } from '../api/lookupsApi'
 import {
   bulkSetSyncToMainWh,
@@ -31,50 +32,6 @@ import {
 import type { Item, ItemWarehousePrice, ItemWarehousePriceCell, Warehouse } from '../types'
 
 const PER_PAGE = 50
-
-interface StandardRateCellProps {
-  item: Item
-  onSaved: () => void
-}
-
-/** Standard Rate is a plain field on Item — edited via the existing PUT /items/{id}, same per-cell autosave-on-blur convention as the warehouse cells. */
-function StandardRateCell({ item, onSaved }: StandardRateCellProps) {
-  const [value, setValue] = useState(String(item.standard_rate))
-
-  useEffect(() => setValue(String(item.standard_rate)), [item.standard_rate])
-
-  const saveMutation = useMutation({
-    mutationFn: () => updateItemStandardRate(item.id, Number(value)),
-    onSuccess: onSaved,
-    onError: (error) => {
-      toastApiError(error)
-      setValue(String(item.standard_rate))
-    },
-  })
-
-  const handleBlur = () => {
-    const trimmed = value.trim()
-    if (trimmed === '' || Number.isNaN(Number(trimmed)) || Number(trimmed) < 0) {
-      setValue(String(item.standard_rate))
-      return
-    }
-    if (trimmed === String(item.standard_rate)) return
-    saveMutation.mutate()
-  }
-
-  return (
-    <Input
-      type="number"
-      min={0}
-      step="0.01"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={handleBlur}
-      disabled={saveMutation.isPending}
-      className="w-28"
-    />
-  )
-}
 
 type CellStatus = 'saving' | 'saved' | 'error'
 
@@ -153,11 +110,9 @@ function WarehousePriceCell({
 }
 
 export function ItemPriceMatrixPage() {
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const canUpdate = useHasPermission('master.item_prices.update')
   const canImport = useHasPermission('master.item_prices.import')
-  const canImportStandardRates = useHasPermission('master.item_standard_rates.import')
   const [page, setPage] = useState(1)
   // Seeded once from a "Price Vary" deep link (ItemListPage) — item_code, not item_id,
   // since filtering here is the existing free-text search-by-code/name, not an ID lookup.
@@ -338,11 +293,6 @@ export function ItemPriceMatrixPage() {
         </div>
       ),
     },
-    {
-      header: 'Standard Rate',
-      className: 'sticky left-[180px] z-10 bg-background',
-      accessor: (row) => (canUpdate ? <StandardRateCell item={row} onSaved={invalidateItems} /> : formatCurrency(Number(row.standard_rate))),
-    },
     ...warehouses.map((warehouse, colIndex) => ({
       header: warehouse.code,
       id: `wh-${warehouse.id}`,
@@ -380,7 +330,12 @@ export function ItemPriceMatrixPage() {
                   onCheckedChange={(checked) => syncMutation.mutate({ itemIds: items.map((i) => i.id), value: checked === true })}
                   disabled={items.length === 0 || syncMutation.isPending}
                 />
-                <span>Samakan dengan Main WH</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger className="underline decoration-dotted underline-offset-2">Align</TooltipTrigger>
+                    <TooltipContent>Samakan harga warehouse ini dengan Main Warehouse (SMD).</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             ),
             id: 'sync-to-main-wh',
@@ -409,12 +364,6 @@ export function ItemPriceMatrixPage() {
               { label: 'Refresh', icon: RotateCw, onClick: invalidateAll, disabled: itemsQuery.isFetching },
               { label: 'Export', icon: Download, onClick: () => downloadItemWarehousePricesExport() },
               { label: 'Import', icon: Upload, disabled: !canImport || previewMutation.isPending, onClick: () => whFileInputRef.current?.click() },
-              {
-                label: 'Import Standard Rates',
-                icon: Upload,
-                disabled: !canImportStandardRates,
-                onClick: () => navigate('/master/item-prices/quick-import'),
-              },
             ]}
           />
         }

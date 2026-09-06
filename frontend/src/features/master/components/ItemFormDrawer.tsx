@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import {
@@ -19,6 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { formatCurrency } from '@/lib/utils'
 import { createItem, updateItem } from '../api/itemApi'
 import { fetchItemGroups, fetchUoms, fetchTaxesLookup } from '../api/lookupsApi'
 import type { Item } from '../types'
@@ -58,12 +60,16 @@ interface ItemFormDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   item?: Item | null
+  /** True when the item's price differs by warehouse — Standard Rate is then read-only here, see warehousePriceSummary. */
+  priceVaries?: boolean
+  warehousePriceSummary?: { warehouseCode: string; rate: number }[]
 }
 
 /** Right-side Drawer shared by Create and Edit — the reference pattern for every module's form going forward. */
-export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps) {
+export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, warehousePriceSummary = [] }: ItemFormDrawerProps) {
   const isEdit = !!item
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const form = useForm<ItemFormSchemaValues>({
     resolver: zodResolver(itemFormSchema),
@@ -236,9 +242,26 @@ export function ItemFormDrawer({ open, onOpenChange, item }: ItemFormDrawerProps
                   <FormItem>
                     <FormLabel>Standard Rate</FormLabel>
                     <FormControl>
-                      <Input type="number" min={0} step="0.01" {...field} />
+                      <Input type="number" min={0} step="0.01" {...field} disabled={priceVaries} />
                     </FormControl>
-                    <FormMessage />
+                    {priceVaries ? (
+                      <div className="rounded-md border bg-muted/50 p-2 text-xs text-muted-foreground">
+                        <p>Harga item ini berbeda per warehouse. Kelola harga di halaman Item Prices.</p>
+                        <p className="mt-1">
+                          {warehousePriceSummary.map((w) => `${w.warehouseCode}: ${formatCurrency(w.rate)}`).join(', ')}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto p-0 text-xs"
+                          onClick={() => item && navigate(`/master/item-prices?item_code=${encodeURIComponent(item.item_code)}`)}
+                        >
+                          Kelola harga per warehouse
+                        </Button>
+                      </div>
+                    ) : (
+                      <FormMessage />
+                    )}
                   </FormItem>
                 )}
               />

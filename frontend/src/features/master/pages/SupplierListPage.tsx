@@ -44,6 +44,7 @@ export function SupplierListPage() {
     { header: 'Code', accessor: (row) => row.supplier_code, sortKey: 'supplier_code' },
     { header: 'Name', accessor: (row) => row.supplier_name, sortKey: 'supplier_name' },
     { header: 'Phone', accessor: (row) => row.phone ?? '—' },
+    { header: 'Telephone', accessor: (row) => row.telephone ?? '—' },
     { header: 'Email', accessor: (row) => row.email ?? '—' },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.is_active ? 'active' : 'inactive'} /> },
     {

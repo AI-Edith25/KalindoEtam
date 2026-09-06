@@ -14,6 +14,7 @@ class SupplierResource extends JsonResource
             'supplier_code' => $this->supplier_code,
             'supplier_name' => $this->supplier_name,
             'phone' => $this->phone,
+            'telephone' => $this->telephone,
             'email' => $this->email,
             'address' => $this->address,
             'is_active' => $this->is_active,

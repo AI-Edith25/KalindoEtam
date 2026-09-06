@@ -77,6 +77,21 @@ export function ItemListPage() {
     return (overridesByItem.get(item.id) ?? []).some((o) => Number(o.rate) !== standardRate)
   }
 
+  /** Per-warehouse resolved price for the Edit Item drawer's read-only summary — same resolution rule as ItemPriceMatrixPage's cells (sync_to_main_wh mirrors the Main warehouse, otherwise falls back to Standard Rate). */
+  const resolveWarehousePrices = (item: Item): { warehouseCode: string; rate: number }[] => {
+    const standardRate = Number(item.standard_rate)
+    const overrides = overridesByItem.get(item.id) ?? []
+
+    return warehousesQuery.data?.map((warehouse) => {
+      if (item.sync_to_main_wh && warehouse.warehouse_type !== 'main') {
+        const mainOverride = mainWarehouse ? overrides.find((o) => o.warehouse_id === mainWarehouse.id) : undefined
+        return { warehouseCode: warehouse.code, rate: mainOverride ? Number(mainOverride.rate) : standardRate }
+      }
+      const override = overrides.find((o) => o.warehouse_id === warehouse.id)
+      return { warehouseCode: warehouse.code, rate: override ? Number(override.rate) : standardRate }
+    }) ?? []
+  }
+
   const columns: DataTableColumn<Item>[] = [
     { header: 'Code', accessor: (row) => row.item_code, sortKey: 'item_code' },
     { header: 'Name', accessor: (row) => row.item_name, sortKey: 'item_name' },
@@ -165,7 +180,13 @@ export function ItemListPage() {
 
       {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} />}
 
-      <ItemFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} item={list.editingItem} />
+      <ItemFormDrawer
+        open={list.formOpen}
+        onOpenChange={list.setFormOpen}
+        item={list.editingItem}
+        priceVaries={list.editingItem ? priceVaries(list.editingItem) : false}
+        warehousePriceSummary={list.editingItem ? resolveWarehousePrices(list.editingItem) : []}
+      />
 
       <ItemDetailDrawer
         open={!!list.detailItem}

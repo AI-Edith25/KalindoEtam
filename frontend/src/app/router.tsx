@@ -9,7 +9,8 @@ import { AutoImportPage } from '@/features/master/components/import/AutoImportPa
 import { SupplierListPage } from '@/features/master/pages/SupplierListPage'
 import { CustomerListPage } from '@/features/master/pages/CustomerListPage'
 import { SalesPersonListPage } from '@/features/master/pages/SalesPersonListPage'
-import { SalesTargetListPage } from '@/features/master/pages/SalesTargetListPage'
+// Sales Targets route retired — see navTree.ts. Import commented out with the route below.
+// import { SalesTargetListPage } from '@/features/master/pages/SalesTargetListPage'
 import { TermsOfPaymentListPage } from '@/features/master/pages/TermsOfPaymentListPage'
 import { WarehouseListPage } from '@/features/master/pages/WarehouseListPage'
 import { ItemGroupListPage } from '@/features/master/pages/ItemGroupListPage'
@@ -161,7 +162,7 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         />
-        <Route path="/master/sales-targets" element={<ProtectedRoute permission="master.sales_targets.view"><SalesTargetListPage /></ProtectedRoute>} />
+        {/* <Route path="/master/sales-targets" element={<ProtectedRoute permission="master.sales_targets.view"><SalesTargetListPage /></ProtectedRoute>} /> */}
         <Route path="/master/terms-of-payment" element={<ProtectedRoute permission="master.terms_of_payment.view"><TermsOfPaymentListPage /></ProtectedRoute>} />
         <Route
           path="/master/terms-of-payment/quick-import"
@@ -215,14 +216,6 @@ export function AppRouter() {
           }
         />
         <Route path="/master/item-prices" element={<ProtectedRoute permission="master.item_prices.view"><ItemPriceMatrixPage /></ProtectedRoute>} />
-        <Route
-          path="/master/item-prices/quick-import"
-          element={
-            <ProtectedRoute permission="master.item_standard_rates.import">
-              <AutoImportPage module="item-standard-rates" label="Item Standard Rates" listPath="/master/item-prices" />
-            </ProtectedRoute>
-          }
-        />
         <Route path="/master/taxes" element={<ProtectedRoute permission="master.taxes.view"><TaxListPage /></ProtectedRoute>} />
         <Route path="/master/miscellaneous" element={<ProtectedRoute permission="master.miscellaneous.view"><MiscellaneousItemListPage /></ProtectedRoute>} />
         <Route

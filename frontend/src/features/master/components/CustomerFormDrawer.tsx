@@ -22,6 +22,7 @@ const customerFormSchema = z.object({
   customer_code: z.string().min(1, 'Customer Code is required').max(255),
   customer_name: z.string().min(1, 'Customer Name is required').max(255),
   phone: z.string().max(50).optional().or(z.literal('')),
+  telephone: z.string().max(50).optional().or(z.literal('')),
   email: z.string().email('Enter a valid email address').optional().or(z.literal('')),
   address: z.string().max(255).optional().or(z.literal('')),
   credit_limit: z
@@ -39,6 +40,7 @@ const emptyValues: CustomerFormValues = {
   customer_code: '',
   customer_name: '',
   phone: '',
+  telephone: '',
   email: '',
   address: '',
   credit_limit: '',
@@ -71,6 +73,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
             customer_code: customer.customer_code,
             customer_name: customer.customer_name,
             phone: customer.phone ?? '',
+            telephone: customer.telephone ?? '',
             email: customer.email ?? '',
             address: customer.address ?? '',
             credit_limit: customer.credit_limit != null ? String(customer.credit_limit) : '',
@@ -86,6 +89,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
       const payload = {
         ...values,
         phone: values.phone || null,
+        telephone: values.telephone || null,
         email: values.email || null,
         address: values.address || null,
         credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
@@ -148,6 +152,19 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="telephone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telephone</FormLabel>
                     <FormControl>
                       <Input placeholder="Optional" autoComplete="off" {...field} />
                     </FormControl>

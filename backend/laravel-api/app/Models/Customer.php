@@ -16,6 +16,7 @@ class Customer extends Model
         'customer_code',
         'customer_name',
         'phone',
+        'telephone',
         'email',
         'address',
         'credit_limit',

@@ -29,6 +29,7 @@ export function SupplierDetailDrawer({ open, onOpenChange, supplier, onEdit }: S
         <DetailField label="Supplier Code" value={supplier.supplier_code} />
         <DetailField label="Supplier Name" value={supplier.supplier_name} />
         <DetailField label="Phone" value={supplier.phone ?? '—'} />
+        <DetailField label="Telephone" value={supplier.telephone ?? '—'} />
         <DetailField label="Email" value={supplier.email ?? '—'} />
         <DetailField label="Address" value={supplier.address ?? '—'} />
       </DetailSection>

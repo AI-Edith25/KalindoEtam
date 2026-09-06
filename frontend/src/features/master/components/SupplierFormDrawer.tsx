@@ -18,6 +18,7 @@ const supplierFormSchema = z.object({
   supplier_code: z.string().min(1, 'Supplier Code is required').max(255),
   supplier_name: z.string().min(1, 'Supplier Name is required').max(255),
   phone: z.string().max(50).optional().or(z.literal('')),
+  telephone: z.string().max(50).optional().or(z.literal('')),
   email: z.string().email('Enter a valid email address').optional().or(z.literal('')),
   address: z.string().max(255).optional().or(z.literal('')),
   is_active: z.boolean(),
@@ -29,6 +30,7 @@ const emptyValues: SupplierFormValues = {
   supplier_code: '',
   supplier_name: '',
   phone: '',
+  telephone: '',
   email: '',
   address: '',
   is_active: true,
@@ -59,6 +61,7 @@ export function SupplierFormDrawer({ open, onOpenChange, supplier }: SupplierFor
             supplier_code: supplier.supplier_code,
             supplier_name: supplier.supplier_name,
             phone: supplier.phone ?? '',
+            telephone: supplier.telephone ?? '',
             email: supplier.email ?? '',
             address: supplier.address ?? '',
             is_active: supplier.is_active,
@@ -72,6 +75,7 @@ export function SupplierFormDrawer({ open, onOpenChange, supplier }: SupplierFor
       const payload = {
         ...values,
         phone: values.phone || null,
+        telephone: values.telephone || null,
         email: values.email || null,
         address: values.address || null,
       }
@@ -132,6 +136,19 @@ export function SupplierFormDrawer({ open, onOpenChange, supplier }: SupplierFor
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="telephone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telephone</FormLabel>
                     <FormControl>
                       <Input placeholder="Optional" autoComplete="off" {...field} />
                     </FormControl>

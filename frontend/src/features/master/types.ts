@@ -180,6 +180,7 @@ export interface Supplier {
   supplier_code: string
   supplier_name: string
   phone: string | null
+  telephone: string | null
   email: string | null
   address: string | null
   is_active: boolean
@@ -191,6 +192,7 @@ export interface SupplierFormValues {
   supplier_code: string
   supplier_name: string
   phone: string | null
+  telephone: string | null
   email: string | null
   address: string | null
   is_active: boolean
@@ -201,6 +203,7 @@ export interface Customer {
   customer_code: string
   customer_name: string
   phone: string | null
+  telephone: string | null
   email: string | null
   address: string | null
   credit_limit: string | number | null
@@ -214,6 +217,7 @@ export interface CustomerFormValues {
   customer_code: string
   customer_name: string
   phone: string | null
+  telephone: string | null
   email: string | null
   address: string | null
   credit_limit: number | null

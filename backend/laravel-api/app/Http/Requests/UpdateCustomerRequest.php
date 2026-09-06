@@ -18,6 +18,7 @@ class UpdateCustomerRequest extends FormRequest
             'customer_code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('customers', 'customer_code')->ignore($this->route('customer'))],
             'customer_name' => ['sometimes', 'required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
+            'telephone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],

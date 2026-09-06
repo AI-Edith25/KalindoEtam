@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionNav } from '@/components/shared/SectionNav'
-import { getAutoImportRejection, toastApiError } from '@/shared/services/errorHandler'
+import { toast } from 'sonner'
+import axios from 'axios'
+import { getAutoImportRejection, getErrorMessage, toastApiError } from '@/shared/services/errorHandler'
 import { autoImportBatch, downloadImportTemplate } from '../../api/importApi'
 import { ImportStepCommit } from './ImportStepCommit'
 
@@ -34,7 +36,16 @@ export function AutoImportPage({ module, label, listPath, manualWizardPath }: Au
 
   const templateMutation = useMutation({
     mutationFn: () => downloadImportTemplate(module),
-    onError: (error) => toastApiError(error),
+    // Deliberate click on a visible button — never let this go silent the way
+    // toastApiError does for 403 (that suppression is meant for actions the UI
+    // shouldn't have offered in the first place, not one the user just triggered).
+    onError: (error) => {
+      const message =
+        axios.isAxiosError(error) && error.response?.status === 403
+          ? 'You do not have permission to download this template.'
+          : getErrorMessage(error) || 'Could not download the template. Please try again.'
+      toast.error(message)
+    },
   })
 
   const importMutation = useMutation({
