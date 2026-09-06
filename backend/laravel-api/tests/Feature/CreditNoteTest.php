@@ -72,15 +72,7 @@ class CreditNoteTest extends TestCase
             'standard_rate' => 10000,
         ]);
 
-        app(\App\Services\StockLedgerService::class)->record(
-            itemId: $this->item->id,
-            warehouseId: $this->warehouse->id,
-            transactionType: StockTransactionType::IN,
-            voucherType: StockVoucherType::STOCK_IN,
-            voucherId: (string) Str::uuid(),
-            qtyChange: 100,
-            postingDatetime: now(),
-        );
+        $this->seedStock($this->item->id, $this->warehouse->id, 100);
     }
 
     protected function submittedInvoice(int $qty = 10, float $rate = 20000, float $taxAmount = 0): Invoice
@@ -168,10 +160,38 @@ class CreditNoteTest extends TestCase
         $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '4050')->debit);
         $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->credit);
 
-        // No inventory movement is posted for the Credit Note itself yet — Sprint 13B decision
-        // (Pending Inventory Return Module). Only the setUp() stock-in and the Delivery's own
-        // stock-out exist; a third row here would mean the Credit Note wrongly touched stock.
-        $this->assertDatabaseCount('stock_ledgers', 2);
+        // restock=true now posts a real IN movement (see CreditNoteService::restockLines()) —
+        // the setUp() stock-in, the Delivery's stock-out, and this Credit Note's restock-in.
+        $this->assertDatabaseCount('stock_ledgers', 3);
+
+        $restockLayer = \App\Models\FifoLayer::query()
+            ->where('source_type', \App\Enums\StockVoucherType::CREDIT_NOTE->value)
+            ->where('source_id', $creditNote->id)
+            ->sole();
+        $this->assertEquals(3, (float) $restockLayer->qty_remaining);
+        $this->assertEquals(10000, (float) $restockLayer->unit_cost); // the original Delivery's consumed layer cost
+    }
+
+    public function test_reversing_a_restocked_credit_note_removes_the_layer_it_created(): void
+    {
+        $invoice = $this->submittedInvoice(qty: 10, rate: 20000);
+        $invoiceItem = $invoice->items->first();
+
+        $creditNote = $this->creditNoteService->create([
+            'invoice_id' => $invoice->id,
+            'credit_note_date' => now()->toDateString(),
+            'reason' => CreditNoteReason::PARTIAL_CREDIT->value,
+            'items' => [['invoice_item_id' => $invoiceItem->id, 'qty_credited' => 3, 'amount' => 60000, 'restock' => true]],
+        ]);
+        $creditNote = $this->creditNoteService->submit($creditNote);
+
+        $this->creditNoteService->reverse($creditNote);
+
+        $this->assertDatabaseCount('stock_ledgers', 4); // seed-in, delivery-out, restock-in, un-restock-out
+        $this->assertSame(0, \App\Models\FifoLayer::query()
+            ->where('source_type', \App\Enums\StockVoucherType::CREDIT_NOTE->value)
+            ->where('source_id', $creditNote->id)
+            ->count());
     }
 
     public function test_full_credit_must_cover_the_entire_remaining_balance(): void

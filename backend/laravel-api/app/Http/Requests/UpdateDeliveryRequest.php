@@ -23,7 +23,7 @@ class UpdateDeliveryRequest extends FormRequest
             'driver' => ['nullable', 'string', 'max:255'],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.sales_order_item_id' => ['required_with:items', 'uuid', 'exists:sales_order_items,id'],
-            'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
+            'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01'],
         ];
     }
 }

@@ -54,6 +54,7 @@ use App\Http\Controllers\Api\V1\SalesTargetController;
 use App\Http\Controllers\Api\V1\SalesJournalController;
 use App\Http\Controllers\Api\V1\SalesListingController;
 use App\Http\Controllers\Api\V1\SalesReportController;
+use App\Http\Controllers\Api\V1\OpeningStockController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StockInController;
@@ -165,7 +166,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // `permission:` middleware only takes a static string, so per-module authorization
     // happens inside ImportController itself (checks master.{module}.import against the
     // resolved module).
-    Route::prefix('import/{module}')->where(['module' => 'items|item-groups|uoms|terms-of-payments|warehouses|suppliers|customers|item-standard-rates|sales-persons|miscellaneous|chart-of-accounts'])->group(function () {
+    Route::prefix('import/{module}')->where(['module' => 'items|item-groups|uoms|terms-of-payments|warehouses|suppliers|customers|item-standard-rates|sales-persons|miscellaneous|chart-of-accounts|opening-stock'])->group(function () {
         Route::get('fields', [ImportController::class, 'fields']);
         Route::get('template', [ImportController::class, 'template']);
         Route::post('batches', [ImportController::class, 'store']);
@@ -312,6 +313,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // deliberately — see StockAdjustment::cancel(). No Report counterpart exists, no OR needed.
     $withPagePermissions(Route::apiResource('stock-adjustments', StockAdjustmentController::class), 'inventory.adjustments');
     Route::post('stock-adjustments/{stockAdjustment}/submit', [StockAdjustmentController::class, 'submit'])->middleware('permission:inventory.adjustments.update');
+    $withPagePermissions(Route::apiResource('opening-stocks', OpeningStockController::class), 'inventory.opening_stock');
+    Route::post('opening-stocks/{openingStock}/submit', [OpeningStockController::class, 'submit'])->middleware('permission:inventory.opening_stock.update');
+    Route::post('opening-stocks/{openingStock}/cancel', [OpeningStockController::class, 'cancel'])->middleware('permission:inventory.opening_stock.update');
+    Route::post('opening-stocks/batches/{importBatchId}/submit', [OpeningStockController::class, 'submitBatch'])->middleware('permission:inventory.opening_stock.update');
+    Route::post('opening-stocks/batches/{importBatchId}/cancel', [OpeningStockController::class, 'cancelBatch'])->middleware('permission:inventory.opening_stock.update');
 
     // Stock Transfer: direct-effect warehouse-to-warehouse move (submit -> stock ledger OUT+IN in one step,
     // no in-transit status). No cancel route, same precedent as StockAdjustment::cancel(). No journal entry

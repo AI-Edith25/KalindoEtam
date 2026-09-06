@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,7 @@ class DeliveryItem extends Model
         'uom',
         'rate',
         'qty',
+        'qty_category',
         'amount',
         'tax_id',
         'tax_amount',
@@ -28,7 +30,8 @@ class DeliveryItem extends Model
 
     protected $casts = [
         'rate' => 'decimal:2',
-        'qty' => 'integer',
+        'qty' => 'decimal:4',
+        'qty_category' => QtyCategory::class,
         'amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
     ];

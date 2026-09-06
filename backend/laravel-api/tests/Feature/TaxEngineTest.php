@@ -74,15 +74,7 @@ class TaxEngineTest extends TestCase
             'standard_rate' => 10000,
         ]);
 
-        app(StockLedgerService::class)->record(
-            itemId: $this->item->id,
-            warehouseId: $this->warehouse->id,
-            transactionType: StockTransactionType::IN,
-            voucherType: StockVoucherType::STOCK_IN,
-            voucherId: (string) Str::uuid(),
-            qtyChange: 1000,
-            postingDatetime: now(),
-        );
+        $this->seedStock($this->item->id, $this->warehouse->id, 1000);
     }
 
     protected function makeTax(array $overrides = []): Tax

@@ -23,6 +23,7 @@ class StockAdjustmentItem extends Model
         'counted_qty',
         'difference_qty',
         'qty_category',
+        'unit_cost',
         'reason',
     ];
 
@@ -31,6 +32,7 @@ class StockAdjustmentItem extends Model
         'counted_qty' => 'decimal:4',
         'difference_qty' => 'decimal:4',
         'qty_category' => QtyCategory::class,
+        'unit_cost' => 'decimal:2',
     ];
 
     public function stockAdjustment(): BelongsTo

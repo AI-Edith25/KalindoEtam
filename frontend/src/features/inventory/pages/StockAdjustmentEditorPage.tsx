@@ -93,6 +93,7 @@ export function StockAdjustmentEditorPage() {
         qtyCategory: line.qty_category,
         systemQty: Number(line.system_qty),
         countedQty: String(line.counted_qty),
+        unitCost: line.unit_cost !== null ? String(line.unit_cost) : '',
         reason: line.reason,
       })),
     })
@@ -119,6 +120,7 @@ export function StockAdjustmentEditorPage() {
     items: values.items.map((line) => ({
       item_id: line.item_id,
       counted_qty: parseLocaleQty(line.countedQty),
+      unit_cost: line.unitCost ? parseLocaleQty(line.unitCost) : null,
       reason: line.reason,
     })),
   })

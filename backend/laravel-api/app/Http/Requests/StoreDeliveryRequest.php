@@ -24,7 +24,7 @@ class StoreDeliveryRequest extends FormRequest
             'driver' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.sales_order_item_id' => ['required', 'uuid', 'exists:sales_order_items,id'],
-            'items.*.qty' => ['required', 'integer', 'min:1'],
+            'items.*.qty' => ['required', 'numeric', 'min:0.01'],
         ];
     }
 }

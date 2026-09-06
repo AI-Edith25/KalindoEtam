@@ -54,6 +54,7 @@ class RolePermissionSeeder extends Seeder
         'inventory.stock_balance' => ['view'],
         'inventory.stock_ledger' => ['view', 'create'],
         'inventory.adjustments' => ['view', 'create', 'update', 'delete'],
+        'inventory.opening_stock' => ['view', 'create', 'update', 'delete', 'import'],
         'inventory.transfers' => ['view', 'create', 'update', 'delete'],
         'purchase.orders' => ['view', 'create', 'update', 'delete', 'approve'],
         'purchase.goods_receipts' => ['view', 'create', 'update', 'delete'],

@@ -23,7 +23,7 @@ class UpdateCreditNoteRequest extends FormRequest
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array'],
             'items.*.invoice_item_id' => ['required_with:items', 'uuid', 'exists:invoice_items,id'],
-            'items.*.qty_credited' => ['sometimes', 'integer', 'min:0'],
+            'items.*.qty_credited' => ['sometimes', 'numeric', 'min:0'],
             'items.*.amount' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.restock' => ['sometimes', 'boolean'],
         ];

@@ -22,11 +22,24 @@ export const stockAdjustmentLineRowSchema = z
     qtyCategory: z.enum(['unit', 'weight']),
     systemQty: z.number(),
     countedQty: z.string().min(1, 'Physical qty is required'),
+    // Only required when countedQty ends up above systemQty (a found-more-than-expected line
+    // creates a new FIFO layer — see StockAdjustmentService::replaceItems()) — enforced below,
+    // not with z.number() directly, since that requirement depends on two other fields.
+    unitCost: z.string().optional().or(z.literal('')),
     reason: z.string().min(1, 'Reason is required'),
   })
   .superRefine((line, ctx) => {
     if (!isValidQtyForCategory(line.countedQty, line.qtyCategory) || Number(line.countedQty.replace(',', '.')) < 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: qtyErrorMessage(line.qtyCategory), path: ['countedQty'] })
+    }
+
+    const countedQty = Number(line.countedQty.replace(',', '.'))
+    if (countedQty > line.systemQty && (!line.unitCost || Number(line.unitCost.replace(',', '.')) < 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Unit Cost is required when physical qty exceeds system qty',
+        path: ['unitCost'],
+      })
     }
   })
 

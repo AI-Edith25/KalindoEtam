@@ -175,7 +175,15 @@ class PurchaseReturnTest extends TestCase
 
         $originalJournal = JournalEntry::query()->where('reference_type', 'purchase_return')->where('reference_id', $purchaseReturn->id)->firstOrFail();
 
+        $layerAfterSubmit = \App\Models\FifoLayer::query()->where('item_id', $this->item->id)->sole();
+        $this->assertEquals(3, (float) $layerAfterSubmit->qty_remaining); // 5 received - 2 returned
+
         $reversed = $this->purchaseReturnService->reverse($purchaseReturn);
+
+        // reverse() restores the exact original layer, not a new averaged-cost one.
+        $layerAfterReverse = \App\Models\FifoLayer::query()->where('item_id', $this->item->id)->sole();
+        $this->assertEquals($layerAfterSubmit->id, $layerAfterReverse->id);
+        $this->assertEquals(5, (float) $layerAfterReverse->qty_remaining);
 
         $this->assertTrue($reversed->is_reversed);
         $this->assertNotNull($reversed->reversed_at);

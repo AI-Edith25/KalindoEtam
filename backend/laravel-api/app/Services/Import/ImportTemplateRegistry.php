@@ -9,6 +9,7 @@ use App\Services\Import\Templates\ItemGroupImportTemplate;
 use App\Services\Import\Templates\ItemImportTemplate;
 use App\Services\Import\Templates\ItemStandardRateImportTemplate;
 use App\Services\Import\Templates\MiscellaneousItemImportTemplate;
+use App\Services\Import\Templates\OpeningStockImportTemplate;
 use App\Services\Import\Templates\SalesPersonImportTemplate;
 use App\Services\Import\Templates\SupplierImportTemplate;
 use App\Services\Import\Templates\TermsOfPaymentImportTemplate;
@@ -32,6 +33,7 @@ final class ImportTemplateRegistry
         'sales-persons' => SalesPersonImportTemplate::class,
         'miscellaneous' => MiscellaneousItemImportTemplate::class,
         'chart-of-accounts' => ChartOfAccountImportTemplate::class,
+        'opening-stock' => OpeningStockImportTemplate::class,
     ];
 
     public function resolve(string $key): ImportTemplate

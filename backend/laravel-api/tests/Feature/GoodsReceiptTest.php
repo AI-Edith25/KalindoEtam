@@ -94,6 +94,10 @@ class GoodsReceiptTest extends TestCase
         $this->assertEquals('submitted', $goodsReceipt->status->value);
         $this->assertEquals(12, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
         $this->assertDatabaseCount('stock_ledgers', 1);
+
+        $layer = \App\Models\FifoLayer::query()->where('source_id', $goodsReceipt->id)->sole();
+        $this->assertEquals(12, (float) $layer->qty_remaining);
+        $this->assertEquals(950000, (float) $layer->unit_cost);
     }
 
     public function test_over_receipt_is_still_blocked_by_default(): void

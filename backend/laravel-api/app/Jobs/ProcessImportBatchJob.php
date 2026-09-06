@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Enums\ImportBatchStatus;
 use App\Models\ImportBatch;
 use App\Services\AuditLogService;
+use App\Services\Import\Contracts\CreatesRelatedRecords;
 use App\Services\Import\ImportBatchService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -55,6 +56,19 @@ class ProcessImportBatchJob implements ShouldQueue
                 if ($row['status'] === 'error') {
                     $failed++;
                     $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
+
+                    continue;
+                }
+
+                if ($template instanceof CreatesRelatedRecords) {
+                    try {
+                        DB::transaction(fn () => $template->persist($row['data'], $batch->id));
+                        $success++;
+                    } catch (Throwable $e) {
+                        $failed++;
+                        $row['messages'][] = $e->getMessage();
+                        $this->appendFailedRow($failedHandle, $row, $wroteFailedHeader);
+                    }
 
                     continue;
                 }

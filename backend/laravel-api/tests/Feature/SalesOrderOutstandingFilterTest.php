@@ -61,15 +61,7 @@ class SalesOrderOutstandingFilterTest extends TestCase
             'standard_rate' => 10000,
         ]);
 
-        app(\App\Services\StockLedgerService::class)->record(
-            itemId: $this->item->id,
-            warehouseId: $this->warehouse->id,
-            transactionType: \App\Enums\StockTransactionType::IN,
-            voucherType: \App\Enums\StockVoucherType::STOCK_IN,
-            voucherId: (string) \Illuminate\Support\Str::uuid(),
-            qtyChange: 1000,
-            postingDatetime: now(),
-        );
+        $this->seedStock($this->item->id, $this->warehouse->id, 1000);
 
         Permission::query()->firstOrCreate(['name' => 'sales.orders.view', 'guard_name' => 'web']);
         $viewer = User::factory()->create();

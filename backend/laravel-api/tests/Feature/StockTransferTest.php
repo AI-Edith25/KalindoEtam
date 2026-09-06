@@ -57,15 +57,7 @@ class StockTransferTest extends TestCase
             'standard_rate' => 10000,
         ]);
 
-        $this->stockLedgerService->record(
-            itemId: $this->item->id,
-            warehouseId: $this->source->id,
-            transactionType: StockTransactionType::IN,
-            voucherType: StockVoucherType::STOCK_IN,
-            voucherId: (string) Str::uuid(),
-            qtyChange: 50,
-            postingDatetime: now(),
-        );
+        $this->seedStock($this->item->id, $this->source->id, 50);
     }
 
     public function test_submit_moves_stock_out_of_source_and_into_destination(): void
@@ -83,6 +75,14 @@ class StockTransferTest extends TestCase
         $this->assertEquals(20, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->destination->id));
         // current_stock is a company-wide total across all warehouses — a transfer redistributes it, doesn't change it.
         $this->assertEquals(50, $this->item->fresh()->current_stock);
+
+        // The destination layer carries the source layer's own cost forward, not a new price.
+        $destinationLayer = \App\Models\FifoLayer::query()
+            ->where('warehouse_id', $this->destination->id)
+            ->where('source_id', $transfer->id)
+            ->sole();
+        $this->assertEquals(20, (float) $destinationLayer->qty_remaining);
+        $this->assertEquals(10000, (float) $destinationLayer->unit_cost);
     }
 
     public function test_submit_rejects_qty_exceeding_available_stock_at_source(): void

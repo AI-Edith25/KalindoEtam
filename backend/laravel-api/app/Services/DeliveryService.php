@@ -30,9 +30,11 @@ class DeliveryService
         protected SalesOrderRepository $salesOrderRepository,
         protected SalesOrderItemRepository $salesOrderItemRepository,
         protected StockLedgerService $stockLedgerService,
+        protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected TaxService $taxService,
         protected CompanyRepository $companyRepository,
+        protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -198,6 +200,14 @@ class DeliveryService
                     remarks: "Delivery {$delivery->document_number}",
                 );
 
+                $this->fifoLayerService->consume(
+                    itemId: $line->item_id,
+                    warehouseId: $delivery->warehouse_id,
+                    qty: (float) $line->qty,
+                    sourceType: StockVoucherType::DELIVERY,
+                    sourceId: $delivery->id,
+                );
+
                 $this->salesOrderItemRepository->incrementDeliveredQty($line->salesOrderItem, $line->qty);
             }
 
@@ -210,12 +220,15 @@ class DeliveryService
         });
     }
 
-    protected function addLine(Delivery $delivery, string $salesOrderId, string $salesOrderItemId, int $qty): void
+    protected function addLine(Delivery $delivery, string $salesOrderId, string $salesOrderItemId, int|float $qty): void
     {
         $soItem = $this->resolveSalesOrderItem($salesOrderId, $salesOrderItemId);
         $this->assertWithinOutstanding($soItem, $qty);
 
         $item = $soItem->item;
+        $this->qtyCategoryValidator->assertValid($item, $qty);
+        $qty = $this->qtyCategoryValidator->round($item, $qty);
+
         $lineAmount = $qty * $soItem->rate;
         // tax_id carries forward as-is; tax_amount is recomputed against this delivery
         // line's own (possibly partial) qty, not simply copied — same "rate inherited,
@@ -232,6 +245,7 @@ class DeliveryService
             'uom' => $item->uom->name,
             'rate' => $soItem->rate,
             'qty' => $qty,
+            'qty_category' => $item->qty_category,
             'amount' => $lineAmount,
             'tax_id' => $soItem->tax_id,
             'tax_amount' => $taxAmount,
@@ -249,7 +263,7 @@ class DeliveryService
         return $soItem;
     }
 
-    protected function assertWithinOutstanding(SalesOrderItem $soItem, int $qty): void
+    protected function assertWithinOutstanding(SalesOrderItem $soItem, int|float $qty): void
     {
         $outstanding = $soItem->qty - $soItem->delivered_qty;
 
@@ -258,7 +272,7 @@ class DeliveryService
         }
     }
 
-    protected function assertSufficientStock(string $warehouseId, string $itemId, int $qty): void
+    protected function assertSufficientStock(string $warehouseId, string $itemId, int|float $qty): void
     {
         $available = $this->stockLedgerService->getCurrentBalance($itemId, $warehouseId);
 

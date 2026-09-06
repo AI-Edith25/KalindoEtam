@@ -74,15 +74,7 @@ class InvoicePrintDataTest extends TestCase
             'standard_rate' => 10000,
         ]);
 
-        app(\App\Services\StockLedgerService::class)->record(
-            itemId: $this->item->id,
-            warehouseId: $this->warehouse->id,
-            transactionType: StockTransactionType::IN,
-            voucherType: StockVoucherType::STOCK_IN,
-            voucherId: (string) Str::uuid(),
-            qtyChange: 100,
-            postingDatetime: now(),
-        );
+        $this->seedStock($this->item->id, $this->warehouse->id, 100);
     }
 
     protected function accountId(string $code): string

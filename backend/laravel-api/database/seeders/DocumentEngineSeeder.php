@@ -38,6 +38,7 @@ class DocumentEngineSeeder extends Seeder
             ['module' => 'finance', 'document_type' => 'receipt', 'prefix' => 'REC-'],
             ['module' => 'inventory', 'document_type' => 'stock_adjustment', 'prefix' => 'ADJ-'],
             ['module' => 'inventory', 'document_type' => 'stock_transfer', 'prefix' => 'TRF-'],
+            ['module' => 'inventory', 'document_type' => 'opening_stock', 'prefix' => 'OS-'],
         ];
 
         foreach ($series as $row) {

@@ -77,15 +77,7 @@ class SalesWorkflowStatusTest extends TestCase
             'standard_rate' => 10000,
         ]);
 
-        $this->stockLedgerService->record(
-            itemId: $this->item->id,
-            warehouseId: $this->warehouse->id,
-            transactionType: StockTransactionType::IN,
-            voucherType: StockVoucherType::STOCK_IN,
-            voucherId: (string) Str::uuid(),
-            qtyChange: 100,
-            postingDatetime: now(),
-        );
+        $this->seedStock($this->item->id, $this->warehouse->id, 100);
     }
 
     protected function approvedSalesOrder(int $qty = 10, float $rate = 10000, ?string $taxId = null)
@@ -120,6 +112,12 @@ class SalesWorkflowStatusTest extends TestCase
 
         $this->assertSame('complete', $completed->status->value);
         $this->assertEquals($balanceBefore - 4, $this->stockLedgerService->peekBalance($this->item->id, $this->warehouse->id));
+
+        $consumption = \App\Models\FifoLayerConsumption::query()
+            ->where('consuming_source_type', \App\Enums\StockVoucherType::DELIVERY->value)
+            ->where('consuming_source_id', $completed->id)
+            ->sole();
+        $this->assertEquals(4, (float) $consumption->qty_consumed);
     }
 
     public function test_completing_a_delivery_twice_is_rejected_without_double_decrementing_stock(): void

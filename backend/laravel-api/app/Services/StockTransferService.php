@@ -20,6 +20,7 @@ class StockTransferService
         protected StockTransferItemRepository $stockTransferItemRepository,
         protected ItemRepository $itemRepository,
         protected StockLedgerService $stockLedgerService,
+        protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
@@ -121,6 +122,14 @@ class StockTransferService
                     remarks: "Transfer out to {$transfer->destinationWarehouse->name} ({$transfer->document_number})",
                 );
 
+                $consumption = $this->fifoLayerService->consume(
+                    itemId: $line->item_id,
+                    warehouseId: $transfer->source_warehouse_id,
+                    qty: (float) $line->qty,
+                    sourceType: StockVoucherType::STOCK_TRANSFER,
+                    sourceId: $transfer->id,
+                );
+
                 $this->stockLedgerService->record(
                     itemId: $line->item_id,
                     warehouseId: $transfer->destination_warehouse_id,
@@ -131,6 +140,17 @@ class StockTransferService
                     postingDatetime: now(),
                     referenceNo: $transfer->document_number,
                     remarks: "Transfer in from {$transfer->sourceWarehouse->name} ({$transfer->document_number})",
+                );
+
+                $this->fifoLayerService->receive(
+                    itemId: $line->item_id,
+                    warehouseId: $transfer->destination_warehouse_id,
+                    qty: (float) $line->qty,
+                    unitCost: $consumption->weightedAverageUnitCost,
+                    sourceType: StockVoucherType::STOCK_TRANSFER,
+                    sourceId: $transfer->id,
+                    sourceDocumentNumber: $transfer->document_number,
+                    receivedDate: $transfer->transfer_date,
                 );
             }
 

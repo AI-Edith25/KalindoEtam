@@ -20,6 +20,7 @@ class StockAdjustmentService
         protected StockAdjustmentItemRepository $stockAdjustmentItemRepository,
         protected ItemRepository $itemRepository,
         protected StockLedgerService $stockLedgerService,
+        protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
@@ -96,7 +97,7 @@ class StockAdjustmentService
             }
 
             foreach ($adjustment->items as $line) {
-                $this->stockLedgerService->recordToBalance(
+                $ledgerEntry = $this->stockLedgerService->recordToBalance(
                     itemId: $line->item_id,
                     warehouseId: $adjustment->warehouse_id,
                     targetBalance: $line->counted_qty,
@@ -107,6 +108,33 @@ class StockAdjustmentService
                     referenceNo: $adjustment->document_number,
                     remarks: $line->reason,
                 );
+
+                if ($ledgerEntry === null) {
+                    continue;
+                }
+
+                $qtyChange = (float) $ledgerEntry->qty_change;
+
+                if ($qtyChange > 0) {
+                    $this->fifoLayerService->receive(
+                        itemId: $line->item_id,
+                        warehouseId: $adjustment->warehouse_id,
+                        qty: $qtyChange,
+                        unitCost: (float) $line->unit_cost,
+                        sourceType: StockVoucherType::STOCK_ADJUSTMENT,
+                        sourceId: $adjustment->id,
+                        sourceDocumentNumber: $adjustment->document_number,
+                        receivedDate: $adjustment->adjustment_date,
+                    );
+                } else {
+                    $this->fifoLayerService->consume(
+                        itemId: $line->item_id,
+                        warehouseId: $adjustment->warehouse_id,
+                        qty: abs($qtyChange),
+                        sourceType: StockVoucherType::STOCK_ADJUSTMENT,
+                        sourceId: $adjustment->id,
+                    );
+                }
             }
 
             $adjustment->submit();
@@ -128,6 +156,12 @@ class StockAdjustmentService
             $countedQty = $this->qtyCategoryValidator->round($item, $line['counted_qty']);
             $systemQty = $this->stockLedgerService->peekBalance($item->id, $adjustment->warehouse_id);
 
+            // A found-more-than-expected line creates a new FIFO layer — there's no ledger or
+            // Item field this cost could otherwise come from, so it's required right here.
+            if ($countedQty > $systemQty && empty($line['unit_cost'])) {
+                throw new BusinessException("Unit Cost is required for item {$item->item_code}: counted qty ({$countedQty}) exceeds system qty ({$systemQty}).");
+            }
+
             $this->stockAdjustmentItemRepository->create([
                 'stock_adjustment_id' => $adjustment->id,
                 'item_id' => $item->id,
@@ -138,6 +172,7 @@ class StockAdjustmentService
                 'counted_qty' => $countedQty,
                 'difference_qty' => $countedQty - $systemQty,
                 'qty_category' => $item->qty_category,
+                'unit_cost' => $line['unit_cost'] ?? null,
                 'reason' => $line['reason'],
             ]);
         }

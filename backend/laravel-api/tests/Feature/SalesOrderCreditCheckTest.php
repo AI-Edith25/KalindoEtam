@@ -58,15 +58,7 @@ class SalesOrderCreditCheckTest extends TestCase
             'item_code' => 'ITM-1', 'item_name' => 'Widget', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 10000,
         ]);
 
-        app(StockLedgerService::class)->record(
-            itemId: $this->item->id,
-            warehouseId: $this->warehouse->id,
-            transactionType: StockTransactionType::IN,
-            voucherType: StockVoucherType::STOCK_IN,
-            voucherId: (string) Str::uuid(),
-            qtyChange: 1000,
-            postingDatetime: now(),
-        );
+        $this->seedStock($this->item->id, $this->warehouse->id, 1000);
     }
 
     /** Full SO -> Delivery -> Invoice -> submit cycle, bypassing the credit gate itself as fixture setup. */

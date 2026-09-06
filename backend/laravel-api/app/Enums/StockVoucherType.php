@@ -10,4 +10,6 @@ enum StockVoucherType: string
     case STOCK_ADJUSTMENT = 'stock_adjustment';
     case STOCK_TRANSFER = 'stock_transfer';
     case PURCHASE_RETURN = 'purchase_return';
+    case CREDIT_NOTE = 'credit_note';
+    case OPENING_STOCK = 'opening_stock';
 }

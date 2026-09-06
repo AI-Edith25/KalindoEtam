@@ -21,10 +21,14 @@ use Illuminate\Support\Facades\DB;
 /**
  * The only accounting-correction path for a submitted Purchase Invoice —
  * see PurchaseInvoiceService::cancel(), which deliberately never touches
- * the ledger or stock. Unlike Sales' CreditNote (whose restock flag is
- * intent-only and never wired), a Purchase Return always moves real stock
- * for any line with qty_returned > 0 — see submit()/reverse(). Mirrors
- * CreditNoteService.
+ * the ledger or stock. A Purchase Return always moves real stock for any
+ * line with qty_returned > 0 — see submit()/reverse(). Mirrors
+ * CreditNoteService (whose restock flag now also moves real stock).
+ * Unlike Credit Note's restock (which derives a new layer's cost from
+ * averageConsumedCost() — a deliberate simplification), reverse() here
+ * restores the *exact* original layers submit() consumed via
+ * FifoLayerService::reverseConsumption(), since a return's qty_returned
+ * always ties 1:1 back to what this same document's submit() took.
  */
 class PurchaseReturnService
 {
@@ -39,6 +43,7 @@ class PurchaseReturnService
         protected AccountsPayableService $accountsPayableService,
         protected AccountingService $accountingService,
         protected StockLedgerService $stockLedgerService,
+        protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
@@ -180,6 +185,14 @@ class PurchaseReturnService
                         referenceNo: $purchaseReturn->document_number,
                         remarks: "Purchase Return {$purchaseReturn->document_number}",
                     );
+
+                    $this->fifoLayerService->consume(
+                        itemId: $line->item_id,
+                        warehouseId: $line->warehouse_id,
+                        qty: (float) $line->qty_returned,
+                        sourceType: StockVoucherType::PURCHASE_RETURN,
+                        sourceId: $purchaseReturn->id,
+                    );
                 }
             }
 
@@ -226,6 +239,8 @@ class PurchaseReturnService
                     );
                 }
             }
+
+            $this->fifoLayerService->reverseConsumption(StockVoucherType::PURCHASE_RETURN, $purchaseReturn->id);
 
             $this->purchaseReturnRepository->update($purchaseReturn, ['is_reversed' => true, 'reversed_at' => now()]);
 

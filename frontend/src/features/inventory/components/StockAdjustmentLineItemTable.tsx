@@ -55,6 +55,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
               <TableHead className="text-right">System Qty</TableHead>
               <TableHead className="w-32 text-right">Physical Qty</TableHead>
               <TableHead className="text-right">Difference</TableHead>
+              <TableHead className="w-32 text-right">Unit Cost</TableHead>
               <TableHead>Reason</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -62,7 +63,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="p-0">
+                <TableCell colSpan={7} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start recording a physical count." />
                 </TableCell>
               </TableRow>
@@ -129,6 +130,20 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
                       {formatQty(difference, qtyCategory)}
                     </TableCell>
                     <TableCell>
+                      {difference > 0 && (
+                        <FormField
+                          control={control}
+                          name={`items.${index}.unitCost`}
+                          render={({ field: unitCostField }) => (
+                            <FormItem className="gap-0">
+                              <Input type="number" min={0} step="0.01" placeholder="Required" disabled={disabled} {...unitCostField} />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <FormField
                         control={control}
                         name={`items.${index}.reason`}
@@ -166,7 +181,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', systemQty: 0, countedQty: '0', reason: '' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', systemQty: 0, countedQty: '0', unitCost: '', reason: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

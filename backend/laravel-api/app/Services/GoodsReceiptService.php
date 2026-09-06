@@ -28,6 +28,7 @@ class GoodsReceiptService
         protected PurchaseOrderItemRepository $purchaseOrderItemRepository,
         protected ItemRepository $itemRepository,
         protected StockLedgerService $stockLedgerService,
+        protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
@@ -252,6 +253,17 @@ class GoodsReceiptService
                     postingDatetime: now(),
                     referenceNo: $goodsReceipt->document_number,
                     remarks: "Goods Receipt {$goodsReceipt->document_number}",
+                );
+
+                $this->fifoLayerService->receive(
+                    itemId: $line->item_id,
+                    warehouseId: $goodsReceipt->warehouse_id,
+                    qty: (float) $line->qty,
+                    unitCost: (float) $line->rate,
+                    sourceType: StockVoucherType::GOODS_RECEIPT,
+                    sourceId: $goodsReceipt->id,
+                    sourceDocumentNumber: $goodsReceipt->document_number,
+                    receivedDate: $goodsReceipt->receipt_date,
                 );
 
                 if ($line->purchaseOrderItem !== null) {

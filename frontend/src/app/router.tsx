@@ -64,6 +64,9 @@ import { StockAdjustmentDetailPage } from '@/features/inventory/pages/StockAdjus
 import { StockTransferListPage } from '@/features/inventory/pages/StockTransferListPage'
 import { StockTransferEditorPage } from '@/features/inventory/pages/StockTransferEditorPage'
 import { StockTransferDetailPage } from '@/features/inventory/pages/StockTransferDetailPage'
+import { OpeningStockListPage } from '@/features/inventory/pages/OpeningStockListPage'
+import { OpeningStockEditorPage } from '@/features/inventory/pages/OpeningStockEditorPage'
+import { OpeningStockDetailPage } from '@/features/inventory/pages/OpeningStockDetailPage'
 import { PurchaseReportPage } from '@/features/reports/pages/PurchaseReportPage'
 import { GoodsReceiptReportPage } from '@/features/reports/pages/GoodsReceiptReportPage'
 import { SalesReportPage } from '@/features/reports/pages/SalesReportPage'
@@ -349,6 +352,31 @@ export function AppRouter() {
         <Route path="/inventory/transfers/new" element={<ProtectedRoute permission="inventory.transfers.view"><StockTransferEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/transfers/:id/edit" element={<ProtectedRoute permission="inventory.transfers.view"><StockTransferEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/transfers/:id" element={<ProtectedRoute permission="inventory.transfers.view"><StockTransferDetailPage /></ProtectedRoute>} />
+        <Route path="/inventory/opening-stock" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockListPage /></ProtectedRoute>} />
+        <Route
+          path="/inventory/opening-stock/import"
+          element={
+            <ProtectedRoute permission="inventory.opening_stock.import">
+              <ImportWizardPage module="opening-stock" label="Opening Stock" listPath="/inventory/opening-stock" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/opening-stock/quick-import"
+          element={
+            <ProtectedRoute permission="inventory.opening_stock.import">
+              <AutoImportPage
+                module="opening-stock"
+                label="Opening Stock"
+                listPath="/inventory/opening-stock"
+                manualWizardPath="/inventory/opening-stock/import"
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/inventory/opening-stock/new" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockEditorPage /></ProtectedRoute>} />
+        <Route path="/inventory/opening-stock/:id/edit" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockEditorPage /></ProtectedRoute>} />
+        <Route path="/inventory/opening-stock/:id" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockDetailPage /></ProtectedRoute>} />
         <Route path="/reports/purchase" element={<ProtectedRoute permission="reports.purchase.view"><PurchaseReportPage /></ProtectedRoute>} />
         <Route path="/reports/goods-receipts" element={<ProtectedRoute permission="reports.goods_receipts.view"><GoodsReceiptReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPage /></ProtectedRoute>} />

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Enums\CreditNoteReason;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
+use App\Enums\StockTransactionType;
+use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
 use App\Exports\Concerns\BuildsSalesSummaryReport;
 use App\Models\CreditNote;
@@ -23,9 +25,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * The only accounting-correction path for a submitted Invoice — see
  * InvoiceService::cancel(), which deliberately never touches the ledger.
- * No inventory restocking this sprint (Sprint 13B decision): a
- * `restock = true` line records intent only, surfaced in the UI as
- * "Pending Inventory Return Module." See docs/CREDIT_NOTE_DESIGN.md.
+ * A `restock = true` line posts a real IN movement (StockLedgerService +
+ * FifoLayerService, see submit()) into the originating Delivery's warehouse
+ * — requires the Invoice to have a linked Delivery. See docs/CREDIT_NOTE_DESIGN.md §5.
  */
 class CreditNoteService
 {
@@ -41,6 +43,8 @@ class CreditNoteService
         protected AccountsReceivableRepository $accountsReceivableRepository,
         protected AccountsReceivableService $accountsReceivableService,
         protected AccountingService $accountingService,
+        protected StockLedgerService $stockLedgerService,
+        protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected CompanyRepository $companyRepository,
     ) {}
@@ -191,8 +195,7 @@ class CreditNoteService
      * two concurrent Credit Notes against the same Invoice cannot both
      * pass validation against a stale credited_amount and jointly
      * over-credit it. Same convention as PaymentAllocationService::
-     * allocateBatch(). No approval step and no inventory movement this
-     * sprint — see class docblock.
+     * allocateBatch(). No approval step.
      */
     public function submit(CreditNote $creditNote): CreditNote
     {
@@ -215,6 +218,8 @@ class CreditNoteService
                 "Credit Note {$creditNote->document_number} for Invoice {$creditNote->invoice->document_number}",
                 $creditNote->credit_note_date->toDateString(),
             );
+
+            $this->restockLines($creditNote);
 
             $creditNote = $creditNote->fresh(self::EAGER);
             $this->auditLogService->record('submitted', 'credit_note', "Submitted Credit Note \"{$creditNote->document_number}\".");
@@ -243,6 +248,7 @@ class CreditNoteService
 
             $this->accountsReceivableService->restoreWriteDown($accountsReceivable, (float) $creditNote->total_amount);
             $this->accountingService->reverseForDocument($creditNote);
+            $this->unrestockLines($creditNote);
 
             $this->creditNoteRepository->update($creditNote, ['is_reversed' => true, 'reversed_at' => now()]);
 
@@ -251,6 +257,85 @@ class CreditNoteService
 
             return $creditNote;
         });
+    }
+
+    /**
+     * Posts the real stock movement for every restock=true line — a pure quantity movement via
+     * StockLedgerService (StockVoucherType::CREDIT_NOTE), plus a new FIFO layer priced at the
+     * weighted-average cost of what the originating Delivery consumed for that item (see
+     * FifoLayerService::averageConsumedCost() — a deliberate simplification, not an exact
+     * per-layer restore, since a Credit Note can partially credit a Delivery). Requires the
+     * Invoice to have a linked Delivery — there's no other source of a restock warehouse.
+     */
+    protected function restockLines(CreditNote $creditNote): void
+    {
+        $delivery = $creditNote->invoice->delivery;
+
+        foreach ($creditNote->items as $line) {
+            if (! $line->restock) {
+                continue;
+            }
+
+            if ($delivery === null) {
+                throw new BusinessException("Cannot restock item {$line->item_code}: this Invoice has no linked Delivery to restock into.");
+            }
+
+            $this->stockLedgerService->record(
+                itemId: $line->item_id,
+                warehouseId: $delivery->warehouse_id,
+                transactionType: StockTransactionType::IN,
+                voucherType: StockVoucherType::CREDIT_NOTE,
+                voucherId: $creditNote->id,
+                qtyChange: (float) $line->qty_credited,
+                postingDatetime: now(),
+                referenceNo: $creditNote->document_number,
+                remarks: "Credit Note restock {$creditNote->document_number}",
+            );
+
+            $unitCost = $this->fifoLayerService->averageConsumedCost($line->item_id, StockVoucherType::DELIVERY, $delivery->id);
+
+            $this->fifoLayerService->receive(
+                itemId: $line->item_id,
+                warehouseId: $delivery->warehouse_id,
+                qty: (float) $line->qty_credited,
+                unitCost: $unitCost,
+                sourceType: StockVoucherType::CREDIT_NOTE,
+                sourceId: $creditNote->id,
+                sourceDocumentNumber: $creditNote->document_number,
+                receivedDate: $creditNote->credit_note_date,
+            );
+        }
+    }
+
+    /** Undoes restockLines() — the mirror OUT movement, then reverseReceipt() (blocked if the restocked layer was already consumed again). */
+    protected function unrestockLines(CreditNote $creditNote): void
+    {
+        $delivery = $creditNote->invoice->delivery;
+        $hasRestockLine = $creditNote->items->contains(fn ($line) => $line->restock);
+
+        if (! $hasRestockLine) {
+            return;
+        }
+
+        foreach ($creditNote->items as $line) {
+            if (! $line->restock) {
+                continue;
+            }
+
+            $this->stockLedgerService->record(
+                itemId: $line->item_id,
+                warehouseId: $delivery->warehouse_id,
+                transactionType: StockTransactionType::OUT,
+                voucherType: StockVoucherType::CREDIT_NOTE,
+                voucherId: $creditNote->id,
+                qtyChange: -(float) $line->qty_credited,
+                postingDatetime: now(),
+                referenceNo: $creditNote->document_number,
+                remarks: "Reversal of Credit Note restock {$creditNote->document_number}",
+            );
+        }
+
+        $this->fifoLayerService->reverseReceipt(StockVoucherType::CREDIT_NOTE, $creditNote->id);
     }
 
     /**
@@ -345,6 +430,7 @@ class CreditNoteService
                 'item_name' => $invoiceItem->item_name,
                 'uom' => $invoiceItem->uom,
                 'qty_credited' => $line['qty_credited'] ?? 0,
+                'qty_category' => $invoiceItem->item->qty_category,
                 'rate' => $invoiceItem->rate,
                 'amount' => $line['amount'],
                 'restock' => $line['restock'] ?? false,

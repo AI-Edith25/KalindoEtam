@@ -19,6 +19,7 @@ class StockAdjustmentItemResource extends JsonResource
             'counted_qty' => $this->counted_qty,
             'difference_qty' => $this->difference_qty,
             'qty_category' => $this->qty_category,
+            'unit_cost' => $this->unit_cost,
             'reason' => $this->reason,
         ];
     }

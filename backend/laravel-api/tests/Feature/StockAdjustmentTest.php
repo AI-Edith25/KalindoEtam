@@ -60,11 +60,57 @@ class StockAdjustmentTest extends TestCase
         $adjustment = $this->stockAdjustmentService->create([
             'warehouse_id' => $this->warehouse->id,
             'adjustment_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'counted_qty' => 50.6549, 'reason' => 'Physical count']],
+            'items' => [['item_id' => $this->item->id, 'counted_qty' => 50.6549, 'unit_cost' => 1000000, 'reason' => 'Physical count']],
         ]);
 
         $line = $adjustment->items->first()->fresh();
         $this->assertEquals(50.65, (float) $line->counted_qty);
         $this->assertSame('weight', $line->qty_category->value);
+    }
+
+    public function test_positive_difference_without_a_unit_cost_is_rejected(): void
+    {
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('Unit Cost is required');
+
+        $this->stockAdjustmentService->create([
+            'warehouse_id' => $this->warehouse->id,
+            'adjustment_date' => now()->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'counted_qty' => 10, 'reason' => 'Found extra stock']],
+        ]);
+    }
+
+    public function test_submit_creates_a_fifo_layer_for_a_positive_difference(): void
+    {
+        $adjustment = $this->stockAdjustmentService->create([
+            'warehouse_id' => $this->warehouse->id,
+            'adjustment_date' => now()->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'counted_qty' => 10, 'unit_cost' => 55000, 'reason' => 'Found extra stock']],
+        ]);
+
+        $adjustment = $this->stockAdjustmentService->submit($adjustment->fresh(['items']));
+
+        $layer = \App\Models\FifoLayer::query()->where('source_id', $adjustment->id)->sole();
+        $this->assertEquals(10, (float) $layer->qty_remaining);
+        $this->assertEquals(55000, (float) $layer->unit_cost);
+    }
+
+    public function test_submit_consumes_a_fifo_layer_for_a_negative_difference(): void
+    {
+        $this->seedStock($this->item->id, $this->warehouse->id, 20, unitCost: 40000);
+
+        $adjustment = $this->stockAdjustmentService->create([
+            'warehouse_id' => $this->warehouse->id,
+            'adjustment_date' => now()->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'counted_qty' => 12, 'reason' => 'Shrinkage']],
+        ]);
+
+        $adjustment = $this->stockAdjustmentService->submit($adjustment->fresh(['items']));
+
+        $consumption = \App\Models\FifoLayerConsumption::query()
+            ->where('consuming_source_type', \App\Enums\StockVoucherType::STOCK_ADJUSTMENT->value)
+            ->where('consuming_source_id', $adjustment->id)
+            ->sole();
+        $this->assertEquals(8, (float) $consumption->qty_consumed);
     }
 }

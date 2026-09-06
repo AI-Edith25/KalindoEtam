@@ -7,16 +7,23 @@ use App\Models\ImportBatch;
 /**
  * The `permission:` route middleware only takes a static string, but the
  * import routes are shared across modules — so each action checks the
- * module's own `master.{module}.import` permission here instead of at the
+ * module's own `{group}.{module}.import` permission here instead of at the
  * route level. Dashes in the URL slug (e.g. "item-groups") map to
  * underscores in the permission name, matching this app's existing
- * `master.item_groups.*` naming.
+ * `master.item_groups.*` naming. Every module defaults to the `master`
+ * permission group except the ones listed below — Opening Stock lives
+ * under Inventory's own permission group, not Master Data.
  */
 trait AuthorizesImportModule
 {
+    private const MODULE_PERMISSION_GROUPS = [
+        'opening-stock' => 'inventory',
+    ];
+
     private function authorizeModule(string $module): void
     {
-        $permission = 'master.'.str_replace('-', '_', $module).'.import';
+        $group = self::MODULE_PERMISSION_GROUPS[$module] ?? 'master';
+        $permission = "{$group}.".str_replace('-', '_', $module).'.import';
 
         abort_unless(auth()->user()?->can($permission) ?? false, 403);
     }
