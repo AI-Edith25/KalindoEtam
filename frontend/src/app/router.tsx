@@ -209,7 +209,7 @@ export function AppRouter() {
           path="/master/warehouses/import"
           element={
             <ProtectedRoute permission="master.warehouses.import">
-              <ImportWizardPage module="warehouses" label="Warehouses (Area)" listPath="/master/warehouses" />
+              <ImportWizardPage module="warehouses" label="Warehouses" listPath="/master/warehouses" />
             </ProtectedRoute>
           }
         />
@@ -217,7 +217,7 @@ export function AppRouter() {
           path="/master/warehouses/quick-import"
           element={
             <ProtectedRoute permission="master.warehouses.import">
-              <AutoImportPage module="warehouses" label="Warehouses (Area)" listPath="/master/warehouses" manualWizardPath="/master/warehouses/import" />
+              <AutoImportPage module="warehouses" label="Warehouses" listPath="/master/warehouses" manualWizardPath="/master/warehouses/import" />
             </ProtectedRoute>
           }
         />

@@ -64,7 +64,7 @@ export const navTree: NavGroup[] = [
       // Sales Targets — hidden from nav (feature retired, historical data kept in DB, see UpdateSalesTargetRequest/SalesTargetController).
       // { key: 'sales_targets', label: 'Sales Targets', path: '/master/sales-targets', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'terms_of_payment', label: 'Terms of Payment', path: '/master/terms-of-payment', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'warehouses', label: 'Area', path: '/master/warehouses', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'warehouses', label: 'Warehouse', path: '/master/warehouses', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'item_groups', label: 'Item Groups', path: '/master/item-groups', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'uoms', label: 'UOMs', path: '/master/uoms', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'taxes', label: 'Taxes', path: '/master/taxes', actions: ['view', 'create', 'update', 'delete'] },

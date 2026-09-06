@@ -64,9 +64,9 @@ export function WarehouseListPage() {
       <SectionNav group="master" />
 
       <PageHeader
-        title="Area"
-        description="Manage areas used across purchase receipts and sales deliveries."
-        count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} areas` : undefined}
+        title="Warehouse"
+        description="Manage warehouses used across purchase receipts and sales deliveries."
+        count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} warehouses` : undefined}
         actions={
           <ActionBar
             actions={[
@@ -74,7 +74,7 @@ export function WarehouseListPage() {
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/warehouses/quick-import') },
             ]}
-            primary={canCreate ? { label: 'New Area', icon: Plus, onClick: list.openCreate } : undefined}
+            primary={canCreate ? { label: 'New Warehouse', icon: Plus, onClick: list.openCreate } : undefined}
           />
         }
       />
@@ -91,7 +91,7 @@ export function WarehouseListPage() {
         isLoading={list.listQuery.isLoading}
         isError={list.listQuery.isError}
         onRetry={() => list.listQuery.refetch()}
-        emptyMessage={list.search || list.filters.warehouseType ? 'No areas match your search or filters.' : 'No areas yet.'}
+        emptyMessage={list.search || list.filters.warehouseType ? 'No warehouses match your search or filters.' : 'No warehouses yet.'}
         onRowClick={(row) => list.setDetailItem(row)}
         sort={list.sort}
         onSortChange={list.handleSortChange}

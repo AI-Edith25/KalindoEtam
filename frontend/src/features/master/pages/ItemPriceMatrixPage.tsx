@@ -389,7 +389,7 @@ export function ItemPriceMatrixPage() {
       </div>
 
       {warehouses.length === 0 && !warehousesQuery.isLoading && (
-        <p className="text-sm text-muted-foreground">No warehouses yet — create one under Master &gt; Area first.</p>
+        <p className="text-sm text-muted-foreground">No warehouses yet — create one under Master &gt; Warehouse first.</p>
       )}
 
       <div className="max-h-[70vh] overflow-auto rounded-md border">
