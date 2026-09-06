@@ -44,7 +44,7 @@ class ImportBatchService
         $extension = strtolower($file->getClientOriginalExtension());
 
         $rawRows = ImportFileReader::readRaw(Storage::disk(self::DISK)->path($path), $extension);
-        $headerSettings = HeaderDetector::detect($rawRows);
+        $headerSettings = HeaderDetector::detect($rawRows, $template->fields());
 
         $derived = $this->deriveHeaderState($template, $path, $extension, $headerSettings['header_row'], $headerSettings['data_start_row']);
 
@@ -501,6 +501,14 @@ class ImportBatchService
         $built = [];
         foreach ($rawRows as $rawRow) {
             $rawRow = $template->transformRow($rawRow);
+
+            // A template can mark a row as structural noise rather than a record to import
+            // (e.g. Chart of Accounts' legacy export embeds "Financial Category" group
+            // headers and non-postable summary accounts between real rows) — excluded
+            // entirely from counts, never treated as a failed/invalid row.
+            if (($rawRow['_skip_row'] ?? null) !== null) {
+                continue;
+            }
 
             $data = [];
             $messages = [];

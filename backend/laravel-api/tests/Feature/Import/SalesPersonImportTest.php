@@ -96,4 +96,33 @@ class SalesPersonImportTest extends TestCase
         $preview = $this->postJson("/api/v1/import/batches/{$batchId}/preview");
         $this->assertSame(['total' => 2, 'valid' => 1, 'warning' => 0, 'error' => 1], $preview->json('data.summary'));
     }
+
+    /**
+     * The real xlsSalesPersonListing.xlsx shape (title/company preamble rows, header on row
+     * 5, most optional columns blank) used to make the 1-step /auto endpoint wrongly reject
+     * with "Kolom wajib tidak dikenali: Code, Name" — HeaderDetector's structural heuristic
+     * picked a later data row over the real header (see HeaderDetectorTest). The semantic
+     * pass added to HeaderDetector fixes this without the user reformatting their export.
+     */
+    public function test_auto_import_recognizes_the_real_export_shape_with_preamble_rows(): void
+    {
+        $csv = "SALES PERSON LISTING,,,,,,,,\n"
+            .",,,,,,,,\n"
+            ."PT. KALINDO ETAM,,,,05/09/2026 23:02:40,,,,\n"
+            .",,,,,,,,\n"
+            ."Sales Person Code,Sales Person Name,Address,Area,Telephone,Fax,Ratio,Branch,Status\n"
+            ."KE-0003,EDDY WIJAYA HOLIM,,,,,0,,Active\n"
+            ."KE-AKHSAN,AKHSAN,,SMR,,,0,SMD,Active\n"
+            ."KE-ANDRI,EKO ANDRI ASTUTI,,,,,0,,Active\n"
+            ."KE-ANTONY,ANTONY,,,,,0,,Active\n"
+            ."KE-AVRIANUS,AVRIANUS,,,,,0,,Active\n"
+            ."KE-BUDI,BUDI SANTOSO,,,,,0,,Active\n"
+            ."KE-CITRA,CITRA DEWI,,,,,0,,Active\n";
+
+        $response = $this->post('/api/v1/import/sales-persons/auto', ['file' => $this->csvFile('sp.csv', $csv)]);
+
+        $response->assertCreated();
+        $this->assertSame('KE-0003', SalesPerson::query()->where('code', 'KE-0003')->first()?->code);
+        $this->assertTrue(SalesPerson::query()->where('code', 'KE-AKHSAN')->first()?->is_active);
+    }
 }

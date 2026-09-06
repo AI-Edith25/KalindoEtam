@@ -3,6 +3,7 @@
 namespace Tests\Unit\Import;
 
 use App\Services\Import\HeaderDetector;
+use App\Services\Import\Templates\SalesPersonImportTemplate;
 use PHPUnit\Framework\TestCase;
 
 class HeaderDetectorTest extends TestCase
@@ -56,5 +57,35 @@ class HeaderDetectorTest extends TestCase
         ];
 
         $this->assertSame(['header_row' => 1, 'data_start_row' => 2], HeaderDetector::detect($rawRows));
+    }
+
+    /**
+     * Real xlsSalesPersonListing.xlsx shape: 4 preamble rows, header at row 5, then data rows
+     * where most non-code/name/status columns (Address/Area/Telephone/Fax/Branch) are blank.
+     * Without the semantic pass, the structural heuristic alone mis-picks a later data row —
+     * many share the exact same "only Code/Name/Ratio/Status populated" shape as their own
+     * lookahead window, scoring a perfect (zero-extra) structural match that beats the real
+     * header (which necessarily spans all 9 columns, some rarely used).
+     */
+    public function test_detects_header_past_preamble_when_most_data_rows_share_a_sparser_shape(): void
+    {
+        $rawRows = [
+            ['SALES PERSON LISTING', null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null, null],
+            ['PT. KALINDO ETAM', null, null, null, '05/09/2026 23:02:40', null, null, null, null],
+            [null, null, null, null, null, null, null, null, null],
+            ['Sales Person Code', 'Sales Person Name', 'Address', 'Area', 'Telephone', 'Fax', 'Ratio', 'Branch', 'Status'],
+            ['KE-0003', 'EDDY WIJAYA HOLIM', null, null, null, null, 0, null, 'Active'],
+            ['KE-AKHSAN', 'AKHSAN', null, 'SMR', null, null, 0, 'SMD', 'Active'],
+            ['KE-ANDRI', 'EKO ANDRI ASTUTI', null, null, null, null, 0, null, 'Active'],
+            ['KE-ANTONY', 'ANTONY', null, null, null, null, 0, null, 'Active'],
+            ['KE-AVRIANUS', 'AVRIANUS', null, null, null, null, 0, null, 'Active'],
+            ['KE-BUDI', 'BUDI SANTOSO', null, null, null, null, 0, null, 'Active'],
+            ['KE-CITRA', 'CITRA DEWI', null, null, null, null, 0, null, 'Active'],
+        ];
+
+        $fields = (new SalesPersonImportTemplate)->fields();
+
+        $this->assertSame(['header_row' => 5, 'data_start_row' => 6], HeaderDetector::detect($rawRows, $fields));
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\Import;
 
 use App\Services\Import\Contracts\ImportTemplate;
+use App\Services\Import\Templates\ChartOfAccountImportTemplate;
 use App\Services\Import\Templates\CustomerImportTemplate;
 use App\Services\Import\Templates\ItemGroupImportTemplate;
 use App\Services\Import\Templates\ItemImportTemplate;
@@ -30,6 +31,7 @@ final class ImportTemplateRegistry
         'item-standard-rates' => ItemStandardRateImportTemplate::class,
         'sales-persons' => SalesPersonImportTemplate::class,
         'miscellaneous' => MiscellaneousItemImportTemplate::class,
+        'chart-of-accounts' => ChartOfAccountImportTemplate::class,
     ];
 
     public function resolve(string $key): ImportTemplate

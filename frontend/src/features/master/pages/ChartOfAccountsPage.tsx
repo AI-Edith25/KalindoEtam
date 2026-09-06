@@ -1,4 +1,5 @@
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -29,9 +30,11 @@ const SORTERS: Record<string, (a: ChartOfAccount) => string | number> = {
 }
 
 export function ChartOfAccountsPage() {
+  const navigate = useNavigate()
   const canCreate = useHasPermission('master.chart_of_accounts.create')
   const canUpdate = useHasPermission('master.chart_of_accounts.update')
   const canDelete = useHasPermission('master.chart_of_accounts.delete')
+  const canImport = useHasPermission('master.chart_of_accounts.import')
   const list = useEntityListPage<ChartOfAccount, ChartOfAccountFilterValues>({
     queryKey: 'chart-of-accounts-paged',
     fetchList: fetchChartOfAccountsPaged,
@@ -76,7 +79,7 @@ export function ChartOfAccountsPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/finance/chart-of-accounts/quick-import') },
             ]}
             primary={canCreate ? { label: 'New Account', icon: Plus, onClick: list.openCreate } : undefined}
           />
