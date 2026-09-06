@@ -124,11 +124,26 @@ class StockLedgerRepository extends BaseRepository
 
         $latest = DB::query()->fromSub($ranked, 'ranked')->where('rn', 1);
 
+        // FifoLayer, not this table, is the cost source of truth — qty_remaining here should
+        // already agree with balance_qty above (same item+warehouse), but a LEFT JOIN keeps a
+        // row with no layers (yet) from disappearing, rather than an inner join silently
+        // dropping it from the report.
+        $fifoValues = DB::table('fifo_layers')
+            ->whereNull('deleted_at')
+            ->select('item_id', 'warehouse_id')
+            ->selectRaw('SUM(qty_remaining) as fifo_qty')
+            ->selectRaw('SUM(qty_remaining * unit_cost) as fifo_value')
+            ->groupBy('item_id', 'warehouse_id');
+
         return DB::query()
             ->fromSub($latest, 'latest_balances')
             ->join('items', 'items.id', '=', 'latest_balances.item_id')
             ->join('warehouses', 'warehouses.id', '=', 'latest_balances.warehouse_id')
             ->join('uoms', 'uoms.id', '=', 'items.uom_id')
+            ->leftJoinSub($fifoValues, 'fifo_values', function ($join) {
+                $join->on('fifo_values.item_id', '=', 'latest_balances.item_id')
+                    ->on('fifo_values.warehouse_id', '=', 'latest_balances.warehouse_id');
+            })
             ->select([
                 'latest_balances.item_id',
                 'items.item_code',
@@ -137,6 +152,7 @@ class StockLedgerRepository extends BaseRepository
                 'warehouses.name as warehouse_name',
                 'latest_balances.balance_qty as current_qty',
                 'uoms.name as uom',
+                DB::raw('COALESCE(fifo_values.fifo_value, 0) as total_value'),
             ])
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('latest_balances.warehouse_id', $warehouseId))
             ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->where('items.item_group_id', $itemGroupId))
@@ -148,5 +164,51 @@ class StockLedgerRepository extends BaseRepository
             ->orderBy('items.item_code')
             ->orderBy('warehouses.name')
             ->paginate($perPage);
+    }
+
+    /**
+     * Total inventory value + distinct item count across every row matching the Stock Balance
+     * report's filters — always the full filtered set, never just the current page, same
+     * convention as FifoValuationService::summary(). Reuses currentBalances()'s own filtering,
+     * just against an unpaginated get() instead.
+     */
+    public function totalValueSummary(array $filters): array
+    {
+        $ranked = $this->model->query()
+            ->select('item_id', 'warehouse_id', 'balance_qty')
+            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY item_id, warehouse_id ORDER BY posting_datetime DESC, id DESC) as rn');
+
+        $latest = DB::query()->fromSub($ranked, 'ranked')->where('rn', 1);
+
+        $fifoValues = DB::table('fifo_layers')
+            ->whereNull('deleted_at')
+            ->select('item_id', 'warehouse_id')
+            ->selectRaw('SUM(qty_remaining * unit_cost) as fifo_value')
+            ->groupBy('item_id', 'warehouse_id');
+
+        $rows = DB::query()
+            ->fromSub($latest, 'latest_balances')
+            ->join('items', 'items.id', '=', 'latest_balances.item_id')
+            ->leftJoinSub($fifoValues, 'fifo_values', function ($join) {
+                $join->on('fifo_values.item_id', '=', 'latest_balances.item_id')
+                    ->on('fifo_values.warehouse_id', '=', 'latest_balances.warehouse_id');
+            })
+            ->select([
+                'latest_balances.item_id',
+                DB::raw('COALESCE(fifo_values.fifo_value, 0) as total_value'),
+            ])
+            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('latest_balances.warehouse_id', $warehouseId))
+            ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->where('items.item_group_id', $itemGroupId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('latest_balances.item_id', $itemId))
+            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
+                fn ($q) => $q->where('items.item_code', 'like', "%{$search}%")
+                    ->orWhere('items.item_name', 'like', "%{$search}%")
+            ))
+            ->get();
+
+        return [
+            'total_value' => round((float) $rows->sum('total_value'), 2),
+            'item_count' => $rows->pluck('item_id')->unique()->count(),
+        ];
     }
 }

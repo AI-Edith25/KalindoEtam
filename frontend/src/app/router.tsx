@@ -67,6 +67,7 @@ import { StockTransferDetailPage } from '@/features/inventory/pages/StockTransfe
 import { OpeningStockListPage } from '@/features/inventory/pages/OpeningStockListPage'
 import { OpeningStockEditorPage } from '@/features/inventory/pages/OpeningStockEditorPage'
 import { OpeningStockDetailPage } from '@/features/inventory/pages/OpeningStockDetailPage'
+import { FifoValuationListPage } from '@/features/inventory/pages/FifoValuationListPage'
 import { PurchaseReportPage } from '@/features/reports/pages/PurchaseReportPage'
 import { GoodsReceiptReportPage } from '@/features/reports/pages/GoodsReceiptReportPage'
 import { SalesReportPage } from '@/features/reports/pages/SalesReportPage'
@@ -377,6 +378,7 @@ export function AppRouter() {
         <Route path="/inventory/opening-stock/new" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/opening-stock/:id/edit" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockEditorPage /></ProtectedRoute>} />
         <Route path="/inventory/opening-stock/:id" element={<ProtectedRoute permission="inventory.opening_stock.view"><OpeningStockDetailPage /></ProtectedRoute>} />
+        <Route path="/inventory/fifo-layers" element={<ProtectedRoute permission="inventory.fifo_layers.view"><FifoValuationListPage /></ProtectedRoute>} />
         <Route path="/reports/purchase" element={<ProtectedRoute permission="reports.purchase.view"><PurchaseReportPage /></ProtectedRoute>} />
         <Route path="/reports/goods-receipts" element={<ProtectedRoute permission="reports.goods_receipts.view"><GoodsReceiptReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPage /></ProtectedRoute>} />

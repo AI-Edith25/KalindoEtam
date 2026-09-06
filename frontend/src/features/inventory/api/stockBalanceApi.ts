@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
-import type { ApiListResponse } from '@/shared/types/api'
-import type { StockBalanceRow } from '../types'
+import type { ApiListResponse, PaginationMeta } from '@/shared/types/api'
+import type { StockBalanceRow, StockBalanceSummary } from '../types'
 
 export interface StockBalanceReportParams {
   page: number
@@ -18,7 +18,11 @@ export interface StockBalanceReportParams {
  * controller, different endpoint and shape; kept in a separate file to
  * avoid confusing the two.
  */
-export async function fetchStockBalanceReport(params: StockBalanceReportParams): Promise<ApiListResponse<StockBalanceRow>> {
-  const { data } = await apiClient.get<ApiListResponse<StockBalanceRow>>('/stock-ledger/balances/report', { params })
+export interface StockBalanceReportResponse extends ApiListResponse<StockBalanceRow> {
+  meta: PaginationMeta & { summary: StockBalanceSummary }
+}
+
+export async function fetchStockBalanceReport(params: StockBalanceReportParams): Promise<StockBalanceReportResponse> {
+  const { data } = await apiClient.get<StockBalanceReportResponse>('/stock-ledger/balances/report', { params })
   return data
 }

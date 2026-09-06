@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Download, RotateCw, Upload } from 'lucide-react'
+import { Coins, Download, Package, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { SectionNav } from '@/components/shared/SectionNav'
-import { formatNumber } from '@/lib/utils'
+import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchStockBalanceReport } from '../api/stockBalanceApi'
 import { StockBalanceFiltersBar } from '../components/StockBalanceFiltersBar'
 import { emptyStockBalanceFilters } from '../lib/stockBalanceFilters'
@@ -36,6 +37,7 @@ export function StockBalanceListPage() {
   })
 
   const rows = listQuery.data?.data ?? []
+  const summary = listQuery.data?.meta.summary
 
   const columns: DataTableColumn<StockBalanceRow>[] = [
     { header: 'Item', accessor: (row) => `${row.item_code} — ${row.item_name}` },
@@ -44,6 +46,8 @@ export function StockBalanceListPage() {
     { header: 'Reserved Qty', accessor: (row) => (row.reserved_qty === null ? '—' : formatNumber(row.reserved_qty)), className: 'text-right text-muted-foreground' },
     { header: 'Available Qty', accessor: (row) => formatNumber(row.available_qty), className: 'text-right' },
     { header: 'Reorder Level', accessor: (row) => (row.reorder_level === null ? '—' : formatNumber(row.reorder_level)), className: 'text-right text-muted-foreground' },
+    { header: 'Avg Cost', accessor: (row) => formatCurrency(row.avg_cost), className: 'text-right text-muted-foreground' },
+    { header: 'Total Value', accessor: (row) => formatCurrency(row.total_value), className: 'text-right font-medium' },
   ]
 
   const hasFilters = !!(search || filters.warehouse_id || filters.item_group_id || filters.item_id)
@@ -66,6 +70,11 @@ export function StockBalanceListPage() {
           />
         }
       />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SummaryCard title="Total Inventory Value" value={formatCurrency(summary?.total_value ?? 0)} icon={Coins} isLoading={listQuery.isLoading} />
+        <SummaryCard title="Items" value={formatNumber(summary?.item_count ?? 0)} icon={Package} isLoading={listQuery.isLoading} />
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox

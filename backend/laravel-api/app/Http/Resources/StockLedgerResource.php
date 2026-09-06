@@ -23,6 +23,10 @@ class StockLedgerResource extends JsonResource
             'balance_qty' => $this->balance_qty,
             'posting_datetime' => $this->posting_datetime,
             'remarks' => $this->remarks,
+            'unit_cost' => $this->unit_cost ?? null,
+            'value_in' => $this->value_in ?? null,
+            'value_out' => $this->value_out ?? null,
+            'balance_value' => $this->balance_value ?? null,
         ];
     }
 }

@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\ProfitLossController;
 use App\Http\Controllers\Api\V1\BalanceSheetController;
 use App\Http\Controllers\Api\V1\CashFlowController;
 use App\Http\Controllers\Api\V1\PeriodController;
+use App\Http\Controllers\Api\V1\FifoValuationController;
 use App\Http\Controllers\Api\V1\GoodsReceiptController;
 use App\Http\Controllers\Api\V1\InvoiceChangeRequestController;
 use App\Http\Controllers\Api\V1\InvoiceController;
@@ -195,6 +196,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('stock-ledger', [StockLedgerController::class, 'list'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view');
     Route::get('stock-ledger/balances/report', [StockLedgerController::class, 'balancesReport'])->middleware('permission:inventory.stock_balance.view|reports.inventory_balance.view');
     Route::post('stock-in', [StockInController::class, 'store'])->middleware('permission:inventory.stock_ledger.create');
+    Route::get('fifo-layers/export', [FifoValuationController::class, 'export'])->middleware('permission:inventory.fifo_layers.view');
+    Route::get('fifo-layers', [FifoValuationController::class, 'index'])->middleware('permission:inventory.fifo_layers.view');
 
     // Document Engine — shared by every future transactional module.
     $withPagePermissions(Route::apiResource('naming-series', NamingSeriesController::class), 'administration.naming_series');

@@ -26,7 +26,7 @@ class GoodsReceiptExport implements FromCollection, WithHeadings, WithMapping
     {
         return [
             'Date', 'Receipt No', 'Purchase No', 'Warehouse', 'Supplier',
-            'Received Qty', 'Status',
+            'Received Qty', 'Amount', 'Status',
         ];
     }
 
@@ -40,6 +40,7 @@ class GoodsReceiptExport implements FromCollection, WithHeadings, WithMapping
             $row->warehouse?->name,
             $row->supplier?->supplier_name,
             $row->items->sum('qty'),
+            round((float) $row->items->sum('amount'), 2),
             ucfirst($row->status?->value ?? ''),
         ];
     }

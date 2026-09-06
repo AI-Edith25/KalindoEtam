@@ -52,6 +52,7 @@ class RolePermissionSeeder extends Seeder
         'master.chart_of_accounts' => ['view', 'create', 'update', 'delete', 'import'],
         'master.miscellaneous' => ['view', 'create', 'update', 'delete', 'import'],
         'inventory.stock_balance' => ['view'],
+        'inventory.fifo_layers' => ['view'],
         'inventory.stock_ledger' => ['view', 'create'],
         'inventory.adjustments' => ['view', 'create', 'update', 'delete'],
         'inventory.opening_stock' => ['view', 'create', 'update', 'delete', 'import'],

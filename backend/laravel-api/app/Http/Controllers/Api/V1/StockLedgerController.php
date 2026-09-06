@@ -32,9 +32,9 @@ class StockLedgerController extends Controller
         $filters = $request->validated();
         $perPage = $filters['per_page'] ?? 15;
 
-        return $this->success(StockLedgerResource::collection(
-            $this->stockLedgerService->listAll($filters, $perPage)
-        ));
+        $rows = $this->stockLedgerService->attachCostInfo($this->stockLedgerService->listAll($filters, $perPage));
+
+        return $this->success(StockLedgerResource::collection($rows));
     }
 
     /**
@@ -63,8 +63,11 @@ class StockLedgerController extends Controller
         $filters = $request->validated();
         $perPage = $filters['per_page'] ?? 15;
 
-        return $this->success(StockBalanceResource::collection(
-            $this->stockLedgerService->currentBalances($filters, $perPage)
-        ));
+        return $this->success(
+            StockBalanceResource::collection($this->stockLedgerService->currentBalances($filters, $perPage)),
+            '',
+            200,
+            ['summary' => $this->stockLedgerService->totalValueSummary($filters)],
+        );
     }
 }

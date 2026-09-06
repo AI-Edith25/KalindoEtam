@@ -15,6 +15,7 @@ class StockBalanceResource extends JsonResource
     public function toArray(Request $request): array
     {
         $currentQty = (int) $this->current_qty;
+        $totalValue = round((float) $this->total_value, 2);
 
         return [
             'item_id' => $this->item_id,
@@ -27,6 +28,8 @@ class StockBalanceResource extends JsonResource
             'reserved_qty' => null,
             'available_qty' => $currentQty,
             'reorder_level' => null,
+            'total_value' => $totalValue,
+            'avg_cost' => $currentQty > 0 ? round($totalValue / $currentQty, 2) : 0,
         ];
     }
 }

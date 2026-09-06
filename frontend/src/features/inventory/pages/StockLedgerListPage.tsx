@@ -10,7 +10,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
-import { formatDate, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchStockLedgerEntries } from '../api/stockLedgerApi'
 import { StockLedgerFiltersBar } from '../components/StockLedgerFiltersBar'
 import { resolveVoucherLink } from '../lib/voucherLinks'
@@ -93,6 +93,10 @@ export function StockLedgerListPage() {
       className: 'text-right',
     },
     { header: 'Running Balance', accessor: (row) => formatNumber(row.balance_qty), className: 'text-right font-medium' },
+    { header: 'Unit Cost', accessor: (row) => (row.unit_cost ? formatCurrency(row.unit_cost) : '—'), className: 'text-right text-muted-foreground' },
+    { header: 'Value In', accessor: (row) => (row.value_in ? formatCurrency(row.value_in) : '—'), className: 'text-right' },
+    { header: 'Value Out', accessor: (row) => (row.value_out ? formatCurrency(row.value_out) : '—'), className: 'text-right' },
+    { header: 'Balance Value', accessor: (row) => (row.balance_value !== null ? formatCurrency(row.balance_value) : '—'), className: 'text-right font-medium' },
   ]
 
   const hasFilters = !!(search || filters.warehouse_id || filters.item_id || filters.voucher_type || filters.dateFrom || filters.dateTo)

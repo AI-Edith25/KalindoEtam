@@ -11,7 +11,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
-import { formatDate, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { exportGoodsReceipts, fetchGoodsReceipts } from '@/features/purchase/api/goodsReceiptApi'
 import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
 import type { GoodsReceipt } from '@/features/purchase/types'
@@ -90,6 +90,14 @@ export function GoodsReceiptReportPage() {
       header: 'Received Qty',
       accessor: (row) => formatNumber(row.items.reduce((sum, line) => sum + Number(line.qty), 0)),
       className: 'text-right',
+    },
+    {
+      // One row per document already (Received Qty above is the same sum-across-lines
+      // pattern), so Amount is the receipt's total value — a per-line Rate isn't meaningful
+      // at this level once a receipt has more than one item at a different price.
+      header: 'Amount',
+      accessor: (row) => formatCurrency(row.items.reduce((sum, line) => sum + Number(line.amount), 0)),
+      className: 'text-right font-medium',
     },
   ]
 

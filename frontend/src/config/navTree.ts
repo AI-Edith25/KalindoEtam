@@ -81,6 +81,7 @@ export const navTree: NavGroup[] = [
       { key: 'adjustments', label: 'Adjustments', path: '/inventory/adjustments', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'transfers', label: 'Transfer Stock', path: '/inventory/transfers', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'opening_stock', label: 'Opening Stock', path: '/inventory/opening-stock', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'fifo_layers', label: 'FIFO Layers', path: '/inventory/fifo-layers', actions: ['view'] },
     ],
   },
   {

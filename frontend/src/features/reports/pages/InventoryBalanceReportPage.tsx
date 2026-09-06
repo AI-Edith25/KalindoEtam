@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Boxes, Download, Package, RotateCw, Upload } from 'lucide-react'
+import { Coins, Download, Package, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -9,7 +9,7 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
-import { formatNumber } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { fetchStockBalanceReport } from '@/features/inventory/api/stockBalanceApi'
 import { StockBalanceFiltersBar } from '@/features/inventory/components/StockBalanceFiltersBar'
 import { emptyStockBalanceFilters } from '@/features/inventory/lib/stockBalanceFilters'
@@ -41,15 +41,15 @@ export function InventoryBalanceReportPage() {
   })
 
   const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
-
-  // ponytail: summed from the currently-loaded page only, not a backend aggregate — same ceiling as Purchase/Sales Report's total cards.
-  const totalStockQty = useMemo(() => rows.reduce((sum, row) => sum + row.current_qty, 0), [rows])
+  const summary = listQuery.data?.meta.summary
 
   const columns: DataTableColumn<StockBalanceRow>[] = [
     { header: 'Item', accessor: (row) => `${row.item_code} — ${row.item_name}` },
     { header: 'Warehouse', accessor: (row) => row.warehouse_name },
     { header: 'Current Qty', accessor: (row) => formatNumber(row.current_qty), className: 'text-right' },
     { header: 'UOM', accessor: (row) => row.uom },
+    { header: 'Avg Cost', accessor: (row) => formatCurrency(row.avg_cost), className: 'text-right text-muted-foreground' },
+    { header: 'Total Value', accessor: (row) => formatCurrency(row.total_value), className: 'text-right font-medium' },
   ]
 
   const hasFilters = !!(search || filters.warehouse_id || filters.item_group_id || filters.item_id)
@@ -81,10 +81,9 @@ export function InventoryBalanceReportPage() {
           isLoading={listQuery.isLoading}
         />
         <SummaryCard
-          title="Total Stock Quantity"
-          value={formatNumber(totalStockQty)}
-          description="Sum of the currently loaded page"
-          icon={Boxes}
+          title="Total Inventory Value"
+          value={formatCurrency(summary?.total_value ?? 0)}
+          icon={Coins}
           isLoading={listQuery.isLoading}
         />
       </div>

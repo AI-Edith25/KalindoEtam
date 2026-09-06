@@ -26,6 +26,10 @@ export interface StockLedgerEntry {
   balance_qty: string | number
   posting_datetime: string
   remarks: string | null
+  unit_cost: number | null
+  value_in: number | null
+  value_out: number | null
+  balance_value: number | null
 }
 
 export interface StockLedgerFilterValues {
@@ -47,6 +51,13 @@ export interface StockBalanceRow {
   reserved_qty: number | null
   available_qty: number
   reorder_level: number | null
+  total_value: number
+  avg_cost: number
+}
+
+export interface StockBalanceSummary {
+  total_value: number
+  item_count: number
 }
 
 export interface StockBalanceFilterValues {
@@ -183,4 +194,43 @@ export interface StockTransferFilterValues {
   warehouse_id: string
   dateFrom: string
   dateTo: string
+}
+
+export interface FifoLayerDetail {
+  id: string
+  source_type: VoucherType
+  source_id: string
+  source_document_number: string | null
+  received_date: string
+  qty_in: string | number
+  qty_remaining: string | number
+  unit_cost: string | number
+  remaining_value: number
+}
+
+export interface FifoValuationGroup {
+  item_id: string
+  warehouse_id: string
+  item_code: string
+  item_name: string
+  warehouse_name: string
+  qty_remaining: number
+  total_value: number
+  weighted_average_cost: number
+  layers: FifoLayerDetail[]
+}
+
+export interface FifoValuationSummary {
+  total_value: number
+  item_count: number
+  total_qty: number
+}
+
+export interface FifoValuationFilterValues {
+  warehouse_id: string
+  item_group_id: string
+  item_id: string
+  dateFrom: string
+  dateTo: string
+  hideExhausted: boolean
 }
