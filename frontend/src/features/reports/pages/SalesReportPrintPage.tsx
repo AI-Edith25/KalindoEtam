@@ -10,14 +10,21 @@ import { fetchProductSales } from '../api/productSalesApi'
 import { fetchCustomerSales } from '../api/customerSalesApi'
 import { fetchOpenOrders } from '../api/openOrdersApi'
 import { fetchSalesListing } from '../api/salesListingApi'
+import { fetchMargin } from '../api/marginApi'
+import type { MarginGroupBy } from '../types'
 
-type PrintTab = 'products' | 'customers' | 'open-orders' | 'listing'
+type PrintTab = 'products' | 'customers' | 'open-orders' | 'listing' | 'margin'
 
 const TITLES: Record<PrintTab, { preview: string; report: string }> = {
   products: { preview: 'Product Sales', report: 'PRODUCT SALES REPORT' },
   customers: { preview: 'Customer Sales', report: 'CUSTOMER SALES REPORT' },
   'open-orders': { preview: 'Open Orders', report: 'OPEN ORDERS REPORT' },
   listing: { preview: 'Sales Listing', report: 'SALES LISTING REPORT' },
+  margin: { preview: 'Margin', report: 'MARGIN REPORT' },
+}
+
+function formatMargin(value: number): string {
+  return `${value.toFixed(2)}%`
 }
 
 /** Read-only print view of the active Sales Report tab's current filters. */
@@ -27,9 +34,11 @@ export function SalesReportPrintPage() {
   const [optionsOpen, setOptionsOpen] = useState(false)
 
   const rawTab = searchParams.get('tab')
-  const tab: PrintTab = rawTab === 'customers' || rawTab === 'open-orders' || rawTab === 'listing' ? rawTab : 'products'
+  const tab: PrintTab =
+    rawTab === 'customers' || rawTab === 'open-orders' || rawTab === 'listing' || rawTab === 'margin' ? rawTab : 'products'
   const dateFrom = searchParams.get('date_from') ?? undefined
   const dateTo = searchParams.get('date_to') ?? undefined
+  const marginGroup = (searchParams.get('group') as MarginGroupBy | null) ?? 'item'
   const params = {
     customer_id: searchParams.get('customer_id') ?? undefined,
     item_id: searchParams.get('item_id') ?? undefined,
@@ -65,10 +74,17 @@ export function SalesReportPrintPage() {
     enabled: tab === 'listing',
   })
 
+  const marginQuery = useQuery({
+    queryKey: ['margin-print', params, marginGroup],
+    queryFn: () => fetchMargin({ page: 1, per_page: 500, group: marginGroup, ...params }),
+    enabled: tab === 'margin',
+  })
+
   const total =
     tab === 'products' ? (productsQuery.data?.meta.total ?? 0)
     : tab === 'customers' ? (customersQuery.data?.meta.total ?? 0)
     : tab === 'open-orders' ? (openOrdersQuery.data?.meta.total ?? 0)
+    : tab === 'margin' ? (marginQuery.data?.meta.total ?? 0)
     : (listingQuery.data?.meta.total ?? 0)
 
   return (
@@ -123,6 +139,13 @@ export function SalesReportPrintPage() {
             <p>
               Net Sales: {formatMoney(listingQuery.data.meta.kpis.net_sales, printOptions.amountDecimals)} — Gross:{' '}
               {formatMoney(listingQuery.data.meta.kpis.gross, printOptions.amountDecimals)}
+            </p>
+          )}
+          {tab === 'margin' && marginQuery.data?.meta.kpis && (
+            <p>
+              Total Penjualan: {formatMoney(marginQuery.data.meta.kpis.total_sales, printOptions.amountDecimals)} — Total Profit:{' '}
+              {formatMoney(marginQuery.data.meta.kpis.total_profit, printOptions.amountDecimals)} — Margin Rata-rata:{' '}
+              {formatMargin(marginQuery.data.meta.kpis.avg_margin_pct)}
             </p>
           )}
         </div>
@@ -229,6 +252,73 @@ export function SalesReportPrintPage() {
                   <td className="border-r-2 border-foreground/80 p-2 capitalize">{row.type.replace('_', ' ')}</td>
                   <td className="border-r-2 border-foreground/80 p-2 text-right">{formatMoney(row.amount, printOptions.amountDecimals)}</td>
                   <td className="p-2 text-right">{formatMoney(row.amount_incl_tax, printOptions.amountDecimals)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {tab === 'margin' && (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b-2 border-foreground/80 text-left">
+                {marginGroup === 'item' && (
+                  <>
+                    <th className="border-r-2 border-foreground/80 p-2">Item Code</th>
+                    <th className="border-r-2 border-foreground/80 p-2">Item Name</th>
+                    <th className="border-r-2 border-foreground/80 p-2 text-right">Qty</th>
+                  </>
+                )}
+                {marginGroup === 'customer' && (
+                  <>
+                    <th className="border-r-2 border-foreground/80 p-2">Customer Code</th>
+                    <th className="border-r-2 border-foreground/80 p-2">Customer Name</th>
+                    <th className="border-r-2 border-foreground/80 p-2 text-right">Jml Invoice</th>
+                  </>
+                )}
+                {marginGroup === 'invoice' && (
+                  <>
+                    <th className="border-r-2 border-foreground/80 p-2">Date</th>
+                    <th className="border-r-2 border-foreground/80 p-2">No Invoice</th>
+                    <th className="border-r-2 border-foreground/80 p-2">Customer</th>
+                    <th className="border-r-2 border-foreground/80 p-2">Sales Person</th>
+                  </>
+                )}
+                <th className="border-r-2 border-foreground/80 p-2 text-right">Penjualan</th>
+                <th className="border-r-2 border-foreground/80 p-2 text-right">HPP</th>
+                <th className="border-r-2 border-foreground/80 p-2 text-right">Profit</th>
+                <th className="p-2 text-right">Margin %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(marginQuery.data?.data ?? []).map((row) => (
+                <tr key={row.id} className="border-b border-foreground/30">
+                  {marginGroup === 'item' && (
+                    <>
+                      <td className="border-r-2 border-foreground/80 p-2">{row.item_code ?? '—'}</td>
+                      <td className="border-r-2 border-foreground/80 p-2">{row.item_name}</td>
+                      <td className="border-r-2 border-foreground/80 p-2 text-right">{formatQty(row.qty ?? 0, printOptions.qtyDecimals)}</td>
+                    </>
+                  )}
+                  {marginGroup === 'customer' && (
+                    <>
+                      <td className="border-r-2 border-foreground/80 p-2">{row.customer_code ?? '—'}</td>
+                      <td className="border-r-2 border-foreground/80 p-2">{row.customer_name}</td>
+                      <td className="border-r-2 border-foreground/80 p-2 text-right">{row.invoice_count ?? 0}</td>
+                    </>
+                  )}
+                  {marginGroup === 'invoice' && (
+                    <>
+                      <td className="border-r-2 border-foreground/80 p-2">{formatDate(row.date)}</td>
+                      <td className="border-r-2 border-foreground/80 p-2">{row.document_number ?? '—'}</td>
+                      <td className="border-r-2 border-foreground/80 p-2">{row.customer_name}</td>
+                      <td className="border-r-2 border-foreground/80 p-2">{row.sales_person_name ?? 'Unassigned'}</td>
+                    </>
+                  )}
+                  <td className="border-r-2 border-foreground/80 p-2 text-right">{formatMoney(row.amount, printOptions.amountDecimals)}</td>
+                  <td className="border-r-2 border-foreground/80 p-2 text-right">{formatMoney(row.cost_amount, printOptions.amountDecimals)}</td>
+                  <td className="border-r-2 border-foreground/80 p-2 text-right">{formatMoney(row.profit, printOptions.amountDecimals)}</td>
+                  <td className="p-2 text-right">{formatMargin(row.margin_pct)}</td>
                 </tr>
               ))}
             </tbody>

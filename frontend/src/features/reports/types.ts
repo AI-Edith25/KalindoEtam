@@ -201,6 +201,41 @@ export interface SalesListingKpis {
   unpaid_value: number
 }
 
+/**
+ * Margin tab — Profit = Penjualan (excl. tax) - HPP, sourced from validated Sales Invoice lines
+ * net of Credit Notes. One shared row shape covers all 3 grouping modes (fields the active mode
+ * doesn't use come back null from MarginRowResource) — same approach ProductSalesRow already uses
+ * for its item/item_group toggle. `hpp_missing` (cost_amount summed to exactly 0 — e.g. a
+ * Transportation line, or a Goods line the FIFO backfill couldn't resolve) drives the "HPP belum
+ * tercatat" warning icon; it's already excluded from `avg_margin_pct` server-side.
+ */
+export type MarginGroupBy = 'item' | 'customer' | 'invoice'
+
+export interface MarginRow {
+  id: string
+  item_code: string | null
+  item_name: string | null
+  customer_code: string | null
+  customer_name: string | null
+  invoice_count: number | null
+  date: string | null
+  document_number: string | null
+  sales_person_name: string | null
+  qty: number | null
+  amount: number
+  cost_amount: number
+  profit: number
+  margin_pct: number
+  hpp_missing: boolean
+}
+
+export interface MarginKpis {
+  total_sales: number
+  total_cost: number
+  total_profit: number
+  avg_margin_pct: number
+}
+
 export interface DeliveryReportFilterValues {
   customer_id: string
   item_id: string

@@ -2,10 +2,11 @@
 
 namespace App\Services;
 
-use App\Enums\DiscountType;
 use App\Enums\DeliveryStatus;
+use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
+use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
 use App\Models\Invoice;
 use App\Repositories\AccountsReceivableRepository;
@@ -31,6 +32,7 @@ class InvoiceService
         protected TaxRepository $taxRepository,
         protected TaxService $taxService,
         protected AuditLogService $auditLogService,
+        protected FifoLayerService $fifoLayerService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -130,6 +132,12 @@ class InvoiceService
 
             foreach ($deliveries as $delivery) {
                 foreach ($delivery->items as $line) {
+                    // Snapshot COGS at invoice-creation time from what this Delivery actually
+                    // consumed (FifoLayerService::averageConsumedCost — same call CreditNoteService
+                    // uses to reprice a restock) — never recomputed from the item's current cost
+                    // later, so a Margin report stays accurate even after prices change.
+                    $unitCost = $this->fifoLayerService->averageConsumedCost($line->item_id, StockVoucherType::DELIVERY, $delivery->id);
+
                     $this->invoiceItemRepository->create([
                         'invoice_id' => $invoice->id,
                         'delivery_item_id' => $line->id,
@@ -140,6 +148,8 @@ class InvoiceService
                         'rate' => $line->rate,
                         'qty' => $line->qty,
                         'amount' => $line->amount,
+                        'unit_cost' => $unitCost,
+                        'cost_amount' => round($unitCost * (float) $line->qty, 2),
                         // Copied verbatim from the DeliveryItem — already resolved upstream,
                         // same frozen-snapshot treatment as item_code/item_name/uom above.
                         'tax_id' => $line->tax_id,

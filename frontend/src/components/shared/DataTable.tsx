@@ -4,6 +4,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -44,6 +45,8 @@ interface DataTableProps<T> {
   onSortChange?: (key: string) => void
   /** Pins the header row while the table body scrolls — pair with a `max-h-*` wrapper. Sticky columns need no prop here: pass a `sticky left-* bg-background` className directly on that column. */
   stickyHeader?: boolean
+  /** A TOTAL row rendered in a `<tfoot>` below the body — e.g. grand totals computed from a KPI payload, never averaged from the loaded page's rows. Hidden while loading/empty, same as the body. */
+  footerRow?: ReactNode
 }
 
 /** String headers use themselves as the React key (unchanged behavior for every existing caller); a ReactNode header needs `column.id` or falls back to its column index. */
@@ -67,6 +70,7 @@ export function DataTable<T>({
   sort,
   onSortChange,
   stickyHeader,
+  footerRow,
 }: DataTableProps<T>) {
   if (isError) {
     return <ErrorState onRetry={onRetry} />
@@ -136,6 +140,7 @@ export function DataTable<T>({
             ))
           )}
         </TableBody>
+        {footerRow && !isLoading && data.length > 0 && <TableFooter>{footerRow}</TableFooter>}
       </Table>
     </div>
   )

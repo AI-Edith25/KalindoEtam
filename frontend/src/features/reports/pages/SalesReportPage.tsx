@@ -6,17 +6,26 @@ import { ProductSalesPanel } from '../components/ProductSalesPanel'
 import { CustomerSalesPanel } from '../components/CustomerSalesPanel'
 import { OpenOrdersPanel } from '../components/OpenOrdersPanel'
 import { SalesListingPanel } from '../components/SalesListingPanel'
+import { MarginPanel } from '../components/MarginPanel'
 import { emptySalesReportFilters } from '../lib/reportFilters'
 import type { SalesReportFilterValues } from '../types'
 
-type SalesReportTab = 'products' | 'customers' | 'open-orders' | 'listing'
+type SalesReportTab = 'products' | 'customers' | 'open-orders' | 'listing' | 'margin'
 
 const TABS: { value: SalesReportTab; label: string; enabled: boolean }[] = [
   { value: 'products', label: 'Product Sales', enabled: true },
   { value: 'customers', label: 'Customer Sales', enabled: true },
   { value: 'open-orders', label: 'Open Orders', enabled: true },
   { value: 'listing', label: 'Sales Listing', enabled: true },
+  { value: 'margin', label: 'Margin', enabled: true },
 ]
+
+/** Margin's own default range is "current month," not the other tabs' last-30-days — applied only when the URL doesn't already carry an explicit date_from/date_to. */
+function currentMonthRange(): { dateFrom: string; dateTo: string } {
+  const now = new Date()
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  return { dateFrom: iso(new Date(now.getFullYear(), now.getMonth(), 1)), dateTo: iso(now) }
+}
 
 /**
  * Sales Report — 4 tabs (Product Sales, Customer Sales, Open Orders, Sales Listing), each its own
@@ -32,7 +41,7 @@ export function SalesReportPage() {
   const tab = (searchParams.get('tab') as SalesReportTab) || 'products'
   const page = Number(searchParams.get('page') ?? '1')
 
-  const defaults = emptySalesReportFilters()
+  const defaults = tab === 'margin' ? currentMonthRange() : emptySalesReportFilters()
   const filters: SalesReportFilterValues = {
     customer_id: searchParams.get('customer_id') ?? '',
     item_id: searchParams.get('item_id') ?? '',
@@ -96,6 +105,7 @@ export function SalesReportPage() {
       {tab === 'customers' && <CustomerSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
       {tab === 'open-orders' && <OpenOrdersPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
       {tab === 'listing' && <SalesListingPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'margin' && <MarginPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
     </div>
   )
 }
