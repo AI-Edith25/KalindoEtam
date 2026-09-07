@@ -101,7 +101,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
                       />
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{formatQty(systemQty, qtyCategory)}</TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-32">
                       <FormField
                         control={control}
                         name={`items.${index}.countedQty`}
@@ -129,7 +129,7 @@ export function StockAdjustmentLineItemTable({ form, items, itemsLoading, disabl
                       {difference > 0 ? '+' : ''}
                       {formatQty(difference, qtyCategory)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-32">
                       {difference > 0 && (
                         <FormField
                           control={control}

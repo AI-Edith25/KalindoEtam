@@ -121,7 +121,7 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
                     <TableCell className="text-right">{formatQty(line?.ordered ?? 0, qtyCategory)}</TableCell>
                     <TableCell className="text-right">{formatQty(line?.alreadyReceived ?? 0, qtyCategory)}</TableCell>
                     <TableCell className="text-right">{formatQty(remaining, qtyCategory)}</TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-36">
                       <FormField
                         control={control}
                         name={`items.${index}.receiveNow`}

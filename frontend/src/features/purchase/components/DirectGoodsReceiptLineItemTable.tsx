@@ -96,7 +96,7 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
                       )}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-28">
                     <FormField
                       control={control}
                       name={`items.${index}.qty`}
@@ -117,7 +117,7 @@ export function DirectGoodsReceiptLineItemTable({ form, items, itemsLoading, dis
                       )}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-36">
                     <FormField
                       control={control}
                       name={`items.${index}.rate`}

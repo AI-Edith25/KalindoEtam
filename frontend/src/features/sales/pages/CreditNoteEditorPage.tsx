@@ -377,7 +377,7 @@ export function CreditNoteEditorPage() {
                           </TableCell>
                           <TableCell className="text-right">{formatNumber(line.creditable_qty)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(line.creditable_amount)}</TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-32">
                             <Input
                               type="number"
                               min={0}
@@ -389,7 +389,7 @@ export function CreditNoteEditorPage() {
                               onChange={(event) => setLine(line.id, { qtyCredited: event.target.value })}
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-36">
                             <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setLine(line.id, { amount: value })} />
                           </TableCell>
                           <TableCell>

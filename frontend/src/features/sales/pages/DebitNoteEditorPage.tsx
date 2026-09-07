@@ -353,7 +353,7 @@ export function DebitNoteEditorPage() {
                             </TableCell>
                             <TableCell className="text-right">{line.qty}</TableCell>
                             <TableCell className="text-right">{formatCurrency(line.amount)}</TableCell>
-                            <TableCell>
+                            <TableCell className="min-w-32">
                               <Input
                                 type="number"
                                 min={0}
@@ -363,7 +363,7 @@ export function DebitNoteEditorPage() {
                                 onChange={(event) => setItemLine(line.id, { qtyAdjusted: event.target.value })}
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="min-w-36">
                               <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setItemLine(line.id, { amount: value })} />
                             </TableCell>
                           </TableRow>
@@ -412,7 +412,7 @@ export function DebitNoteEditorPage() {
                               onChange={(event) => setFreeLine(line.key, { description: event.target.value })}
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-40">
                             <RupiahInput value={line.amount} onChange={(value) => setFreeLine(line.key, { amount: value })} />
                           </TableCell>
                           <TableCell>

@@ -67,7 +67,7 @@ export function DeliveryLineItemTable({ form, disabled }: DeliveryLineItemTableP
                 <TableCell className={cn('text-right', stockIsBindingLimit && 'font-medium text-destructive')}>
                   {formatNumber(availableStock)}
                 </TableCell>
-                <TableCell>
+                <TableCell className="min-w-36">
                   <FormField
                     control={control}
                     name={`items.${index}.deliverNow`}

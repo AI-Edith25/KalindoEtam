@@ -98,7 +98,7 @@ export function OpeningStockLineItemTable({ form, items, itemsLoading, disabled 
                         )}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-32">
                       <FormField
                         control={control}
                         name={`items.${index}.qty`}
@@ -116,7 +116,7 @@ export function OpeningStockLineItemTable({ form, items, itemsLoading, disabled 
                         )}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-36">
                       <FormField
                         control={control}
                         name={`items.${index}.unitCost`}

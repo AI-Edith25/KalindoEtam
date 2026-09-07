@@ -4,6 +4,13 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * `min-w-full` (not `w-full`): the table must be *at least* as wide as its
+ * container, but free to grow past it when columns need more room (e.g. a
+ * wide sticky first column next to several fixed-width input columns) so the
+ * wrapper's `overflow-x-auto` scrolls instead of the table auto-layout
+ * silently crushing narrower columns down toward their content's min-width.
+ */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
@@ -12,7 +19,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        className={cn("min-w-full caption-bottom text-sm", className)}
         {...props}
       />
     </div>

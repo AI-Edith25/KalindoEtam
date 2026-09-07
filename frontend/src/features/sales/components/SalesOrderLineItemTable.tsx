@@ -94,7 +94,7 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
                       )}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-28">
                     <FormField
                       control={control}
                       name={`items.${index}.qty`}
@@ -106,7 +106,7 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
                       )}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-36">
                     <FormField
                       control={control}
                       name={`items.${index}.rate`}

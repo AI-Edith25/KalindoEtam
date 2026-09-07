@@ -102,7 +102,7 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
                       )}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-28">
                     <FormField
                       control={control}
                       name={`items.${index}.qty`}
@@ -123,7 +123,7 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
                       )}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-36">
                     <FormField
                       control={control}
                       name={`items.${index}.rate`}

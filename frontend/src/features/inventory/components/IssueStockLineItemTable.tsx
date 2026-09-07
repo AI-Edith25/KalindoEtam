@@ -117,7 +117,7 @@ export function IssueStockLineItemTable({ form, items, itemsLoading, warehouseId
                         )}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-32">
                       <FormField
                         control={control}
                         name={`items.${index}.qty`}

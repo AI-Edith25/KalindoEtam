@@ -92,7 +92,7 @@ export function StockTransferLineItemTable({ form, items, itemsLoading, disabled
                       />
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{formatQty(availableQty, qtyCategory)}</TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-32">
                       <FormField
                         control={control}
                         name={`items.${index}.qty`}

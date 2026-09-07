@@ -356,7 +356,7 @@ export function PurchaseReturnEditorPage() {
                           </TableCell>
                           <TableCell className="text-right">{formatQty(line.returnable_qty, qtyCategory)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(line.returnable_amount)}</TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-32">
                             <Input
                               type="number"
                               min={0}
@@ -370,7 +370,7 @@ export function PurchaseReturnEditorPage() {
                               <p className="mt-1 text-xs text-destructive">Exceeds returnable qty ({formatQty(capQty, qtyCategory)}).</p>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-36">
                             <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setLine(line.id, { amount: value })} />
                           </TableCell>
                         </TableRow>

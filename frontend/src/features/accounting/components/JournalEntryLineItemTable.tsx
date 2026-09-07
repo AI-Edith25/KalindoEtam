@@ -65,7 +65,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
                       )}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-36">
                     <FormField
                       control={control}
                       name={`lines.${index}.debit`}
@@ -77,7 +77,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
                       )}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-36">
                     <FormField
                       control={control}
                       name={`lines.${index}.credit`}

@@ -837,7 +837,7 @@ function InvoiceForm({
                               onChange={(event) => setTransportLine(line.key, { description: event.target.value })}
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-32">
                             <Input
                               type="number"
                               min={1}
@@ -847,7 +847,7 @@ function InvoiceForm({
                               onChange={(event) => setTransportLine(line.key, { qty: event.target.value })}
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-40">
                             <RupiahInput value={line.rate} onChange={(value) => setTransportLine(line.key, { rate: value })} />
                           </TableCell>
                           <TableCell className="text-right">{formatCurrency(lineAmount(line))}</TableCell>
