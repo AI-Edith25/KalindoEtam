@@ -61,7 +61,12 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sele
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) p-0" align="start">
+      <DropdownMenuContent
+        className="w-(--radix-dropdown-menu-trigger-width) p-0"
+        align="start"
+        side="bottom"
+        avoidCollisions={false}
+      >
         <div className="p-1.5">
           <Input
             autoFocus
