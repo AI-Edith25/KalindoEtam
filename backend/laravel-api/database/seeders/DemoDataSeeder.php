@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Enums\PaymentMethod;
 use App\Enums\WarehouseType;
 use App\Models\AccountsPayable;
+use App\Models\ChartOfAccount;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Customer;
@@ -33,7 +34,9 @@ use App\Services\InvoiceService;
 use App\Services\ItemGroupService;
 use App\Services\ItemService;
 use App\Services\PaymentAllocationService;
+use App\Services\PaymentEntryAllocationService;
 use App\Services\PaymentEntryService;
+use App\Services\PurchaseInvoiceService;
 use App\Services\PurchaseOrderService;
 use App\Services\ReceiptEntryService;
 use App\Services\RoleService;
@@ -148,12 +151,18 @@ class DemoDataSeeder extends Seeder
         return $result;
     }
 
-    /** Warehouse no longer belongs to a Branch (business decision) — these are just two named warehouses. */
+    /**
+     * Warehouse no longer belongs to a Branch (business decision) — these are just two named
+     * warehouses. Only the first is WarehouseType::MAIN — WarehouseService rejects a second one
+     * (Only one Main warehouse is allowed.). Fixed 2026-09-07: both were previously hardcoded to
+     * MAIN, which made this method throw on any fresh database (never noticed because every real
+     * environment this seeder has actually been run against already had these two rows).
+     */
     protected function seedWarehouses(): array
     {
         $warehouses = [
-            ['code' => 'WH-UTM', 'name' => 'Gudang Utama'],
-            ['code' => 'WH-SPR', 'name' => 'Gudang Sparepart'],
+            ['code' => 'WH-UTM', 'name' => 'Gudang Utama', 'warehouse_type' => WarehouseType::MAIN->value],
+            ['code' => 'WH-SPR', 'name' => 'Gudang Sparepart', 'warehouse_type' => WarehouseType::TRANSIT->value],
         ];
 
         $created = 0;
@@ -163,7 +172,7 @@ class DemoDataSeeder extends Seeder
             $warehouse = Warehouse::where('code', $data['code'])->first();
 
             if (! $warehouse) {
-                $warehouse = app(WarehouseService::class)->create([...$data, 'warehouse_type' => WarehouseType::MAIN->value]);
+                $warehouse = app(WarehouseService::class)->create($data);
                 $created++;
             }
 
@@ -307,13 +316,20 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * Purchase Order -> Goods Receipt -> Payment Entry.
+     * Purchase Order -> Goods Receipt -> Purchase Invoice -> Payment Entry
+     * + Allocation.
      *
-     * No "Purchase Invoice" step exists in this codebase — confirmed by
-     * code search (zero references anywhere in app/). AccountsPayable is
-     * created automatically inside GoodsReceiptService::submit(), and
-     * PaymentEntryService pays that directly. This is the real flow, not
-     * a shortcut.
+     * Updated 2026-09-07: the previous version of this method assumed
+     * AccountsPayable was created inside GoodsReceiptService::submit() and
+     * paid via a `PaymentEntryService::create(['items' => [...]])` shape.
+     * Both assumptions are stale — since the 2026-08-26 Purchase Invoice
+     * refactor, AccountsPayable is only ever created by
+     * PurchaseInvoiceService::submit() (Goods Receipt submit is stock-only
+     * now), and paying one down is two steps: PaymentEntryService::create()
+     * takes a plain `amount` (no `items`), then
+     * PaymentEntryAllocationService::allocateBatch() applies it to one or
+     * more specific AccountsPayable rows. This version goes through both
+     * real services, matching PaymentEntryAllocationTest's fixture helper.
      */
     protected function seedPurchaseToPay(array $suppliers, array $items, Warehouse $warehouse, Tax $tax): void
     {
@@ -327,8 +343,11 @@ class DemoDataSeeder extends Seeder
 
         $poService = app(PurchaseOrderService::class);
         $grService = app(GoodsReceiptService::class);
+        $piService = app(PurchaseInvoiceService::class);
         $peService = app(PaymentEntryService::class);
+        $peAllocationService = app(PaymentEntryAllocationService::class);
         $approvalService = app(ApprovalService::class);
+        $cashAccountId = ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id;
 
         $today = now()->toDateString();
 
@@ -394,30 +413,57 @@ class DemoDataSeeder extends Seeder
 
         $this->summary['Goods Receipt'] = 2;
 
-        // AccountsPayable was created as a side effect of GR submit() above.
+        // Purchase Invoice against each Goods Receipt — this, not Goods Receipt submit(), is what
+        // creates the AccountsPayable row and posts the '2000' Accounts Payable journal line.
+        $pi1 = $piService->create([
+            'goods_receipt_ids' => [$gr1->id],
+            'invoice_date' => $today,
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $piService->submit($pi1);
+
+        $pi2 = $piService->create([
+            'goods_receipt_ids' => [$gr2->id],
+            'invoice_date' => $today,
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $piService->submit($pi2);
+
         $ap1 = AccountsPayable::where('goods_receipt_id', $gr1->id)->firstOrFail();
         $ap2 = AccountsPayable::where('goods_receipt_id', $gr2->id)->firstOrFail();
 
-        // PE1: pay AP1 in full
+        // PE1: pay AP1 in full, then allocate the whole payment to it.
         $pe1 = $peService->create([
+            'payment_type' => 'supplier',
             'supplier_id' => $po1->supplier_id,
             'payment_date' => $today,
+            'cash_account_id' => $cashAccountId,
             'payment_method' => PaymentMethod::BANK_TRANSFER->value,
             'reference_number' => 'TRF-DEMO-001',
-            'items' => [['accounts_payable_id' => $ap1->id, 'paid_amount' => (float) $ap1->amount]],
+            'amount' => (float) $ap1->amount,
         ]);
-        $peService->submit($pe1);
+        $pe1 = $peService->submit($pe1);
+        $peAllocationService->allocateBatch($pe1, [
+            ['accounts_payable_id' => $ap1->id, 'amount' => (float) $ap1->amount],
+        ]);
 
-        // PE2: pay AP2 partially — demonstrates PartiallyPaid status
+        // PE2: pay AP2 partially — demonstrates PartiallyPaid status.
+        $pe2Amount = round((float) $ap2->amount / 2, 2);
         $pe2 = $peService->create([
+            'payment_type' => 'supplier',
             'supplier_id' => $po2->supplier_id,
             'payment_date' => $today,
+            'cash_account_id' => $cashAccountId,
             'payment_method' => PaymentMethod::CASH->value,
             'reference_number' => 'CASH-DEMO-002',
-            'items' => [['accounts_payable_id' => $ap2->id, 'paid_amount' => round((float) $ap2->amount / 2, 2)]],
+            'amount' => $pe2Amount,
         ]);
-        $peService->submit($pe2);
+        $pe2 = $peService->submit($pe2);
+        $peAllocationService->allocateBatch($pe2, [
+            ['accounts_payable_id' => $ap2->id, 'amount' => $pe2Amount],
+        ]);
 
+        $this->summary['Purchase Invoice'] = 2;
         $this->summary['Payment Entry'] = 2;
     }
 
