@@ -6,6 +6,7 @@ import type {
   GoodsReceiptReportFilterValues,
   PurchaseReportFilterValues,
   SalesReportFilterValues,
+  TaxReportFilterValues,
 } from '../types'
 
 export const emptyPurchaseReportFilters: PurchaseReportFilterValues = {
@@ -118,6 +119,21 @@ export const emptyApDetailReportFilters: ApDetailReportFilterValues = {
   dateTo: '',
   invoiceDateFrom: '',
   invoiceDateTo: '',
+}
+
+/** Tax report defaults to the current month — it's explicitly a monthly report per the ticket ("Filter bulan harus mudah"), unlike every other report here which defaults to no range at all. */
+export function currentMonthTaxReportFilters(): TaxReportFilterValues {
+  const { date_from, date_to } = dateRangeForPreset('this_month')
+
+  return {
+    dateFrom: date_from,
+    dateTo: date_to,
+    tax_id: '',
+    customer_id: '',
+    supplier_id: '',
+    branch_id: '',
+    warehouse_id: '',
+  }
 }
 
 export function hasActiveApDetailReportFilters(filters: ApDetailReportFilterValues): boolean {

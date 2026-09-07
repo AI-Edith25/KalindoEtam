@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountsPayableController;
+use App\Http\Controllers\Api\V1\TaxReportController;
 use App\Http\Controllers\Api\V1\AccountsReceivableController;
 use App\Http\Controllers\Api\V1\ApprovalController;
 use App\Http\Controllers\Api\V1\AuditLogController;
@@ -263,6 +264,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // accounts-payables/{id} doesn't swallow the literal paths above as an id —
     // same ordering trick as accounts-receivables/export.
     Route::get('accounts-payables/{accountsPayable}', [AccountsPayableController::class, 'show'])->middleware('permission:finance.accounts_payable.view');
+
+    // Tax report (PPN Keluaran/Masukan) — read-only, synthesized from Sales/Purchase Invoice +
+    // Credit Note/Purchase Return, no store/update/destroy, so no {id} show route needed.
+    Route::get('tax-report/output', [TaxReportController::class, 'outputTax'])->middleware('permission:reports.tax.view');
+    Route::get('tax-report/output/export', [TaxReportController::class, 'outputTaxExport'])->middleware('permission:reports.tax.view');
+    Route::get('tax-report/input', [TaxReportController::class, 'inputTax'])->middleware('permission:reports.tax.view');
+    Route::get('tax-report/input/export', [TaxReportController::class, 'inputTaxExport'])->middleware('permission:reports.tax.view');
+    Route::get('tax-report/summary', [TaxReportController::class, 'summary'])->middleware('permission:reports.tax.view');
 
     // Sales Workflow (Sprint 5): Customer -> SO -> Delivery -> Stock Ledger(-).
     // Delivery Report additionally reads Sales Orders client-side (to resolve each delivery's

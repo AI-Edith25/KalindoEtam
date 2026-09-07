@@ -82,6 +82,8 @@ import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/Acc
 import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/pages/AccountsReceivableDetailReportPrintPage'
 import { AccountsPayableDetailReportPage } from '@/features/reports/pages/AccountsPayableDetailReportPage'
 import { AccountsPayableDetailReportPrintPage } from '@/features/reports/pages/AccountsPayableDetailReportPrintPage'
+import { TaxReportPage } from '@/features/reports/pages/TaxReportPage'
+import { TaxReportPrintPage } from '@/features/reports/pages/TaxReportPrintPage'
 import { IncomingPaymentListPage } from '@/features/payment/pages/IncomingPaymentListPage'
 import { IncomingPaymentEditorPage } from '@/features/payment/pages/IncomingPaymentEditorPage'
 import { IncomingPaymentDetailPage } from '@/features/payment/pages/IncomingPaymentDetailPage'
@@ -417,6 +419,8 @@ export function AppRouter() {
         <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/ap-detail" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPage /></ProtectedRoute>} />
         <Route path="/reports/ap-detail/print" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/tax" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPage /></ProtectedRoute>} />
+        <Route path="/reports/tax/print" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/:accountId" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerDetailPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListPage /></ProtectedRoute>} />

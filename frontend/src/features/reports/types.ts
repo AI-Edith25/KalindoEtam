@@ -409,3 +409,48 @@ export interface UnallocatedPaymentVoucher {
   unallocated_amount: number
   payment_method: string | null
 }
+
+/**
+ * Tax report ("PPN Keluaran"/"PPN Masukan") — one row per document
+ * (Invoice/Purchase Invoice) or reduction (Credit Note/Purchase Return),
+ * synthesized server-side, never a stored document of its own. Purchase
+ * Invoice has no tax-code trail anywhere in its schema, so tax_id/
+ * tax_code/tax_rate are always null on `document_type: 'purchase_invoice'
+ * | 'purchase_return'` rows — not a bug, a real data gap (see the report's
+ * own D-0a finding).
+ */
+export interface TaxReportRow {
+  document_id: string
+  document_type: 'invoice' | 'credit_note' | 'purchase_invoice' | 'purchase_return'
+  document_number: string | null
+  document_date: string
+  party_id: string
+  party_name: string
+  branch_id: string | null
+  warehouse_id: string | null
+  tax_id: string | null
+  tax_code: string | null
+  tax_rate: number | null
+  dpp: number
+  ppn: number
+  total: number
+}
+
+/** Selisih = output_ppn - input_ppn. Positive = "Kurang Bayar", negative = "Lebih Bayar" — the label is resolved from this sign client-side, never stored. */
+export interface TaxReportSummary {
+  output_dpp: number
+  output_ppn: number
+  input_dpp: number
+  input_ppn: number
+  selisih: number
+}
+
+export interface TaxReportFilterValues {
+  dateFrom: string
+  dateTo: string
+  tax_id: string
+  customer_id: string
+  supplier_id: string
+  branch_id: string
+  warehouse_id: string
+}

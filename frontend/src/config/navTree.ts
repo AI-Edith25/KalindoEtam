@@ -142,6 +142,7 @@ export const navTree: NavGroup[] = [
       // permissionGroup keeps this tab gated on the same accounting.general_ledger.view that
       // already governs the content it leads to — see the `accounting` group below.
       { key: 'general_ledger', label: 'General Ledger', path: '/reports/general-ledger', actions: ['view'], permissionGroup: 'accounting' },
+      { key: 'tax', label: 'Tax', path: '/reports/tax', actions: ['view'] },
     ],
   },
   {
