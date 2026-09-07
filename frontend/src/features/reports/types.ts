@@ -354,3 +354,58 @@ export interface ArDetailReportFilterValues {
   branch_id: string
   sales_person_id: string
 }
+
+/** AP Detail's "Perincian Hutang" — one flat row per supplier with due-date-anchored aging buckets. Unlike AR's grouped view (Sales Person -> Customer, no bucket columns), AP has no Sales Person concept, so this is a single level, and the buckets themselves come from the ticket's own spec, not AR's legacy export scheme. */
+export interface ApAgingBucketRow {
+  supplier_id: string
+  supplier_name: string
+  not_due: number
+  due_1_30: number
+  due_31_60: number
+  due_61_90: number
+  due_over_90: number
+  total: number
+}
+
+export interface ApAgingBucketTotals {
+  not_due: number
+  due_1_30: number
+  due_31_60: number
+  due_61_90: number
+  due_over_90: number
+  total: number
+}
+
+export interface ApDetailGroupedDetail {
+  rows: ApAgingBucketRow[]
+  total: ApAgingBucketTotals
+}
+
+export interface ApDetailReportFilterValues {
+  supplier_id: string
+  warehouse_id: string
+  status: SettlementStatus | null
+  agingBucket: AgingBucketValue | null
+  dateFrom: string
+  dateTo: string
+  invoiceDateFrom: string
+  invoiceDateTo: string
+}
+
+/** AP Detail's 4 summary cards — see AccountsPayableService::summaryCards(), same ground truth as the main report, never a separately-computed figure. */
+export interface ApDetailSummary {
+  total_outstanding: number
+  due_this_week: number
+  overdue: number
+  unallocated_total: number
+}
+
+/** "Uang Muka / Belum Teralokasi" panel — Supplier Payment Vouchers not yet applied to any invoice. No AR equivalent exists. */
+export interface UnallocatedPaymentVoucher {
+  id: string
+  payment_date: string | null
+  document_number: string | null
+  supplier_name: string | null
+  unallocated_amount: number
+  payment_method: string | null
+}

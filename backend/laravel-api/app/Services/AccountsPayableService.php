@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use App\Enums\AccountsPayableStatus;
+use App\Enums\DocumentStatus;
+use App\Enums\PaymentEntryType;
 use App\Exceptions\BusinessException;
 use App\Models\AccountsPayable;
+use App\Models\PaymentEntry;
 use App\Models\PurchaseInvoice;
 use App\Repositories\AccountsPayableRepository;
 use App\Support\SettlementStatus;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class AccountsPayableService
@@ -18,6 +22,98 @@ class AccountsPayableService
     public function list(array $filters, int $perPage = 15): LengthAwarePaginator
     {
         return $this->accountsPayableRepository->search($filters, $perPage);
+    }
+
+    /** Unpaginated, same filters as list() — for AP Detail's Export. Mirrors AccountsReceivableService::listAll(). */
+    public function listAll(array $filters): Collection
+    {
+        return $this->accountsPayableRepository->searchAll($filters);
+    }
+
+    /**
+     * AP Detail Report's "Total Hutang" card — sums amount-paid_amount over
+     * the same filtered row set list() returns, so the figure always
+     * matches what's on screen regardless of pagination. Mirrors
+     * AccountsReceivableService::outstandingTotal().
+     */
+    public function outstandingTotal(array $filters): float
+    {
+        return $this->accountsPayableRepository->outstandingTotal($filters);
+    }
+
+    /** Thin passthrough — see AccountsPayableRepository::paidAmountFor(). */
+    public function paidAmountFor(string $accountsPayableId): float
+    {
+        return $this->accountsPayableRepository->paidAmountFor($accountsPayableId);
+    }
+
+    /** "Perincian Hutang" — same filtered row set as list()/listAll(), grouped by Supplier with due-date-anchored aging buckets, aggregated in SQL. Thin passthrough. */
+    public function groupedDetail(array $filters): array
+    {
+        $rows = $this->accountsPayableRepository->groupedBySupplierAgingBuckets($filters);
+
+        return [
+            'rows' => $rows,
+            'total' => [
+                'not_due' => array_sum(array_column($rows, 'not_due')),
+                'due_1_30' => array_sum(array_column($rows, 'due_1_30')),
+                'due_31_60' => array_sum(array_column($rows, 'due_31_60')),
+                'due_61_90' => array_sum(array_column($rows, 'due_61_90')),
+                'due_over_90' => array_sum(array_column($rows, 'due_over_90')),
+                'total' => array_sum(array_column($rows, 'total')),
+            ],
+        ];
+    }
+
+    /**
+     * AP Detail's 4 summary cards, computed via the same outstandingTotal()/
+     * unallocatedPaymentVouchers() ground truth as the rest of this report —
+     * never a separate calculation. "Jatuh Tempo Minggu Ini" and "Sudah
+     * Lewat Jatuh Tempo" are just outstandingTotal() with a due_date range,
+     * same filter semantics the Aging List's own date filters already use.
+     */
+    public function summaryCards(): array
+    {
+        $today = now()->toDateString();
+        $endOfWeek = now()->endOfWeek()->toDateString();
+        $yesterday = now()->subDay()->toDateString();
+
+        return [
+            'total_outstanding' => $this->outstandingTotal([]),
+            'due_this_week' => $this->outstandingTotal(['date_from' => $today, 'date_to' => $endOfWeek]),
+            'overdue' => $this->outstandingTotal(['date_to' => $yesterday]),
+            'unallocated_total' => $this->unallocatedPaymentVouchers()->sum('unallocated_amount_computed'),
+        ];
+    }
+
+    /**
+     * "Uang Muka / Belum Teralokasi" panel — Supplier Payment Vouchers with
+     * money not yet applied to any invoice. "Allocated" here is a live SUM
+     * over payment_entry_allocations (via items(), scoped to non-reversed
+     * rows), not the payment_entries.allocated_amount cache column — same
+     * ground-truth rule as AccountsPayableRepository's paid-amount join. A
+     * separate query against payment_entries, never touching
+     * accounts_payables — structurally guarantees an unallocated payment
+     * can never reduce any invoice's outstanding balance, per the report's
+     * own requirement.
+     */
+    public function unallocatedPaymentVouchers(): Collection
+    {
+        // withSum's allocated_sum is a per-row correlated subquery column, not a GROUP BY
+        // aggregate, so it can't be filtered via whereRaw/havingRaw portably — this panel's row
+        // count is inherently small (unallocated vouchers are the exception, not the rule), so
+        // filtering the already-fetched set in PHP is the pragmatic choice here, unlike the much
+        // larger Aging List/Perincian Hutang queries, which must aggregate/paginate in SQL.
+        return PaymentEntry::query()
+            ->where('payment_type', PaymentEntryType::SUPPLIER)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->withSum(['items as allocated_sum' => fn ($query) => $query->where('is_reversed', false)], 'allocated_amount')
+            ->with(['supplier', 'cashAccount'])
+            ->latest('payment_date')
+            ->get()
+            ->map(fn (PaymentEntry $entry) => $entry->setAttribute('unallocated_amount_computed', (float) $entry->total_amount - (float) ($entry->allocated_sum ?? 0)))
+            ->filter(fn (PaymentEntry $entry) => $entry->unallocated_amount_computed > 0)
+            ->values();
     }
 
     /**

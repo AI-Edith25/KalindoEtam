@@ -253,7 +253,15 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('purchase-returns/{purchaseReturn}/submit', [PurchaseReturnController::class, 'submit'])->middleware('permission:purchase.returns.update');
     Route::post('purchase-returns/{purchaseReturn}/reverse', [PurchaseReturnController::class, 'reverse'])->middleware('permission:purchase.returns.update');
 
-    Route::get('accounts-payables', [AccountsPayableController::class, 'index'])->middleware('permission:finance.accounts_payable.view');
+    Route::get('accounts-payables', [AccountsPayableController::class, 'index'])->middleware('permission:finance.accounts_payable.view|reports.ap_detail.view');
+    Route::get('accounts-payables/export', [AccountsPayableController::class, 'export'])->middleware('permission:finance.accounts_payable.view|reports.ap_detail.view');
+    Route::get('accounts-payables/detail-grouped', [AccountsPayableController::class, 'groupedDetail'])->middleware('permission:finance.accounts_payable.view|reports.ap_detail.view');
+    Route::get('accounts-payables/list-all', [AccountsPayableController::class, 'listAll'])->middleware('permission:finance.accounts_payable.view|reports.ap_detail.view');
+    Route::get('accounts-payables/unallocated', [AccountsPayableController::class, 'unallocated'])->middleware('permission:finance.accounts_payable.view|reports.ap_detail.view');
+    Route::get('accounts-payables/summary', [AccountsPayableController::class, 'summary'])->middleware('permission:finance.accounts_payable.view|reports.ap_detail.view');
+    // Registered before the {accountsPayable} show route below so its implicit GET
+    // accounts-payables/{id} doesn't swallow the literal paths above as an id —
+    // same ordering trick as accounts-receivables/export.
     Route::get('accounts-payables/{accountsPayable}', [AccountsPayableController::class, 'show'])->middleware('permission:finance.accounts_payable.view');
 
     // Sales Workflow (Sprint 5): Customer -> SO -> Delivery -> Stock Ledger(-).

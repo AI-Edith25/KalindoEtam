@@ -1,5 +1,6 @@
 import { dateRangeForPreset } from '@/shared/lib/dateRangePresets'
 import type {
+  ApDetailReportFilterValues,
   ArDetailReportFilterValues,
   DeliveryReportFilterValues,
   GoodsReceiptReportFilterValues,
@@ -105,5 +106,29 @@ export function hasActiveArDetailReportFilters(filters: ArDetailReportFilterValu
     filters.invoiceDateTo !== '' ||
     filters.branch_id !== '' ||
     filters.sales_person_id !== ''
+  )
+}
+
+export const emptyApDetailReportFilters: ApDetailReportFilterValues = {
+  supplier_id: '',
+  warehouse_id: '',
+  status: null,
+  agingBucket: null,
+  dateFrom: '',
+  dateTo: '',
+  invoiceDateFrom: '',
+  invoiceDateTo: '',
+}
+
+export function hasActiveApDetailReportFilters(filters: ApDetailReportFilterValues): boolean {
+  return (
+    filters.supplier_id !== '' ||
+    filters.warehouse_id !== '' ||
+    filters.status !== null ||
+    filters.agingBucket !== null ||
+    filters.dateFrom !== '' ||
+    filters.dateTo !== '' ||
+    filters.invoiceDateFrom !== '' ||
+    filters.invoiceDateTo !== ''
   )
 }

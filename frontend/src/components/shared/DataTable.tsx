@@ -47,6 +47,8 @@ interface DataTableProps<T> {
   stickyHeader?: boolean
   /** A TOTAL row rendered in a `<tfoot>` below the body — e.g. grand totals computed from a KPI payload, never averaged from the loaded page's rows. Hidden while loading/empty, same as the body. */
   footerRow?: ReactNode
+  /** Per-row className (e.g. tinting an overdue row red) — merged alongside the click/hover classes above, never replacing them. */
+  rowClassName?: (row: T) => string | undefined
 }
 
 /** String headers use themselves as the React key (unchanged behavior for every existing caller); a ReactNode header needs `column.id` or falls back to its column index. */
@@ -71,6 +73,7 @@ export function DataTable<T>({
   onSortChange,
   stickyHeader,
   footerRow,
+  rowClassName,
 }: DataTableProps<T>) {
   if (isError) {
     return <ErrorState onRetry={onRetry} />
@@ -129,7 +132,7 @@ export function DataTable<T>({
               <TableRow
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn(onRowClick && 'cursor-pointer hover:bg-muted/50')}
+                className={cn(onRowClick && 'cursor-pointer hover:bg-muted/50', rowClassName?.(row))}
               >
                 {columns.map((column, index) => (
                   <TableCell key={columnKey(column, index)} className={column.className}>

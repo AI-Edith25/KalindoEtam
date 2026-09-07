@@ -11,8 +11,18 @@ export interface AccountsPayable {
   supplier_id: string
   supplier: Supplier | null
   invoice_id: string | null
+  invoice: {
+    id: string
+    document_number: string | null
+    invoice_date: string
+    status: string
+  } | null
   purchase_order_id: string
   goods_receipt_id: string
+  // Every AccountsPayable row's Goods Receipt is NOT NULL and always has a NOT NULL
+  // warehouse_id — resolved server-side, no fallback chain needed (unlike AR's branch_name).
+  warehouse_name: string | null
+  age_in_days: number | null
   reference_number: string
   amount: string | number
   paid_amount: string | number

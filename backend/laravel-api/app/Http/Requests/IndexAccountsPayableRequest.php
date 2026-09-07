@@ -18,6 +18,14 @@ class IndexAccountsPayableRequest extends FormRequest
         return [
             'status' => ['sometimes', 'nullable', Rule::enum(AccountsPayableStatus::class)],
             'supplier_id' => ['sometimes', 'nullable', 'uuid', 'exists:suppliers,id'],
+            'warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
+            'date_from' => ['sometimes', 'nullable', 'date'],
+            'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
+            'invoice_date_from' => ['sometimes', 'nullable', 'date'],
+            'invoice_date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:invoice_date_from'],
+            'aging_bucket' => ['sometimes', 'nullable', Rule::in(['30', '45', '60', '90', 'over_180'])],
+            'invoice_ids' => ['sometimes', 'nullable', 'array'],
+            'invoice_ids.*' => ['uuid', 'exists:purchase_invoices,id'],
             'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
         ];
     }
