@@ -49,7 +49,7 @@ export function PoTrackingPanel({ filters, onFiltersChange, page, onPageChange }
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
     ...(receivingStatus ? { receiving_status: receivingStatus } : {}),
-    incomplete_only: incompleteOnly,
+    incomplete_only: incompleteOnly ? '1' : '0',
   }
 
   const listQuery = useQuery({

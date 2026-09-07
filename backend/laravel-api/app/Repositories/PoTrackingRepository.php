@@ -64,9 +64,15 @@ class PoTrackingRepository
                 [now()->toDateString()]
             );
 
+        // filter_var(..., FILTER_VALIDATE_BOOLEAN), not empty()/truthiness — incomplete_only
+        // arrives as the string "false" from axios (see IndexPoTrackingRequest), and PHP's
+        // empty("false") is false (a non-"0" non-empty string), so !empty() would treat the
+        // string "false" as true.
+        $incompleteOnly = filter_var($filters['incomplete_only'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
         $wrapped = DB::query()->fromSub($computed, 'tracked')
             ->when($filters['receiving_status'] ?? null, fn ($q, $v) => $q->where('receiving_status', $v))
-            ->when(! empty($filters['incomplete_only']), fn ($q) => $q->where('fulfillment_pct', '<', 100));
+            ->when($incompleteOnly, fn ($q) => $q->where('fulfillment_pct', '<', 100));
 
         $sortable = ['order_date', 'total_amount', 'ordered_qty', 'received_qty', 'remaining_qty', 'fulfillment_pct', 'document_number'];
         $sortColumn = in_array($sort, $sortable, true) ? $sort : 'order_date';

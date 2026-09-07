@@ -21,7 +21,11 @@ class IndexPoTrackingRequest extends FormRequest
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
             'receiving_status' => ['sometimes', 'nullable', Rule::in(['not_received', 'partial', 'complete'])],
-            'incomplete_only' => ['sometimes', 'nullable', 'boolean'],
+            // Not Laravel's 'boolean' rule — axios serializes a JS boolean query param as the
+            // literal string "true"/"false", which that rule's strict in_array() check rejects
+            // (only true/false/0/1/"0"/"1" pass), 422ing every request. See
+            // PoTrackingRepository::filteredQuery() for the matching filter_var() cast.
+            'incomplete_only' => ['sometimes', 'nullable', Rule::in(['0', '1', 'true', 'false'])],
             'sort' => ['sometimes', 'nullable', Rule::in(['order_date', 'total_amount', 'ordered_qty', 'received_qty', 'remaining_qty', 'fulfillment_pct', 'document_number'])],
             'sort_dir' => ['sometimes', 'nullable', Rule::in(['asc', 'desc'])],
             'page' => ['sometimes', 'nullable', 'integer', 'min:1'],

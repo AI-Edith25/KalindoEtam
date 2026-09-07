@@ -1,3 +1,4 @@
+import { dateRangeForPreset } from '@/shared/lib/dateRangePresets'
 import type {
   ArDetailReportFilterValues,
   DeliveryReportFilterValues,
@@ -22,14 +23,9 @@ export function hasActivePurchaseReportFilters(filters: PurchaseReportFilterValu
 
 /** By Supplier/By Item/PO Tracking's own default range — "current month," unlike the Purchase Orders tab's no-default. */
 export function currentMonthPurchaseReportFilters(): PurchaseReportFilterValues {
-  const now = new Date()
-  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  const { date_from, date_to } = dateRangeForPreset('this_month')
 
-  return {
-    ...emptyPurchaseReportFilters,
-    dateFrom: iso(new Date(now.getFullYear(), now.getMonth(), 1)),
-    dateTo: iso(now),
-  }
+  return { ...emptyPurchaseReportFilters, dateFrom: date_from, dateTo: date_to }
 }
 
 export const emptyGoodsReceiptReportFilters: GoodsReceiptReportFilterValues = { warehouse_id: '', dateFrom: '', dateTo: '' }

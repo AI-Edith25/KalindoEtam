@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
+import { dateRangeForPreset } from '@/shared/lib/dateRangePresets'
 import { ProductSalesPanel } from '../components/ProductSalesPanel'
 import { CustomerSalesPanel } from '../components/CustomerSalesPanel'
 import { OpenOrdersPanel } from '../components/OpenOrdersPanel'
@@ -22,9 +23,8 @@ const TABS: { value: SalesReportTab; label: string; enabled: boolean }[] = [
 
 /** Margin's own default range is "current month," not the other tabs' last-30-days — applied only when the URL doesn't already carry an explicit date_from/date_to. */
 function currentMonthRange(): { dateFrom: string; dateTo: string } {
-  const now = new Date()
-  const iso = (d: Date) => d.toISOString().slice(0, 10)
-  return { dateFrom: iso(new Date(now.getFullYear(), now.getMonth(), 1)), dateTo: iso(now) }
+  const { date_from, date_to } = dateRangeForPreset('this_month')
+  return { dateFrom: date_from, dateTo: date_to }
 }
 
 /**

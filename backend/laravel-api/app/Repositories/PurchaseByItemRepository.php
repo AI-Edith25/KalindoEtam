@@ -170,7 +170,13 @@ class PurchaseByItemRepository
             ->where('rn', 1)
             ->select(['item_id', 'rate as last_price']);
 
-        return DB::query()->fromSub($base, 'gr_agg')
+        // The GROUP BY must fully resolve in its own subquery before last_price is joined in —
+        // MySQL's default ONLY_FULL_GROUP_BY mode rejects selecting a column from a joined
+        // derived table (no declared unique key it can see through) alongside a GROUP BY at the
+        // same query level, even though it's functionally a 1-row-per-item join. SQLite doesn't
+        // enforce this, so a query built the other way around passes every local test yet 500s
+        // in production (MySQL) — this is exactly that fix.
+        $aggregates = DB::query()->fromSub($base, 'gr_agg')
             ->select('gr_agg.item_id')
             // "* 1.0" forces float division — SQLite otherwise does integer division when both
             // SUM()s happen to be whole numbers (its NUMERIC column affinity stores a
@@ -178,8 +184,10 @@ class PurchaseByItemRepository
             ->selectRaw('(SUM(gr_agg.amount) * 1.0) / NULLIF(SUM(gr_agg.qty), 0) as avg_price')
             ->selectRaw('MIN(gr_agg.rate) as lowest_price')
             ->selectRaw('MAX(gr_agg.rate) as highest_price')
-            ->groupBy('gr_agg.item_id')
-            ->leftJoinSub($last, 'last', 'last.item_id', '=', 'gr_agg.item_id')
-            ->addSelect('last.last_price');
+            ->groupBy('gr_agg.item_id');
+
+        return DB::query()->fromSub($aggregates, 'agg')
+            ->leftJoinSub($last, 'last', 'last.item_id', '=', 'agg.item_id')
+            ->select(['agg.item_id', 'agg.avg_price', 'agg.lowest_price', 'agg.highest_price', 'last.last_price']);
     }
 }

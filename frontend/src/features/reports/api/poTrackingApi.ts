@@ -10,7 +10,8 @@ export interface PoTrackingParams {
   date_from?: string
   date_to?: string
   receiving_status?: ReceivingStatus
-  incomplete_only?: boolean
+  /** '0' | '1', not a real boolean — axios serializes a JS boolean into the literal string "true"/"false", which Laravel's own `boolean` validation rule rejects. */
+  incomplete_only?: '0' | '1'
   sort?: 'order_date' | 'total_amount' | 'ordered_qty' | 'received_qty' | 'remaining_qty' | 'fulfillment_pct' | 'document_number'
   sort_dir?: 'asc' | 'desc'
 }

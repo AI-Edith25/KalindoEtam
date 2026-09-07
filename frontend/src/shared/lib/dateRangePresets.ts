@@ -8,8 +8,17 @@ export const DATE_RANGE_PRESET_LABELS: Record<DateRangePreset, string> = {
   custom: 'Custom',
 }
 
+/**
+ * Local calendar date, not `.toISOString().slice(0, 10)` — that converts to UTC first, which
+ * silently shifts the date back a day for any timezone ahead of UTC (e.g. WIB, UTC+7) whenever
+ * the Date was built at local midnight (as "this_month"/"last_month" below do) — "1 September"
+ * becomes "31 August". Reading the local Y/M/D components directly avoids the UTC round-trip.
+ */
 function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 /** Monday-start week, matching Indonesian convention. */

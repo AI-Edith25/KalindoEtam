@@ -123,6 +123,28 @@ class PoTrackingTest extends TestCase
         $this->assertEquals('partial', $row['receiving_status']);
     }
 
+    /**
+     * axios serializes a JS boolean query param as the literal string "true"/"false" — Laravel's
+     * `boolean` validation rule rejects that (strict in_array against true/false/0/1/"0"/"1"),
+     * which 500'd/422'd this endpoint in production even though every local test used "0"/"1".
+     * See IndexPoTrackingRequest and PoTrackingRepository::filteredQuery()'s filter_var() cast.
+     */
+    public function test_incomplete_only_accepts_the_string_forms_axios_actually_sends(): void
+    {
+        $complete = $this->submittedPurchaseOrder(qty: 10, rate: 10000);
+        $this->receiveAgainst($complete, 10);
+        $partial = $this->submittedPurchaseOrder(qty: 10, rate: 10000);
+        $this->receiveAgainst($partial, 4);
+
+        $this->get('/api/v1/reports/purchase/po-tracking?incomplete_only=true')->assertOk();
+        $rowsTrue = $this->get('/api/v1/reports/purchase/po-tracking?incomplete_only=true')->assertOk()->json('data');
+        $this->assertCount(1, $rowsTrue);
+        $this->assertEquals($partial->id, $rowsTrue[0]['id']);
+
+        $rowsFalse = $this->get('/api/v1/reports/purchase/po-tracking?incomplete_only=false')->assertOk()->json('data');
+        $this->assertCount(2, $rowsFalse); // "false" must not be misread as truthy
+    }
+
     public function test_not_received_status_when_nothing_has_arrived(): void
     {
         $this->submittedPurchaseOrder(qty: 30, rate: 10000);
