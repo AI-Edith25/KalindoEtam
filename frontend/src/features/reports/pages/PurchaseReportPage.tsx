@@ -1,124 +1,85 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Download, FileText, RotateCw, Upload, Wallet } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { ActionBar } from '@/components/shared/ActionBar'
-import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
-import { SearchBox } from '@/components/shared/SearchBox'
-import { Pagination } from '@/components/shared/Pagination'
-import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
-import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
-import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
-import type { PurchaseOrder } from '@/features/purchase/types'
-import { PurchaseReportFiltersBar } from '../components/PurchaseReportFiltersBar'
-import { emptyPurchaseReportFilters } from '../lib/reportFilters'
+import { Button } from '@/components/ui/button'
+import { PurchaseOrdersPanel } from '../components/PurchaseOrdersPanel'
+import { PurchaseBySupplierPanel } from '../components/PurchaseBySupplierPanel'
+import { PurchaseByItemPanel } from '../components/PurchaseByItemPanel'
+import { PoTrackingPanel } from '../components/PoTrackingPanel'
+import { currentMonthPurchaseReportFilters, emptyPurchaseReportFilters } from '../lib/reportFilters'
 import type { PurchaseReportFilterValues } from '../types'
 
-/** Read-only report over Purchase Order — reuses fetchPurchaseOrders() as-is, no new endpoint. */
+type PurchaseReportTab = 'orders' | 'by-supplier' | 'by-item' | 'po-tracking'
+
+const TABS: { value: PurchaseReportTab; label: string }[] = [
+  { value: 'orders', label: 'Purchase Orders' },
+  { value: 'by-supplier', label: 'By Supplier' },
+  { value: 'by-item', label: 'By Item' },
+  { value: 'po-tracking', label: 'PO Tracking' },
+]
+
+/**
+ * Purchase Report — 4 tabs, same URL-synced-state shape as SalesReportPage. Purchase Orders keeps
+ * today's behavior (no default date range); By Supplier/By Item/PO Tracking default to "current
+ * month" and are sourced from Goods Receipt, never Purchase Order — see each panel's own docblock.
+ */
 export function PurchaseReportPage() {
-  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState<PurchaseReportFilterValues>(emptyPurchaseReportFilters)
+  const tab = (searchParams.get('tab') as PurchaseReportTab) || 'orders'
+  const page = Number(searchParams.get('page') ?? '1')
 
-  const listQuery = useQuery({
-    queryKey: ['purchase-report', page, search, filters.supplier_id, filters.status, filters.dateFrom, filters.dateTo],
-    queryFn: () =>
-      fetchPurchaseOrders({
-        page,
-        ...(search ? { search } : {}),
-        ...(filters.supplier_id ? { supplier_id: filters.supplier_id } : {}),
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
-        ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-      }),
-    placeholderData: (previous) => previous,
-  })
+  const defaults = tab === 'orders' ? emptyPurchaseReportFilters : currentMonthPurchaseReportFilters()
+  const filters: PurchaseReportFilterValues = {
+    supplier_id: searchParams.get('supplier_id') ?? '',
+    warehouse_id: searchParams.get('warehouse_id') ?? '',
+    status: searchParams.get('status') as PurchaseReportFilterValues['status'],
+    dateFrom: searchParams.get('date_from') ?? defaults.dateFrom,
+    dateTo: searchParams.get('date_to') ?? defaults.dateTo,
+  }
 
-  const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
+  const update = (patch: Record<string, string | null>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null || value === '') next.delete(key)
+        else next.set(key, value)
+      }
+      return next
+    })
+  }
 
-  // ponytail: summed from the currently-loaded page only, not a backend aggregate — same ceiling as the page-1-only lookup helper. Fine while every report's dataset fits on one page.
-  const totalAmount = useMemo(() => rows.reduce((sum, row) => sum + Number(row.total_amount), 0), [rows])
-
-  const columns: DataTableColumn<PurchaseOrder>[] = [
-    { header: 'Purchase No', accessor: (row) => row.document_number ?? '—' },
-    { header: 'Supplier', accessor: (row) => row.supplier?.supplier_name ?? '—' },
-    { header: 'Date', accessor: (row) => formatDate(row.order_date) },
-    { header: 'Total', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right' },
-    { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
-  ]
-
-  const hasFilters = !!(search || filters.supplier_id || filters.status || filters.dateFrom || filters.dateTo)
+  // Switching tabs also clears date_from/date_to, so each tab's own default range (empty for
+  // Purchase Orders, current-month for the other 3) applies fresh rather than carrying over.
+  const setTab = (next: PurchaseReportTab) => update({ tab: next === 'orders' ? null : next, page: null, date_from: null, date_to: null })
+  const setPage = (next: number) => update({ page: next > 1 ? String(next) : null })
+  const setFilters = (next: PurchaseReportFilterValues) =>
+    update({
+      supplier_id: next.supplier_id,
+      warehouse_id: next.warehouse_id,
+      status: next.status,
+      date_from: next.dateFrom,
+      date_to: next.dateTo,
+    })
 
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
 
-      <PageHeader
-        title="Purchase Report"
-        description="Purchase orders across every supplier and status."
-        count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} orders` : undefined}
-        actions={
-          <ActionBar
-            actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
-            ]}
-          />
-        }
-      />
+      <PageHeader title="Purchase Report" description="Purchase orders, receiving, and pricing across every supplier." />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <SummaryCard
-          title="Total Purchases"
-          value={formatNumber(listQuery.data?.meta.total ?? 0)}
-          icon={FileText}
-          isLoading={listQuery.isLoading}
-        />
-        <SummaryCard
-          title="Total Amount"
-          value={formatCurrency(totalAmount)}
-          description="Sum of the currently loaded page"
-          icon={Wallet}
-          isLoading={listQuery.isLoading}
-        />
+      <div className="flex items-center gap-1 rounded-md border p-1">
+        {TABS.map((option) => (
+          <Button key={option.value} size="sm" variant={tab === option.value ? 'default' : 'ghost'} onClick={() => setTab(option.value)}>
+            {option.label}
+          </Button>
+        ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <SearchBox
-          value={search}
-          onChange={(value) => {
-            setSearch(value)
-            setPage(1)
-          }}
-          placeholder="Search document number or supplier…"
-        />
-        <PurchaseReportFiltersBar
-          value={filters}
-          onChange={(value) => {
-            setFilters(value)
-            setPage(1)
-          }}
-        />
-      </div>
-
-      <DataTable
-        columns={columns}
-        data={rows}
-        rowKey={(row) => row.id}
-        isLoading={listQuery.isLoading}
-        isError={listQuery.isError}
-        onRetry={() => listQuery.refetch()}
-        emptyMessage={hasFilters ? 'No purchase orders match your search or filters.' : 'No purchase orders yet.'}
-        onRowClick={(row) => navigate(`/purchase/orders/${row.id}`)}
-      />
-
-      {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
+      {tab === 'orders' && <PurchaseOrdersPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'by-supplier' && <PurchaseBySupplierPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'by-item' && <PurchaseByItemPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'po-tracking' && <PoTrackingPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
     </div>
   )
 }

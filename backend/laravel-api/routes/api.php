@@ -43,8 +43,11 @@ use App\Http\Controllers\Api\V1\PaymentEntryAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryController;
 use App\Http\Controllers\Api\V1\PeriodController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\PoTrackingController;
 use App\Http\Controllers\Api\V1\ProductSalesController;
 use App\Http\Controllers\Api\V1\ProfitLossController;
+use App\Http\Controllers\Api\V1\PurchaseByItemController;
+use App\Http\Controllers\Api\V1\PurchaseBySupplierController;
 use App\Http\Controllers\Api\V1\PurchaseInvoiceController;
 use App\Http\Controllers\Api\V1\PurchaseJournalController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
@@ -209,6 +212,19 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::delete('attachments/{documentAttachment}', [DocumentAttachmentController::class, 'destroy'])->middleware('permission:system.document_attachment.delete');
     Route::get('attachments/{documentAttachment}/download', [DocumentAttachmentController::class, 'download'])->middleware('permission:system.document_attachment.view');
     Route::get('document-timeline', [DocumentTimelineController::class, 'index'])->middleware('permission:system.document_timeline.view');
+
+    // Purchase Report rework — 3 new tabs alongside the existing Purchase Orders tab, each
+    // sourced from Goods Receipt (what was actually received), never Purchase Order (what was
+    // merely ordered) — same "DB-level aggregate, not fetch-all-then-sum-in-PHP" posture as the
+    // Sales Report tabs.
+    Route::get('reports/purchase/by-supplier', [PurchaseBySupplierController::class, 'index'])->middleware('permission:reports.purchase.view');
+    Route::get('reports/purchase/by-supplier/export', [PurchaseBySupplierController::class, 'export'])->middleware('permission:reports.purchase.view');
+    Route::get('reports/purchase/by-item', [PurchaseByItemController::class, 'index'])->middleware('permission:reports.purchase.view');
+    Route::get('reports/purchase/by-item/export', [PurchaseByItemController::class, 'export'])->middleware('permission:reports.purchase.view');
+    Route::get('reports/purchase/by-item/{itemId}/history', [PurchaseByItemController::class, 'history'])->middleware('permission:reports.purchase.view');
+    Route::get('reports/purchase/po-tracking', [PoTrackingController::class, 'index'])->middleware('permission:reports.purchase.view');
+    Route::get('reports/purchase/po-tracking/export', [PoTrackingController::class, 'export'])->middleware('permission:reports.purchase.view');
+    Route::get('reports/purchase/po-tracking/{purchaseOrderId}/items', [PoTrackingController::class, 'items'])->middleware('permission:reports.purchase.view');
 
     // Purchase Workflow (Sprint 4): Supplier -> PO -> Goods Receipt -> Stock Ledger(+) -> Accounts Payable.
     $withPagePermissions(Route::apiResource('purchase-orders', PurchaseOrderController::class), 'purchase.orders', 'reports.purchase.view');

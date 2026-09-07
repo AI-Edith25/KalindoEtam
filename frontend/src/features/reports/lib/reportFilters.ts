@@ -8,13 +8,28 @@ import type {
 
 export const emptyPurchaseReportFilters: PurchaseReportFilterValues = {
   supplier_id: '',
+  warehouse_id: '',
   status: null,
   dateFrom: '',
   dateTo: '',
 }
 
 export function hasActivePurchaseReportFilters(filters: PurchaseReportFilterValues): boolean {
-  return filters.supplier_id !== '' || filters.status !== null || filters.dateFrom !== '' || filters.dateTo !== ''
+  return (
+    filters.supplier_id !== '' || filters.warehouse_id !== '' || filters.status !== null || filters.dateFrom !== '' || filters.dateTo !== ''
+  )
+}
+
+/** By Supplier/By Item/PO Tracking's own default range — "current month," unlike the Purchase Orders tab's no-default. */
+export function currentMonthPurchaseReportFilters(): PurchaseReportFilterValues {
+  const now = new Date()
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+
+  return {
+    ...emptyPurchaseReportFilters,
+    dateFrom: iso(new Date(now.getFullYear(), now.getMonth(), 1)),
+    dateTo: iso(now),
+  }
 }
 
 export const emptyGoodsReceiptReportFilters: GoodsReceiptReportFilterValues = { warehouse_id: '', dateFrom: '', dateTo: '' }

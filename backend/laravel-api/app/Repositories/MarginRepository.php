@@ -153,7 +153,10 @@ class MarginRepository
             DB::raw('SUM(amount) as amount'),
             DB::raw('SUM(cost_amount) as cost_amount'),
             DB::raw('SUM(amount) - SUM(cost_amount) as profit'),
-            DB::raw('CASE WHEN SUM(amount) = 0 THEN 0 ELSE ROUND((SUM(amount) - SUM(cost_amount)) / SUM(amount) * 100, 2) END as margin_pct'),
+            // "* 1.0" forces float division — SQLite otherwise does integer division when both
+            // SUM()s happen to be whole numbers (its NUMERIC column affinity stores a
+            // no-remainder REAL as an INTEGER), silently truncating the percentage.
+            DB::raw('CASE WHEN SUM(amount) = 0 THEN 0 ELSE ROUND(((SUM(amount) - SUM(cost_amount)) * 1.0) / SUM(amount) * 100, 2) END as margin_pct'),
         ];
     }
 

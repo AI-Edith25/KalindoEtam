@@ -13,9 +13,75 @@ import type { SettlementStatus } from '@/features/payment/types'
 
 export interface PurchaseReportFilterValues {
   supplier_id: string
+  warehouse_id: string
   status: PurchaseDocumentStatus | null
   dateFrom: string
   dateTo: string
+}
+
+/** By Supplier tab — one row per supplier, sourced from Goods Receipt (net of Returns), never Purchase Order. */
+export interface PurchaseBySupplierRow {
+  id: string
+  supplier_code: string
+  supplier_name: string
+  receipt_count: number
+  qty: number
+  amount: number
+}
+
+export interface PurchaseBySupplierKpis {
+  total_purchases: number
+  active_supplier_count: number
+  top_supplier_name: string | null
+  top_supplier_amount: number
+}
+
+/** By Item tab — one row per item, netted the same way as By Supplier; price fields are null when the item had no in-period Goods Receipt. */
+export interface PurchaseByItemRow {
+  id: string
+  item_code: string | null
+  item_name: string
+  uom: string | null
+  qty: number
+  amount: number
+  avg_price: number | null
+  last_price: number | null
+  lowest_price: number | null
+  highest_price: number | null
+}
+
+export interface PurchaseByItemHistoryRow {
+  date: string
+  gr_number: string | null
+  po_number: string | null
+  supplier_name: string
+  qty: number
+  rate: number
+  amount: number
+}
+
+export type ReceivingStatus = 'not_received' | 'partial' | 'complete'
+
+/** PO Tracking tab — submitted Purchase Orders whose Goods Receipts haven't fully arrived yet. */
+export interface PoTrackingRow {
+  id: string
+  order_date: string
+  document_number: string | null
+  supplier_name: string
+  total_amount: number
+  ordered_qty: number
+  received_qty: number
+  remaining_qty: number
+  fulfillment_pct: number
+  receiving_status: ReceivingStatus
+  is_overdue: boolean
+}
+
+export interface PoTrackingItemRow {
+  item_name: string
+  ordered_qty: number
+  received_qty: number
+  remaining_qty: number
 }
 
 export interface GoodsReceiptReportFilterValues {
