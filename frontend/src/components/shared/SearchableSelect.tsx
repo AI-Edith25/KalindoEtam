@@ -62,7 +62,7 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sele
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-(--radix-dropdown-menu-trigger-width) p-0"
+        className="w-(--radix-dropdown-menu-trigger-width) p-0 duration-0"
         align="start"
         side="bottom"
         avoidCollisions={false}
