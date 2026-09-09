@@ -3,10 +3,16 @@
 namespace App\Repositories;
 
 use App\Enums\AccountsReceivableStatus;
+use App\Enums\DocumentStatus;
 use App\Models\AccountsReceivable;
+use App\Models\CreditNote;
+use App\Models\DebitNote;
+use App\Models\Invoice;
+use App\Models\PaymentAllocation;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 
 class AccountsReceivableRepository extends BaseRepository
 {
@@ -164,5 +170,191 @@ class AccountsReceivableRepository extends BaseRepository
                 ->value('outstanding'),
             'count' => $this->model->query()->where('status', '!=', $notPaid)->count(),
         ];
+    }
+
+    /**
+     * Kartu Piutang's "Saldo Awal" — the customer's full receivable balance immediately before
+     * $beforeDate, computed as 4 scalar SUM()s (never a full-history pull, per the ticket's own
+     * performance requirement). Debit sources are Invoice/DebitNote, credit sources are
+     * PaymentAllocation/CreditNote — the same 4 sources ledgerRows() below merges for the visible
+     * period, just aggregated instead of listed. Only ever called with a real $beforeDate (no
+     * period start = no opening balance to compute, see AccountsReceivableService::buildLedger()).
+     */
+    public function openingBalance(string $customerId, string $beforeDate): float
+    {
+        $invoiceDebit = Invoice::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->whereDate('invoice_date', '<', $beforeDate)
+            ->sum('grand_total');
+
+        $debitNoteDebit = DebitNote::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->where('is_reversed', false)
+            ->whereDate('debit_note_date', '<', $beforeDate)
+            ->sum('total_amount');
+
+        $paymentCredit = PaymentAllocation::query()
+            ->whereHas('accountsReceivable', fn ($query) => $query->where('customer_id', $customerId))
+            ->where('is_reversed', false)
+            ->whereDate('allocation_date', '<', $beforeDate)
+            ->sum('allocated_amount');
+
+        $creditNoteCredit = CreditNote::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->where('is_reversed', false)
+            ->whereDate('credit_note_date', '<', $beforeDate)
+            ->sum('total_amount');
+
+        return (float) $invoiceDebit + (float) $debitNoteDebit - (float) $paymentCredit - (float) $creditNoteCredit;
+    }
+
+    /**
+     * Kartu Piutang's transaction stream for one customer — merges the 4 real sources that move
+     * an AR balance (there is no single "ledger" table in this schema, see this repository's own
+     * class docblock context) into one common row shape, sorted date-then-document-number for a
+     * stable order when several transactions share a date. Bounded to one customer, optionally one
+     * period — never a cross-customer or full-history pull.
+     *
+     * document_type is deliberately the exact label frontend/src/features/accounting/lib/
+     * journalReferenceLink.ts already switches on ('Invoice'/'Receipt Entry'/'Credit Note'/
+     * 'Debit Note') — the frontend reuses that resolver as-is for the clickable document link,
+     * no second type-to-route mapping invented for this feature.
+     */
+    public function ledgerRows(string $customerId, ?string $dateFrom, ?string $dateTo): SupportCollection
+    {
+        $invoiceRows = Invoice::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('invoice_date', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('invoice_date', '<=', $date))
+            ->get()
+            ->map(fn (Invoice $invoice) => [
+                'date' => $invoice->invoice_date->format('Y-m-d'),
+                'document_type' => 'Invoice',
+                'document_number' => $invoice->document_number,
+                'reference_id' => $invoice->id,
+                'description' => $invoice->remarks,
+                'due_date' => $invoice->due_date?->format('Y-m-d'),
+                'debit' => (float) $invoice->grand_total,
+                'credit' => 0.0,
+            ]);
+
+        $paymentRows = PaymentAllocation::query()
+            ->whereHas('accountsReceivable', fn ($query) => $query->where('customer_id', $customerId))
+            ->where('is_reversed', false)
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('allocation_date', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('allocation_date', '<=', $date))
+            ->with('receiptEntry')
+            ->get()
+            ->map(fn (PaymentAllocation $allocation) => [
+                'date' => $allocation->allocation_date->format('Y-m-d'),
+                'document_type' => 'Receipt Entry',
+                'document_number' => $allocation->receiptEntry?->document_number,
+                'reference_id' => $allocation->receipt_entry_id,
+                'description' => $allocation->receiptEntry?->remarks,
+                'due_date' => null,
+                'debit' => 0.0,
+                'credit' => (float) $allocation->allocated_amount,
+            ]);
+
+        $creditNoteRows = CreditNote::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->where('is_reversed', false)
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('credit_note_date', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('credit_note_date', '<=', $date))
+            ->get()
+            ->map(fn (CreditNote $creditNote) => [
+                'date' => $creditNote->credit_note_date->format('Y-m-d'),
+                'document_type' => 'Credit Note',
+                'document_number' => $creditNote->document_number,
+                'reference_id' => $creditNote->id,
+                'description' => $creditNote->remarks,
+                'due_date' => null,
+                'debit' => 0.0,
+                'credit' => (float) $creditNote->total_amount,
+            ]);
+
+        $debitNoteRows = DebitNote::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->where('is_reversed', false)
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('debit_note_date', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('debit_note_date', '<=', $date))
+            ->get()
+            ->map(fn (DebitNote $debitNote) => [
+                'date' => $debitNote->debit_note_date->format('Y-m-d'),
+                'document_type' => 'Debit Note',
+                'document_number' => $debitNote->document_number,
+                'reference_id' => $debitNote->id,
+                'description' => $debitNote->remarks,
+                'due_date' => null,
+                'debit' => (float) $debitNote->total_amount,
+                'credit' => 0.0,
+            ]);
+
+        return $invoiceRows->concat($paymentRows)->concat($creditNoteRows)->concat($debitNoteRows)
+            ->sortBy([['date', 'asc'], ['document_number', 'asc']])
+            ->values();
+    }
+
+    /**
+     * Kartu Piutang's aging summary strip — identical due-date-anchored bucket cutoffs already
+     * established in AccountsPayableRepository::groupedBySupplierAgingBuckets() (not_due/1-30/
+     * 31-60/61-90/over_90, anchored on now()), applied to this one customer's live outstanding AR
+     * rows instead of grouping across all suppliers/customers.
+     */
+    public function agingSummaryForCustomer(string $customerId): array
+    {
+        $today = now()->toDateString();
+        $minus30 = now()->subDays(30)->toDateString();
+        $minus60 = now()->subDays(60)->toDateString();
+        $minus90 = now()->subDays(90)->toDateString();
+        $outstandingExpr = 'amount - paid_amount';
+
+        $row = $this->model->query()
+            ->where('customer_id', $customerId)
+            ->selectRaw("COALESCE(SUM(CASE WHEN due_date >= ? THEN {$outstandingExpr} ELSE 0 END), 0) as not_due", [$today])
+            ->selectRaw("COALESCE(SUM(CASE WHEN due_date < ? AND due_date >= ? THEN {$outstandingExpr} ELSE 0 END), 0) as due_1_30", [$today, $minus30])
+            ->selectRaw("COALESCE(SUM(CASE WHEN due_date < ? AND due_date >= ? THEN {$outstandingExpr} ELSE 0 END), 0) as due_31_60", [$minus30, $minus60])
+            ->selectRaw("COALESCE(SUM(CASE WHEN due_date < ? AND due_date >= ? THEN {$outstandingExpr} ELSE 0 END), 0) as due_61_90", [$minus60, $minus90])
+            ->selectRaw("COALESCE(SUM(CASE WHEN due_date < ? THEN {$outstandingExpr} ELSE 0 END), 0) as due_over_90", [$minus90])
+            ->first();
+
+        return [
+            'not_due' => (float) $row->not_due,
+            'due_1_30' => (float) $row->due_1_30,
+            'due_31_60' => (float) $row->due_31_60,
+            'due_61_90' => (float) $row->due_61_90,
+            'due_over_90' => (float) $row->due_over_90,
+        ];
+    }
+
+    /**
+     * Kartu Piutang's header Branch/Sales Person — neither is a real Customer attribute in this
+     * schema (both live per-transaction, see this repository's own filteredQuery() branch_id
+     * comment), so this derives them from the customer's most recent Invoice within the filtered
+     * period, falling back to their most recent Invoice overall if none falls in period (a
+     * brand-new customer whose only invoice predates the filter, for example). Mirrors Invoice's
+     * own branch()/salesPerson() either/or already established for Transportation vs Goods:
+     * invoice-level first (the only source for Transportation), Sales Order second (Goods).
+     */
+    public function latestInvoiceContext(string $customerId, ?string $dateFrom, ?string $dateTo): ?Invoice
+    {
+        $query = fn () => Invoice::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->with(['branch', 'salesPerson', 'salesOrder.branch', 'salesOrder.salesPerson']);
+
+        $invoice = $query()
+            ->when($dateFrom, fn ($q, $date) => $q->whereDate('invoice_date', '>=', $date))
+            ->when($dateTo, fn ($q, $date) => $q->whereDate('invoice_date', '<=', $date))
+            ->latest('invoice_date')
+            ->first();
+
+        return $invoice ?? $query()->latest('invoice_date')->first();
     }
 }

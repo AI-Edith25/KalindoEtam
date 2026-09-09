@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
 import { fetchBranches, fetchCustomersLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
 import type { SettlementStatus } from '@/features/payment/types'
@@ -20,26 +22,25 @@ export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: Ac
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
 
+  // Master Customer runs into the thousands — a plain dropdown doesn't scale, so this is
+  // type-ahead (SearchableSelect) rather than the plain Select every other filter here uses.
+  const customerOptions = useMemo(
+    () => customers.data?.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}` })) ?? [],
+    [customers.data],
+  )
+
   return (
     <FilterPanel onClear={() => onChange(emptyArDetailReportFilters)} hasActiveFilters={hasActiveArDetailReportFilters(value)}>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Customer</span>
-        <Select
-          value={value.customer_id || ALL}
-          onValueChange={(next) => onChange({ ...value, customer_id: next === ALL ? '' : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={customers.isLoading ? 'Loading…' : 'All customers'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All customers</SelectItem>
-            {customers.data?.map((customer) => (
-              <SelectItem key={customer.id} value={customer.id}>
-                {customer.customer_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={customerOptions}
+          value={value.customer_id || undefined}
+          onChange={(next) => onChange({ ...value, customer_id: next ?? '' })}
+          placeholder="All customers"
+          loading={customers.isLoading}
+          className="w-56"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Branch</span>

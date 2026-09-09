@@ -80,6 +80,7 @@ import { DeliveryReportPrintPage } from '@/features/reports/pages/DeliveryReport
 import { InventoryStockReportPage } from '@/features/reports/pages/InventoryStockReportPage'
 import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/AccountsReceivableDetailReportPage'
 import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/pages/AccountsReceivableDetailReportPrintPage'
+import { AccountsReceivableStatementPrintPage } from '@/features/reports/pages/AccountsReceivableStatementPrintPage'
 import { AccountsPayableDetailReportPage } from '@/features/reports/pages/AccountsPayableDetailReportPage'
 import { AccountsPayableDetailReportPrintPage } from '@/features/reports/pages/AccountsPayableDetailReportPrintPage'
 import { TaxReportPage } from '@/features/reports/pages/TaxReportPage'
@@ -417,6 +418,7 @@ export function AppRouter() {
         <Route path="/reports/inventory-balance" element={<Navigate to="/reports/inventory-stock?tab=balance" replace />} />
         <Route path="/reports/ar-detail" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/ar-detail/statement-print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableStatementPrintPage /></ProtectedRoute>} />
         <Route path="/reports/ap-detail" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPage /></ProtectedRoute>} />
         <Route path="/reports/ap-detail/print" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/tax" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPage /></ProtectedRoute>} />

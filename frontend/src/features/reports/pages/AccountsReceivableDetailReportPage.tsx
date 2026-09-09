@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Printer, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -22,10 +22,12 @@ import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { AccountsReceivableDetailReportFiltersBar } from '../components/AccountsReceivableDetailReportFiltersBar'
 import { fetchAccountsReceivableGroupedDetail } from '../api/accountsReceivableGroupedDetailApi'
+import { exportAccountsReceivableLedger, fetchAccountsReceivableLedger } from '../api/accountsReceivableLedgerApi'
+import { resolveJournalReferenceLink } from '@/features/accounting/lib/journalReferenceLink'
 import { emptyArDetailReportFilters } from '../lib/reportFilters'
 import type { ArDetailReportFilterValues } from '../types'
 
-type ViewMode = 'aging' | 'grouped'
+type ViewMode = 'aging' | 'grouped' | 'ledger'
 
 /** Read-only report over Accounts Receivable — reuses fetchAccountsReceivables() as-is, no new endpoint. */
 export function AccountsReceivableDetailReportPage() {
@@ -35,6 +37,8 @@ export function AccountsReceivableDetailReportPage() {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<ArDetailReportFilterValues>(emptyArDetailReportFilters)
   const [viewMode, setViewMode] = useState<ViewMode>('aging')
+  // Independent from the Aging List's own `page` — Kartu Piutang is a different table entirely.
+  const [ledgerPage, setLedgerPage] = useState(1)
   // invoice_ids — same selection mechanism as Sales > Invoices' checkbox print flow, reused here
   // so "export only selected" needs no new backend filter, just this set threaded into the export call.
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
@@ -205,6 +209,24 @@ export function AccountsReceivableDetailReportPage() {
     placeholderData: (previous) => previous,
   })
 
+  // Kartu Piutang requires a customer first — no query fires (and no empty-table flash) until one is picked.
+  const ledgerQuery = useQuery({
+    queryKey: ['ar-ledger', filters.customer_id, filters.invoiceDateFrom, filters.invoiceDateTo, ledgerPage],
+    queryFn: () =>
+      fetchAccountsReceivableLedger({
+        customer_id: filters.customer_id,
+        ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
+        ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
+        page: ledgerPage,
+      }),
+    enabled: viewMode === 'ledger' && !!filters.customer_id,
+    placeholderData: (previous) => previous,
+  })
+
+  useEffect(() => {
+    setLedgerPage(1)
+  }, [filters.customer_id, filters.invoiceDateFrom, filters.invoiceDateTo])
+
   const [isExporting, setIsExporting] = useState(false)
   // A non-empty selection overrides the active filters entirely (same rule as Sales > Invoices'
   // own checkbox-export flow) — never lossy, since checkboxes only ever appear on already-filtered rows.
@@ -224,6 +246,26 @@ export function AccountsReceivableDetailReportPage() {
     }
   }
 
+  const exportLedger = async (format: 'xlsx' | 'csv') => {
+    if (!filters.customer_id) return
+    setIsExporting(true)
+    try {
+      const blob = await exportAccountsReceivableLedger(
+        {
+          customer_id: filters.customer_id,
+          ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
+          ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
+        },
+        format,
+      )
+      downloadBlob(`KartuPiutang.${format}`, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
@@ -233,43 +275,74 @@ export function AccountsReceivableDetailReportPage() {
         description="Every outstanding and settled receivable, by customer and invoice."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} receivables` : undefined}
         actions={
-          <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={isExporting}>
-                  <Download className="size-4" />
-                  Export CSV
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportReport('detail', 'csv')}>Detail</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportReport('summary', 'csv')}>Summary</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={isExporting}>
-                  <Download className="size-4" />
-                  Export XLSX
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportReport('detail', 'xlsx')}>Detail</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportReport('summary', 'xlsx')}>Summary</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <ActionBar
-              actions={[
-                { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-                {
-                  label: 'Print',
-                  icon: Printer,
-                  onClick: () => navigate(`/reports/ar-detail/print${printParams ? `?${printParams}` : ''}`),
-                },
-                { label: 'Import', icon: Upload, disabled: true },
-              ]}
-            />
-          </>
+          viewMode === 'ledger' ? (
+            <>
+              <Button variant="outline" disabled={isExporting || !filters.customer_id} onClick={() => exportLedger('csv')}>
+                <Download className="size-4" />
+                Export CSV
+              </Button>
+              <Button variant="outline" disabled={isExporting || !filters.customer_id} onClick={() => exportLedger('xlsx')}>
+                <Download className="size-4" />
+                Export XLSX
+              </Button>
+              <ActionBar
+                actions={[
+                  { label: 'Refresh', icon: RotateCw, onClick: () => ledgerQuery.refetch(), disabled: ledgerQuery.isFetching },
+                  {
+                    label: 'Print',
+                    icon: Printer,
+                    disabled: !filters.customer_id,
+                    onClick: () =>
+                      navigate(
+                        `/reports/ar-detail/statement-print?${new URLSearchParams({
+                          customer_id: filters.customer_id,
+                          ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
+                          ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
+                        }).toString()}`,
+                      ),
+                  },
+                ]}
+              />
+            </>
+          ) : (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" disabled={isExporting}>
+                    <Download className="size-4" />
+                    Export CSV
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportReport('detail', 'csv')}>Detail</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('summary', 'csv')}>Summary</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" disabled={isExporting}>
+                    <Download className="size-4" />
+                    Export XLSX
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportReport('detail', 'xlsx')}>Detail</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('summary', 'xlsx')}>Summary</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <ActionBar
+                actions={[
+                  { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+                  {
+                    label: 'Print',
+                    icon: Printer,
+                    onClick: () => navigate(`/reports/ar-detail/print${printParams ? `?${printParams}` : ''}`),
+                  },
+                  { label: 'Import', icon: Upload, disabled: true },
+                ]}
+              />
+            </>
+          )
         }
       />
 
@@ -280,6 +353,9 @@ export function AccountsReceivableDetailReportPage() {
           </Button>
           <Button size="sm" variant={viewMode === 'grouped' ? 'default' : 'ghost'} onClick={() => setViewMode('grouped')}>
             Perincian Piutang
+          </Button>
+          <Button size="sm" variant={viewMode === 'ledger' ? 'default' : 'ghost'} onClick={() => setViewMode('ledger')}>
+            Kartu Piutang
           </Button>
         </div>
         <SearchBox
@@ -322,6 +398,134 @@ export function AccountsReceivableDetailReportPage() {
             </Card>
           )}
         </>
+      ) : viewMode === 'ledger' ? (
+        !filters.customer_id ? (
+          <Card>
+            <CardContent className="py-10 text-center text-muted-foreground">Pilih pelanggan untuk melihat Kartu Piutang.</CardContent>
+          </Card>
+        ) : !ledgerQuery.data ? (
+          <Card>
+            <CardContent className="py-10 text-center text-muted-foreground">
+              {ledgerQuery.isLoading ? 'Loading…' : 'Gagal memuat Kartu Piutang.'}
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <Card>
+              <CardContent className="grid grid-cols-2 gap-x-6 gap-y-1 py-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
+                <div>
+                  <p className="text-xs text-muted-foreground">Nama Pelanggan</p>
+                  <p className="font-medium">{ledgerQuery.data.data.header.customer_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Kode</p>
+                  <p className="font-medium">{ledgerQuery.data.data.header.customer_code}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Branch</p>
+                  <p className="font-medium">{ledgerQuery.data.data.header.branch_name ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Sales Person</p>
+                  <p className="font-medium">{ledgerQuery.data.data.header.sales_person_name ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Terms of Payment</p>
+                  <p className="font-medium">{ledgerQuery.data.data.header.terms_of_payment_name ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Saldo Akhir</p>
+                  <p className="font-semibold">{formatCurrency(ledgerQuery.data.data.closing_balance)}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableBody>
+                  <TableRow className="bg-muted/50 font-medium">
+                    <TableCell>Tanggal</TableCell>
+                    <TableCell>Jenis Dokumen</TableCell>
+                    <TableCell>Nomor Dokumen</TableCell>
+                    <TableCell>Keterangan</TableCell>
+                    <TableCell>Jatuh Tempo</TableCell>
+                    <TableCell className="text-right">Debit</TableCell>
+                    <TableCell className="text-right">Kredit</TableCell>
+                    <TableCell className="text-right">Saldo Berjalan</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-muted/20">
+                    <TableCell colSpan={7} className="font-medium">
+                      Saldo Awal
+                    </TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(ledgerQuery.data.data.opening_balance)}</TableCell>
+                  </TableRow>
+                  {ledgerQuery.data.data.rows.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                        Tidak ada mutasi pada periode ini.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {ledgerQuery.data.data.rows.map((row, index) => {
+                    const link = row.reference_id ? resolveJournalReferenceLink(row.document_type, row.reference_id) : null
+
+                    return (
+                      <TableRow key={index}>
+                        <TableCell>{formatDate(row.date)}</TableCell>
+                        <TableCell>{row.document_type}</TableCell>
+                        <TableCell>
+                          {link ? (
+                            <Link to={link} className="text-primary underline-offset-2 hover:underline">
+                              {row.document_number ?? '—'}
+                            </Link>
+                          ) : (
+                            (row.document_number ?? '—')
+                          )}
+                        </TableCell>
+                        <TableCell>{row.description ?? '—'}</TableCell>
+                        <TableCell>{row.due_date ? formatDate(row.due_date) : '—'}</TableCell>
+                        <TableCell className="text-right">{row.debit ? formatCurrency(row.debit) : '—'}</TableCell>
+                        <TableCell className="text-right">{row.credit ? formatCurrency(row.credit) : '—'}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(row.running_balance)}</TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  <TableRow className="bg-muted/50 font-semibold">
+                    <TableCell colSpan={7}>Saldo Akhir</TableCell>
+                    <TableCell className="text-right">{formatCurrency(ledgerQuery.data.data.closing_balance)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+
+            <Pagination meta={ledgerQuery.data.meta} onPageChange={setLedgerPage} />
+
+            <Card>
+              <CardContent className="grid grid-cols-2 gap-4 py-4 text-sm sm:grid-cols-5">
+                <div>
+                  <p className="text-xs text-muted-foreground">Belum Jatuh Tempo</p>
+                  <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.not_due)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">1-30 Hari</p>
+                  <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.due_1_30)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">31-60 Hari</p>
+                  <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.due_31_60)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">61-90 Hari</p>
+                  <p className="font-medium text-destructive">{formatCurrency(ledgerQuery.data.data.aging.due_61_90)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">&gt; 90 Hari</p>
+                  <p className="font-medium text-destructive">{formatCurrency(ledgerQuery.data.data.aging.due_over_90)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )
       ) : !groupedQuery.data || groupedQuery.data.groups.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">

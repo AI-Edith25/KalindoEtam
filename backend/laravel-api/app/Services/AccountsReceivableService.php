@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AccountsReceivableStatus;
 use App\Exceptions\BusinessException;
 use App\Models\AccountsReceivable;
+use App\Models\Customer;
 use App\Models\Invoice;
 use App\Repositories\AccountsReceivableRepository;
 use App\Support\SettlementStatus;
@@ -334,5 +335,80 @@ class AccountsReceivableService
         if ($amount > $creditable) {
             throw new BusinessException("Amount ({$amount}) exceeds the remaining creditable balance ({$creditable}) for {$accountsReceivable->reference_number}.");
         }
+    }
+
+    /**
+     * Kartu Piutang's shared core — opening balance, the merged/sorted transaction stream with a
+     * running balance walked on top, the header context, and the aging summary. Shared by ledger()
+     * (paginated, on-screen table) and ledgerFull() (unpaginated, Export/Print) so both always
+     * agree — never two independently-computed balances.
+     */
+    private function buildLedger(array $filters): array
+    {
+        $customerId = $filters['customer_id'];
+        $dateFrom = $filters['invoice_date_from'] ?? null;
+        $dateTo = $filters['invoice_date_to'] ?? null;
+
+        $customer = Customer::query()->with('termsOfPayment')->findOrFail($customerId);
+        $openingBalance = $dateFrom ? $this->accountsReceivableRepository->openingBalance($customerId, $dateFrom) : 0.0;
+
+        $balance = $openingBalance;
+        $rows = $this->accountsReceivableRepository->ledgerRows($customerId, $dateFrom, $dateTo)
+            ->map(function (array $row) use (&$balance) {
+                $balance += $row['debit'] - $row['credit'];
+                $row['running_balance'] = $balance;
+
+                return $row;
+            })
+            ->values()
+            ->all();
+
+        $context = $this->accountsReceivableRepository->latestInvoiceContext($customerId, $dateFrom, $dateTo);
+
+        return [
+            'header' => [
+                'customer_id' => $customer->id,
+                'customer_code' => $customer->customer_code,
+                'customer_name' => $customer->customer_name,
+                'customer_address' => $customer->address,
+                'branch_name' => $context?->branch?->name ?? $context?->salesOrder?->branch?->name,
+                'sales_person_name' => $context?->salesPerson?->name ?? $context?->salesOrder?->salesPerson?->name,
+                'terms_of_payment_name' => $customer->termsOfPayment?->name,
+            ],
+            'opening_balance' => $openingBalance,
+            'rows' => $rows,
+            'closing_balance' => $balance,
+            'aging' => $this->accountsReceivableRepository->agingSummaryForCustomer($customerId),
+        ];
+    }
+
+    /**
+     * Kartu Piutang's on-screen table — same core as ledgerFull(), paginated in PHP over the one
+     * bounded per-customer row set buildLedger() already produced (never a second, separately-
+     * fetched page). 'rows'/'meta' mirrors this controller's other paginated endpoints' shape
+     * (current_page/per_page/total/last_page) rather than a framework Paginator instance, since
+     * the underlying set is already an in-memory array, not an Eloquent query.
+     */
+    public function ledger(array $filters, int $perPage = 15): array
+    {
+        $ledger = $this->buildLedger($filters);
+        $total = count($ledger['rows']);
+        $page = max(1, (int) ($filters['page'] ?? 1));
+
+        $ledger['rows'] = array_slice($ledger['rows'], ($page - 1) * $perPage, $perPage);
+        $ledger['meta'] = [
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'last_page' => max(1, (int) ceil($total / $perPage)),
+        ];
+
+        return $ledger;
+    }
+
+    /** Kartu Piutang's Export/Print — same core as ledger(), unpaginated (both need the complete filtered period, never just one page). */
+    public function ledgerFull(array $filters): array
+    {
+        return $this->buildLedger($filters);
     }
 }

@@ -355,6 +355,47 @@ export interface ArDetailReportFilterValues {
   sales_person_id: string
 }
 
+/** Kartu Piutang — one customer's running ledger row. document_type matches the exact labels features/accounting/lib/journalReferenceLink.ts already switches on, reused as-is for the clickable Nomor Dokumen link. */
+export interface ArLedgerRow {
+  date: string
+  document_type: 'Invoice' | 'Receipt Entry' | 'Credit Note' | 'Debit Note'
+  document_number: string | null
+  reference_id: string | null
+  description: string | null
+  due_date: string | null
+  debit: number
+  credit: number
+  running_balance: number
+}
+
+/** Same due-date-anchored bucket cutoffs as AP Detail's "Perincian Hutang" (not_due/1-30/31-60/61-90/>90), applied to one customer's live outstanding AR rows. */
+export interface ArLedgerAging {
+  not_due: number
+  due_1_30: number
+  due_31_60: number
+  due_61_90: number
+  due_over_90: number
+}
+
+/** Branch/Sales Person aren't real Customer attributes in this schema — both are derived server-side from the customer's most recent Invoice in period (or overall), see AccountsReceivableRepository::latestInvoiceContext(). */
+export interface ArLedgerHeader {
+  customer_id: string
+  customer_code: string
+  customer_name: string
+  customer_address: string | null
+  branch_name: string | null
+  sales_person_name: string | null
+  terms_of_payment_name: string | null
+}
+
+export interface ArLedger {
+  header: ArLedgerHeader
+  opening_balance: number
+  rows: ArLedgerRow[]
+  closing_balance: number
+  aging: ArLedgerAging
+}
+
 /** AP Detail's "Perincian Hutang" — one flat row per supplier with due-date-anchored aging buckets. Unlike AR's grouped view (Sales Person -> Customer, no bucket columns), AP has no Sales Person concept, so this is a single level, and the buckets themselves come from the ticket's own spec, not AR's legacy export scheme. */
 export interface ApAgingBucketRow {
   supplier_id: string
