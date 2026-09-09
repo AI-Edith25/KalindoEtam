@@ -453,12 +453,20 @@ export function AccountsReceivableDetailReportPage() {
                     <TableCell className="text-right">Kredit</TableCell>
                     <TableCell className="text-right">Saldo Berjalan</TableCell>
                   </TableRow>
-                  <TableRow className="bg-muted/20">
-                    <TableCell colSpan={7} className="font-medium">
-                      Saldo Awal
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(ledgerQuery.data.data.opening_balance)}</TableCell>
-                  </TableRow>
+                  {/* Only the table's actual first row (page 1) claims to be "Saldo Awal" — on
+                      later pages the running balance already continues from wherever the prior
+                      page left off, so repeating the original opening balance here would sit
+                      right above a Saldo Berjalan that doesn't start from it, even though the
+                      math (walked from the true opening balance across the whole period) is
+                      correct. */}
+                  {ledgerQuery.data.meta.current_page === 1 && (
+                    <TableRow className="bg-muted/20">
+                      <TableCell colSpan={7} className="font-medium">
+                        Saldo Awal
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(ledgerQuery.data.data.opening_balance)}</TableCell>
+                    </TableRow>
+                  )}
                   {ledgerQuery.data.data.rows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
@@ -490,10 +498,16 @@ export function AccountsReceivableDetailReportPage() {
                       </TableRow>
                     )
                   })}
-                  <TableRow className="bg-muted/50 font-semibold">
-                    <TableCell colSpan={7}>Saldo Akhir</TableCell>
-                    <TableCell className="text-right">{formatCurrency(ledgerQuery.data.data.closing_balance)}</TableCell>
-                  </TableRow>
+                  {/* Only the table's actual last row (last page) claims to be "Saldo Akhir" — on
+                      earlier pages the true closing balance is already visible in the header card
+                      above, so pinning it here too would sit under a Saldo Berjalan that hasn't
+                      reached it yet and read as a mismatch, even though the math is correct. */}
+                  {ledgerQuery.data.meta.current_page === ledgerQuery.data.meta.last_page && (
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell colSpan={7}>Saldo Akhir</TableCell>
+                      <TableCell className="text-right">{formatCurrency(ledgerQuery.data.data.closing_balance)}</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
