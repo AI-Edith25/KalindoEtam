@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\DeliveryController;
 use App\Http\Controllers\Api\V1\DocumentAttachmentController;
 use App\Http\Controllers\Api\V1\DocumentTimelineController;
 use App\Http\Controllers\Api\V1\FifoValuationController;
+use App\Http\Controllers\Api\V1\InventoryValuationController;
 use App\Http\Controllers\Api\V1\GeneralLedgerController;
 use App\Http\Controllers\Api\V1\GoodsReceiptController;
 use App\Http\Controllers\Api\V1\ImportController;
@@ -205,6 +206,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('stock-in', [StockInController::class, 'store'])->middleware('permission:inventory.stock_ledger.create');
     Route::get('fifo-layers/export', [FifoValuationController::class, 'export'])->middleware('permission:inventory.fifo_layers.view');
     Route::get('fifo-layers', [FifoValuationController::class, 'index'])->middleware('permission:inventory.fifo_layers.view');
+    // Reports > Inventory Stock > Valuation tab. Same permission OR as the Balance/Ledger tabs
+    // of that page, plus the fifo-layers permission (this reads the same FifoLayer data).
+    Route::get('inventory-valuation/export', [InventoryValuationController::class, 'export'])->middleware('permission:inventory.fifo_layers.view|reports.inventory_stock.view');
+    Route::get('inventory-valuation', [InventoryValuationController::class, 'index'])->middleware('permission:inventory.fifo_layers.view|reports.inventory_stock.view');
 
     // Document Engine — shared by every future transactional module.
     $withPagePermissions(Route::apiResource('naming-series', NamingSeriesController::class), 'administration.naming_series');

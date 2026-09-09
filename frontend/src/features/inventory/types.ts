@@ -68,6 +68,36 @@ export interface StockBalanceFilterValues {
   item_id: string
 }
 
+export interface StockValuationRow {
+  item_id: string
+  warehouse_id: string
+  item_code: string
+  item_name: string
+  warehouse_name: string
+  opening_qty: number
+  opening_value: number
+  qty_in: number
+  value_in: number
+  qty_out: number
+  value_out: number
+  closing_qty: number
+  unit_cost: number
+  closing_value: number
+}
+
+export interface StockValuationSummary {
+  closing_value: number
+  item_count: number
+}
+
+export interface StockValuationFilterValues {
+  warehouse_id: string
+  item_group_id: string
+  item_id: string
+  dateFrom: string
+  dateTo: string
+}
+
 export interface StockAdjustmentItem {
   id: string
   item_id: string

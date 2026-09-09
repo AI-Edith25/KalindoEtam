@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionNav } from '@/components/shared/SectionNav'
@@ -5,20 +6,27 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { StockBalancePanel } from '@/features/inventory/components/StockBalancePanel'
 import { StockLedgerPanel } from '@/features/inventory/components/StockLedgerPanel'
+import { StockValuationPanel } from '@/features/inventory/components/StockValuationPanel'
 
 type InventoryStockTab = 'balance' | 'ledger' | 'valuation'
 
 const TABS: { value: InventoryStockTab; label: string; enabled: boolean }[] = [
   { value: 'balance', label: 'Balance', enabled: true },
   { value: 'ledger', label: 'Ledger', enabled: true },
-  { value: 'valuation', label: 'Valuation', enabled: false },
+  { value: 'valuation', label: 'Valuation', enabled: true },
 ]
 
+const PANELS: Record<InventoryStockTab, ReactElement> = {
+  balance: <StockBalancePanel />,
+  ledger: <StockLedgerPanel />,
+  valuation: <StockValuationPanel />,
+}
+
 /**
- * Reports > Inventory Stock — Stock Balance and Stock Ledger moved here as
- * tabs of one page (previously separate Inventory sub-nav pages); Valuation
- * is a placeholder for a page not yet built. Same button-row + `?tab=` URL
- * pattern as Accounting > Journal List (JournalListPage.tsx).
+ * Reports > Inventory Stock — Stock Balance, Stock Ledger and Stock Valuation
+ * as tabs of one page (Balance/Ledger were previously separate Inventory
+ * sub-nav pages). Same button-row + `?tab=` URL pattern as Accounting >
+ * Journal List (JournalListPage.tsx).
  */
 export function InventoryStockReportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -62,7 +70,7 @@ export function InventoryStockReportPage() {
         </div>
       </TooltipProvider>
 
-      {tab === 'ledger' ? <StockLedgerPanel /> : <StockBalancePanel />}
+      {PANELS[tab]}
     </div>
   )
 }

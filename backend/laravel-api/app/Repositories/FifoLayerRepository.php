@@ -109,6 +109,31 @@ class FifoLayerRepository extends BaseRepository
             ->get();
     }
 
+    /**
+     * Every layer that could contribute to a period valuation report — i.e. received on or
+     * before the period's end date. Opening/closing balances are computed by the caller from
+     * this set plus each layer's consumption history, not by date-filtering received_date to
+     * the period itself (a layer received before the period can still hold the opening balance).
+     */
+    public function layersForValuation(array $filters, string $dateTo): Collection
+    {
+        $query = $this->model->query()
+            ->join('items', 'items.id', '=', 'fifo_layers.item_id')
+            ->join('warehouses', 'warehouses.id', '=', 'fifo_layers.warehouse_id')
+            ->select(['fifo_layers.*', 'items.item_code', 'items.item_name', 'warehouses.name as warehouse_name'])
+            ->when($filters['warehouse_id'] ?? null, fn ($q, $warehouseId) => $q->where('fifo_layers.warehouse_id', $warehouseId))
+            ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->where('fifo_layers.item_id', $itemId))
+            ->when($filters['item_group_id'] ?? null, fn ($q, $groupId) => $q->where('items.item_group_id', $groupId))
+            ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(
+                fn ($sub) => $sub->where('items.item_code', 'like', "%{$search}%")->orWhere('items.item_name', 'like', "%{$search}%"),
+            ))
+            ->whereDate('fifo_layers.received_date', '<=', $dateTo)
+            ->orderBy('items.item_code')
+            ->orderBy('fifo_layers.received_date');
+
+        return $query->get();
+    }
+
     /** Every layer a given voucher created — used by reverseReceipt(). */
     public function bySource(string $sourceType, string $sourceId): Collection
     {
