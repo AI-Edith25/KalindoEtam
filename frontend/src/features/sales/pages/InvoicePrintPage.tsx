@@ -306,6 +306,14 @@ export function InvoicePrintPage() {
           minHeight: tight ? undefined : '27.3cm',
           fontFamily: printOptions.fontFamily ?? '"Times New Roman", "Tinos", "Liberation Serif", serif',
           fontSize: `${printOptions.fontSizePt ?? 10}pt`,
+          // The real gap after the fixes above turned out to be line-height, not spacing: the
+          // second PDF measured meta rows at ~5.5mm apart at a 10pt font, which only happens at
+          // a ~1.56 line-height ratio — Times New Roman's fallback (Tinos/Liberation Serif) uses
+          // far more built-in leading than assumed. That was inflating every text block on Half/
+          // Continuous (meta grid, table rows, E&O.E, header), not just one spot. Unitless 1.15
+          // is deterministic across fonts and inherits to every descendant here, unlike trying to
+          // pin each element's line-height in mm individually.
+          lineHeight: tight ? 1.15 : undefined,
         }}
       >
         <div className={isHalf ? 'flex flex-col' : isContinuous ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
