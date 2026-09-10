@@ -315,14 +315,17 @@ export function InvoicePrintPage() {
         ref={halfContentRef}
         className="flex flex-col text-black"
         style={{
-          // Half/Continuous no longer force-stretch to a full page's height before the footer —
-          // that stretch (plus the flex-1 spacer below) was the actual cause of the footer
-          // spilling to page 2: it filled ~132mm before the footer even started, leaving no room
-          // for the ~50mm footer/signature block on invoices with very little else on the page.
-          // Content now just flows: header/meta/table/footer back to back, sized by what's
-          // actually there. A4 keeps its own full-page stretch — it has 297mm of headroom, so
-          // pushing the footer toward the bottom of the sheet was never the problem there.
-          minHeight: tight ? undefined : '27.3cm',
+          // Half re-adds a bounded push-to-bottom stretch (removed once, reinstated here) now
+          // that real print output has been measured at every step: natural content lands around
+          // 116mm, HALF_CONTENT_HEIGHT_MM targets 132mm (136mm usable minus a 4mm safety margin),
+          // so the flex-1 spacer below only ever ADDS space up to that target — it can't push
+          // total height past 132mm, unlike the original bug where the target itself (136mm, zero
+          // margin, built on a wrong line-height assumption) already left no room for the footer.
+          // A longer invoice whose natural content exceeds 132mm simply isn't stretched further;
+          // it overflows to page 2 normally, protected by the footer's own break-inside-avoid.
+          // Continuous keeps flowing naturally — no real-world Half-style measurement exists for
+          // it yet, so it isn't given this same treatment. A4 keeps its own full-page stretch.
+          minHeight: isHalf ? `${HALF_CONTENT_HEIGHT_MM}mm` : isContinuous ? undefined : '27.3cm',
           fontFamily: printOptions.fontFamily ?? '"Times New Roman", "Tinos", "Liberation Serif", serif',
           fontSize: `${printOptions.fontSizePt ?? 10}pt`,
           // The real gap turned out to be line-height, not spacing: meta rows were measured at
@@ -449,10 +452,11 @@ export function InvoicePrintPage() {
             matching the same visual gap here reads the same on a mostly-empty invoice. */}
         {isHalf && <p className="mt-[10mm]">{terbilangIdr(invoice.grand_total)}</p>}
 
-        {/* A4 only — pushes the footer toward the bottom of the full A4 sheet. Half/Continuous
-            dropped this: it's what stretched the box to near-full-page height before the footer
-            even started, leaving no room for it. There the footer just follows in normal flow. */}
-        {!tight && <div className="flex-1" />}
+        {/* Pushes the footer/signature toward the bottom of the page — A4 (full 297mm sheet) and
+            now Half again too, bounded this time by HALF_CONTENT_HEIGHT_MM above instead of the
+            unbuffered exact-page-height target that caused the original overflow. Continuous still
+            flows naturally; no real measurement exists yet to safely bound it the same way. */}
+        {(isHalf || !tight) && <div className="flex-1" />}
 
         {/* One break-inside-avoid unit — E.&O.E/BCA account, totals box, and signature lines must
             land on the same physical page together, never split across a page break. */}
