@@ -52,14 +52,16 @@ export function Header() {
             <span className="sr-only">Toggle menu</span>
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
-          <SheetHeader className="flex h-14 flex-row items-center gap-2 border-b px-4">
+        <SheetContent side="left" className="w-64 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
+          <SheetHeader className="flex h-14 flex-row items-center gap-2 border-b border-sidebar-border px-4">
             {logoObjectUrl ? (
               <img src={logoObjectUrl} alt="" className="size-5 shrink-0 object-contain" />
             ) : (
-              <Package className="size-5 shrink-0 text-primary" />
+              <Package className="size-5 shrink-0 text-sidebar-primary" />
             )}
-            <SheetTitle className="text-base">{branding?.name ?? 'Loading…'}</SheetTitle>
+            <SheetTitle className="font-mono text-sm tracking-wide text-sidebar-foreground uppercase">
+              {branding?.name ?? 'Loading…'}
+            </SheetTitle>
           </SheetHeader>
           <SidebarNav onNavigate={() => setIsMobileNavOpen(false)} />
         </SheetContent>

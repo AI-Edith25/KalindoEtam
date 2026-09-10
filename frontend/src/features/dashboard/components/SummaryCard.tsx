@@ -17,7 +17,7 @@ interface SummaryCardProps {
 
 const TONE_ICON_CLASS: Record<NonNullable<SummaryCardProps['tone']>, string> = {
   default: 'text-primary',
-  warning: 'text-amber-500',
+  warning: 'text-warning',
   danger: 'text-destructive',
 }
 

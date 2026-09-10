@@ -7,46 +7,52 @@ import { cn } from '@/lib/utils'
  * a color. Unknown values still render — just with a neutral color —
  * so this never needs updating when a new status value shows up.
  */
+const SUCCESS = 'bg-success/15 text-success-foreground border-success-border'
+const WARNING = 'bg-warning/15 text-warning-foreground border-warning-border'
+const ERROR = 'bg-destructive/15 text-destructive border-destructive/40'
+const INFO = 'bg-info/15 text-info-foreground border-info-border'
+const NEUTRAL = 'bg-muted text-muted-foreground border-transparent'
+
 const STATUS_STYLES: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground border-transparent',
-  submitted: 'bg-blue-100 text-blue-700 border-transparent dark:bg-blue-950 dark:text-blue-300',
-  cancelled: 'bg-red-100 text-red-700 border-transparent dark:bg-red-950 dark:text-red-300',
-  open: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  closed: 'bg-muted text-muted-foreground border-transparent',
-  unpaid: 'bg-red-100 text-red-700 border-transparent dark:bg-red-950 dark:text-red-300',
-  partially_paid: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  paid: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  active: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  inactive: 'bg-muted text-muted-foreground border-transparent',
-  in_stock: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  out_of_stock: 'bg-red-100 text-red-700 border-transparent dark:bg-red-950 dark:text-red-300',
-  main: 'bg-blue-100 text-blue-700 border-transparent dark:bg-blue-950 dark:text-blue-300',
-  transit: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  return: 'bg-muted text-muted-foreground border-transparent',
-  waiting: 'bg-blue-100 text-blue-700 border-transparent dark:bg-blue-950 dark:text-blue-300',
-  partial: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  completed: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  complete: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  in: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  out: 'bg-red-100 text-red-700 border-transparent dark:bg-red-950 dark:text-red-300',
-  adjustment: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
+  draft: NEUTRAL,
+  submitted: INFO,
+  cancelled: ERROR,
+  open: SUCCESS,
+  closed: NEUTRAL,
+  unpaid: ERROR,
+  partially_paid: WARNING,
+  paid: SUCCESS,
+  active: SUCCESS,
+  inactive: NEUTRAL,
+  in_stock: SUCCESS,
+  out_of_stock: ERROR,
+  main: INFO,
+  transit: WARNING,
+  return: NEUTRAL,
+  waiting: INFO,
+  partial: WARNING,
+  completed: SUCCESS,
+  complete: SUCCESS,
+  in: SUCCESS,
+  out: ERROR,
+  adjustment: WARNING,
   // Approval Workflow (Sprint 24B) — reuses ApprovalStatus's own three values as-is.
-  pending: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  approved: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  rejected: 'bg-red-100 text-red-700 border-transparent dark:bg-red-950 dark:text-red-300',
+  pending: WARNING,
+  approved: SUCCESS,
+  rejected: ERROR,
   // Outgoing Payment's Payment Type (Supplier vs. General Expense) — the list's type indicator.
-  supplier: 'bg-blue-100 text-blue-700 border-transparent dark:bg-blue-950 dark:text-blue-300',
-  general_expense: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
+  supplier: INFO,
+  general_expense: WARNING,
   // Outstanding view (Sales Order / Delivery inline badges) — self-describing rows on the "Semua" view.
-  outstanding: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  fully_delivered: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
-  not_invoiced: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  invoiced: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
+  outstanding: WARNING,
+  fully_delivered: SUCCESS,
+  not_invoiced: WARNING,
+  invoiced: SUCCESS,
   // Open Orders tab (Sales Report rework) — delivery/invoice status shown as two separate badges per row.
-  not_delivered: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  partially_delivered: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  partially_invoiced: 'bg-amber-100 text-amber-700 border-transparent dark:bg-amber-950 dark:text-amber-300',
-  fully_invoiced: 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300',
+  not_delivered: WARNING,
+  partially_delivered: WARNING,
+  partially_invoiced: WARNING,
+  fully_invoiced: SUCCESS,
 }
 
 function formatLabel(status: string): string {
