@@ -10,6 +10,7 @@ use App\Http\Resources\BranchResource;
 use App\Models\Branch;
 use App\Services\BranchService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class BranchController extends Controller
 {
@@ -17,9 +18,9 @@ class BranchController extends Controller
 
     public function __construct(protected BranchService $branchService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(BranchResource::collection($this->branchService->list()));
+        return $this->success(BranchResource::collection($this->branchService->list((int) ($request->query('per_page') ?? 15))));
     }
 
     public function store(StoreBranchRequest $request): JsonResponse

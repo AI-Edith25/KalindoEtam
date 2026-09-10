@@ -10,6 +10,7 @@ use App\Http\Resources\WarehouseResource;
 use App\Models\Warehouse;
 use App\Services\WarehouseService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class WarehouseController extends Controller
 {
@@ -17,9 +18,9 @@ class WarehouseController extends Controller
 
     public function __construct(protected WarehouseService $warehouseService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(WarehouseResource::collection($this->warehouseService->list()));
+        return $this->success(WarehouseResource::collection($this->warehouseService->list((int) ($request->query('per_page') ?? 15))));
     }
 
     public function store(StoreWarehouseRequest $request): JsonResponse

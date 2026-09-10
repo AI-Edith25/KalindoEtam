@@ -1,11 +1,11 @@
 import { fetchLookupList } from '@/shared/services/lookupApi'
 import type { Branch, ChartOfAccount, Company, Customer, Item, ItemGroup, SalesPerson, Supplier, Tax, TermsOfPayment, Uom, Warehouse } from '../types'
 
-export const fetchItemGroups = () => fetchLookupList<ItemGroup>('/item-groups')
-export const fetchUoms = () => fetchLookupList<Uom>('/uoms')
-export const fetchBranches = () => fetchLookupList<Branch>('/branches')
+export const fetchItemGroups = () => fetchLookupList<ItemGroup>('/item-groups', { per_page: '200' })
+export const fetchUoms = () => fetchLookupList<Uom>('/uoms', { per_page: '200' })
+export const fetchBranches = () => fetchLookupList<Branch>('/branches', { per_page: '200' })
 export const fetchCompaniesLookup = () => fetchLookupList<Company>('/companies')
-export const fetchSalesPersonsLookup = () => fetchLookupList<SalesPerson>('/sales-persons')
+export const fetchSalesPersonsLookup = () => fetchLookupList<SalesPerson>('/sales-persons', { per_page: '200' })
 
 /**
  * Cross-feature reuse: Purchase's and Sales's editors need these same page-1 lookups.
@@ -15,9 +15,9 @@ export const fetchSalesPersonsLookup = () => fetchLookupList<SalesPerson>('/sale
 export const fetchItemsLookup = (warehouseId?: string) =>
   fetchLookupList<Item>('/items', { per_page: '200', ...(warehouseId ? { warehouse_id: warehouseId } : {}) })
 export const fetchSuppliersLookup = () => fetchLookupList<Supplier>('/suppliers')
-export const fetchWarehousesLookup = () => fetchLookupList<Warehouse>('/warehouses')
+export const fetchWarehousesLookup = () => fetchLookupList<Warehouse>('/warehouses', { per_page: '200' })
 export const fetchCustomersLookup = () => fetchLookupList<Customer>('/customers')
-export const fetchChartOfAccountsLookup = () => fetchLookupList<ChartOfAccount>('/chart-of-accounts')
-export const fetchTermsOfPaymentLookup = () => fetchLookupList<TermsOfPayment>('/terms-of-payments')
+export const fetchChartOfAccountsLookup = () => fetchLookupList<ChartOfAccount>('/chart-of-accounts', { per_page: '300' })
+export const fetchTermsOfPaymentLookup = () => fetchLookupList<TermsOfPayment>('/terms-of-payments', { per_page: '200' })
 /** Invoice/Purchase Order editors filter to is_active client-side — only a handful of taxes ever exist. */
-export const fetchTaxesLookup = () => fetchLookupList<Tax>('/taxes')
+export const fetchTaxesLookup = () => fetchLookupList<Tax>('/taxes', { per_page: '200' })

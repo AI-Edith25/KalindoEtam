@@ -10,6 +10,7 @@ use App\Http\Resources\ItemGroupResource;
 use App\Models\ItemGroup;
 use App\Services\ItemGroupService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ItemGroupController extends Controller
 {
@@ -17,9 +18,9 @@ class ItemGroupController extends Controller
 
     public function __construct(protected ItemGroupService $itemGroupService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(ItemGroupResource::collection($this->itemGroupService->list()));
+        return $this->success(ItemGroupResource::collection($this->itemGroupService->list((int) ($request->query('per_page') ?? 15))));
     }
 
     public function store(StoreItemGroupRequest $request): JsonResponse

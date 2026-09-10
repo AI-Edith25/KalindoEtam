@@ -10,6 +10,7 @@ use App\Http\Resources\TermsOfPaymentResource;
 use App\Models\TermsOfPayment;
 use App\Services\TermsOfPaymentService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TermsOfPaymentController extends Controller
 {
@@ -17,9 +18,9 @@ class TermsOfPaymentController extends Controller
 
     public function __construct(protected TermsOfPaymentService $termsOfPaymentService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(TermsOfPaymentResource::collection($this->termsOfPaymentService->list()));
+        return $this->success(TermsOfPaymentResource::collection($this->termsOfPaymentService->list((int) ($request->query('per_page') ?? 15))));
     }
 
     public function store(StoreTermsOfPaymentRequest $request): JsonResponse

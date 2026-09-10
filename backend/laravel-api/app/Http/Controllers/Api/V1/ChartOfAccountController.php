@@ -10,6 +10,7 @@ use App\Http\Resources\ChartOfAccountResource;
 use App\Models\ChartOfAccount;
 use App\Services\ChartOfAccountService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ChartOfAccountController extends Controller
 {
@@ -17,9 +18,9 @@ class ChartOfAccountController extends Controller
 
     public function __construct(protected ChartOfAccountService $chartOfAccountService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(ChartOfAccountResource::collection($this->chartOfAccountService->list()));
+        return $this->success(ChartOfAccountResource::collection($this->chartOfAccountService->list((int) ($request->query('per_page') ?? 100))));
     }
 
     public function store(StoreChartOfAccountRequest $request): JsonResponse

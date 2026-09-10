@@ -10,6 +10,7 @@ use App\Http\Resources\SalesPersonResource;
 use App\Models\SalesPerson;
 use App\Services\SalesPersonService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class SalesPersonController extends Controller
 {
@@ -17,9 +18,9 @@ class SalesPersonController extends Controller
 
     public function __construct(protected SalesPersonService $salesPersonService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(SalesPersonResource::collection($this->salesPersonService->list()));
+        return $this->success(SalesPersonResource::collection($this->salesPersonService->list((int) ($request->query('per_page') ?? 15))));
     }
 
     public function store(StoreSalesPersonRequest $request): JsonResponse

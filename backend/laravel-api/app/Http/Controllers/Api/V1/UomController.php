@@ -10,6 +10,7 @@ use App\Http\Resources\UomResource;
 use App\Models\UnitOfMeasurement;
 use App\Services\UomService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class UomController extends Controller
 {
@@ -17,9 +18,9 @@ class UomController extends Controller
 
     public function __construct(protected UomService $uomService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(UomResource::collection($this->uomService->list()));
+        return $this->success(UomResource::collection($this->uomService->list((int) ($request->query('per_page') ?? 15))));
     }
 
     public function store(StoreUomRequest $request): JsonResponse

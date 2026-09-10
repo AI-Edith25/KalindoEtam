@@ -10,6 +10,7 @@ use App\Http\Resources\TaxResource;
 use App\Models\Tax;
 use App\Services\TaxService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TaxController extends Controller
 {
@@ -17,9 +18,9 @@ class TaxController extends Controller
 
     public function __construct(protected TaxService $taxService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(TaxResource::collection($this->taxService->list()));
+        return $this->success(TaxResource::collection($this->taxService->list((int) ($request->query('per_page') ?? 15))));
     }
 
     public function store(StoreTaxRequest $request): JsonResponse
