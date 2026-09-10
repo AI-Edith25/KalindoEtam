@@ -65,12 +65,26 @@ function formatYyyyDotMmDotDd(dateStr: string | null | undefined): string {
   return `${year}.${month}.${day}`
 }
 
-function MetaRow({ label, value, bold, tight }: { label: string; value: ReactNode; bold?: boolean; tight?: boolean }) {
+function MetaRow({
+  label,
+  value,
+  bold,
+  tight,
+  alwaysShow,
+}: {
+  label: string
+  value: ReactNode
+  bold?: boolean
+  tight?: boolean
+  /** weblama.pdf (the legacy Half reference) always prints "Tel :" even blank — unlike every
+      other tight field, which it drops from the template entirely rather than blank-hiding. */
+  alwaysShow?: boolean
+}) {
   // A blank ": " line is pure wasted height on a page this small — Transportation invoices in
   // particular leave Attn/Tel/Fax/Location empty on every single document (no sales_order_id to
   // source them from), so skipping empty rows on Half/Continuous recovers real space instead of
   // printing rows nobody reads. A4 keeps rendering them (blank row costs nothing there).
-  if (tight && (value === '' || value == null)) return null
+  if (tight && !alwaysShow && (value === '' || value == null)) return null
   return (
     <div className="flex">
       <span className={tight ? 'w-[29.6mm] shrink-0' : 'w-28 shrink-0'}>{label}</span>
@@ -320,18 +334,57 @@ export function InvoicePrintPage() {
           lineHeight: tight ? 1.3 : undefined,
         }}
       >
-        <div className={isHalf ? 'flex flex-col' : isContinuous ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
-          <p className={isHalf ? 'text-[12pt] font-bold' : isContinuous ? 'text-[15pt] font-bold' : 'text-xl font-bold'}>{companyName}</p>
-          {/* "header perusahaan lebih ringkas" on Half — tighter line spacing via the smaller
-              base font + no gap-0.5, not fewer fields; every line below still renders as normal. */}
-          {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
-          {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
-          {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
-        </div>
+        {isHalf ? (
+          // weblama.pdf (the legacy system's own Half-format export — its page box is the exact
+          // 595.276x420.945pt this format's own mm constants were derived from) puts the NO/Date/
+          // etc. meta block beside the header, not stacked below the INVOICE title: same vertical
+          // space as the header block instead of extra space on top of it. That's most of the
+          // remaining "too cramped" gap — stacking three sections (header, title, meta grid) was
+          // pure wasted height a two-column top row never needed. Customer name + Tel sit under
+          // the header on the left, exactly like weblama.pdf; Attn/Fax/Reference 2/Page No never
+          // appear in that file's Half template at all (not blank-hidden — structurally absent),
+          // so they're only kept here when they actually have something to say.
+          <div className="grid grid-cols-2 gap-[4.2mm]">
+            <div className="flex flex-col">
+              <p className="text-[12pt] font-bold">{companyName}</p>
+              {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
+              {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
+              {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
+              <div className="mt-[2.1mm] flex flex-col">
+                <p className="font-bold">{invoice.customer?.customer_name ?? '—'}</p>
+                {invoice.customer?.address && <p>{invoice.customer.address}</p>}
+                <MetaRow label="Attn" value={attn} tight />
+                <MetaRow label="Tel" value={tel} tight alwaysShow />
+                <MetaRow label="Fax" value={fax} tight />
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <MetaRow label="NO" value={invoice.document_number ?? '—'} bold tight />
+              <MetaRow label="Date" value={formatDdMmYyyy(invoice.invoice_date)} tight />
+              <MetaRow label="Reference 1" value={invoice.reference_1 ?? ''} tight />
+              <MetaRow label="Reference 2" value={invoice.reference_2 ?? ''} tight />
+              <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} tight />
+              <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} tight />
+              <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} tight />
+              {/* Only once the invoice genuinely spans more than one physical page — weblama.pdf's
+                  own Half template has no such field at all for the common single-page case. */}
+              {halfPageCount > 1 && <MetaRow label="Page No" value={`1 of ${halfPageCount}`} tight />}
+              <MetaRow label="Location" value={location} tight />
+            </div>
+          </div>
+        ) : (
+          <div className={isContinuous ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
+            <p className={isContinuous ? 'text-[15pt] font-bold' : 'text-xl font-bold'}>{companyName}</p>
+            {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
+            {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
+            {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
+          </div>
+        )}
 
         <p className={tight ? 'mt-[3.2mm] text-center text-[13.5pt] font-bold' : 'mt-3 text-center text-lg font-bold'}>INVOICE</p>
         <hr className={tight ? 'mt-[2.1mm] border-black' : 'mt-2 border-black'} />
 
+        {!isHalf && (
         <div className={tight ? 'mt-[2.1mm] grid grid-cols-2 gap-[4.2mm] border-b border-black pb-[2.1mm]' : 'mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2'}>
           <div className={tight ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
             <p className="font-bold">{invoice.customer?.customer_name ?? '—'}</p>
@@ -350,14 +403,11 @@ export function InvoicePrintPage() {
             <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} tight={tight} />
             <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} tight={tight} />
             <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} tight={tight} />
-            {/* Only shown once the invoice genuinely spans more than one physical page — a bare
-                "1 of 1" is print-shop cruft the legacy system's own output never carried. */}
-            {(!isHalf || halfPageCount > 1) && (
-              <MetaRow label="Page No" value={isHalf ? `1 of ${halfPageCount}` : '1 of 1'} tight={tight} />
-            )}
+            <MetaRow label="Page No" value="1 of 1" tight={tight} />
             <MetaRow label="Location" value={location} tight={tight} />
           </div>
         </div>
+        )}
 
         <table className="w-full border-collapse text-left">
           <thead style={{ display: 'table-header-group' }}>
