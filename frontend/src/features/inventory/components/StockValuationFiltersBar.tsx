@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
 import { fetchItemGroups, fetchItemsLookup } from '@/features/master/api/lookupsApi'
 import { useWarehousesLookup } from '@/features/master/hooks/useLookups'
@@ -16,7 +17,9 @@ interface StockValuationFiltersBarProps {
 
 export function StockValuationFiltersBar({ value, onChange }: StockValuationFiltersBarProps) {
   const warehouses = useWarehousesLookup()
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const itemGroups = useQuery({ queryKey: ['item-groups-lookup'], queryFn: fetchItemGroups })
+  const itemGroupOptions = itemGroups.data?.map((group) => ({ value: group.id, label: group.name })) ?? []
   const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
 
   return (
@@ -31,41 +34,27 @@ export function StockValuationFiltersBar({ value, onChange }: StockValuationFilt
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Warehouse</span>
-        <Select
-          value={value.warehouse_id || ALL}
-          onValueChange={(next) => onChange({ ...value, warehouse_id: next === ALL ? '' : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'All warehouses'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All warehouses</SelectItem>
-            {warehouses.data?.map((warehouse) => (
-              <SelectItem key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={warehouseOptions}
+          value={value.warehouse_id || undefined}
+          onChange={(next) => onChange({ ...value, warehouse_id: next ?? '' })}
+          loading={warehouses.isLoading}
+          className="w-44"
+          placeholder="All warehouses"
+          aria-label="Warehouse"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Item Group</span>
-        <Select
-          value={value.item_group_id || ALL}
-          onValueChange={(next) => onChange({ ...value, item_group_id: next === ALL ? '' : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={itemGroups.isLoading ? 'Loading…' : 'All item groups'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All item groups</SelectItem>
-            {itemGroups.data?.map((group) => (
-              <SelectItem key={group.id} value={group.id}>
-                {group.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={itemGroupOptions}
+          value={value.item_group_id || undefined}
+          onChange={(next) => onChange({ ...value, item_group_id: next ?? '' })}
+          loading={itemGroups.isLoading}
+          className="w-44"
+          placeholder="All item groups"
+          aria-label="Item Group"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Item</span>
