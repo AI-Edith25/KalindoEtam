@@ -10,6 +10,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { formatDate, formatNumber } from '@/lib/utils'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { fetchDeliveries } from '@/features/sales/api/deliveryApi'
 import { fetchSalesOrders } from '@/features/sales/api/salesOrderApi'
 import { DeliveryReportFiltersBar } from '../components/DeliveryReportFiltersBar'
@@ -145,7 +146,7 @@ export function DeliveryReportPage() {
               {
                 label: 'Print',
                 icon: Printer,
-                onClick: () => navigate(`/reports/deliveries/print${printParams ? `?${printParams}` : ''}`),
+                onClick: () => openPrintWindow(`/reports/deliveries/print${printParams ? `?${printParams}` : ''}`),
               },
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: true },

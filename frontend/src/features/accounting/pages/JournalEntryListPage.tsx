@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { exportJournalEntries, fetchJournalEntries, postJournalEntry } from '../api/journalEntryApi'
 import { JournalEntryFiltersBar } from '../components/JournalEntryFiltersBar'
@@ -84,7 +85,7 @@ export function JournalEntryListPage() {
   const actionsFor = (entry: JournalEntry): RowAction[] => {
     const actions: RowAction[] = [
       { label: 'View', icon: Eye, onClick: () => navigate(`/finance/general-journal/journal-entries/${entry.id}`) },
-      { label: 'Print', icon: Printer, onClick: () => navigate(`/finance/general-journal/journal-entries/print?ids=${entry.id}`) },
+      { label: 'Print', icon: Printer, onClick: () => openPrintWindow(`/finance/general-journal/journal-entries/print?ids=${entry.id}`) },
     ]
 
     if (entry.status === 'draft' && canUpdate) {
@@ -161,7 +162,7 @@ export function JournalEntryListPage() {
         actions={
           <>
             {selectedIds.size > 0 && (
-              <Button variant="outline" onClick={() => navigate(`/finance/general-journal/journal-entries/print?ids=${[...selectedIds].join(',')}`)}>
+              <Button variant="outline" onClick={() => openPrintWindow(`/finance/general-journal/journal-entries/print?ids=${[...selectedIds].join(',')}`)}>
                 <Printer className="size-4" />
                 Print Selected
               </Button>

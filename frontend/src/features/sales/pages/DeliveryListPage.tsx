@@ -20,6 +20,7 @@ import { useHasPermission } from '@/shared/hooks/usePermission'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
 import { useRowSelection } from '@/shared/hooks/useRowSelection'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchCustomersLookup, fetchSalesPersonsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { completeDelivery, deleteDelivery, exportDeliveries, fetchDeliveries } from '../api/deliveryApi'
@@ -148,7 +149,7 @@ export function DeliveryListPage() {
   const actionsFor = (delivery: Delivery): RowAction[] => {
     const actions: RowAction[] = [
       { label: 'View', icon: Eye, onClick: () => navigate(`/sales/deliveries/${delivery.id}`) },
-      { label: 'Print', icon: Printer, onClick: () => navigate(`/sales/deliveries/${delivery.id}/print`) },
+      { label: 'Print', icon: Printer, onClick: () => openPrintWindow(`/sales/deliveries/${delivery.id}/print`) },
     ]
 
     if (delivery.status === 'pending') {
@@ -291,7 +292,7 @@ export function DeliveryListPage() {
 
   const printListSummary = () => {
     if (hasExplicitSelection) {
-      navigate(`/sales/deliveries/print-list?ids=${selection.selectedIdsForRequest!.join(',')}`)
+      openPrintWindow(`/sales/deliveries/print-list?ids=${selection.selectedIdsForRequest!.join(',')}`)
       return
     }
     const params = new URLSearchParams()
@@ -299,7 +300,7 @@ export function DeliveryListPage() {
       if (Array.isArray(value)) value.forEach((v) => params.append(key, v))
       else params.set(key, String(value))
     })
-    navigate(`/sales/deliveries/print-list?${params.toString()}`)
+    openPrintWindow(`/sales/deliveries/print-list?${params.toString()}`)
   }
 
   return (

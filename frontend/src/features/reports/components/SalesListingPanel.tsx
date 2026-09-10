@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, Download, FileText, Info, Printer, Receipt, RotateCw, Wallet } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -11,6 +10,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { exportSalesListing, fetchSalesListing, type SalesListingParams } from '../api/salesListingApi'
 import { SalesReportFiltersBar } from './SalesReportFiltersBar'
@@ -27,7 +27,6 @@ interface SalesListingPanelProps {
 const ALL = '__all__'
 
 export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange }: SalesListingPanelProps) {
-  const navigate = useNavigate()
   const [sort, setSort] = useState<DataTableSort>({ key: 'date', direction: 'desc' })
   const [type, setType] = useState<SalesListingType | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null)
@@ -136,7 +135,7 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
                   ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                   ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
                 })
-                navigate(`/reports/sales/print?${params.toString()}`)
+                openPrintWindow(`/reports/sales/print?${params.toString()}`)
               },
             },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },

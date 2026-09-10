@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { deletePaymentEntry, fetchPaymentEntry, submitPaymentEntry } from '../api/paymentEntryApi'
 import { reversePaymentEntryAllocation } from '../api/paymentEntryAllocationApi'
@@ -98,7 +99,7 @@ export function OutgoingPaymentDetailPage() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => navigate(`/finance/outgoing/${payment.id}/print`)}>
+              <Button variant="outline" onClick={() => openPrintWindow(`/finance/outgoing/${payment.id}/print`)}>
                 <Printer className="size-4" />
                 Print
               </Button>

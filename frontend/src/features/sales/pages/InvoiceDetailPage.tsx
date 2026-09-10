@@ -13,6 +13,7 @@ import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoice, submitInvoice } from '../api/invoiceApi'
 import { BranchEditDialog } from '../components/BranchEditDialog'
@@ -228,7 +229,7 @@ export function InvoiceDetailPage() {
         description="Invoice details."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(`/sales/invoices/${invoice.id}/print`)}>
+            <Button variant="outline" onClick={() => openPrintWindow(`/sales/invoices/${invoice.id}/print`)}>
               <Printer className="size-4" />
               Print
             </Button>

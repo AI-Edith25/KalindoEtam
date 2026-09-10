@@ -14,6 +14,7 @@ import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayo
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { lineAmount } from '@/shared/lib/documentTotals'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { completeDelivery, deleteDelivery, fetchDelivery } from '../api/deliveryApi'
 import type { DeliveryItem } from '../types'
 
@@ -80,7 +81,7 @@ export function DeliveryDetailPage() {
         description="Delivery details."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(`/sales/deliveries/${delivery.id}/print`)}>
+            <Button variant="outline" onClick={() => openPrintWindow(`/sales/deliveries/${delivery.id}/print`)}>
               <Printer className="size-4" />
               Print
             </Button>

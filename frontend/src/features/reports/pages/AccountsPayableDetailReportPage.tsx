@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Download, Printer, RotateCw, Wallet, CalendarClock, TrendingDown, Landmark } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -20,6 +19,7 @@ import { fetchAccountsPayableGroupedDetail } from '../api/accountsPayableGrouped
 import { fetchUnallocatedPaymentVouchers } from '../api/accountsPayableUnallocatedApi'
 import type { AccountsPayable } from '@/features/payment/types'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { AccountsPayableDetailReportFiltersBar } from '../components/AccountsPayableDetailReportFiltersBar'
 import { emptyApDetailReportFilters } from '../lib/reportFilters'
@@ -31,8 +31,6 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 /** AP mirror of AccountsReceivableDetailReportPage — same structure/components/style, retargeted at Supplier/Purchase Invoice. No row-selection column (AR's exists only for its own Tanda Terima Invoice print flow, which AP has no equivalent of). */
 export function AccountsPayableDetailReportPage() {
-  const navigate = useNavigate()
-
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<ApDetailReportFilterValues>(emptyApDetailReportFilters)
@@ -147,7 +145,7 @@ export function AccountsPayableDetailReportPage() {
                 {
                   label: 'Print',
                   icon: Printer,
-                  onClick: () => navigate(`/reports/ap-detail/print${printParams ? `?${printParams}` : ''}`),
+                  onClick: () => openPrintWindow(`/reports/ap-detail/print${printParams ? `?${printParams}` : ''}`),
                 },
               ]}
             />

@@ -110,6 +110,17 @@ export const PRINT_FONT_SIZE_LABELS: Record<PrintFontSize, string> = {
   large: 'Large',
 }
 
+/**
+ * Opens a print-preview route in a new browser tab instead of navigating the
+ * current one. Print routes render standalone with no app chrome (sidebar,
+ * topbar, breadcrumb — see the flat route block in router.tsx), so the new
+ * tab shows just the document, ready to print via its own in-page Print
+ * button or the browser's native print icon.
+ */
+export function openPrintWindow(url: string): void {
+  window.open(url, '_blank', 'noopener')
+}
+
 /** Plain number, no currency symbol — for Qty columns. */
 export function formatQty(value: number | string, decimals: number): string {
   return new Intl.NumberFormat('id-ID', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))

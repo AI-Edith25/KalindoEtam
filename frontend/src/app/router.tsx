@@ -319,49 +319,25 @@ export function AppRouter() {
         <Route path="/sales/orders/new" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderEditorPage /></ProtectedRoute>} />
         <Route path="/sales/orders/:id/edit" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderEditorPage /></ProtectedRoute>} />
         <Route path="/sales/orders/:id" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderDetailPage /></ProtectedRoute>} />
-        <Route path="/sales/orders/:id/print" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderPrintPage /></ProtectedRoute>} />
-        <Route path="/sales/orders/print-bulk" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderBulkPrintPage /></ProtectedRoute>} />
-        <Route path="/sales/orders/print-list" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPrintPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/outstanding" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/new" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryEditorPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id/edit" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryEditorPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/:id" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryDetailPage /></ProtectedRoute>} />
-        <Route path="/sales/deliveries/:id/print" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryPrintPage /></ProtectedRoute>} />
-        <Route path="/sales/deliveries/print-list" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPrintPage /></ProtectedRoute>} />
         <Route path="/sales/invoices" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceListPage /></ProtectedRoute>} />
         {/* Retired Semua/Outstanding toggle (2026-08-20) — without this, "outstanding" falls through to the :id route below and renders a bogus invoice detail lookup instead of the list. */}
         <Route path="/sales/invoices/outstanding" element={<Navigate to="/sales/invoices" replace />} />
         <Route path="/sales/invoices/new" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceEditorPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/:id/edit" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceEditorPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/:id" element={<ProtectedRoute permission="sales.invoices.view"><InvoiceDetailPage /></ProtectedRoute>} />
-        <Route path="/sales/invoices/:id/print" element={<ProtectedRoute permission="sales.invoices.view"><InvoicePrintPage /></ProtectedRoute>} />
-        <Route
-          path="/sales/invoices/print/tanda-terima-invoice"
-          element={
-            <ProtectedRoute permission="sales.invoices.view">
-              <TandaTerimaInvoicePrintPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/sales/invoices/print/penagihan-harian"
-          element={
-            <ProtectedRoute permission="sales.invoices.view">
-              <LaporanPenagihanHarianPrintPage />
-            </ProtectedRoute>
-          }
-        />
         <Route path="/sales/credit-notes" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteListPage /></ProtectedRoute>} />
         <Route path="/sales/credit-notes/new" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/credit-notes/:id/edit" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/credit-notes/:id" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteDetailPage /></ProtectedRoute>} />
-        <Route path="/sales/credit-notes/print-list" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteListPrintPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/new" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/:id/edit" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteEditorPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/:id" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteDetailPage /></ProtectedRoute>} />
-        <Route path="/sales/debit-notes/print-list" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPrintPage /></ProtectedRoute>} />
         {/* Moved to Reports > Inventory Stock — old bookmarks redirect, ?item_id=/&warehouse_id= preserved for the Ledger tab. */}
         <Route path="/inventory/stock-balance" element={<Navigate to="/reports/inventory-stock?tab=balance" replace />} />
         <Route path="/inventory/stock-ledger" element={<RedirectPreservingQuery to="/reports/inventory-stock?tab=ledger" />} />
@@ -409,20 +385,14 @@ export function AppRouter() {
         <Route path="/reports/purchase" element={<ProtectedRoute permission="reports.purchase.view"><PurchaseReportPage /></ProtectedRoute>} />
         <Route path="/reports/goods-receipts" element={<ProtectedRoute permission="reports.goods_receipts.view"><GoodsReceiptReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPage /></ProtectedRoute>} />
-        <Route path="/reports/sales/print" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPage /></ProtectedRoute>} />
-        <Route path="/reports/deliveries/print" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/inventory-stock" element={<ProtectedRoute permission="reports.inventory_stock.view"><InventoryStockReportPage /></ProtectedRoute>} />
         {/* Inventory Movement (duplicate of Stock Ledger) and Inventory Balance (duplicate of the Balance tab) were both deleted in favor of this one page. */}
         <Route path="/reports/inventory-movement" element={<RedirectPreservingQuery to="/reports/inventory-stock?tab=ledger" />} />
         <Route path="/reports/inventory-balance" element={<Navigate to="/reports/inventory-stock?tab=balance" replace />} />
         <Route path="/reports/ar-detail" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPage /></ProtectedRoute>} />
-        <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
-        <Route path="/reports/ar-detail/statement-print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableStatementPrintPage /></ProtectedRoute>} />
         <Route path="/reports/ap-detail" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPage /></ProtectedRoute>} />
-        <Route path="/reports/ap-detail/print" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/tax" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPage /></ProtectedRoute>} />
-        <Route path="/reports/tax/print" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/:accountId" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerDetailPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListPage /></ProtectedRoute>} />
@@ -435,12 +405,10 @@ export function AppRouter() {
         <Route path="/finance/incoming/new" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/:id/edit" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/incoming/:id" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentDetailPage /></ProtectedRoute>} />
-        <Route path="/finance/incoming/:id/print" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentPrintPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentListPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/new" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id/edit" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentDetailPage /></ProtectedRoute>} />
-        <Route path="/finance/outgoing/:id/print" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentPrintPage /></ProtectedRoute>} />
         <Route path="/finance/chart-of-accounts" element={<ProtectedRoute permission="master.chart_of_accounts.view"><ChartOfAccountsPage /></ProtectedRoute>} />
         <Route
           path="/finance/chart-of-accounts/import"
@@ -466,7 +434,6 @@ export function AppRouter() {
         <Route path="/finance/general-journal" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryListPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal/journal-entries" element={<Navigate to="/finance/general-journal" replace />} />
         <Route path="/finance/general-journal/journal-entries/new" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
-        <Route path="/finance/general-journal/journal-entries/print" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryPrintPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal/journal-entries/:id/edit" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryEditorPage /></ProtectedRoute>} />
         <Route path="/finance/general-journal/journal-entries/:id" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryDetailPage /></ProtectedRoute>} />
         {/* Redirects for the 7 reports that moved to Reports > General Ledger (2026-08-19) — keeps old bookmarks/links working. */}
@@ -485,6 +452,48 @@ export function AppRouter() {
         <Route path="/administration/naming-series" element={<ProtectedRoute permission="administration.naming_series.view"><NamingSeriesListPage /></ProtectedRoute>} />
         <Route path="/administration/purchase-settings" element={<ProtectedRoute permission="administration.purchase_settings.view"><PurchaseSettingsPage /></ProtectedRoute>} />
       </Route>
+
+      {/*
+       * Print-preview routes — deliberately NOT nested under AppLayout above.
+       * Print buttons open these with openPrintWindow() (shared/lib/printOptions.ts)
+       * in a new tab, and the tab must show only the document (no sidebar/topbar/
+       * breadcrumb) so it looks like a bare print view, not the app shell. Each
+       * route still self-guards via ProtectedRoute for auth + permission, same as
+       * every route above.
+       */}
+      <Route path="/sales/orders/:id/print" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderPrintPage /></ProtectedRoute>} />
+      <Route path="/sales/orders/print-bulk" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderBulkPrintPage /></ProtectedRoute>} />
+      <Route path="/sales/orders/print-list" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPrintPage /></ProtectedRoute>} />
+      <Route path="/sales/deliveries/:id/print" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryPrintPage /></ProtectedRoute>} />
+      <Route path="/sales/deliveries/print-list" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPrintPage /></ProtectedRoute>} />
+      <Route path="/sales/invoices/:id/print" element={<ProtectedRoute permission="sales.invoices.view"><InvoicePrintPage /></ProtectedRoute>} />
+      <Route
+        path="/sales/invoices/print/tanda-terima-invoice"
+        element={
+          <ProtectedRoute permission="sales.invoices.view">
+            <TandaTerimaInvoicePrintPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/sales/invoices/print/penagihan-harian"
+        element={
+          <ProtectedRoute permission="sales.invoices.view">
+            <LaporanPenagihanHarianPrintPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/sales/credit-notes/print-list" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteListPrintPage /></ProtectedRoute>} />
+      <Route path="/sales/debit-notes/print-list" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPrintPage /></ProtectedRoute>} />
+      <Route path="/reports/sales/print" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPrintPage /></ProtectedRoute>} />
+      <Route path="/reports/deliveries/print" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPrintPage /></ProtectedRoute>} />
+      <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
+      <Route path="/reports/ar-detail/statement-print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableStatementPrintPage /></ProtectedRoute>} />
+      <Route path="/reports/ap-detail/print" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPrintPage /></ProtectedRoute>} />
+      <Route path="/reports/tax/print" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPrintPage /></ProtectedRoute>} />
+      <Route path="/finance/incoming/:id/print" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentPrintPage /></ProtectedRoute>} />
+      <Route path="/finance/outgoing/:id/print" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentPrintPage /></ProtectedRoute>} />
+      <Route path="/finance/general-journal/journal-entries/print" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryPrintPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

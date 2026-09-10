@@ -20,6 +20,7 @@ import { useHasPermission } from '@/shared/hooks/usePermission'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
 import { useRowSelection } from '@/shared/hooks/useRowSelection'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchCustomersLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
 import { approveSalesOrder, cancelSalesOrder, deleteSalesOrder, exportSalesOrders, fetchSalesOrders } from '../api/salesOrderApi'
@@ -159,7 +160,7 @@ export function SalesOrderListPage() {
   const actionsFor = (order: SalesOrder): RowAction[] => {
     const actions: RowAction[] = [
       { label: 'View', icon: Eye, onClick: () => navigate(`/sales/orders/${order.id}`) },
-      { label: 'Print', icon: Printer, onClick: () => navigate(`/sales/orders/${order.id}/print`) },
+      { label: 'Print', icon: Printer, onClick: () => openPrintWindow(`/sales/orders/${order.id}/print`) },
     ]
 
     if (order.status === 'submitted') {
@@ -322,12 +323,12 @@ export function SalesOrderListPage() {
       toast.error(`Maksimal ${BULK_PRINT_MAX_DOCUMENTS} dokumen per sekali cetak. ${ids.length} dokumen dipilih.`)
       return
     }
-    navigate(`/sales/orders/print-bulk?ids=${ids.join(',')}`)
+    openPrintWindow(`/sales/orders/print-bulk?ids=${ids.join(',')}`)
   }
 
   const printListSummary = () => {
     if (hasExplicitSelection) {
-      navigate(`/sales/orders/print-list?ids=${selection.selectedIdsForRequest!.join(',')}`)
+      openPrintWindow(`/sales/orders/print-list?ids=${selection.selectedIdsForRequest!.join(',')}`)
       return
     }
     const params = new URLSearchParams()
@@ -335,7 +336,7 @@ export function SalesOrderListPage() {
       if (Array.isArray(value)) value.forEach((v) => params.append(key, v))
       else params.set(key, String(value))
     })
-    navigate(`/sales/orders/print-list?${params.toString()}`)
+    openPrintWindow(`/sales/orders/print-list?${params.toString()}`)
   }
 
   return (

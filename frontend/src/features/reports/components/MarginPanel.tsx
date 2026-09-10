@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Download, Percent, Printer, RotateCw, TrendingUp, Wallet } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -11,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { cn, formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { exportMargin, fetchMargin, type MarginParams } from '../api/marginApi'
 import { SalesReportFiltersBar } from './SalesReportFiltersBar'
@@ -54,7 +54,6 @@ function HppMissingIcon() {
  * (with a warning icon) but are already excluded from meta.kpis.avg_margin_pct server-side.
  */
 export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: MarginPanelProps) {
-  const navigate = useNavigate()
   const [group, setGroup] = useState<MarginGroupBy>('item')
   const [sort, setSort] = useState<DataTableSort>({ key: 'profit', direction: 'desc' })
   const [isExporting, setIsExporting] = useState(false)
@@ -229,7 +228,7 @@ export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: Ma
                   ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                   ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
                 })
-                navigate(`/reports/sales/print?${params.toString()}`)
+                openPrintWindow(`/reports/sales/print?${params.toString()}`)
               },
             },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },

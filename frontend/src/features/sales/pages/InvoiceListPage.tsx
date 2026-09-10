@@ -17,6 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../api/invoiceApi'
 import { exportSalesReport } from '../api/salesReportApi'
@@ -148,7 +149,7 @@ export function InvoiceListPage() {
   const actionsFor = (invoice: Invoice): RowAction[] => {
     const actions: RowAction[] = [
       { label: 'View', icon: Eye, onClick: () => navigate(`/sales/invoices/${invoice.id}`) },
-      { label: 'Print', icon: Printer, onClick: () => navigate(`/sales/invoices/${invoice.id}/print`) },
+      { label: 'Print', icon: Printer, onClick: () => openPrintWindow(`/sales/invoices/${invoice.id}/print`) },
     ]
 
     if (invoice.status === 'draft') {
@@ -248,10 +249,10 @@ export function InvoiceListPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => navigate(`/sales/invoices/print/tanda-terima-invoice?ids=${[...selectedIds].join(',')}`)}>
+                  <DropdownMenuItem onClick={() => openPrintWindow(`/sales/invoices/print/tanda-terima-invoice?ids=${[...selectedIds].join(',')}`)}>
                     Tanda Terima Invoice
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate(`/sales/invoices/print/penagihan-harian?ids=${[...selectedIds].join(',')}`)}>
+                  <DropdownMenuItem onClick={() => openPrintWindow(`/sales/invoices/print/penagihan-harian?ids=${[...selectedIds].join(',')}`)}>
                     Laporan Penagihan Harian
                   </DropdownMenuItem>
                 </DropdownMenuContent>

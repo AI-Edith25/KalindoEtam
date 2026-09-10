@@ -13,6 +13,7 @@ import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { deleteJournalEntry, fetchJournalEntry, postJournalEntry, reverseJournalEntry } from '../api/journalEntryApi'
 import { resolveJournalReferenceLink } from '../lib/journalReferenceLink'
 import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
@@ -90,7 +91,7 @@ export function JournalEntryDetailPage() {
         description="Journal Entry details."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(`/finance/general-journal/journal-entries/print?ids=${entry.id}`)}>
+            <Button variant="outline" onClick={() => openPrintWindow(`/finance/general-journal/journal-entries/print?ids=${entry.id}`)}>
               <Printer className="size-4" />
               Print
             </Button>

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Clock, Download, Hash, Printer, RotateCw, Wallet } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -11,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { exportOpenOrders, fetchOpenOrders, type OpenOrdersParams } from '../api/openOrdersApi'
 import { SalesReportFiltersBar } from './SalesReportFiltersBar'
@@ -37,7 +37,6 @@ const OPEN_ORDER_STATUS_OPTIONS = [
 ]
 
 export function OpenOrdersPanel({ filters, onFiltersChange, page, onPageChange }: OpenOrdersPanelProps) {
-  const navigate = useNavigate()
   const [sort, setSort] = useState<DataTableSort>({ key: 'outstanding_value', direction: 'desc' })
   const [aging, setAging] = useState<AgingBucket | null>(null)
   const [overdueOnly, setOverdueOnly] = useState(false)
@@ -184,7 +183,7 @@ export function OpenOrdersPanel({ filters, onFiltersChange, page, onPageChange }
                   ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                   ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
                 })
-                navigate(`/reports/sales/print?${params.toString()}`)
+                openPrintWindow(`/reports/sales/print?${params.toString()}`)
               },
             },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },

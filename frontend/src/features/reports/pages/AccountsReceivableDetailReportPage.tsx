@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Printer, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -19,6 +19,7 @@ import { exportAccountsReceivables, fetchAccountsReceivables } from '@/features/
 import { fetchAccountsReceivablesAll } from '../api/accountsReceivableCustomerReportsApi'
 import type { AccountsReceivable } from '@/features/payment/types'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { AccountsReceivableDetailReportFiltersBar } from '../components/AccountsReceivableDetailReportFiltersBar'
 import { fetchAccountsReceivableGroupedDetail } from '../api/accountsReceivableGroupedDetailApi'
@@ -31,8 +32,6 @@ type ViewMode = 'aging' | 'grouped' | 'ledger'
 
 /** Read-only report over Accounts Receivable — reuses fetchAccountsReceivables() as-is, no new endpoint. */
 export function AccountsReceivableDetailReportPage() {
-  const navigate = useNavigate()
-
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<ArDetailReportFilterValues>(emptyArDetailReportFilters)
@@ -293,7 +292,7 @@ export function AccountsReceivableDetailReportPage() {
                     icon: Printer,
                     disabled: !filters.customer_id,
                     onClick: () =>
-                      navigate(
+                      openPrintWindow(
                         `/reports/ar-detail/statement-print?${new URLSearchParams({
                           customer_id: filters.customer_id,
                           ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
@@ -336,7 +335,7 @@ export function AccountsReceivableDetailReportPage() {
                   {
                     label: 'Print',
                     icon: Printer,
-                    onClick: () => navigate(`/reports/ar-detail/print${printParams ? `?${printParams}` : ''}`),
+                    onClick: () => openPrintWindow(`/reports/ar-detail/print${printParams ? `?${printParams}` : ''}`),
                   },
                   { label: 'Import', icon: Upload, disabled: true },
                 ]}

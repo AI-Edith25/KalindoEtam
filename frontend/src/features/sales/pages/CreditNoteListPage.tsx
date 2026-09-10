@@ -21,6 +21,7 @@ import { useHasPermission } from '@/shared/hooks/usePermission'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
 import { useRowSelection } from '@/shared/hooks/useRowSelection'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchCustomersLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
 import { deleteCreditNote, exportCreditNotes, fetchCreditNotes, reverseCreditNote, submitCreditNote } from '../api/creditNoteApi'
@@ -305,7 +306,7 @@ export function CreditNoteListPage() {
 
   const printListSummary = () => {
     if (hasExplicitSelection) {
-      navigate(`/sales/credit-notes/print-list?ids=${selection.selectedIdsForRequest!.join(',')}`)
+      openPrintWindow(`/sales/credit-notes/print-list?ids=${selection.selectedIdsForRequest!.join(',')}`)
       return
     }
     const params = new URLSearchParams()
@@ -313,7 +314,7 @@ export function CreditNoteListPage() {
       if (Array.isArray(value)) value.forEach((v) => params.append(key, v))
       else params.set(key, String(value))
     })
-    navigate(`/sales/credit-notes/print-list?${params.toString()}`)
+    openPrintWindow(`/sales/credit-notes/print-list?${params.toString()}`)
   }
 
   return (

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Printer, RotateCw, Landmark, TrendingUp, TrendingDown } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -14,6 +13,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { exportInputTax, exportOutputTax, fetchInputTax, fetchOutputTax, fetchTaxReportSummary } from '../api/taxReportApi'
 import type { TaxReportRow } from '../types'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { TaxReportFiltersBar } from '../components/TaxReportFiltersBar'
 import { currentMonthTaxReportFilters } from '../lib/reportFilters'
@@ -23,8 +23,6 @@ type SubTab = 'output' | 'input'
 
 /** Tax report (PPN Keluaran/Masukan) — mirrors AR/AP Detail's page shape (PageHeader/ActionBar/export-dropdown/Print), with a PPN Keluaran/Masukan sub-tab toggle instead of Aging-List/Perincian. */
 export function TaxReportPage() {
-  const navigate = useNavigate()
-
   const [page, setPage] = useState(1)
   const [subTab, setSubTab] = useState<SubTab>('output')
   const [filters, setFilters] = useState<TaxReportFilterValues>(currentMonthTaxReportFilters)
@@ -132,7 +130,7 @@ export function TaxReportPage() {
             <ActionBar
               actions={[
                 { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-                { label: 'Print', icon: Printer, onClick: () => navigate(`/reports/tax/print${printParams ? `?${printParams}` : ''}`) },
+                { label: 'Print', icon: Printer, onClick: () => openPrintWindow(`/reports/tax/print${printParams ? `?${printParams}` : ''}`) },
               ]}
             />
           </>

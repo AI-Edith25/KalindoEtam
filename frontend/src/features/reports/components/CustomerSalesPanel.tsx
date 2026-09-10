@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, FileText, Printer, RotateCw, TrendingUp, Trophy, Users } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -11,6 +10,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import {
   exportCustomerSales,
@@ -31,7 +31,6 @@ interface CustomerSalesPanelProps {
 }
 
 export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChange }: CustomerSalesPanelProps) {
-  const navigate = useNavigate()
   const [sort, setSort] = useState<DataTableSort>({ key: 'amount', direction: 'desc' })
   const [isExporting, setIsExporting] = useState(false)
   const [documentsFor, setDocumentsFor] = useState<CustomerSalesRow | null>(null)
@@ -142,7 +141,7 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
                   ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                   ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
                 })
-                navigate(`/reports/sales/print?${params.toString()}`)
+                openPrintWindow(`/reports/sales/print?${params.toString()}`)
               },
             },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },
