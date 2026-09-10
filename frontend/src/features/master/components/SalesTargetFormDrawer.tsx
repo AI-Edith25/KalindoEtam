@@ -9,13 +9,12 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { createSalesTarget, updateSalesTarget } from '../api/salesTargetApi'
 import { MONTH_OPTIONS } from '../lib/months'
 import type { SalesTarget } from '../types'
-
-const NO_BRANCH = '__no_branch__'
 
 // Numeric fields stay strings in the form itself (same convention as ItemFormDrawer's
 // standard_rate) — react-hook-form's generic wants the schema's input and output shapes to
@@ -38,7 +37,7 @@ type SalesTargetFormValues = z.infer<typeof salesTargetFormSchema>
 
 const emptyValues: SalesTargetFormValues = {
   sales_person_id: '',
-  branch_id: NO_BRANCH,
+  branch_id: '',
   period_month: String(new Date().getMonth() + 1),
   period_year: String(new Date().getFullYear()),
   target_amount: '0',
@@ -68,7 +67,7 @@ export function SalesTargetFormDrawer({ open, onOpenChange, salesTarget, salesPe
       salesTarget
         ? {
             sales_person_id: salesTarget.sales_person_id,
-            branch_id: salesTarget.branch_id ?? NO_BRANCH,
+            branch_id: salesTarget.branch_id ?? '',
             period_month: String(salesTarget.period_month),
             period_year: String(salesTarget.period_year),
             target_amount: String(salesTarget.target_amount),
@@ -81,7 +80,7 @@ export function SalesTargetFormDrawer({ open, onOpenChange, salesTarget, salesPe
     mutationFn: (values: SalesTargetFormValues) => {
       const payload = {
         sales_person_id: values.sales_person_id,
-        branch_id: values.branch_id === NO_BRANCH ? null : values.branch_id,
+        branch_id: values.branch_id || null,
         period_month: Number(values.period_month),
         period_year: Number(values.period_year),
         target_amount: Number(values.target_amount),
@@ -115,20 +114,14 @@ export function SalesTargetFormDrawer({ open, onOpenChange, salesTarget, salesPe
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sales Person</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a sales person" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {salesPersonOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={salesPersonOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      clearable={false}
+                      placeholder="Select a sales person"
+                      aria-label="Sales Person"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -139,21 +132,13 @@ export function SalesTargetFormDrawer({ open, onOpenChange, salesTarget, salesPe
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Branch</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_BRANCH}>No branch (company-wide)</SelectItem>
-                        {branchOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={branchOptions}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      placeholder="No branch (company-wide)"
+                      aria-label="Branch"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

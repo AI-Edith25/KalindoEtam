@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { assignUserRole } from '../api/userApi'
@@ -45,18 +45,13 @@ export function AssignRoleDialog({ open, onOpenChange, user }: AssignRoleDialogP
           <DialogDescription>Choose the role {user.email} should have.</DialogDescription>
         </DialogHeader>
 
-        <Select value={role} onValueChange={setRole}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select role" />
-          </SelectTrigger>
-          <SelectContent>
-            {(rolesQuery.data ?? []).map((r) => (
-              <SelectItem key={r.id} value={r.name}>
-                {r.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={(rolesQuery.data ?? []).map((r) => ({ value: r.name, label: r.name }))}
+          value={role || undefined}
+          onChange={(value) => setRole(value ?? '')}
+          placeholder="Select role"
+          aria-label="Role"
+        />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>

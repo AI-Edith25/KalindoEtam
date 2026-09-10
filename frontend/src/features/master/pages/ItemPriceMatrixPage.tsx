@@ -11,7 +11,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
@@ -373,19 +373,14 @@ export function ItemPriceMatrixPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <SearchBox value={search} onChange={setSearch} placeholder="Search item code or name..." />
-        <Select value={itemGroupId || '__all__'} onValueChange={(v) => setItemGroupId(v === '__all__' ? '' : v)}>
-          <SelectTrigger className="w-56">
-            <SelectValue placeholder="All item groups" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All item groups</SelectItem>
-            {itemGroupsQuery.data?.map((group) => (
-              <SelectItem key={group.id} value={group.id}>
-                {group.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={itemGroupsQuery.data?.map((group) => ({ value: group.id, label: group.name })) ?? []}
+          value={itemGroupId || undefined}
+          onChange={(v) => setItemGroupId(v ?? '')}
+          placeholder="All item groups"
+          className="w-56"
+          aria-label="Item Group"
+        />
       </div>
 
       {warehouses.length === 0 && !warehousesQuery.isLoading && (

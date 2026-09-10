@@ -9,14 +9,12 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchTermsOfPaymentLookup } from '../api/lookupsApi'
 import { createCustomer, updateCustomer } from '../api/customerApi'
 import type { Customer } from '../types'
-
-const NO_TOP = '__none__'
 
 const customerFormSchema = z.object({
   customer_code: z.string().min(1, 'Customer Code is required').max(255),
@@ -217,21 +215,14 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Default Terms of Payment</FormLabel>
-                    <Select value={field.value || NO_TOP} onValueChange={(value) => field.onChange(value === NO_TOP ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={termsOfPayment.isLoading ? 'Loading…' : 'No default'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_TOP}>No default</SelectItem>
-                        {termsOfPayment.data?.map((top) => (
-                          <SelectItem key={top.id} value={top.id}>
-                            {top.name} ({top.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={termsOfPayment.isLoading}
+                      placeholder="No default"
+                      aria-label="Default Terms of Payment"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

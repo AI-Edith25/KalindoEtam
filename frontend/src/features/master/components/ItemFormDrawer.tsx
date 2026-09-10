@@ -19,13 +19,12 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { createItem, updateItem } from '../api/itemApi'
 import { fetchItemGroups, fetchUoms, fetchTaxesLookup } from '../api/lookupsApi'
 import type { Item } from '../types'
-
-const NO_TAX = '__none__'
 
 const itemFormSchema = z.object({
   item_code: z.string().min(1, 'Item Code is required').max(255),
@@ -168,20 +167,15 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Item Group</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={itemGroups.isLoading ? 'Loading…' : 'Select item group'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {itemGroups.data?.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={itemGroups.data?.map((group) => ({ value: group.id, label: group.name })) ?? []}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={itemGroups.isLoading}
+                      clearable={false}
+                      placeholder="Select item group"
+                      aria-label="Item Group"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -192,21 +186,15 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>UOM</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={uoms.isLoading ? 'Loading…' : 'Select unit of measurement'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {uoms.data?.map((uom) => (
-                          <SelectItem key={uom.id} value={uom.id}>
-                            {uom.name}
-                            {uom.symbol ? ` (${uom.symbol})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={uoms.data?.map((uom) => ({ value: uom.id, label: `${uom.name}${uom.symbol ? ` (${uom.symbol})` : ''}` })) ?? []}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={uoms.isLoading}
+                      clearable={false}
+                      placeholder="Select unit of measurement"
+                      aria-label="UOM"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -285,21 +273,14 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Purchase Tax</FormLabel>
-                    <Select value={field.value || NO_TAX} onValueChange={(value) => field.onChange(value === NO_TAX ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_TAX}>No tax</SelectItem>
-                        {purchaseTaxOptions.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name} ({t.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={purchaseTaxOptions.map((t) => ({ value: t.id, label: `${t.name} (${t.code})` }))}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={taxesQuery.isLoading}
+                      placeholder="No tax"
+                      aria-label="Purchase Tax"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -310,21 +291,14 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sales Tax</FormLabel>
-                    <Select value={field.value || NO_TAX} onValueChange={(value) => field.onChange(value === NO_TAX ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_TAX}>No tax</SelectItem>
-                        {salesTaxOptions.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name} ({t.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={salesTaxOptions.map((t) => ({ value: t.id, label: `${t.name} (${t.code})` }))}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={taxesQuery.isLoading}
+                      placeholder="No tax"
+                      aria-label="Sales Tax"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

@@ -9,13 +9,11 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { createUser, updateUser } from '../api/userApi'
 import { fetchRoles } from '../api/roleApi'
 import type { User } from '../types'
-
-const NO_ROLE = '__none__'
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -46,7 +44,7 @@ export function UserFormDrawer({ open, onOpenChange, user }: UserFormDrawerProps
 
   const form = useForm<UserFormSchemaValues>({
     resolver: zodResolver(isEdit ? editSchema : createSchema),
-    defaultValues: { name: '', email: '', password: '', role: NO_ROLE },
+    defaultValues: { name: '', email: '', password: '', role: '' },
   })
 
   useEffect(() => {
@@ -54,14 +52,14 @@ export function UserFormDrawer({ open, onOpenChange, user }: UserFormDrawerProps
 
     form.reset(
       user
-        ? { name: user.name, email: user.email, password: '', role: user.roles[0] ?? NO_ROLE }
-        : { name: '', email: '', password: '', role: NO_ROLE },
+        ? { name: user.name, email: user.email, password: '', role: user.roles[0] ?? '' }
+        : { name: '', email: '', password: '', role: '' },
     )
   }, [open, user, form])
 
   const mutation = useMutation({
     mutationFn: (values: UserFormSchemaValues) => {
-      const role = values.role === NO_ROLE ? undefined : values.role
+      const role = values.role || undefined
 
       return isEdit ? updateUser(user.id, { name: values.name, email: values.email }) : createUser({ ...values, role })
     },
@@ -134,21 +132,13 @@ export function UserFormDrawer({ open, onOpenChange, user }: UserFormDrawerProps
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Role</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select role" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value={NO_ROLE}>No role</SelectItem>
-                          {(rolesQuery.data ?? []).map((role) => (
-                            <SelectItem key={role.id} value={role.name}>
-                              {role.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        options={(rolesQuery.data ?? []).map((role) => ({ value: role.name, label: role.name }))}
+                        value={field.value || undefined}
+                        onChange={(value) => field.onChange(value ?? '')}
+                        placeholder="No role"
+                        aria-label="Role"
+                      />
                       <FormMessage />
                     </FormItem>
                   )}

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { fetchItemGroups, fetchUoms } from '../api/lookupsApi'
 import { emptyItemFilters, hasActiveItemFilters, type ItemFilterValues } from '../lib/itemFilters'
 
@@ -25,42 +26,26 @@ export function ItemFiltersBar({ value, onChange }: ItemFiltersBarProps) {
     <FilterPanel onClear={() => onChange(emptyItemFilters)} hasActiveFilters={hasActiveItemFilters(value)}>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Item Group</span>
-        <Select
-          value={value.itemGroupId ?? ALL}
-          onValueChange={(next) => onChange({ ...value, itemGroupId: next === ALL ? null : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="All item groups" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All item groups</SelectItem>
-            {itemGroups.data?.map((group) => (
-              <SelectItem key={group.id} value={group.id}>
-                {group.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={itemGroups.data?.map((group) => ({ value: group.id, label: group.name })) ?? []}
+          value={value.itemGroupId ?? undefined}
+          onChange={(next) => onChange({ ...value, itemGroupId: next ?? null })}
+          placeholder="All item groups"
+          className="w-44"
+          aria-label="Item Group"
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">UOM</span>
-        <Select
-          value={value.uomId ?? ALL}
-          onValueChange={(next) => onChange({ ...value, uomId: next === ALL ? null : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="All UOMs" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All UOMs</SelectItem>
-            {uoms.data?.map((uom) => (
-              <SelectItem key={uom.id} value={uom.id}>
-                {uom.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={uoms.data?.map((uom) => ({ value: uom.id, label: uom.name })) ?? []}
+          value={value.uomId ?? undefined}
+          onChange={(next) => onChange({ ...value, uomId: next ?? null })}
+          placeholder="All UOMs"
+          className="w-44"
+          aria-label="UOM"
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">

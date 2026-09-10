@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import { createMiscellaneousItem, updateMiscellaneousItem } from '../api/miscellaneousItemApi'
@@ -155,21 +156,14 @@ export function MiscellaneousItemFormDrawer({ open, onOpenChange, miscellaneousI
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>UOM</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={uoms.isLoading ? 'Loading…' : 'Select unit of measurement'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {uoms.data?.map((uom) => (
-                          <SelectItem key={uom.id} value={uom.id}>
-                            {uom.name}
-                            {uom.symbol ? ` (${uom.symbol})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={uoms.data?.map((uom) => ({ value: uom.id, label: `${uom.name}${uom.symbol ? ` (${uom.symbol})` : ''}` })) ?? []}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={uoms.isLoading}
+                      placeholder="Select unit of measurement"
+                      aria-label="UOM"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -217,20 +211,15 @@ export function MiscellaneousItemFormDrawer({ open, onOpenChange, miscellaneousI
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sales Account</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={accounts.isLoading ? 'Loading…' : 'Select account'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {accounts.data?.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.code} — {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={accounts.data?.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` })) ?? []}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={accounts.isLoading}
+                      clearable={false}
+                      placeholder="Select account"
+                      aria-label="Sales Account"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -241,20 +230,15 @@ export function MiscellaneousItemFormDrawer({ open, onOpenChange, miscellaneousI
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Purchase Account</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={accounts.isLoading ? 'Loading…' : 'Select account'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {accounts.data?.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.code} — {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={accounts.data?.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` })) ?? []}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={accounts.isLoading}
+                      clearable={false}
+                      placeholder="Select account"
+                      aria-label="Purchase Account"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

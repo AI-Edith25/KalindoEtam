@@ -1,12 +1,12 @@
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import type { AuditLogFilterValues } from '../types'
 
-const ALL_MODULES = '__all__'
-
 const MODULES = ['auth', 'user', 'role', 'company', 'tax', 'invoice', 'purchase_order']
+
+const MODULE_OPTIONS = MODULES.map((module) => ({ value: module, label: module }))
 
 interface AuditLogFiltersBarProps {
   value: AuditLogFilterValues
@@ -20,19 +20,14 @@ export function AuditLogFiltersBar({ value, onChange }: AuditLogFiltersBarProps)
     <FilterPanel onClear={() => onChange({})} hasActiveFilters={hasActiveFilters}>
       <div className="flex flex-col gap-1.5">
         <Label>Module</Label>
-        <Select value={value.module ?? ALL_MODULES} onValueChange={(module) => onChange({ ...value, module: module === ALL_MODULES ? undefined : module })}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All modules" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_MODULES}>All modules</SelectItem>
-            {MODULES.map((module) => (
-              <SelectItem key={module} value={module}>
-                {module}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={MODULE_OPTIONS}
+          value={value.module ?? undefined}
+          onChange={(module) => onChange({ ...value, module })}
+          placeholder="All modules"
+          className="w-40"
+          aria-label="Module"
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">
