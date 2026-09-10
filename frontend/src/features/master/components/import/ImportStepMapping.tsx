@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toastApiError } from '@/shared/services/errorHandler'
 import {
@@ -19,8 +20,6 @@ import {
   updateImportMapping,
 } from '../../api/importApi'
 import type { CleaningReport, DecimalStyle, ImportMappingPreset, MappingResult, UploadResult } from '../../types/import'
-
-const IGNORE = '__ignore__'
 
 interface ImportStepMappingProps {
   upload: UploadResult
@@ -279,23 +278,14 @@ export function ImportStepMapping({ upload, onSaved, onBack }: ImportStepMapping
                   <TableCell>{header || <span className="text-muted-foreground">(blank)</span>}</TableCell>
                   <TableCell className="text-muted-foreground">{String(headerState.sampleRows[0]?.[header] ?? '—')}</TableCell>
                   <TableCell>
-                    <Select
-                      value={fieldName ?? IGNORE}
-                      onValueChange={(value) => setMapping((m) => ({ ...m, [header]: value === IGNORE ? null : value }))}
-                    >
-                      <SelectTrigger className="w-56">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={IGNORE}>Ignore this column</SelectItem>
-                        {upload.fields.map((f) => (
-                          <SelectItem key={f.name} value={f.name}>
-                            {f.label}
-                            {f.required ? ' *' : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={upload.fields.map((f) => ({ value: f.name, label: `${f.label}${f.required ? ' *' : ''}` }))}
+                      value={fieldName ?? undefined}
+                      onChange={(value) => setMapping((m) => ({ ...m, [header]: value ?? null }))}
+                      placeholder="Ignore this column"
+                      className="w-56"
+                      aria-label="System Field"
+                    />
                   </TableCell>
                   <TableCell>
                     {field?.type === 'number' && (
