@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
-import { fetchCustomersLookup, fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchCustomer } from '@/features/master/api/customerApi'
+import { fetchItem } from '@/features/master/api/itemApi'
+import { fetchWarehousesLookup, searchCustomersLookup, searchItemsLookup } from '@/features/master/api/lookupsApi'
 import { emptyDeliveryReportFilters, hasActiveDeliveryReportFilters } from '../lib/reportFilters'
 import type { DeliveryReportFilterValues } from '../types'
-
-const ALL = '__all__'
 
 interface DeliveryReportFiltersBarProps {
   value: DeliveryReportFilterValues
@@ -15,64 +15,70 @@ interface DeliveryReportFiltersBarProps {
 
 export function DeliveryReportFiltersBar({ value, onChange }: DeliveryReportFiltersBarProps) {
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
-  const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
+
+  const loadCustomerOptions = async (query: string) => {
+    const customers = await searchCustomersLookup(query)
+    return customers.map((customer) => ({ value: customer.id, label: customer.customer_name }))
+  }
+  const selectedCustomerQuery = useQuery({
+    queryKey: ['customer', value.customer_id],
+    queryFn: () => fetchCustomer(value.customer_id),
+    enabled: !!value.customer_id,
+  })
+  const selectedCustomerOption = selectedCustomerQuery.data
+    ? { value: selectedCustomerQuery.data.id, label: selectedCustomerQuery.data.customer_name }
+    : undefined
+
+  const loadItemOptions = async (query: string) => {
+    const items = await searchItemsLookup(query)
+    return items.map((item) => ({ value: item.id, label: item.item_name }))
+  }
+  const selectedItemQuery = useQuery({
+    queryKey: ['item', value.item_id],
+    queryFn: () => fetchItem(value.item_id),
+    enabled: !!value.item_id,
+  })
+  const selectedItemOption = selectedItemQuery.data
+    ? { value: selectedItemQuery.data.id, label: selectedItemQuery.data.item_name }
+    : undefined
 
   return (
     <FilterPanel onClear={() => onChange(emptyDeliveryReportFilters)} hasActiveFilters={hasActiveDeliveryReportFilters(value)}>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Customer</span>
-        <Select
-          value={value.customer_id || ALL}
-          onValueChange={(next) => onChange({ ...value, customer_id: next === ALL ? '' : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={customers.isLoading ? 'Loading…' : 'All customers'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All customers</SelectItem>
-            {customers.data?.map((customer) => (
-              <SelectItem key={customer.id} value={customer.id}>
-                {customer.customer_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          loadOptions={loadCustomerOptions}
+          selectedOption={selectedCustomerOption}
+          value={value.customer_id || undefined}
+          onChange={(next) => onChange({ ...value, customer_id: next ?? '' })}
+          placeholder="All customers"
+          aria-label="Customer"
+          className="w-44"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Item</span>
-        <Select value={value.item_id || ALL} onValueChange={(next) => onChange({ ...value, item_id: next === ALL ? '' : next })}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={items.isLoading ? 'Loading…' : 'All items'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All items</SelectItem>
-            {items.data?.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.item_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          loadOptions={loadItemOptions}
+          selectedOption={selectedItemOption}
+          value={value.item_id || undefined}
+          onChange={(next) => onChange({ ...value, item_id: next ?? '' })}
+          placeholder="All items"
+          aria-label="Item"
+          className="w-44"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Warehouse</span>
-        <Select
-          value={value.warehouse_id || ALL}
-          onValueChange={(next) => onChange({ ...value, warehouse_id: next === ALL ? '' : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'All warehouses'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All warehouses</SelectItem>
-            {warehouses.data?.map((warehouse) => (
-              <SelectItem key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []}
+          value={value.warehouse_id || undefined}
+          onChange={(next) => onChange({ ...value, warehouse_id: next ?? '' })}
+          loading={warehouses.isLoading}
+          placeholder="All warehouses"
+          aria-label="Warehouse"
+          className="w-44"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">From</span>

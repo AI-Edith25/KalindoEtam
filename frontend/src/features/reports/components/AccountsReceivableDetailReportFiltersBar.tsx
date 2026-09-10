@@ -1,10 +1,10 @@
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
-import { fetchBranches, fetchCustomersLookup, fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
+import { fetchCustomer } from '@/features/master/api/customerApi'
+import { fetchBranches, fetchSalesPersonsLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
 import type { SettlementStatus } from '@/features/payment/types'
 import { emptyArDetailReportFilters, hasActiveArDetailReportFilters } from '../lib/reportFilters'
 import type { AgingBucketValue, ArDetailReportFilterValues } from '../types'
@@ -16,69 +16,70 @@ interface AccountsReceivableDetailReportFiltersBarProps {
   onChange: (value: ArDetailReportFilterValues) => void
 }
 
+function customerLabel(customer: { customer_code: string; customer_name: string }) {
+  return `${customer.customer_code} — ${customer.customer_name}`
+}
+
 /** Own filter set for this report — deliberately not a shared generic filter engine, matching every other report's FiltersBar in this codebase. */
 export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: AccountsReceivableDetailReportFiltersBarProps) {
-  const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
 
-  // Master Customer runs into the thousands — a plain dropdown doesn't scale, so this is
-  // type-ahead (SearchableSelect) rather than the plain Select every other filter here uses.
-  const customerOptions = useMemo(
-    () => customers.data?.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}` })) ?? [],
-    [customers.data],
-  )
+  // Master Customer runs into the thousands — server-side search (SearchableSelect's async mode)
+  // rather than a client-filtered lookup list.
+  const loadCustomerOptions = async (query: string) => {
+    const customers = await searchCustomersLookup(query)
+    return customers.map((customer) => ({ value: customer.id, label: customerLabel(customer) }))
+  }
+
+  // Resolves the label for a customer_id arriving pre-set (URL restore) — the async dropdown has
+  // no other way to know its label without this.
+  const selectedCustomerQuery = useQuery({
+    queryKey: ['customer', value.customer_id],
+    queryFn: () => fetchCustomer(value.customer_id),
+    enabled: !!value.customer_id,
+  })
+  const selectedCustomerOption = selectedCustomerQuery.data
+    ? { value: selectedCustomerQuery.data.id, label: customerLabel(selectedCustomerQuery.data) }
+    : undefined
 
   return (
     <FilterPanel onClear={() => onChange(emptyArDetailReportFilters)} hasActiveFilters={hasActiveArDetailReportFilters(value)}>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Customer</span>
         <SearchableSelect
-          options={customerOptions}
+          loadOptions={loadCustomerOptions}
+          selectedOption={selectedCustomerOption}
           value={value.customer_id || undefined}
           onChange={(next) => onChange({ ...value, customer_id: next ?? '' })}
           placeholder="All customers"
-          loading={customers.isLoading}
+          aria-label="Customer"
           className="w-56"
         />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Branch</span>
-        <Select
-          value={value.branch_id || ALL}
-          onValueChange={(next) => onChange({ ...value, branch_id: next === ALL ? '' : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'All branches'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All branches</SelectItem>
-            {branches.data?.map((branch) => (
-              <SelectItem key={branch.id} value={branch.id}>
-                {branch.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []}
+          value={value.branch_id || undefined}
+          onChange={(next) => onChange({ ...value, branch_id: next ?? '' })}
+          loading={branches.isLoading}
+          placeholder="All branches"
+          aria-label="Branch"
+          className="w-44"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Salesman</span>
-        <Select
-          value={value.sales_person_id || ALL}
-          onValueChange={(next) => onChange({ ...value, sales_person_id: next === ALL ? '' : next })}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={salesPersons.isLoading ? 'Loading…' : 'All sales persons'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All sales persons</SelectItem>
-            {salesPersons.data?.map((salesPerson) => (
-              <SelectItem key={salesPerson.id} value={salesPerson.id}>
-                {salesPerson.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={salesPersons.data?.map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name })) ?? []}
+          value={value.sales_person_id || undefined}
+          onChange={(next) => onChange({ ...value, sales_person_id: next ?? '' })}
+          loading={salesPersons.isLoading}
+          placeholder="All sales persons"
+          aria-label="Salesman"
+          className="w-44"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Status</span>

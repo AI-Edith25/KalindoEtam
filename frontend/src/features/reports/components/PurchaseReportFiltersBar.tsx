@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
-import { fetchSuppliersLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchSupplier } from '@/features/master/api/supplierApi'
+import { fetchWarehousesLookup, searchSuppliersLookup } from '@/features/master/api/lookupsApi'
 import type { DocumentStatus } from '@/features/purchase/types'
 import { emptyPurchaseReportFilters, hasActivePurchaseReportFilters } from '../lib/reportFilters'
 import type { PurchaseReportFilterValues } from '../types'
@@ -19,53 +21,51 @@ interface PurchaseReportFiltersBarProps {
 }
 
 export function PurchaseReportFiltersBar({ value, onChange, hide = [] }: PurchaseReportFiltersBarProps) {
-  const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup, enabled: !hide.includes('supplier') })
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup, enabled: !hide.includes('warehouse') })
 
   const shown = (field: PurchaseReportFilterField) => !hide.includes(field)
+
+  const loadSupplierOptions = async (query: string) => {
+    const suppliers = await searchSuppliersLookup(query)
+    return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
+  }
+  const selectedSupplierQuery = useQuery({
+    queryKey: ['supplier', value.supplier_id],
+    queryFn: () => fetchSupplier(value.supplier_id),
+    enabled: shown('supplier') && !!value.supplier_id,
+  })
+  const selectedSupplierOption = selectedSupplierQuery.data
+    ? { value: selectedSupplierQuery.data.id, label: selectedSupplierQuery.data.supplier_name }
+    : undefined
 
   return (
     <FilterPanel onClear={() => onChange({ ...emptyPurchaseReportFilters, dateFrom: value.dateFrom, dateTo: value.dateTo })} hasActiveFilters={hasActivePurchaseReportFilters(value)}>
       {shown('supplier') && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Supplier</span>
-          <Select
-            value={value.supplier_id || ALL}
-            onValueChange={(next) => onChange({ ...value, supplier_id: next === ALL ? '' : next })}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'All suppliers'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All suppliers</SelectItem>
-              {suppliers.data?.map((supplier) => (
-                <SelectItem key={supplier.id} value={supplier.id}>
-                  {supplier.supplier_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            loadOptions={loadSupplierOptions}
+            selectedOption={selectedSupplierOption}
+            value={value.supplier_id || undefined}
+            onChange={(next) => onChange({ ...value, supplier_id: next ?? '' })}
+            placeholder="All suppliers"
+            aria-label="Supplier"
+            className="w-44"
+          />
         </div>
       )}
       {shown('warehouse') && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Warehouse</span>
-          <Select
-            value={value.warehouse_id || ALL}
-            onValueChange={(next) => onChange({ ...value, warehouse_id: next === ALL ? '' : next })}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'All warehouses'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All warehouses</SelectItem>
-              {warehouses.data?.map((warehouse) => (
-                <SelectItem key={warehouse.id} value={warehouse.id}>
-                  {warehouse.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            options={warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []}
+            value={value.warehouse_id || undefined}
+            onChange={(next) => onChange({ ...value, warehouse_id: next ?? '' })}
+            loading={warehouses.isLoading}
+            placeholder="All warehouses"
+            aria-label="Warehouse"
+            className="w-44"
+          />
         </div>
       )}
       {shown('status') && (

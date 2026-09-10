@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
-import { fetchBranches, fetchCustomersLookup, fetchSuppliersLookup, fetchTaxesLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchCustomer } from '@/features/master/api/customerApi'
+import { fetchSupplier } from '@/features/master/api/supplierApi'
+import { fetchBranches, fetchTaxesLookup, fetchWarehousesLookup, searchCustomersLookup, searchSuppliersLookup } from '@/features/master/api/lookupsApi'
 import { currentMonthTaxReportFilters } from '../lib/reportFilters'
 import type { TaxReportFilterValues } from '../types'
-
-const ALL = '__all__'
 
 interface TaxReportFiltersBarProps {
   value: TaxReportFilterValues
@@ -18,10 +18,34 @@ interface TaxReportFiltersBarProps {
 /** Own filter set for this report — deliberately not a shared generic filter engine, matching every other report's FiltersBar in this codebase. */
 export function TaxReportFiltersBar({ value, onChange, mode }: TaxReportFiltersBarProps) {
   const taxes = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup, enabled: mode === 'output' })
-  const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup, enabled: mode === 'output' })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches, enabled: mode === 'output' })
-  const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup, enabled: mode === 'input' })
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup, enabled: mode === 'input' })
+
+  const loadCustomerOptions = async (query: string) => {
+    const customers = await searchCustomersLookup(query)
+    return customers.map((customer) => ({ value: customer.id, label: customer.customer_name }))
+  }
+  const selectedCustomerQuery = useQuery({
+    queryKey: ['customer', value.customer_id],
+    queryFn: () => fetchCustomer(value.customer_id),
+    enabled: mode === 'output' && !!value.customer_id,
+  })
+  const selectedCustomerOption = selectedCustomerQuery.data
+    ? { value: selectedCustomerQuery.data.id, label: selectedCustomerQuery.data.customer_name }
+    : undefined
+
+  const loadSupplierOptions = async (query: string) => {
+    const suppliers = await searchSuppliersLookup(query)
+    return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
+  }
+  const selectedSupplierQuery = useQuery({
+    queryKey: ['supplier', value.supplier_id],
+    queryFn: () => fetchSupplier(value.supplier_id),
+    enabled: mode === 'input' && !!value.supplier_id,
+  })
+  const selectedSupplierOption = selectedSupplierQuery.data
+    ? { value: selectedSupplierQuery.data.id, label: selectedSupplierQuery.data.supplier_name }
+    : undefined
 
   // Single "Bulan" control writing both dateFrom/dateTo at once — this is explicitly a monthly
   // report ("Filter bulan harus mudah" in the ticket) — the existing From/To pair below it still
@@ -57,51 +81,39 @@ export function TaxReportFiltersBar({ value, onChange, mode }: TaxReportFiltersB
         <>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-muted-foreground">Kode Pajak</span>
-            <Select value={value.tax_id || ALL} onValueChange={(next) => onChange({ ...value, tax_id: next === ALL ? '' : next })}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder={taxes.isLoading ? 'Loading…' : 'All'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All</SelectItem>
-                {taxes.data?.map((tax) => (
-                  <SelectItem key={tax.id} value={tax.id}>
-                    {tax.code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={taxes.data?.map((tax) => ({ value: tax.id, label: tax.code })) ?? []}
+              value={value.tax_id || undefined}
+              onChange={(next) => onChange({ ...value, tax_id: next ?? '' })}
+              loading={taxes.isLoading}
+              placeholder="All"
+              aria-label="Kode Pajak"
+              className="w-40"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-muted-foreground">Customer</span>
-            <Select value={value.customer_id || ALL} onValueChange={(next) => onChange({ ...value, customer_id: next === ALL ? '' : next })}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder={customers.isLoading ? 'Loading…' : 'All customers'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All customers</SelectItem>
-                {customers.data?.map((customer) => (
-                  <SelectItem key={customer.id} value={customer.id}>
-                    {customer.customer_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              loadOptions={loadCustomerOptions}
+              selectedOption={selectedCustomerOption}
+              value={value.customer_id || undefined}
+              onChange={(next) => onChange({ ...value, customer_id: next ?? '' })}
+              placeholder="All customers"
+              aria-label="Customer"
+              className="w-44"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-muted-foreground">Branch</span>
-            <Select value={value.branch_id || ALL} onValueChange={(next) => onChange({ ...value, branch_id: next === ALL ? '' : next })}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'All branches'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All branches</SelectItem>
-                {branches.data?.map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []}
+              value={value.branch_id || undefined}
+              onChange={(next) => onChange({ ...value, branch_id: next ?? '' })}
+              loading={branches.isLoading}
+              placeholder="All branches"
+              aria-label="Branch"
+              className="w-44"
+            />
           </div>
         </>
       )}
@@ -109,35 +121,27 @@ export function TaxReportFiltersBar({ value, onChange, mode }: TaxReportFiltersB
         <>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-muted-foreground">Supplier</span>
-            <Select value={value.supplier_id || ALL} onValueChange={(next) => onChange({ ...value, supplier_id: next === ALL ? '' : next })}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'All suppliers'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All suppliers</SelectItem>
-                {suppliers.data?.map((supplier) => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.supplier_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              loadOptions={loadSupplierOptions}
+              selectedOption={selectedSupplierOption}
+              value={value.supplier_id || undefined}
+              onChange={(next) => onChange({ ...value, supplier_id: next ?? '' })}
+              placeholder="All suppliers"
+              aria-label="Supplier"
+              className="w-44"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-muted-foreground">Warehouse</span>
-            <Select value={value.warehouse_id || ALL} onValueChange={(next) => onChange({ ...value, warehouse_id: next === ALL ? '' : next })}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'All warehouses'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All warehouses</SelectItem>
-                {warehouses.data?.map((warehouse) => (
-                  <SelectItem key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []}
+              value={value.warehouse_id || undefined}
+              onChange={(next) => onChange({ ...value, warehouse_id: next ?? '' })}
+              loading={warehouses.isLoading}
+              placeholder="All warehouses"
+              aria-label="Warehouse"
+              className="w-44"
+            />
           </div>
         </>
       )}
