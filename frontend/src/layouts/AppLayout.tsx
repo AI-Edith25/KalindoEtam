@@ -5,10 +5,8 @@ import { Breadcrumbs } from './Breadcrumbs'
 
 export function AppLayout() {
   return (
-    <div className="flex min-h-svh">
-      <div className="print:hidden">
-        <Sidebar />
-      </div>
+    <div className="flex h-svh print:h-auto">
+      <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="print:hidden">
           <Header />
