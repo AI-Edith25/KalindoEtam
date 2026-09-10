@@ -1,11 +1,20 @@
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
 import { useBranchesLookup, useCompaniesLookup } from '@/features/master/hooks/useLookups'
 import { emptyGeneralLedgerFilters, hasActiveGeneralLedgerFilters } from '../lib/generalLedgerFilters'
 import type { DocumentStatus, GeneralLedgerFilterValues } from '../types'
 
 const ALL = '__all__'
+
+const REFERENCE_TYPE_OPTIONS = [
+  { value: 'invoice', label: 'Invoice' },
+  { value: 'credit_note', label: 'Credit Note' },
+  { value: 'debit_note', label: 'Debit Note' },
+  { value: 'receipt_entry', label: 'Receipt Entry' },
+  { value: 'payment_allocation', label: 'Payment Allocation' },
+]
 
 interface GeneralLedgerFiltersBarProps {
   value: GeneralLedgerFilterValues
@@ -39,22 +48,14 @@ export function GeneralLedgerFiltersBar({ value, onChange, variant }: GeneralLed
       )}
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Reference Type</span>
-        <Select
-          value={value.referenceType ?? ALL}
-          onValueChange={(next) => onChange({ ...value, referenceType: next === ALL ? null : next })}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All types</SelectItem>
-            <SelectItem value="invoice">Invoice</SelectItem>
-            <SelectItem value="credit_note">Credit Note</SelectItem>
-            <SelectItem value="debit_note">Debit Note</SelectItem>
-            <SelectItem value="receipt_entry">Receipt Entry</SelectItem>
-            <SelectItem value="payment_allocation">Payment Allocation</SelectItem>
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={REFERENCE_TYPE_OPTIONS}
+          value={value.referenceType ?? undefined}
+          onChange={(next) => onChange({ ...value, referenceType: next ?? null })}
+          placeholder="All types"
+          className="w-40"
+          aria-label="Reference Type"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Status</span>
@@ -74,42 +75,28 @@ export function GeneralLedgerFiltersBar({ value, onChange, variant }: GeneralLed
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Branch</span>
-        <Select
-          value={value.branchId ?? ALL}
-          onValueChange={(next) => onChange({ ...value, branchId: next === ALL ? null : next })}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'All branches'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All branches</SelectItem>
-            {branches.data?.map((branch) => (
-              <SelectItem key={branch.id} value={branch.id}>
-                {branch.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []}
+          value={value.branchId ?? undefined}
+          onChange={(next) => onChange({ ...value, branchId: next ?? null })}
+          loading={branches.isLoading}
+          placeholder="All branches"
+          className="w-40"
+          aria-label="Branch"
+        />
       </div>
       {variant === 'list' && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Company</span>
-          <Select
-            value={value.companyId ?? ALL}
-            onValueChange={(next) => onChange({ ...value, companyId: next === ALL ? null : next })}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder={companies.isLoading ? 'Loading…' : 'All companies'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All companies</SelectItem>
-              {companies.data?.map((company) => (
-                <SelectItem key={company.id} value={company.id}>
-                  {company.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            options={companies.data?.map((company) => ({ value: company.id, label: company.name })) ?? []}
+            value={value.companyId ?? undefined}
+            onChange={(next) => onChange({ ...value, companyId: next ?? null })}
+            loading={companies.isLoading}
+            placeholder="All companies"
+            className="w-40"
+            aria-label="Company"
+          />
         </div>
       )}
       <div className="flex flex-col gap-1.5">
