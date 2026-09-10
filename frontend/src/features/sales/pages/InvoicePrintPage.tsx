@@ -25,17 +25,6 @@ const ROLL_PAPER_WIDTH_MM = 80
 const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
 
 /**
- * Continuous paper's own margin (see PRINT_PAPER_PAGE_CSS.continuous — 6mm) subtracted from
- * 11in on both edges, converted to cm to match the A4 block's own min-h-[27.3cm] convention
- * (297mm A4 minus 12mm page's own p-[12mm] wrapper padding = 27.3cm). This number — 9.5"×11"
- * at a flat 6mm margin — was already sitting in printOptions.ts, unconfirmed against the real
- * printer; flagged for the ops team to verify against actual continuous stock (sprocket-hole
- * tractor-feed strips often need a wider left/right margin than a flat 6mm allows) and adjusted
- * here once confirmed.
- */
-const CONTINUOUS_CONTENT_HEIGHT_CM = 11 * 2.54 - 1.2
-
-/**
  * Half is A5 LANDSCAPE — 210 x 148mm (595.276 x 420.945pt in the reference PDF's own page box),
  * not a portrait 148 x 210mm sheet. Tighter 6mm margin than A4's 12mm wrapper padding, same
  * margin-via-@page + zero wrapper padding convention as Continuous (PRINT_PAPER_PAGE_CSS.half),
@@ -77,6 +66,11 @@ function formatYyyyDotMmDotDd(dateStr: string | null | undefined): string {
 }
 
 function MetaRow({ label, value, bold, tight }: { label: string; value: ReactNode; bold?: boolean; tight?: boolean }) {
+  // A blank ": " line is pure wasted height on a page this small — Transportation invoices in
+  // particular leave Attn/Tel/Fax/Location empty on every single document (no sales_order_id to
+  // source them from), so skipping empty rows on Half/Continuous recovers real space instead of
+  // printing rows nobody reads. A4 keeps rendering them (blank row costs nothing there).
+  if (tight && (value === '' || value == null)) return null
   return (
     <div className="flex">
       <span className={tight ? 'w-[29.6mm] shrink-0' : 'w-28 shrink-0'}>{label}</span>
@@ -302,7 +296,14 @@ export function InvoicePrintPage() {
         ref={halfContentRef}
         className="flex flex-col text-black"
         style={{
-          minHeight: isHalf ? `${HALF_CONTENT_HEIGHT_MM}mm` : isContinuous ? `${CONTINUOUS_CONTENT_HEIGHT_CM}cm` : '27.3cm',
+          // Half/Continuous no longer force-stretch to a full page's height before the footer —
+          // that stretch (plus the flex-1 spacer below) was the actual cause of the footer
+          // spilling to page 2: it filled ~132mm before the footer even started, leaving no room
+          // for the ~50mm footer/signature block on invoices with very little else on the page.
+          // Content now just flows: header/meta/table/footer back to back, sized by what's
+          // actually there. A4 keeps its own full-page stretch — it has 297mm of headroom, so
+          // pushing the footer toward the bottom of the sheet was never the problem there.
+          minHeight: tight ? undefined : '27.3cm',
           fontFamily: printOptions.fontFamily ?? '"Times New Roman", "Tinos", "Liberation Serif", serif',
           fontSize: `${printOptions.fontSizePt ?? 10}pt`,
         }}
@@ -382,7 +383,10 @@ export function InvoicePrintPage() {
 
         {isHalf && <p className={tight ? 'mt-[2.1mm]' : 'mt-2'}>{terbilangIdr(invoice.grand_total)}</p>}
 
-        <div className="flex-1" />
+        {/* A4 only — pushes the footer toward the bottom of the full A4 sheet. Half/Continuous
+            dropped this: it's what stretched the box to near-full-page height before the footer
+            even started, leaving no room for it. There the footer just follows in normal flow. */}
+        {!tight && <div className="flex-1" />}
 
         {/* One break-inside-avoid unit — E.&O.E/BCA account, totals box, and signature lines must
             land on the same physical page together, never split across a page break. */}
@@ -435,14 +439,17 @@ export function InvoicePrintPage() {
           </div>
         </div>
 
-        <div className={tight ? 'grid grid-cols-2 gap-[8.5mm] pt-[10.6mm]' : 'grid grid-cols-2 gap-8 pt-10'}>
+        {/* 10.6mm (A4's pt-10/mt-10) was sized for a 297mm page with room to spare — on a 148mm
+            Half sheet that alone was ~22mm of the ~53mm the footer needed, most of the reason it
+            never fit. 5mm still leaves a real gap to sign in, just not a full A4-sized one. */}
+        <div className={tight ? 'grid grid-cols-2 gap-[8.5mm] pt-[5mm]' : 'grid grid-cols-2 gap-8 pt-10'}>
           <div className="text-center">
             <p className="font-semibold">{invoice.customer?.customer_name ?? '—'}</p>
-            <div className={tight ? 'mt-[10.6mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'})</div>
+            <div className={tight ? 'mt-[5mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
           <div className="text-center">
             <p className="font-semibold">{companyName}</p>
-            <div className={tight ? 'mt-[10.6mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
+            <div className={tight ? 'mt-[5mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
         </div>
         </div>
