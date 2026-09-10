@@ -35,8 +35,13 @@ class CustomerService
     public function create(array $data): Customer
     {
         return DB::transaction(function () use ($data) {
-            // Authoritative — always server-generated, regardless of whether the request carried a customer_code (StoreCustomerRequest prohibits it, but this override is the real guarantee).
-            $data['customer_code'] = $this->documentNumberGenerator->generate('customer');
+            // Always consume a number — keeps future peekNextCode() suggestions moving forward even
+            // when the caller overrides customer_code below, so the next New Customer form doesn't
+            // offer a code that was already "spent" (and would just collide) on this one.
+            $generated = $this->documentNumberGenerator->generate('customer');
+            if (! filled($data['customer_code'] ?? null)) {
+                $data['customer_code'] = $generated;
+            }
             $customer = $this->customerRepository->create($data);
             $this->auditLogService->record('created', 'customer', "Created customer \"{$customer->customer_name}\".");
 

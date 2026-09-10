@@ -9,7 +9,6 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -18,6 +17,7 @@ import { createCustomer, fetchNextCustomerCode, updateCustomer } from '../api/cu
 import type { Customer } from '../types'
 
 const customerFormSchema = z.object({
+  customer_code: z.string().min(1, 'Customer Code is required').max(255),
   customer_name: z.string().min(1, 'Customer Name is required').max(255),
   phone: z.string().max(50).optional().or(z.literal('')),
   telephone: z.string().max(50).optional().or(z.literal('')),
@@ -35,6 +35,7 @@ const customerFormSchema = z.object({
 type CustomerFormValues = z.infer<typeof customerFormSchema>
 
 const emptyValues: CustomerFormValues = {
+  customer_code: '',
   customer_name: '',
   phone: '',
   telephone: '',
@@ -55,7 +56,12 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
   const isEdit = !!customer
   const queryClient = useQueryClient()
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
-  /** Preview only — cosmetic, can go stale under concurrent creates. The server generates the real code fresh on submit (CustomerService::create), regardless of what's shown here. */
+  /**
+   * Suggested default only, not a lock — the field stays editable (user feedback: codes need
+   * to stay correctable even with a system default). Can go stale under concurrent creates;
+   * CustomerService::create() re-consumes a fresh number server-side regardless of what's shown
+   * here, and only falls back to it when the submitted customer_code is blank.
+   */
   const nextCode = useQuery({
     queryKey: ['customers', 'next-code'],
     queryFn: fetchNextCustomerCode,
@@ -73,6 +79,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
     form.reset(
       customer
         ? {
+            customer_code: customer.customer_code,
             customer_name: customer.customer_name,
             phone: customer.phone ?? '',
             telephone: customer.telephone ?? '',
@@ -85,6 +92,15 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
         : emptyValues,
     )
   }, [open, customer, form])
+
+  // Fills the suggestion in once it arrives — only if the user hasn't already typed something
+  // over it (e.g. the query resolving after they started editing shouldn't clobber their input).
+  useEffect(() => {
+    if (!open || isEdit || !nextCode.data) return
+    if (!form.getValues('customer_code')) {
+      form.setValue('customer_code', nextCode.data)
+    }
+  }, [open, isEdit, nextCode.data, form])
 
   const mutation = useMutation({
     mutationFn: (values: CustomerFormValues) => {
@@ -122,18 +138,23 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-y-auto">
             <div className="flex flex-col gap-4 px-4">
-              {/* Server-generated (CustomerService::create), never editable — see customerApi.fetchNextCustomerCode.
-                  Plain Label/Input, not FormLabel/FormControl/FormItem: those need a <FormField> (RHF Controller)
-                  ancestor via useFormField(), and this value is never part of customerFormSchema or the submit payload. */}
-              <div className="grid gap-2">
-                <Label htmlFor="customer_code_preview">Customer Code</Label>
-                <Input
-                  id="customer_code_preview"
-                  value={isEdit ? customer.customer_code : (nextCode.data ?? (nextCode.isError ? '' : 'Generating…'))}
-                  disabled
-                  placeholder={nextCode.isError ? 'Auto-generated on save' : undefined}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="customer_code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer Code</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={!isEdit && nextCode.isLoading ? 'Generating…' : 'e.g. C-2105'}
+                        autoComplete="off"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="customer_name"
