@@ -4,20 +4,23 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
+import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import { previewIssueStockCost } from '../api/issueStockApi'
 import type { IssueStockEditorValues } from '../lib/issueStockFormSchema'
 import type { Item } from '@/features/master/types'
 
+function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
+  return `${item.item_code} — ${item.item_name}`
+}
+
 interface IssueStockLineItemTableProps {
   form: UseFormReturn<IssueStockEditorValues>
-  items: Item[]
-  itemsLoading: boolean
   warehouseId: string
   disabled?: boolean
 }
@@ -50,18 +53,23 @@ function CostCell({ itemId, warehouseId, qty }: { itemId: string; warehouseId: s
   )
 }
 
-export function IssueStockLineItemTable({ form, items, itemsLoading, warehouseId, disabled }: IssueStockLineItemTableProps) {
+export function IssueStockLineItemTable({ form, warehouseId, disabled }: IssueStockLineItemTableProps) {
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
 
-  const handleItemChange = (index: number, itemId: string) => {
+  const loadItemOptions = async (query: string) => {
+    const items = await searchItemsLookup(query)
+    return items.map((item) => ({ value: item.id, label: itemLabel(item), data: item }))
+  }
+
+  const handleItemChange = (index: number, itemId: string, option?: SearchableSelectOption<Item>) => {
     setValue(`items.${index}.item_id`, itemId, { shouldValidate: true })
 
-    const selected = items.find((item) => item.id === itemId)
+    const selected = option?.data
+    setValue(`items.${index}.item_code`, selected?.item_code ?? '')
+    setValue(`items.${index}.item_name`, selected?.item_name ?? '')
     if (selected) {
-      setValue(`items.${index}.item_code`, selected.item_code)
-      setValue(`items.${index}.item_name`, selected.item_name)
       setValue(`items.${index}.qtyCategory`, selected.qty_category, { shouldValidate: true })
     }
   }
@@ -87,10 +95,13 @@ export function IssueStockLineItemTable({ form, items, itemsLoading, warehouseId
               </TableRow>
             ) : (
               fields.map((field, index) => {
-                const qtyCategory = watchedItems?.[index]?.qtyCategory ?? 'unit'
+                const row = watchedItems?.[index]
+                const qtyCategory = row?.qtyCategory ?? 'unit'
                 const decimalPlaces = qtyDecimalPlaces(qtyCategory)
-                const itemId = watchedItems?.[index]?.item_id ?? ''
-                const qty = Number(watchedItems?.[index]?.qty?.replace(',', '.') || 0)
+                const itemId = row?.item_id ?? ''
+                const qty = Number(row?.qty?.replace(',', '.') || 0)
+                const selectedOption: SearchableSelectOption<Item> | undefined =
+                  row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
 
                 return (
                   <TableRow key={field.id}>
@@ -100,18 +111,15 @@ export function IssueStockLineItemTable({ form, items, itemsLoading, warehouseId
                         name={`items.${index}.item_id`}
                         render={({ field: itemField }) => (
                           <FormItem className="gap-0">
-                            <Select value={itemField.value} onValueChange={(value) => handleItemChange(index, value)} disabled={disabled}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder={itemsLoading ? 'Loading…' : 'Select item'} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {items.map((item) => (
-                                  <SelectItem key={item.id} value={item.id}>
-                                    {item.item_code} — {item.item_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              loadOptions={loadItemOptions}
+                              selectedOption={selectedOption}
+                              value={itemField.value}
+                              onChange={(value, option) => handleItemChange(index, value ?? '', option)}
+                              disabled={disabled}
+                              placeholder="Select item"
+                              aria-label="Item"
+                            />
                             <FormMessage />
                           </FormItem>
                         )}

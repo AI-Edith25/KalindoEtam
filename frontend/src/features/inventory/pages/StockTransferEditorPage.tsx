@@ -9,12 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { parseLocaleQty } from '@/shared/lib/qty'
 import { fetchStockBalances } from '../api/stockApi'
 import {
@@ -44,7 +44,7 @@ export function StockTransferEditorPage() {
   })
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
 
   const form = useForm<StockTransferEditorValues>({
     resolver: zodResolver(stockTransferFormSchema),
@@ -52,6 +52,7 @@ export function StockTransferEditorPage() {
   })
 
   const sourceWarehouseId = useWatch({ control: form.control, name: 'source_warehouse_id' })
+  const destinationWarehouseOptions = warehouseOptions.filter((warehouse) => warehouse.value !== sourceWarehouseId)
   const watchedItems = useWatch({ control: form.control, name: 'items' })
 
   const itemIds = useMemo(
@@ -179,20 +180,15 @@ export function StockTransferEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Source Warehouse</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {warehouses.data?.map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={warehouseOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      clearable={false}
+                      placeholder="Select warehouse"
+                      aria-label="Source Warehouse"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -203,22 +199,15 @@ export function StockTransferEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Destination Warehouse</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {warehouses.data
-                          ?.filter((warehouse) => warehouse.id !== sourceWarehouseId)
-                          .map((warehouse) => (
-                            <SelectItem key={warehouse.id} value={warehouse.id}>
-                              {warehouse.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={destinationWarehouseOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      clearable={false}
+                      placeholder="Select warehouse"
+                      aria-label="Destination Warehouse"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -260,7 +249,7 @@ export function StockTransferEditorPage() {
               {!sourceWarehouseId && (
                 <p className="mb-3 text-sm text-muted-foreground">Select a source warehouse to see available quantities for each item.</p>
               )}
-              <StockTransferLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} />
+              <StockTransferLineItemTable form={form} />
               {form.formState.errors.items?.message && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.message}</p>
               )}

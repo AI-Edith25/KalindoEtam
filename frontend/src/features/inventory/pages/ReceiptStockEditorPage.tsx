@@ -9,12 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { parseLocaleQty } from '@/shared/lib/qty'
 import { createReceiptStock, fetchReceiptStock, submitReceiptStock, updateReceiptStock } from '../api/receiptStockApi'
 import { ReceiptStockLineItemTable } from '../components/ReceiptStockLineItemTable'
@@ -34,7 +34,7 @@ export function ReceiptStockEditorPage() {
   })
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
 
   const form = useForm<ReceiptStockEditorValues>({
     resolver: zodResolver(receiptStockFormSchema),
@@ -139,20 +139,15 @@ export function ReceiptStockEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Warehouse</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {warehouses.data?.map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={warehouseOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      clearable={false}
+                      placeholder="Select warehouse"
+                      aria-label="Warehouse"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -191,7 +186,7 @@ export function ReceiptStockEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <ReceiptStockLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} />
+              <ReceiptStockLineItemTable form={form} />
               {form.formState.errors.items?.message && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.message}</p>
               )}

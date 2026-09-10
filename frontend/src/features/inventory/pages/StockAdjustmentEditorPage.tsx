@@ -9,12 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchItemsLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { parseLocaleQty } from '@/shared/lib/qty'
 import { fetchStockBalances } from '../api/stockApi'
 import {
@@ -44,7 +44,7 @@ export function StockAdjustmentEditorPage() {
   })
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
 
   const form = useForm<StockAdjustmentEditorValues>({
     resolver: zodResolver(stockAdjustmentFormSchema),
@@ -181,20 +181,15 @@ export function StockAdjustmentEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Warehouse</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {warehouses.data?.map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={warehouseOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      clearable={false}
+                      placeholder="Select warehouse"
+                      aria-label="Warehouse"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -236,7 +231,7 @@ export function StockAdjustmentEditorPage() {
               {!warehouseId && (
                 <p className="mb-3 text-sm text-muted-foreground">Select a warehouse to see system quantities for each item.</p>
               )}
-              <StockAdjustmentLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} />
+              <StockAdjustmentLineItemTable form={form} />
               {form.formState.errors.items?.message && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.message}</p>
               )}
