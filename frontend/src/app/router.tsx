@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
+import { PrintPreviewShell } from '@/layouts/PrintPreviewShell'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
@@ -459,41 +460,45 @@ export function AppRouter() {
        * in a new tab, and the tab must show only the document (no sidebar/topbar/
        * breadcrumb) so it looks like a bare print view, not the app shell. Each
        * route still self-guards via ProtectedRoute for auth + permission, same as
-       * every route above.
+       * every route above. PrintPreviewShell gives them all the same solid
+       * canvas backdrop behind the document (docs/design system: paper vs.
+       * canvas separation) without touching each page's own print CSS.
        */}
-      <Route path="/sales/orders/:id/print" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderPrintPage /></ProtectedRoute>} />
-      <Route path="/sales/orders/print-bulk" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderBulkPrintPage /></ProtectedRoute>} />
-      <Route path="/sales/orders/print-list" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPrintPage /></ProtectedRoute>} />
-      <Route path="/sales/deliveries/:id/print" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryPrintPage /></ProtectedRoute>} />
-      <Route path="/sales/deliveries/print-list" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPrintPage /></ProtectedRoute>} />
-      <Route path="/sales/invoices/:id/print" element={<ProtectedRoute permission="sales.invoices.view"><InvoicePrintPage /></ProtectedRoute>} />
-      <Route
-        path="/sales/invoices/print/tanda-terima-invoice"
-        element={
-          <ProtectedRoute permission="sales.invoices.view">
-            <TandaTerimaInvoicePrintPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/sales/invoices/print/penagihan-harian"
-        element={
-          <ProtectedRoute permission="sales.invoices.view">
-            <LaporanPenagihanHarianPrintPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/sales/credit-notes/print-list" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteListPrintPage /></ProtectedRoute>} />
-      <Route path="/sales/debit-notes/print-list" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPrintPage /></ProtectedRoute>} />
-      <Route path="/reports/sales/print" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPrintPage /></ProtectedRoute>} />
-      <Route path="/reports/deliveries/print" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPrintPage /></ProtectedRoute>} />
-      <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
-      <Route path="/reports/ar-detail/statement-print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableStatementPrintPage /></ProtectedRoute>} />
-      <Route path="/reports/ap-detail/print" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPrintPage /></ProtectedRoute>} />
-      <Route path="/reports/tax/print" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPrintPage /></ProtectedRoute>} />
-      <Route path="/finance/incoming/:id/print" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentPrintPage /></ProtectedRoute>} />
-      <Route path="/finance/outgoing/:id/print" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentPrintPage /></ProtectedRoute>} />
-      <Route path="/finance/general-journal/journal-entries/print" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryPrintPage /></ProtectedRoute>} />
+      <Route element={<PrintPreviewShell />}>
+        <Route path="/sales/orders/:id/print" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/orders/print-bulk" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderBulkPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/orders/print-list" element={<ProtectedRoute permission="sales.orders.view"><SalesOrderListPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/deliveries/:id/print" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/deliveries/print-list" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/invoices/:id/print" element={<ProtectedRoute permission="sales.invoices.view"><InvoicePrintPage /></ProtectedRoute>} />
+        <Route
+          path="/sales/invoices/print/tanda-terima-invoice"
+          element={
+            <ProtectedRoute permission="sales.invoices.view">
+              <TandaTerimaInvoicePrintPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/invoices/print/penagihan-harian"
+          element={
+            <ProtectedRoute permission="sales.invoices.view">
+              <LaporanPenagihanHarianPrintPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/sales/credit-notes/print-list" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteListPrintPage /></ProtectedRoute>} />
+        <Route path="/sales/debit-notes/print-list" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/sales/print" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/deliveries/print" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/ar-detail/statement-print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableStatementPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/ap-detail/print" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/tax/print" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPrintPage /></ProtectedRoute>} />
+        <Route path="/finance/incoming/:id/print" element={<ProtectedRoute permission="finance.incoming_payment.view"><IncomingPaymentPrintPage /></ProtectedRoute>} />
+        <Route path="/finance/outgoing/:id/print" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentPrintPage /></ProtectedRoute>} />
+        <Route path="/finance/general-journal/journal-entries/print" element={<ProtectedRoute permission="accounting.journal_entries.view"><JournalEntryPrintPage /></ProtectedRoute>} />
+      </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

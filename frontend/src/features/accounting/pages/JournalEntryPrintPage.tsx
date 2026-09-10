@@ -42,7 +42,7 @@ const COLUMN_WIDTHS = ['12%', '14%', '37%', '10%', '13.5%', '13.5%']
 function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntry; companyName: string; isLast: boolean }) {
   return (
     <div
-      className="mx-auto flex w-full max-w-[210mm] flex-col bg-background p-6 text-black print:max-w-none print:p-[12mm]"
+      className="mx-auto flex w-full max-w-[210mm] flex-col bg-white p-6 text-black shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '13px', pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
     >
       <div className="grid grid-cols-3 items-start">
@@ -141,7 +141,7 @@ export function JournalEntryPrintPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 bg-background print:gap-0">
+    <div className="flex flex-col gap-4 print:gap-0">
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome — document
           margins come from each page's own print:p-[12mm] instead. */}
       <style>{'@page { size: A4; margin: 0; }'}</style>

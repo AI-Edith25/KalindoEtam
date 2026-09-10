@@ -48,7 +48,7 @@ export function AccountsPayableDetailReportPrintPage() {
   const total = listQuery.data?.meta.total ?? 0
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-0 print:shadow-none">
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">AP Detail Report Print Preview</h1>
         <div className="flex items-center gap-2">

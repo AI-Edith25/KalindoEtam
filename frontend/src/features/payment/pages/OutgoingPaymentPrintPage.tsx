@@ -65,7 +65,7 @@ export function OutgoingPaymentPrintPage() {
 
   return (
     <div
-      className={`mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0 ${compact ? 'max-w-[9.5in]' : 'max-w-3xl'}`}
+      className={`mx-auto flex flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-0 print:shadow-none ${compact ? 'max-w-[9.5in]' : 'max-w-3xl'}`}
     >
       {pageCss && <style>{pageCss}</style>}
 

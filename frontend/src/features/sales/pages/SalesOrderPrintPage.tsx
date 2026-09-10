@@ -49,7 +49,7 @@ export function SalesOrderPrintPage() {
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none">
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
           + date on top, URL + page number on bottom) — that's not part of the document, it's
           browser UI. Document margins come from this wrapper's own print:p-[12mm] instead. */}

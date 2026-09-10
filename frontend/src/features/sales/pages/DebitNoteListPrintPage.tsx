@@ -63,7 +63,7 @@ export function DebitNoteListPrintPage() {
   const total = rows.reduce((sum, row) => sum + Number(row.total_amount), 0)
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none">
       <style>{'@page { size: A4 landscape; margin: 0; }'}</style>
 
       <div className="flex items-start justify-between print:hidden">

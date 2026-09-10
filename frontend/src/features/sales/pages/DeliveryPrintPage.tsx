@@ -97,7 +97,7 @@ export function DeliveryPrintPage() {
   const notes = delivery.remarks || delivery.sales_order?.remarks || ''
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]">
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none">
       {/* DO.pdf's own page size — 595.276x420.945pt in its PDF MediaBox, i.e. 210x148.5mm
           (A5 landscape), not A4 like Sales Order's print. Using A4 here made the printed page
           nearly twice as tall as the reference. */}

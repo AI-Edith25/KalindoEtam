@@ -253,7 +253,7 @@ export function InvoicePrintPage() {
     <div
       className={
         format === 'roll'
-          ? 'mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:p-[2mm]'
+          ? 'mx-auto flex flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-[2mm] print:shadow-none'
           : isHalf
             // Same margin-via-@page, zero-wrapper-padding convention as Continuous just below —
             // explicit width/minHeight (not max-w-3xl) so the on-screen preview is proportioned
@@ -263,12 +263,12 @@ export function InvoicePrintPage() {
             // forcing it during print guaranteed a blank overflow page 2 no matter how little
             // content there was. A Tailwind class can be overridden per-media-query; the inline
             // style this replaced could not, since inline styles beat print: variants regardless.
-            ? 'mx-auto flex flex-col gap-4 bg-background p-6 text-foreground min-h-[148mm] print:max-w-none print:p-0 print:min-h-0'
+            ? 'mx-auto flex flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] min-h-[148mm] print:max-w-none print:p-0 print:min-h-0 print:shadow-none'
             : isContinuous
               // @page's own margin (PRINT_PAPER_PAGE_CSS.continuous) does the inset here — no
               // extra wrapper padding on top of it, unlike A4's margin:0-on-@page + p-[12mm].
-              ? 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0'
-              : 'mx-auto flex max-w-3xl flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-[12mm]'
+              ? 'mx-auto flex max-w-3xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-0 print:shadow-none'
+              : 'mx-auto flex max-w-3xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none'
       }
       style={
         format === 'roll'
