@@ -45,8 +45,17 @@ const CONTINUOUS_CONTENT_HEIGHT_CM = 11 * 2.54 - 1.2
 const HALF_PAGE_WIDTH_MM = 210
 const HALF_PAGE_HEIGHT_MM = 148
 const HALF_PAGE_MARGIN_MM = 6
-/** Available content height per printed page, after the @page margin on both edges — the divisor for estimating how many physical pages the table will span (see the halfPageCount effect below). */
-const HALF_CONTENT_HEIGHT_MM = HALF_PAGE_HEIGHT_MM - HALF_PAGE_MARGIN_MM * 2
+/**
+ * Safety margin subtracted from the page's theoretical usable height before it's used to stretch
+ * content (flex-1 below) or estimate page count. The raw 136mm (148 - 2*6) is an exact printed-area
+ * number with zero slack for browser rounding (mm->px conversion, line-height, border widths) —
+ * filling flex-1 all the way to 136mm reliably tipped even a single-item invoice onto a phantom
+ * second page, throwing the footer/signature block with it. 4mm buffer fixes that without a
+ * visible gap.
+ */
+const HALF_PAGE_SAFETY_MARGIN_MM = 4
+/** Available content height per printed page, after the @page margin on both edges and the safety margin above — the divisor for estimating how many physical pages the table will span (see the halfPageCount effect below). */
+const HALF_CONTENT_HEIGHT_MM = HALF_PAGE_HEIGHT_MM - HALF_PAGE_MARGIN_MM * 2 - HALF_PAGE_SAFETY_MARGIN_MM
 
 /** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
 function formatNum(value: number | string, decimals: number): string {
@@ -243,13 +252,16 @@ export function InvoicePrintPage() {
           @page's own margin (Continuous/Half, see PRINT_PAPER_PAGE_CSS — kept as a single source
           of truth rather than a second hardcoded copy here). */}
       <style>
-        {format === 'roll'
+        {(format === 'roll'
           ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
           : isHalf
             ? PRINT_PAPER_PAGE_CSS.half
             : isContinuous
               ? PRINT_PAPER_PAGE_CSS.continuous
-              : '@page { size: A4; margin: 0; }'}
+              : '@page { size: A4; margin: 0; }') +
+          /* Without this, Chrome drops background/border colors that rely on print-color-adjust
+             defaults, thinning out table borders and the totals box on some printers/PDF drivers. */
+          ' @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'}
       </style>
 
       <div className="flex items-start justify-between print:hidden">
@@ -306,13 +318,17 @@ export function InvoicePrintPage() {
             <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} />
             <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} />
             <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} />
-            <MetaRow label="Page No" value={isHalf ? `1 of ${halfPageCount}` : '1 of 1'} />
+            {/* Only shown once the invoice genuinely spans more than one physical page — a bare
+                "1 of 1" is print-shop cruft the legacy system's own output never carried. */}
+            {(!isHalf || halfPageCount > 1) && (
+              <MetaRow label="Page No" value={isHalf ? `1 of ${halfPageCount}` : '1 of 1'} />
+            )}
             <MetaRow label="Location" value={location} />
           </div>
         </div>
 
         <table className="w-full border-collapse text-left">
-          <thead>
+          <thead style={{ display: 'table-header-group' }}>
             <tr className="border-b border-black">
               <th className="py-1 pr-2 font-normal">No</th>
               <th className="py-1 pr-2 font-normal">ItemCode</th>
@@ -349,6 +365,9 @@ export function InvoicePrintPage() {
 
         <div className="flex-1" />
 
+        {/* One break-inside-avoid unit — E.&O.E/BCA account, totals box, and signature lines must
+            land on the same physical page together, never split across a page break. */}
+        <div className={isContinuous || isHalf ? 'break-inside-avoid' : undefined}>
         <p>RP</p>
         <hr className="mt-2 border-black" />
 
@@ -406,6 +425,7 @@ export function InvoicePrintPage() {
             <p className="font-semibold">{companyName}</p>
             <div className="mt-10 border-t border-black pt-1">({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
+        </div>
         </div>
       </div>
       )}
