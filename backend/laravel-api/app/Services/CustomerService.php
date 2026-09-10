@@ -15,15 +15,13 @@ class CustomerService
     ) {}
 
     /**
-     * Default raised from the app-wide 15 — same reasoning as
-     * ChartOfAccountService::list(): this feeds dropdown lookups
-     * (fetchCustomersLookup() in lookupApi.ts) that only ever read page 1,
-     * so a customer past position 15 would otherwise silently disappear
-     * from every Customer picker.
+     * `search` (customer_code or customer_name) backs SearchableSelect's async mode
+     * (searchCustomersLookup in lookupsApi.ts) — callers that omit it get the
+     * unfiltered first `perPage` rows, unchanged from before.
      */
-    public function list(int $perPage = 200): LengthAwarePaginator
+    public function list(int $perPage = 200, ?string $search = null): LengthAwarePaginator
     {
-        return $this->customerRepository->paginate($perPage);
+        return $this->customerRepository->paginate($perPage, $search);
     }
 
     public function create(array $data): Customer

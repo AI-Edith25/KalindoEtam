@@ -10,6 +10,7 @@ use App\Http\Resources\SupplierResource;
 use App\Models\Supplier;
 use App\Services\SupplierService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class SupplierController extends Controller
 {
@@ -17,9 +18,12 @@ class SupplierController extends Controller
 
     public function __construct(protected SupplierService $supplierService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(SupplierResource::collection($this->supplierService->list()));
+        return $this->success(SupplierResource::collection($this->supplierService->list(
+            (int) ($request->query('per_page') ?? 200),
+            $request->query('search'),
+        )));
     }
 
     public function store(StoreSupplierRequest $request): JsonResponse

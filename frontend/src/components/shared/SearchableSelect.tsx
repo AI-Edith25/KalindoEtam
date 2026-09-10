@@ -5,23 +5,25 @@ import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
-export interface SearchableSelectOption {
+export interface SearchableSelectOption<T = unknown> {
   value: string
   label: string
+  /** Async mode: the full source record, so callers can read fields beyond value/label (e.g. an Item's standard_rate) without a second lookup. */
+  data?: T
 }
 
-interface SearchableSelectProps {
+interface SearchableSelectProps<T = unknown> {
   /** Sync mode: full option list already fetched — filtered client-side as you type. */
-  options?: SearchableSelectOption[]
+  options?: SearchableSelectOption<T>[]
   /**
    * Async mode: called (debounced ~250ms) with the current query as the user types, for
    * datasets too large to load upfront (e.g. Item, Customer). Mutually exclusive with `options`.
    */
-  loadOptions?: (query: string) => Promise<SearchableSelectOption[]>
+  loadOptions?: (query: string) => Promise<SearchableSelectOption<T>[]>
   /** Async mode only: the currently selected option, so edit mode shows its label without a search round-trip. */
-  selectedOption?: SearchableSelectOption
+  selectedOption?: SearchableSelectOption<T>
   value?: string
-  onChange: (value: string | undefined, option?: SearchableSelectOption) => void
+  onChange: (value: string | undefined, option?: SearchableSelectOption<T>) => void
   placeholder?: string
   loading?: boolean
   disabled?: boolean
@@ -37,7 +39,7 @@ interface SearchableSelectProps {
  * outgrow a single page (Item, Customer, ...). Built on DropdownMenu + a plain Input rather
  * than Popover/Command (neither is installed in this project) to avoid a new dependency.
  */
-export function SearchableSelect({
+export function SearchableSelect<T = unknown>({
   options,
   loadOptions,
   selectedOption,
@@ -49,11 +51,11 @@ export function SearchableSelect({
   clearable = true,
   className,
   ...rest
-}: SearchableSelectProps) {
+}: SearchableSelectProps<T>) {
   const isAsync = !!loadOptions
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [asyncOptions, setAsyncOptions] = useState<SearchableSelectOption[]>([])
+  const [asyncOptions, setAsyncOptions] = useState<SearchableSelectOption<T>[]>([])
   const [searching, setSearching] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const requestId = useRef(0)
@@ -89,7 +91,7 @@ export function SearchableSelect({
     ? (selectedOption && selectedOption.value === value ? selectedOption : asyncOptions.find((o) => o.value === value))
     : options?.find((o) => o.value === value)
 
-  const selectOption = (option: SearchableSelectOption) => {
+  const selectOption = (option: SearchableSelectOption<T>) => {
     onChange(option.value, option)
     setOpen(false)
   }

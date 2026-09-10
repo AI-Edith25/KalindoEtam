@@ -15,15 +15,13 @@ class SupplierService
     ) {}
 
     /**
-     * Default raised from the app-wide 15 — same reasoning as
-     * ChartOfAccountService::list(): this feeds dropdown lookups
-     * (fetchSuppliersLookup() in lookupApi.ts) that only ever read page 1,
-     * so a supplier past position 15 would otherwise silently disappear
-     * from every Supplier picker.
+     * `search` (supplier_code or supplier_name) backs SearchableSelect's async mode
+     * (searchSuppliersLookup in lookupsApi.ts) — callers that omit it get the
+     * unfiltered first `perPage` rows, unchanged from before.
      */
-    public function list(int $perPage = 200): LengthAwarePaginator
+    public function list(int $perPage = 200, ?string $search = null): LengthAwarePaginator
     {
-        return $this->supplierRepository->paginate($perPage);
+        return $this->supplierRepository->paginate($perPage, $search);
     }
 
     public function create(array $data): Supplier

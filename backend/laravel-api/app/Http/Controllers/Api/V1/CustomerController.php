@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Services\CustomerCreditService;
 use App\Services\CustomerService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CustomerController extends Controller
 {
@@ -21,9 +22,12 @@ class CustomerController extends Controller
         protected CustomerCreditService $customerCreditService,
     ) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(CustomerResource::collection($this->customerService->list()));
+        return $this->success(CustomerResource::collection($this->customerService->list(
+            (int) ($request->query('per_page') ?? 200),
+            $request->query('search'),
+        )));
     }
 
     public function store(StoreCustomerRequest $request): JsonResponse
