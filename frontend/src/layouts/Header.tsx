@@ -35,7 +35,7 @@ export function Header() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
 
   useEffect(() => {
-    document.title = branding?.name ?? 'ERP'
+    document.title = branding?.name ?? 'PT Kalindo Etam'
   }, [branding?.name])
 
   const handleLogout = async () => {
