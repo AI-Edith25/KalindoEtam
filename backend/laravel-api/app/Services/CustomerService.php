@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\DocumentNumberGeneratorInterface;
 use App\Models\Customer;
 use App\Repositories\CustomerRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -12,7 +13,14 @@ class CustomerService
     public function __construct(
         protected CustomerRepository $customerRepository,
         protected AuditLogService $auditLogService,
+        protected DocumentNumberGeneratorInterface $documentNumberGenerator,
     ) {}
+
+    /** Preview only — see DocumentNumberGeneratorInterface::peek(). The authoritative code is generated fresh in create(). */
+    public function peekNextCode(): string
+    {
+        return $this->documentNumberGenerator->peek('customer');
+    }
 
     /**
      * `search` (customer_code or customer_name) backs SearchableSelect's async mode
@@ -27,6 +35,8 @@ class CustomerService
     public function create(array $data): Customer
     {
         return DB::transaction(function () use ($data) {
+            // Authoritative — always server-generated, regardless of whether the request carried a customer_code (StoreCustomerRequest prohibits it, but this override is the real guarantee).
+            $data['customer_code'] = $this->documentNumberGenerator->generate('customer');
             $customer = $this->customerRepository->create($data);
             $this->auditLogService->record('created', 'customer', "Created customer \"{$customer->customer_name}\".");
 

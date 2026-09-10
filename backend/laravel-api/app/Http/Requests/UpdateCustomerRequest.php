@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateCustomerRequest extends FormRequest
 {
@@ -15,7 +14,8 @@ class UpdateCustomerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('customers', 'customer_code')->ignore($this->route('customer'))],
+            // Immutable once assigned — see StoreCustomerRequest.
+            'customer_code' => ['prohibited'],
             'customer_name' => ['sometimes', 'required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'telephone' => ['nullable', 'string', 'max:50'],

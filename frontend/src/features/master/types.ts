@@ -213,8 +213,8 @@ export interface Customer {
   updated_at: string
 }
 
+/** customer_code is excluded — server-generated (CustomerService::create), never part of the create/update payload. */
 export interface CustomerFormValues {
-  customer_code: string
   customer_name: string
   phone: string | null
   telephone: string | null

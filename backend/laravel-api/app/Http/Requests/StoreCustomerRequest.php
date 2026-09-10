@@ -14,7 +14,8 @@ class StoreCustomerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_code' => ['required', 'string', 'max:255', 'unique:customers,customer_code'],
+            // Server-generated (CustomerService::create -> DocumentNumberGeneratorInterface) — a client-supplied value is rejected, never honored.
+            'customer_code' => ['prohibited'],
             'customer_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'telephone' => ['nullable', 'string', 'max:50'],

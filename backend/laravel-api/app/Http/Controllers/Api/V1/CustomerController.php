@@ -22,6 +22,12 @@ class CustomerController extends Controller
         protected CustomerCreditService $customerCreditService,
     ) {}
 
+    /** Preview of the code the New Customer form will get on save — see CustomerService::peekNextCode(). */
+    public function nextCode(): JsonResponse
+    {
+        return $this->success(['customer_code' => $this->customerService->peekNextCode()]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         return $this->success(CustomerResource::collection($this->customerService->list(

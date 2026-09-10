@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\DocumentNumberGeneratorInterface;
 use App\Exceptions\BusinessException;
+use App\Models\NamingSeries;
 use App\Repositories\NamingSeriesRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,18 +19,39 @@ class DocumentNumberGeneratorService implements DocumentNumberGeneratorInterface
             $series = $this->namingSeriesRepository->lockDefaultForType($documentType);
 
             if ($series === null) {
-                $label = Str::headline($documentType);
-
-                throw new BusinessException("No active Naming Series is configured for \"{$label}\". Set one up under Administration > Naming Series before creating this document.");
+                throw $this->unconfigured($documentType);
             }
 
             $nextNumber = $series->current_number + 1;
             $series->update(['current_number' => $nextNumber]);
 
-            return $this->interpolate($series->prefix)
-                .str_pad((string) $nextNumber, $series->digit_length, '0', STR_PAD_LEFT)
-                .$this->interpolate($series->suffix);
+            return $this->format($series, $nextNumber);
         });
+    }
+
+    public function peek(string $documentType): string
+    {
+        $series = $this->namingSeriesRepository->findDefaultForType($documentType);
+
+        if ($series === null) {
+            throw $this->unconfigured($documentType);
+        }
+
+        return $this->format($series, $series->current_number + 1);
+    }
+
+    protected function unconfigured(string $documentType): BusinessException
+    {
+        $label = Str::headline($documentType);
+
+        return new BusinessException("No active Naming Series is configured for \"{$label}\". Set one up under Administration > Naming Series before creating this document.");
+    }
+
+    protected function format(NamingSeries $series, int $number): string
+    {
+        return $this->interpolate($series->prefix)
+            .str_pad((string) $number, $series->digit_length, '0', STR_PAD_LEFT)
+            .$this->interpolate($series->suffix);
     }
 
     /**

@@ -21,4 +21,14 @@ class NamingSeriesRepository extends BaseRepository
             ->lockForUpdate()
             ->first();
     }
+
+    /** Same lookup as lockDefaultForType(), without the row lock — for read-only previews outside a mutating transaction. */
+    public function findDefaultForType(string $documentType): ?NamingSeries
+    {
+        return $this->model->query()
+            ->where('document_type', $documentType)
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->first();
+    }
 }
