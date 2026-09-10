@@ -443,7 +443,11 @@ export function InvoicePrintPage() {
           </tbody>
         </table>
 
-        {isHalf && <p className={tight ? 'mt-[2.1mm]' : 'mt-2'}>{terbilangIdr(invoice.grand_total)}</p>}
+        {/* weblama.pdf leaves ~28mm of clear air between the table and this line — the legacy
+            system's table area holds a fixed number of row slots regardless of how many are
+            filled, so terbilang always lands at the same spot. We don't reserve fixed slots, but
+            matching the same visual gap here reads the same on a mostly-empty invoice. */}
+        {isHalf && <p className="mt-[10mm]">{terbilangIdr(invoice.grand_total)}</p>}
 
         {/* A4 only — pushes the footer toward the bottom of the full A4 sheet. Half/Continuous
             dropped this: it's what stretched the box to near-full-page height before the footer
@@ -501,17 +505,18 @@ export function InvoicePrintPage() {
           </div>
         </div>
 
-        {/* 10.6mm (A4's pt-10/mt-10) was sized for a 297mm page with room to spare — on a 148mm
-            Half sheet that alone was ~22mm of the ~53mm the footer needed, most of the reason it
-            never fit. 5mm still leaves a real gap to sign in, just not a full A4-sized one. */}
-        <div className={tight ? 'grid grid-cols-2 gap-[8.5mm] pt-[5mm]' : 'grid grid-cols-2 gap-8 pt-10'}>
+        {/* weblama.pdf leaves ~26mm of clear air between the printed name and the signature
+            line itself — real space to physically sign, not just a token gap. The Half restructure
+            above freed up enough room to restore most of that (9mm here, some already spent on
+            the grid's own pt/mt split above and below the name). */}
+        <div className={tight ? 'grid grid-cols-2 gap-[8.5mm] pt-[9mm]' : 'grid grid-cols-2 gap-8 pt-10'}>
           <div className="text-center">
             <p className="font-semibold">{invoice.customer?.customer_name ?? '—'}</p>
-            <div className={tight ? 'mt-[5mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'})</div>
+            <div className={tight ? 'mt-[9mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
           <div className="text-center">
             <p className="font-semibold">{companyName}</p>
-            <div className={tight ? 'mt-[5mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
+            <div className={tight ? 'mt-[9mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
         </div>
         </div>
