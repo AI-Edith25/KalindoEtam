@@ -52,9 +52,11 @@ export function OutgoingPaymentEditorPage() {
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
   const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code} — ${supplier.supplier_name}` })) ?? []
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
-  const expenseAccountOptions = chartOfAccounts.data?.filter((account) => account.account_type === 'expense') ?? []
-  const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank) ?? []
+  const expenseAccountOptions =
+    chartOfAccounts.data?.filter((account) => account.account_type === 'expense').map((account) => ({ value: account.id, label: account.name })) ?? []
+  const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
+  const branchOptions = branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []
 
   const form = useForm<PaymentEntryEditorValues>({
     resolver: zodResolver(paymentEntryFormSchema),
@@ -296,20 +298,14 @@ export function OutgoingPaymentEditorPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Category</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={chartOfAccounts.isLoading ? 'Loading…' : 'Select category'} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {expenseAccountOptions.map((account) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchableSelect
+                          options={expenseAccountOptions}
+                          value={field.value}
+                          onChange={(value) => field.onChange(value ?? '')}
+                          loading={chartOfAccounts.isLoading}
+                          placeholder="Select category"
+                          aria-label="Category"
+                        />
                         <FormMessage />
                       </FormItem>
                     )}
@@ -349,20 +345,15 @@ export function OutgoingPaymentEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Payment Method</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={chartOfAccounts.isLoading ? 'Loading…' : 'Select cash/bank account'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {cashAccountOptions.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={cashAccountOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={chartOfAccounts.isLoading}
+                      clearable={false}
+                      placeholder="Select cash/bank account"
+                      aria-label="Payment Method"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -373,20 +364,14 @@ export function OutgoingPaymentEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Branch</FormLabel>
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Optional'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {branches.data?.map((branch) => (
-                          <SelectItem key={branch.id} value={branch.id}>
-                            {branch.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={branchOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={branches.isLoading}
+                      placeholder="Optional"
+                      aria-label="Branch"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

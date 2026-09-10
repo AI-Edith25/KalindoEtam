@@ -12,10 +12,12 @@ import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchBranches, fetchChartOfAccountsLookup, fetchCustomersLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchChartOfAccountsLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
+import type { Customer } from '@/features/master/types'
 import { createReceiptEntry, fetchReceiptEntry, submitReceiptEntry, updateReceiptEntry } from '../api/receiptEntryApi'
 import { PAYMENT_METHOD_OPTIONS } from '../lib/paymentMethodLabels'
 import { ReceiptEntryAttachments } from '../components/ReceiptEntryAttachments'
@@ -50,10 +52,10 @@ export function IncomingPaymentEditorPage() {
     enabled: isEdit,
   })
 
-  const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
-  const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank) ?? []
+  const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
+  const branchOptions = branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []
 
   const form = useForm<ReceiptEntryEditorValues>({
     resolver: zodResolver(receiptEntryFormSchema),
@@ -62,6 +64,18 @@ export function IncomingPaymentEditorPage() {
 
   const customerId = form.watch('customer_id')
   const watchedPaymentMethod = form.watch('payment_method')
+
+  // Async SearchableSelect doesn't preload the full Customer master, so a plain id can't
+  // display a label on its own — this holds the picked option's label for a fresh pick.
+  // In edit mode, the receipt's nested `customer` (from receiptQuery.data) covers it instead.
+  const [selectedCustomerOption, setSelectedCustomerOption] = useState<SearchableSelectOption<Customer> | undefined>(undefined)
+  const loadCustomerOptions = async (query: string) => {
+    const customers = await searchCustomersLookup(query)
+    return customers.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}`, data: customer }))
+  }
+  const customerSelectedOption: SearchableSelectOption<Customer> | undefined = receiptQuery.data?.customer
+    ? { value: receiptQuery.data.customer.id, label: receiptQuery.data.customer.customer_name, data: receiptQuery.data.customer }
+    : selectedCustomerOption
 
   // Sprint 1 (Invoice Allocation): accounts_receivable_id -> user-entered "To
   // Allocate" amount. Checked and "has an entry in this map" are the same
@@ -222,30 +236,23 @@ export function IncomingPaymentEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Customer</FormLabel>
-                    <Select
+                    <SearchableSelect
+                      loadOptions={loadCustomerOptions}
+                      selectedOption={customerSelectedOption}
                       value={field.value}
-                      onValueChange={(value) => {
-                        field.onChange(value)
+                      onChange={(value, option) => {
+                        field.onChange(value ?? '')
+                        setSelectedCustomerOption(option)
                         // A customer switch invalidates any invoice selection made for the
                         // previous one. Scoped to this handler (not a customerId-watching
                         // effect) so it never fires from form.reset() restoring an existing
                         // draft's customer_id/total_amount on edit-mode load.
                         commitAllocations(new Map())
                       }}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={customers.isLoading ? 'Loading…' : 'Select customer'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {customers.data?.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.customer_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      clearable={false}
+                      placeholder="Select customer"
+                      aria-label="Customer"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -287,20 +294,15 @@ export function IncomingPaymentEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Cash/Bank Account</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={chartOfAccounts.isLoading ? 'Loading…' : 'Select cash/bank account'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {cashAccountOptions.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={cashAccountOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={chartOfAccounts.isLoading}
+                      clearable={false}
+                      placeholder="Select cash/bank account"
+                      aria-label="Cash/Bank Account"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -365,20 +367,14 @@ export function IncomingPaymentEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Branch</FormLabel>
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Optional'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {branches.data?.map((branch) => (
-                          <SelectItem key={branch.id} value={branch.id}>
-                            {branch.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={branchOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={branches.isLoading}
+                      placeholder="Optional"
+                      aria-label="Branch"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
