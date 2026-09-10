@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { fetchBranches } from '@/features/master/api/lookupsApi'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -60,18 +60,15 @@ export function BranchEditDialog({ invoice }: BranchEditDialogProps) {
             <DialogTitle>Edit Branch</DialogTitle>
             <DialogDescription>Corrects which Branch this Invoice belongs to — reporting metadata only, no effect on amounts or the ledger.</DialogDescription>
           </DialogHeader>
-          <Select value={branchId} onValueChange={setBranchId}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={branchesQuery.isLoading ? 'Loading…' : 'Select branch'} />
-            </SelectTrigger>
-            <SelectContent>
-              {branchesQuery.data?.map((branch) => (
-                <SelectItem key={branch.id} value={branch.id}>
-                  {branch.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            options={branchesQuery.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []}
+            value={branchId}
+            onChange={(value) => setBranchId(value ?? '')}
+            loading={branchesQuery.isLoading}
+            clearable={false}
+            placeholder="Select branch"
+            aria-label="Branch"
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel

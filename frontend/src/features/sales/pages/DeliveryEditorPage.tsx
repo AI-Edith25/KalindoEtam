@@ -10,11 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeGrandTotal, computeSubtotal, lineTaxAmount } from '@/shared/lib/documentTotals'
@@ -26,8 +26,6 @@ import { fetchSalesOrder, fetchSalesOrders } from '../api/salesOrderApi'
 import type { Delivery, SalesOrder } from '../types'
 import { DeliveryLineItemTable } from '../components/DeliveryLineItemTable'
 import { deliveryFormSchema, type DeliveryEditorValues } from '../lib/deliveryFormSchema'
-
-const NONE = '__none__'
 
 export function DeliveryEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -89,26 +87,15 @@ export function DeliveryEditorPage() {
             <CardTitle>Select Sales Order</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <Select value="" onValueChange={setSelectedSalesOrderId} disabled={eligibleOrdersQuery.isLoading}>
-              <SelectTrigger className="w-full sm:w-96">
-                <SelectValue
-                  placeholder={
-                    eligibleOrdersQuery.isLoading
-                      ? 'Loading…'
-                      : eligibleOrders.length === 0
-                        ? 'No sales orders with outstanding items'
-                        : 'Select sales order'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {eligibleOrders.map((so) => (
-                  <SelectItem key={so.id} value={so.id}>
-                    {so.document_number} — {so.customer?.customer_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              className="w-full sm:w-96"
+              options={eligibleOrders.map((so) => ({ value: so.id, label: `${so.document_number} — ${so.customer?.customer_name ?? ''}` }))}
+              value=""
+              onChange={(value) => setSelectedSalesOrderId(value ?? null)}
+              loading={eligibleOrdersQuery.isLoading}
+              placeholder={eligibleOrders.length === 0 ? 'No sales orders with outstanding items' : 'Select sales order'}
+              aria-label="Sales Order"
+            />
             <p className="text-sm text-muted-foreground">
               Only approved sales orders with outstanding (not yet fully delivered) items are shown.
             </p>
@@ -175,7 +162,9 @@ function DeliveryForm({
   queryClient: QueryClient
 }) {
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+  const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
 
   const existingQtyBySoItemId = useMemo(
     () => new Map((delivery?.items ?? []).map((line) => [line.sales_order_item_id, line.qty])),
@@ -348,20 +337,15 @@ function DeliveryForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Warehouse</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {warehouses.data?.map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={warehouseOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      clearable={false}
+                      placeholder="Select warehouse"
+                      aria-label="Warehouse"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -372,21 +356,14 @@ function DeliveryForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Terms of Payment</FormLabel>
-                    <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={termsOfPayment.isLoading ? 'Loading…' : 'None'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NONE}>None</SelectItem>
-                        {termsOfPayment.data?.map((top) => (
-                          <SelectItem key={top.id} value={top.id}>
-                            {top.name} ({top.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={termsOfPaymentOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={termsOfPayment.isLoading}
+                      placeholder="None"
+                      aria-label="Terms of Payment"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

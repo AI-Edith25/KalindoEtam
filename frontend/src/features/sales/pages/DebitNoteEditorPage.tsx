@@ -12,6 +12,7 @@ import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Separator } from '@/components/ui/separator'
@@ -209,20 +210,18 @@ export function DebitNoteEditorPage() {
             <CardTitle>Select Invoice</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <Select value="" onValueChange={setSelectedInvoiceId} disabled={eligibleInvoicesQuery.isLoading}>
-              <SelectTrigger className="w-full sm:w-96">
-                <SelectValue
-                  placeholder={eligibleInvoicesQuery.isLoading ? 'Loading…' : eligibleInvoices.length === 0 ? 'No submitted invoices' : 'Select invoice'}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {eligibleInvoices.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.document_number} — {row.customer?.customer_name} · Grand Total: {formatCurrency(row.grand_total)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              className="w-full sm:w-96"
+              options={eligibleInvoices.map((row) => ({
+                value: row.id,
+                label: `${row.document_number} — ${row.customer?.customer_name} · Grand Total: ${formatCurrency(row.grand_total)}`,
+              }))}
+              value=""
+              onChange={(value) => setSelectedInvoiceId(value ?? null)}
+              loading={eligibleInvoicesQuery.isLoading}
+              placeholder={eligibleInvoices.length === 0 ? 'No submitted invoices' : 'Select invoice'}
+              aria-label="Invoice"
+            />
             <p className="text-sm text-muted-foreground">Any submitted invoice is eligible — a Debit Note has no remaining-balance ceiling.</p>
             <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/sales/debit-notes')}>
               Cancel

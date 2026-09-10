@@ -20,11 +20,13 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { fetchBranches, fetchCustomersLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { computeSubtotal, lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
+import type { Customer } from '@/features/master/types'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
@@ -33,8 +35,6 @@ import { discountLabel } from '../lib/discount'
 import type { Delivery, Invoice, InvoiceFormValues, InvoiceType } from '../types'
 
 const NO_TAX = '__none__'
-const NO_TOP = '__none__'
-const NO_SALES_PERSON = '__none__'
 
 interface PreviewLine {
   id: string
@@ -304,12 +304,19 @@ function InvoiceForm({
   const isTransportation = (isEdit ? invoice?.invoice_type : selectedInvoiceType) === 'transportation'
 
   // Transportation only — picked directly here instead of being derived from a Delivery.
-  const customersQuery = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup, enabled: !isEdit && isTransportation })
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  // Holds the picked option's label (async SearchableSelect doesn't preload the full Customer
+  // master, so a plain id can't display a label on its own).
+  const [selectedCustomerOption, setSelectedCustomerOption] = useState<SearchableSelectOption<Customer> | undefined>(undefined)
+  const loadCustomerOptions = async (query: string) => {
+    const customers = await searchCustomersLookup(query)
+    return customers.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}`, data: customer }))
+  }
   // Transportation only — no Sales Order to derive Branch from, so it's captured directly here
   // at create time. Read-only thereafter; corrections go through the Invoice Detail page's own
   // "Edit Branch" dialog (works regardless of Draft/Submitted status), not this create-only field.
   const branchesQuery = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches, enabled: !isEdit && isTransportation })
+  const branchOptions = branchesQuery.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []
   const [selectedBranchId, setSelectedBranchId] = useState('')
 
   // New Transportation invoice only — default to the head-office branch, same convention as
@@ -329,7 +336,9 @@ function InvoiceForm({
 
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+  const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
   const salesPersonsQuery = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
+  const salesPersonOptions = salesPersonsQuery.data?.map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name })) ?? []
   // Only Active taxes may be selected for a new/changed assignment (docs/TAX_ENGINE_DESIGN.md §9)
   // — but an invoice already referencing a since-deactivated tax must keep showing it correctly.
   const existingTax = isEdit ? invoice?.tax : null
@@ -517,7 +526,7 @@ function InvoiceForm({
   const customerName = isEdit
     ? invoice?.customer?.customer_name
     : isTransportation
-      ? customersQuery.data?.find((customer) => customer.id === selectedCustomerId)?.customer_name
+      ? selectedCustomerOption?.data?.customer_name
       : selectedDeliveries[0]?.customer?.customer_name
   const invoiceType = isEdit ? invoice?.invoice_type : selectedInvoiceType
 
@@ -542,18 +551,18 @@ function InvoiceForm({
                   {isEdit ? (
                     <span className="text-sm font-medium">{customerName ?? '—'}</span>
                   ) : (
-                    <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                      <SelectTrigger className="w-full sm:w-96">
-                        <SelectValue placeholder={customersQuery.isLoading ? 'Loading…' : 'Select customer'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customersQuery.data?.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.customer_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      className="w-full sm:w-96"
+                      loadOptions={loadCustomerOptions}
+                      selectedOption={selectedCustomerOption}
+                      value={selectedCustomerId}
+                      onChange={(value, option) => {
+                        setSelectedCustomerId(value ?? '')
+                        setSelectedCustomerOption(option)
+                      }}
+                      placeholder="Select customer"
+                      aria-label="Customer"
+                    />
                   )}
                 </div>
               ) : (
@@ -570,18 +579,15 @@ function InvoiceForm({
                   {isEdit ? (
                     <span className="text-sm font-medium">{invoice?.branch?.name ?? '—'}</span>
                   ) : (
-                    <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={branchesQuery.isLoading ? 'Loading…' : 'Select branch'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {branchesQuery.data?.map((branch) => (
-                          <SelectItem key={branch.id} value={branch.id}>
-                            {branch.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={branchOptions}
+                      value={selectedBranchId}
+                      onChange={(value) => setSelectedBranchId(value ?? '')}
+                      loading={branchesQuery.isLoading}
+                      clearable={false}
+                      placeholder="Select branch"
+                      aria-label="Branch"
+                    />
                   )}
                 </div>
               )}
@@ -625,21 +631,14 @@ function InvoiceForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Terms of Payment</FormLabel>
-                    <Select value={field.value || NO_TOP} onValueChange={(value) => field.onChange(value === NO_TOP ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={termsOfPayment.isLoading ? 'Loading…' : 'None'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_TOP}>None</SelectItem>
-                        {termsOfPayment.data?.map((top) => (
-                          <SelectItem key={top.id} value={top.id}>
-                            {top.name} ({top.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={termsOfPaymentOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={termsOfPayment.isLoading}
+                      placeholder="None"
+                      aria-label="Terms of Payment"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -650,21 +649,14 @@ function InvoiceForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sales Person</FormLabel>
-                    <Select value={field.value || NO_SALES_PERSON} onValueChange={(value) => field.onChange(value === NO_SALES_PERSON ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={salesPersonsQuery.isLoading ? 'Loading…' : 'None'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_SALES_PERSON}>None</SelectItem>
-                        {salesPersonsQuery.data?.map((salesPerson) => (
-                          <SelectItem key={salesPerson.id} value={salesPerson.id}>
-                            {salesPerson.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={salesPersonOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={salesPersonsQuery.isLoading}
+                      placeholder="None"
+                      aria-label="Sales Person"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

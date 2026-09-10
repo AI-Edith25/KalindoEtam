@@ -13,6 +13,7 @@ import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Separator } from '@/components/ui/separator'
@@ -204,26 +205,18 @@ export function CreditNoteEditorPage() {
             <CardTitle>Select Invoice</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <Select value="" onValueChange={setSelectedInvoiceId} disabled={eligibleInvoicesQuery.isLoading}>
-              <SelectTrigger className="w-full sm:w-96">
-                <SelectValue
-                  placeholder={
-                    eligibleInvoicesQuery.isLoading
-                      ? 'Loading…'
-                      : eligibleInvoices.length === 0
-                        ? 'No invoices with a creditable balance'
-                        : 'Select invoice'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {eligibleInvoices.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.document_number} — {row.customer?.customer_name} · Creditable: {formatCurrency(row.creditable_amount)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              className="w-full sm:w-96"
+              options={eligibleInvoices.map((row) => ({
+                value: row.id,
+                label: `${row.document_number} — ${row.customer?.customer_name} · Creditable: ${formatCurrency(row.creditable_amount)}`,
+              }))}
+              value=""
+              onChange={(value) => setSelectedInvoiceId(value ?? null)}
+              loading={eligibleInvoicesQuery.isLoading}
+              placeholder={eligibleInvoices.length === 0 ? 'No invoices with a creditable balance' : 'Select invoice'}
+              aria-label="Invoice"
+            />
             <p className="text-sm text-muted-foreground">Only submitted invoices with a remaining creditable balance are shown.</p>
             <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/sales/credit-notes')}>
               Cancel
