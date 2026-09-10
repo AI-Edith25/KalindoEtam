@@ -175,6 +175,7 @@ export function GoodsReceiptEditorPage() {
         item_id: line.item_id,
         item_code: line.item_code,
         item_name: line.item_name,
+        item_uom: line.uom,
         qtyCategory: line.qty_category,
         qty: String(line.qty),
         rate: String(line.rate),

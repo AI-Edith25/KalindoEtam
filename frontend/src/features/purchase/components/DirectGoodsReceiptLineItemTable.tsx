@@ -46,6 +46,7 @@ export function DirectGoodsReceiptLineItemTable({ form, disabled }: DirectGoodsR
     const selected = option?.data
     setValue(`items.${index}.item_code`, selected?.item_code ?? '')
     setValue(`items.${index}.item_name`, selected?.item_name ?? '')
+    setValue(`items.${index}.item_uom`, selected?.uom ? `${selected.uom.name}${selected.uom.symbol ? ` (${selected.uom.symbol})` : ''}` : '')
     if (selected) {
       setValue(`items.${index}.rate`, String(selected.standard_rate), { shouldValidate: true })
       setValue(`items.${index}.qtyCategory`, selected.qty_category, { shouldValidate: true })
@@ -77,6 +78,7 @@ export function DirectGoodsReceiptLineItemTable({ form, disabled }: DirectGoodsR
                 const row = watchedItems?.[index]
                 const qtyCategory = row?.qtyCategory ?? 'unit'
                 const decimalPlaces = qtyDecimalPlaces(qtyCategory)
+                const uom = row?.item_uom || null
                 const selectedOption: SearchableSelectOption<Item> | undefined =
                   row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
 
@@ -108,13 +110,16 @@ export function DirectGoodsReceiptLineItemTable({ form, disabled }: DirectGoodsR
                       name={`items.${index}.qty`}
                       render={({ field: qtyField }) => (
                         <FormItem className="gap-0">
-                          <Input
-                            type="number"
-                            min={decimalPlaces > 0 ? 0.01 : 1}
-                            step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
-                            disabled={disabled}
-                            {...qtyField}
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              type="number"
+                              min={decimalPlaces > 0 ? 0.01 : 1}
+                              step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                              disabled={disabled}
+                              {...qtyField}
+                            />
+                            {uom && <span className="text-xs text-muted-foreground">{uom}</span>}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}

@@ -46,6 +46,7 @@ export const directGoodsReceiptLineRowSchema = z
     item_id: z.string().min(1, 'Item is required'),
     item_code: z.string().optional().or(z.literal('')),
     item_name: z.string().optional().or(z.literal('')),
+    item_uom: z.string().optional().or(z.literal('')),
     qtyCategory: z.enum(['unit', 'weight']),
     qty: z.string().min(1, 'Qty is required'),
     rate: z
