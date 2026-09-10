@@ -1,14 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
-import { fetchItemGroups, fetchItemsLookup } from '@/features/master/api/lookupsApi'
+import { fetchItem } from '@/features/master/api/itemApi'
+import { fetchItemGroups, searchItemsLookup } from '@/features/master/api/lookupsApi'
 import { useWarehousesLookup } from '@/features/master/hooks/useLookups'
 import { emptyStockValuationFilters, hasActiveStockValuationFilters } from '../lib/stockValuationFilters'
 import type { StockValuationFilterValues } from '../types'
 
-const ALL = '__all__'
+function itemLabel(item: { item_code: string; item_name: string }) {
+  return `${item.item_code} — ${item.item_name}`
+}
 
 interface StockValuationFiltersBarProps {
   value: StockValuationFilterValues
@@ -20,7 +22,19 @@ export function StockValuationFiltersBar({ value, onChange }: StockValuationFilt
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const itemGroups = useQuery({ queryKey: ['item-groups-lookup'], queryFn: fetchItemGroups })
   const itemGroupOptions = itemGroups.data?.map((group) => ({ value: group.id, label: group.name })) ?? []
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
+
+  const loadItemOptions = async (query: string) => {
+    const items = await searchItemsLookup(query)
+    return items.map((item) => ({ value: item.id, label: itemLabel(item) }))
+  }
+
+  // Resolves the label for an item_id arriving pre-set (cross-navigation link) — same as StockLedgerFiltersBar.
+  const selectedItemQuery = useQuery({
+    queryKey: ['item', value.item_id],
+    queryFn: () => fetchItem(value.item_id),
+    enabled: !!value.item_id,
+  })
+  const selectedItemOption = selectedItemQuery.data ? { value: selectedItemQuery.data.id, label: itemLabel(selectedItemQuery.data) } : undefined
 
   return (
     <FilterPanel onClear={() => onChange(emptyStockValuationFilters)} hasActiveFilters={hasActiveStockValuationFilters(value)}>
@@ -58,19 +72,15 @@ export function StockValuationFiltersBar({ value, onChange }: StockValuationFilt
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Item</span>
-        <Select value={value.item_id || ALL} onValueChange={(next) => onChange({ ...value, item_id: next === ALL ? '' : next })}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={items.isLoading ? 'Loading…' : 'All items'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All items</SelectItem>
-            {items.data?.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.item_code} — {item.item_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          loadOptions={loadItemOptions}
+          selectedOption={selectedItemOption}
+          value={value.item_id || undefined}
+          onChange={(next) => onChange({ ...value, item_id: next ?? '' })}
+          className="w-44"
+          placeholder="All items"
+          aria-label="Item"
+        />
       </div>
     </FilterPanel>
   )
