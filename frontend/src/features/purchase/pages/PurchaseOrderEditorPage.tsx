@@ -17,7 +17,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { parseLocaleQty } from '@/shared/lib/qty'
-import { fetchItemsLookup, fetchSuppliersLookup, fetchTaxesLookup } from '@/features/master/api/lookupsApi'
+import { fetchSuppliersLookup, fetchTaxesLookup } from '@/features/master/api/lookupsApi'
 import { createPurchaseOrder, fetchPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder } from '../api/purchaseOrderApi'
 import { PurchaseOrderLineItemTable } from '../components/PurchaseOrderLineItemTable'
 import { computeSubtotal, computeLineTaxTotal } from '@/shared/lib/documentTotals'
@@ -45,7 +45,6 @@ export function PurchaseOrderEditorPage() {
 
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
   const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code} — ${supplier.supplier_name}` })) ?? []
-  const items = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup() })
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
 
   const form = useForm<PurchaseOrderEditorValues>({
@@ -74,6 +73,9 @@ export function PurchaseOrderEditorPage() {
       remarks: order.remarks ?? '',
       items: order.items.map((line) => ({
         item_id: line.item_id,
+        item_code: line.item_code ?? '',
+        item_name: line.item_name ?? '',
+        item_uom: line.item_uom ?? '',
         qtyCategory: line.item_qty_category ?? 'unit',
         qty: String(line.qty),
         rate: String(line.rate),
@@ -225,7 +227,7 @@ export function PurchaseOrderEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <PurchaseOrderLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} taxes={activePurchaseTaxOptions} />
+              <PurchaseOrderLineItemTable form={form} taxes={activePurchaseTaxOptions} />
               {form.formState.errors.items?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
               )}

@@ -8,19 +8,22 @@ import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
-import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
 import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
+import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { PurchaseOrderEditorValues } from '../lib/purchaseOrderFormSchema'
 import type { Item, Tax } from '@/features/master/types'
 
 const NO_TAX = '__none__'
 
+function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
+  return `${item.item_code} — ${item.item_name}`
+}
+
 interface PurchaseOrderLineItemTableProps {
   form: UseFormReturn<PurchaseOrderEditorValues>
-  items: Item[]
-  itemsLoading: boolean
   taxes: Tax[]
   disabled?: boolean
 }
@@ -35,16 +38,23 @@ interface PurchaseOrderLineItemTableProps {
  * editable react-hook-form field array with a different interaction
  * model entirely).
  */
-export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, disabled }: PurchaseOrderLineItemTableProps) {
+export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOrderLineItemTableProps) {
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
-  const itemOptions = items.map((item) => ({ value: item.id, label: `${item.item_code} — ${item.item_name}` }))
 
-  const handleItemChange = (index: number, itemId: string) => {
+  const loadItemOptions = async (query: string) => {
+    const items = await searchItemsLookup(query)
+    return items.map((item) => ({ value: item.id, label: itemLabel(item), data: item }))
+  }
+
+  const handleItemChange = (index: number, itemId: string, option?: SearchableSelectOption<Item>) => {
     setValue(`items.${index}.item_id`, itemId, { shouldValidate: true })
 
-    const selected = items.find((item) => item.id === itemId)
+    const selected = option?.data
+    setValue(`items.${index}.item_code`, selected?.item_code ?? '')
+    setValue(`items.${index}.item_name`, selected?.item_name ?? '')
+    setValue(`items.${index}.item_uom`, selected?.uom ? `${selected.uom.name}${selected.uom.symbol ? ` (${selected.uom.symbol})` : ''}` : '')
     if (selected) {
       setValue(`items.${index}.rate`, String(selected.standard_rate), { shouldValidate: true })
       setValue(`items.${index}.tax_id`, selected.purchase_tax_id ?? '', { shouldValidate: true })
@@ -76,10 +86,12 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
               </TableRow>
             ) : (
               fields.map((field, index) => {
-                const selectedItem = items.find((item) => item.id === watchedItems?.[index]?.item_id)
-                const qtyCategory = watchedItems?.[index]?.qtyCategory ?? 'unit'
+                const row = watchedItems?.[index]
+                const qtyCategory = row?.qtyCategory ?? 'unit'
                 const decimalPlaces = qtyDecimalPlaces(qtyCategory)
-                const uom = selectedItem?.uom ? `${selectedItem.uom.name}${selectedItem.uom.symbol ? ` (${selectedItem.uom.symbol})` : ''}` : null
+                const uom = row?.item_uom || null
+                const selectedOption: SearchableSelectOption<Item> | undefined =
+                  row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
 
                 return (
                 <TableRow key={field.id}>
@@ -90,12 +102,13 @@ export function PurchaseOrderLineItemTable({ form, items, itemsLoading, taxes, d
                       render={({ field: itemField }) => (
                         <FormItem className="gap-0">
                           <SearchableSelect
-                            options={itemOptions}
+                            loadOptions={loadItemOptions}
+                            selectedOption={selectedOption}
                             value={itemField.value}
-                            onChange={(value) => handleItemChange(index, value ?? '')}
-                            loading={itemsLoading}
+                            onChange={(value, option) => handleItemChange(index, value ?? '', option)}
                             disabled={disabled}
                             placeholder="Select item"
+                            aria-label="Item"
                           />
                           <FormMessage />
                         </FormItem>

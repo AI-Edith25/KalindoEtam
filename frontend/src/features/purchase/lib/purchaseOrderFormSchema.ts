@@ -13,6 +13,11 @@ import { isValidQtyForCategory, qtyErrorMessage } from '@/shared/lib/qty'
 export const lineItemFormSchema = z
   .object({
     item_id: z.string().min(1, 'Item is required'),
+    // Denormalized display fields for the row's SearchableSelect — populated on pick
+    // (or from the loaded order's line for edit mode), never sent in the payload.
+    item_code: z.string().optional(),
+    item_name: z.string().optional(),
+    item_uom: z.string().optional(),
     qtyCategory: z.enum(['unit', 'weight']),
     qty: z.string().min(1, 'Qty is required'),
     rate: z
