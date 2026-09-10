@@ -9,16 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { getErrorMessage, isOverReceiptConfirmationRequired, toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { parseLocaleQty } from '@/shared/lib/qty'
-import { fetchItemsLookup, fetchSuppliersLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchSuppliersLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { fetchGoodsReceipt, createGoodsReceipt, updateGoodsReceipt, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { fetchPurchaseOrder, fetchPurchaseOrders } from '../api/purchaseOrderApi'
 import { GoodsReceiptLineItemTable } from '../components/GoodsReceiptLineItemTable'
@@ -91,8 +91,9 @@ export function GoodsReceiptEditorPage() {
   })
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup, enabled: isDirectMode })
-  const itemsLookup = useQuery({ queryKey: ['items-lookup'], queryFn: () => fetchItemsLookup(), enabled: isDirectMode })
+  const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name })) ?? []
 
   // Both forms always exist (Rules of Hooks) — only the one matching the active mode is rendered/submitted.
   const form = useForm<GoodsReceiptEditorValues>({
@@ -310,26 +311,15 @@ export function GoodsReceiptEditorPage() {
               </div>
             ) : (
               <>
-                <Select value="" onValueChange={setSelectedPurchaseOrderId} disabled={eligibleOrdersQuery.isLoading}>
-                  <SelectTrigger className="w-full sm:w-96">
-                    <SelectValue
-                      placeholder={
-                        eligibleOrdersQuery.isLoading
-                          ? 'Loading…'
-                          : eligibleOrders.length === 0
-                            ? 'No purchase orders with outstanding items'
-                            : 'Select purchase order'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eligibleOrders.map((po) => (
-                      <SelectItem key={po.id} value={po.id}>
-                        {po.document_number} — {po.supplier?.supplier_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  className="w-full sm:w-96"
+                  options={eligibleOrders.map((po) => ({ value: po.id, label: `${po.document_number} — ${po.supplier?.supplier_name}` }))}
+                  value=""
+                  onChange={(value) => setSelectedPurchaseOrderId(value ?? null)}
+                  loading={eligibleOrdersQuery.isLoading}
+                  placeholder={eligibleOrders.length === 0 ? 'No purchase orders with outstanding items' : 'Select purchase order'}
+                  aria-label="Purchase Order"
+                />
                 <p className="text-sm text-muted-foreground">
                   Only submitted purchase orders with outstanding (not yet fully received) items are shown.
                 </p>
@@ -369,20 +359,16 @@ export function GoodsReceiptEditorPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Supplier</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange} disabled={isEdit}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={suppliers.isLoading ? 'Loading…' : 'Select supplier'} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {suppliers.data?.map((supplier) => (
-                            <SelectItem key={supplier.id} value={supplier.id}>
-                              {supplier.supplier_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        options={supplierOptions}
+                        value={field.value}
+                        onChange={(value) => field.onChange(value ?? '')}
+                        loading={suppliers.isLoading}
+                        disabled={isEdit}
+                        clearable={false}
+                        placeholder="Select supplier"
+                        aria-label="Supplier"
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -393,20 +379,15 @@ export function GoodsReceiptEditorPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Warehouse</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {warehouses.data?.map((warehouse) => (
-                            <SelectItem key={warehouse.id} value={warehouse.id}>
-                              {warehouse.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        options={warehouseOptions}
+                        value={field.value}
+                        onChange={(value) => field.onChange(value ?? '')}
+                        loading={warehouses.isLoading}
+                        clearable={false}
+                        placeholder="Select warehouse"
+                        aria-label="Warehouse"
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -458,7 +439,7 @@ export function GoodsReceiptEditorPage() {
                 <CardTitle>Line Items</CardTitle>
               </CardHeader>
               <CardContent>
-                <DirectGoodsReceiptLineItemTable form={directForm} items={itemsLookup.data ?? []} itemsLoading={itemsLookup.isLoading} />
+                <DirectGoodsReceiptLineItemTable form={directForm} />
                 {directForm.formState.errors.items?.root && (
                   <p className="mt-2 text-sm text-destructive">{directForm.formState.errors.items.root.message}</p>
                 )}
@@ -543,20 +524,15 @@ export function GoodsReceiptEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Warehouse</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {warehouses.data?.map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={warehouseOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      clearable={false}
+                      placeholder="Select warehouse"
+                      aria-label="Warehouse"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

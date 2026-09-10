@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { formatQty, parseLocaleQty, qtyDecimalPlaces } from '@/shared/lib/qty'
@@ -195,26 +196,18 @@ export function PurchaseReturnEditorPage() {
             <CardTitle>Select Purchase Invoice</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <Select value="" onValueChange={setSelectedInvoiceId} disabled={eligibleInvoicesQuery.isLoading}>
-              <SelectTrigger className="w-full sm:w-96">
-                <SelectValue
-                  placeholder={
-                    eligibleInvoicesQuery.isLoading
-                      ? 'Loading…'
-                      : eligibleInvoices.length === 0
-                        ? 'No invoices with a returnable balance'
-                        : 'Select purchase invoice'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {eligibleInvoices.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.document_number} — {row.supplier?.supplier_name} · Returnable: {formatCurrency(row.returnable_amount)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              className="w-full sm:w-96"
+              options={eligibleInvoices.map((row) => ({
+                value: row.id,
+                label: `${row.document_number} — ${row.supplier?.supplier_name} · Returnable: ${formatCurrency(row.returnable_amount)}`,
+              }))}
+              value=""
+              onChange={(value) => setSelectedInvoiceId(value ?? null)}
+              loading={eligibleInvoicesQuery.isLoading}
+              placeholder={eligibleInvoices.length === 0 ? 'No invoices with a returnable balance' : 'Select purchase invoice'}
+              aria-label="Purchase Invoice"
+            />
             <p className="text-sm text-muted-foreground">Only submitted invoices with a remaining returnable balance are shown.</p>
             <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/purchase/returns')}>
               Cancel

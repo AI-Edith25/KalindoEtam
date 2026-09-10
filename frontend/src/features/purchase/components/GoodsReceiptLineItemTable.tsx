@@ -3,10 +3,10 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { formatQty, parseLocaleQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { GoodsReceiptEditorValues } from '../lib/goodsReceiptFormSchema'
 import type { PurchaseOrderItem } from '../types'
@@ -32,6 +32,8 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
+
+  const poItemOptions = purchaseOrderItems.map((poItem) => ({ value: poItem.id, label: `${poItem.item_code} — ${poItem.item_name}` }))
 
   // Same PO item can span multiple rows (different truck loads) — the over-remaining warning
   // for a Weight-category item is about the combined total, not any single row alone. Mirrors
@@ -101,18 +103,14 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
                         name={`items.${index}.purchase_order_item_id`}
                         render={({ field: itemField }) => (
                           <FormItem className="gap-0">
-                            <Select value={itemField.value} onValueChange={(value) => handleItemChange(index, value)} disabled={disabled}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select item" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {purchaseOrderItems.map((poItem) => (
-                                  <SelectItem key={poItem.id} value={poItem.id}>
-                                    {poItem.item_code} — {poItem.item_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              options={poItemOptions}
+                              value={itemField.value}
+                              onChange={(value) => handleItemChange(index, value ?? '')}
+                              disabled={disabled}
+                              placeholder="Select item"
+                              aria-label="Item"
+                            />
                             <FormMessage />
                           </FormItem>
                         )}
