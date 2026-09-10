@@ -76,12 +76,12 @@ function formatYyyyDotMmDotDd(dateStr: string | null | undefined): string {
   return `${year}.${month}.${day}`
 }
 
-function MetaRow({ label, value, bold }: { label: string; value: ReactNode; bold?: boolean }) {
+function MetaRow({ label, value, bold, tight }: { label: string; value: ReactNode; bold?: boolean; tight?: boolean }) {
   return (
     <div className="flex">
-      <span className="w-28 shrink-0">{label}</span>
+      <span className={tight ? 'w-[29.6mm] shrink-0' : 'w-28 shrink-0'}>{label}</span>
       <span className="shrink-0">:</span>
-      <span className={`pl-2 ${bold ? 'font-bold' : ''}`}>{value}</span>
+      <span className={`${tight ? 'pl-[2.1mm]' : 'pl-2'} ${bold ? 'font-bold' : ''}`}>{value}</span>
     </div>
   )
 }
@@ -161,6 +161,13 @@ export function InvoicePrintPage() {
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
   const isContinuous = format === 'a4' && printOptions.paperType === 'continuous'
   const isHalf = format === 'a4' && printOptions.paperType === 'half'
+  // Half/Continuous are dot-matrix-era continuous stationery where the physical page size is
+  // fixed (@page above) — spacing expressed in rem/px drifts against that fixed mm page depending
+  // on root font-size and DPI rounding, which is exactly what threw the Half footer onto a phantom
+  // page 2. A4 has no such fixed-size @page (browser/printer default) and already renders
+  // correctly, so it deliberately keeps its original rem-based Tailwind classes below — only
+  // Half/Continuous switch to the mm/pt arbitrary-value classes via this flag.
+  const tight = isHalf || isContinuous
   const showDiscount = printOptions.showDiscount ?? false
   const showTax = printOptions.showTax ?? false
   const showBreakdown = showTax || showDiscount
@@ -221,6 +228,18 @@ export function InvoicePrintPage() {
   const tel = invoice.sales_order?.tel ?? invoice.customer?.phone ?? ''
   const fax = invoice.sales_order?.fax ?? ''
   const location = invoice.delivery?.warehouse?.name ?? ''
+
+  // Table cell padding as mm on Half/Continuous (exact px-equivalent of Tailwind's py-1/pr-2/py-1
+  // scale, just expressed against a fixed physical unit instead of rem) — A4 keeps its original
+  // Tailwind classes untouched below.
+  const cellPad = tight ? 'py-[1.1mm] pr-[2.1mm]' : 'py-1 pr-2'
+  const cellPadLast = tight ? 'py-[1.1mm]' : 'py-1'
+  const totalsRow = tight
+    ? 'flex items-center justify-between gap-[8.5mm] border border-b-0 border-black px-[2.1mm] py-[1.1mm]'
+    : 'flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1'
+  const totalsRowFinal = tight
+    ? 'flex items-center justify-between gap-[8.5mm] border border-black px-[2.1mm] py-[1.1mm] font-bold'
+    : 'flex items-center justify-between gap-8 border border-black px-2 py-1 font-bold'
 
   return (
     <div
@@ -288,8 +307,8 @@ export function InvoicePrintPage() {
           fontSize: `${printOptions.fontSizePt ?? 10}pt`,
         }}
       >
-        <div className={isHalf ? 'flex flex-col' : 'flex flex-col gap-0.5'}>
-          <p className={isHalf ? 'text-base font-bold' : 'text-xl font-bold'}>{companyName}</p>
+        <div className={isHalf ? 'flex flex-col' : isContinuous ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
+          <p className={isHalf ? 'text-[12pt] font-bold' : isContinuous ? 'text-[15pt] font-bold' : 'text-xl font-bold'}>{companyName}</p>
           {/* "header perusahaan lebih ringkas" on Half — tighter line spacing via the smaller
               base font + no gap-0.5, not fewer fields; every line below still renders as normal. */}
           {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
@@ -297,48 +316,48 @@ export function InvoicePrintPage() {
           {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
         </div>
 
-        <p className="mt-3 text-center text-lg font-bold">INVOICE</p>
-        <hr className="mt-2 border-black" />
+        <p className={tight ? 'mt-[3.2mm] text-center text-[13.5pt] font-bold' : 'mt-3 text-center text-lg font-bold'}>INVOICE</p>
+        <hr className={tight ? 'mt-[2.1mm] border-black' : 'mt-2 border-black'} />
 
-        <div className="mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2">
-          <div className="flex flex-col gap-0.5">
+        <div className={tight ? 'mt-[2.1mm] grid grid-cols-2 gap-[4.2mm] border-b border-black pb-[2.1mm]' : 'mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2'}>
+          <div className={tight ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
             <p className="font-bold">{invoice.customer?.customer_name ?? '—'}</p>
             {invoice.customer?.address && <p>{invoice.customer.address}</p>}
-            <div className="mt-2 flex flex-col gap-0.5">
-              <MetaRow label="Attn" value={attn} />
-              <MetaRow label="Tel" value={tel} />
-              <MetaRow label="Fax" value={fax} />
+            <div className={tight ? 'mt-[2.1mm] flex flex-col gap-[0.5mm]' : 'mt-2 flex flex-col gap-0.5'}>
+              <MetaRow label="Attn" value={attn} tight={tight} />
+              <MetaRow label="Tel" value={tel} tight={tight} />
+              <MetaRow label="Fax" value={fax} tight={tight} />
             </div>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <MetaRow label="NO" value={invoice.document_number ?? '—'} bold />
-            <MetaRow label="Date" value={formatDdMmYyyy(invoice.invoice_date)} />
-            <MetaRow label="Reference 1" value={invoice.reference_1 ?? ''} />
-            <MetaRow label="Reference 2" value={invoice.reference_2 ?? ''} />
-            <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} />
-            <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} />
-            <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} />
+          <div className={tight ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
+            <MetaRow label="NO" value={invoice.document_number ?? '—'} bold tight={tight} />
+            <MetaRow label="Date" value={formatDdMmYyyy(invoice.invoice_date)} tight={tight} />
+            <MetaRow label="Reference 1" value={invoice.reference_1 ?? ''} tight={tight} />
+            <MetaRow label="Reference 2" value={invoice.reference_2 ?? ''} tight={tight} />
+            <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} tight={tight} />
+            <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} tight={tight} />
+            <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} tight={tight} />
             {/* Only shown once the invoice genuinely spans more than one physical page — a bare
                 "1 of 1" is print-shop cruft the legacy system's own output never carried. */}
             {(!isHalf || halfPageCount > 1) && (
-              <MetaRow label="Page No" value={isHalf ? `1 of ${halfPageCount}` : '1 of 1'} />
+              <MetaRow label="Page No" value={isHalf ? `1 of ${halfPageCount}` : '1 of 1'} tight={tight} />
             )}
-            <MetaRow label="Location" value={location} />
+            <MetaRow label="Location" value={location} tight={tight} />
           </div>
         </div>
 
         <table className="w-full border-collapse text-left">
           <thead style={{ display: 'table-header-group' }}>
             <tr className="border-b border-black">
-              <th className="py-1 pr-2 font-normal">No</th>
-              <th className="py-1 pr-2 font-normal">ItemCode</th>
-              <th className="py-1 pr-2 font-normal">Description</th>
-              <th className="py-1 pr-2 font-normal">Sales</th>
-              <th className="py-1 pr-2 text-right font-normal">Qty</th>
-              <th className="py-1 pr-2 font-normal">UOM</th>
-              <th className="py-1 pr-2 text-right font-normal">HCUnitCost</th>
-              {showTax && <th className="py-1 pr-2 text-right font-normal">HCTax</th>}
-              <th className="py-1 text-right font-normal">HCLineAmt</th>
+              <th className={`${cellPad} font-normal`}>No</th>
+              <th className={`${cellPad} font-normal`}>ItemCode</th>
+              <th className={`${cellPad} font-normal`}>Description</th>
+              <th className={`${cellPad} font-normal`}>Sales</th>
+              <th className={`${cellPad} text-right font-normal`}>Qty</th>
+              <th className={`${cellPad} font-normal`}>UOM</th>
+              <th className={`${cellPad} text-right font-normal`}>HCUnitCost</th>
+              {showTax && <th className={`${cellPad} text-right font-normal`}>HCTax</th>}
+              <th className={`${cellPadLast} text-right font-normal`}>HCLineAmt</th>
             </tr>
           </thead>
           <tbody>
@@ -347,21 +366,21 @@ export function InvoicePrintPage() {
               // continuous stock or a Half page must not split a row across the page break; A4 is
               // left exactly as it already behaved (no page-break rule at all).
               <tr key={item.id} className={isContinuous || isHalf ? 'break-inside-avoid' : undefined}>
-                <td className="py-1 pr-2 align-top">{index + 1}</td>
-                <td className="py-1 pr-2 align-top">{item.item_code ?? ''}</td>
-                <td className="py-1 pr-2 align-top">{item.item_name}</td>
-                <td className="py-1 pr-2 align-top">{item.sales_person?.name ?? invoice.sales_person?.name ?? ''}</td>
-                <td className="py-1 pr-2 text-right align-top">{formatNum(item.qty, 0)}</td>
-                <td className="py-1 pr-2 align-top">{item.uom ?? ''}</td>
-                <td className="py-1 pr-2 text-right align-top">{formatNum(item.rate, 2)}</td>
-                {showTax && <td className="py-1 pr-2 text-right align-top">{formatNum(item.tax_amount, 2)}</td>}
-                <td className="py-1 text-right align-top">{formatNum(item.amount, 2)}</td>
+                <td className={`${cellPad} align-top`}>{index + 1}</td>
+                <td className={`${cellPad} align-top`}>{item.item_code ?? ''}</td>
+                <td className={`${cellPad} align-top`}>{item.item_name}</td>
+                <td className={`${cellPad} align-top`}>{item.sales_person?.name ?? invoice.sales_person?.name ?? ''}</td>
+                <td className={`${cellPad} text-right align-top`}>{formatNum(item.qty, 0)}</td>
+                <td className={`${cellPad} align-top`}>{item.uom ?? ''}</td>
+                <td className={`${cellPad} text-right align-top`}>{formatNum(item.rate, 2)}</td>
+                {showTax && <td className={`${cellPad} text-right align-top`}>{formatNum(item.tax_amount, 2)}</td>}
+                <td className={`${cellPadLast} text-right align-top`}>{formatNum(item.amount, 2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {isHalf && <p className="mt-2">{terbilangIdr(invoice.grand_total)}</p>}
+        {isHalf && <p className={tight ? 'mt-[2.1mm]' : 'mt-2'}>{terbilangIdr(invoice.grand_total)}</p>}
 
         <div className="flex-1" />
 
@@ -369,12 +388,12 @@ export function InvoicePrintPage() {
             land on the same physical page together, never split across a page break. */}
         <div className={isContinuous || isHalf ? 'break-inside-avoid' : undefined}>
         <p>RP</p>
-        <hr className="mt-2 border-black" />
+        <hr className={tight ? 'mt-[2.1mm] border-black' : 'mt-2 border-black'} />
 
-        <div className="mt-2 grid grid-cols-2 gap-4">
+        <div className={tight ? 'mt-[2.1mm] grid grid-cols-2 gap-[4.2mm]' : 'mt-2 grid grid-cols-2 gap-4'}>
           <div>
             <p className="font-bold italic">E. &amp; O.E</p>
-            <ol className="mt-1 list-decimal pl-4">
+            <ol className={tight ? 'mt-[1.1mm] list-decimal pl-[4.2mm]' : 'mt-1 list-decimal pl-4'}>
               <li>
                 All cheque and payment should be crossed and made payable to
                 <br />
@@ -392,38 +411,38 @@ export function InvoicePrintPage() {
                 discount_amount/grand_total) — never recomputed here, matching InvoiceService's
                 own grand_total = subtotal - discount_amount + tax_amount. */}
             {showBreakdown && (
-              <div className="flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1">
+              <div className={totalsRow}>
                 <span>TOTAL</span>
                 <span>RP {formatNum(invoice.subtotal, totalsDecimals)}</span>
               </div>
             )}
             {showTax && (
-              <div className="flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1">
+              <div className={totalsRow}>
                 <span>TAX</span>
                 <span>RP {formatNum(invoice.tax_amount, totalsDecimals)}</span>
               </div>
             )}
             {showDiscount && (
-              <div className="flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1">
+              <div className={totalsRow}>
                 <span>DISC</span>
                 <span>RP {formatNum(invoice.discount_amount, totalsDecimals)}</span>
               </div>
             )}
-            <div className="flex items-center justify-between gap-8 border border-black px-2 py-1 font-bold">
+            <div className={totalsRowFinal}>
               <span>Grand Total</span>
               <span>RP {formatNum(invoice.grand_total, totalsDecimals)}</span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-8 pt-10">
+        <div className={tight ? 'grid grid-cols-2 gap-[8.5mm] pt-[10.6mm]' : 'grid grid-cols-2 gap-8 pt-10'}>
           <div className="text-center">
             <p className="font-semibold">{invoice.customer?.customer_name ?? '—'}</p>
-            <div className="mt-10 border-t border-black pt-1">({printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'})</div>
+            <div className={tight ? 'mt-[10.6mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
           <div className="text-center">
             <p className="font-semibold">{companyName}</p>
-            <div className="mt-10 border-t border-black pt-1">({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
+            <div className={tight ? 'mt-[10.6mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
           </div>
         </div>
         </div>
