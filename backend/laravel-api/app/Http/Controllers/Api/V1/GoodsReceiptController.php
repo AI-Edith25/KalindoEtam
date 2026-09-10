@@ -3,13 +3,17 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Exports\GoodsReceiptExport;
+use App\Exports\GoodsReceiptListingDetailExport;
+use App\Exports\GoodsReceiptListingSummaryExport;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ExportGoodsReceiptListingRequest;
 use App\Http\Requests\IndexGoodsReceiptRequest;
 use App\Http\Requests\StoreGoodsReceiptRequest;
 use App\Http\Requests\UpdateGoodsReceiptRequest;
 use App\Http\Resources\GoodsReceiptResource;
 use App\Models\GoodsReceipt;
+use App\Services\GoodsReceiptReportService;
 use App\Services\GoodsReceiptService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
@@ -20,7 +24,10 @@ class GoodsReceiptController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(protected GoodsReceiptService $goodsReceiptService) {}
+    public function __construct(
+        protected GoodsReceiptService $goodsReceiptService,
+        protected GoodsReceiptReportService $goodsReceiptReportService,
+    ) {}
 
     public function index(IndexGoodsReceiptRequest $request): JsonResponse
     {
@@ -78,5 +85,52 @@ class GoodsReceiptController extends Controller
         $rows = $this->goodsReceiptService->listAll($filters);
 
         return Excel::download(new GoodsReceiptExport($rows), "goods-receipts.{$format}");
+    }
+
+    /**
+     * Purchase > Goods Receipts' "Export XLSX/CSV" — Detail/Summary, same filters as index(),
+     * unpaginated. Distinct from export() above (a different, already-shipped plain export
+     * feeding the Reports module's Goods Receipt Report page) — do not confuse the two.
+     */
+    public function exportListing(ExportGoodsReceiptListingRequest $request): BinaryFileResponse
+    {
+        $data = $request->validated();
+        $format = $data['format'] ?? 'xlsx';
+        $receipts = $this->goodsReceiptReportService->rows($data);
+        $moneyColumns = ['F' => '#,##0.00', 'G' => '#,##0.00', 'H' => '#,##0.00', 'I' => '#,##0.00'];
+
+        if ($data['mode'] === 'detail') {
+            $wrapped = $this->goodsReceiptReportService->wrapReport(
+                title: 'GOODS RECEIVE NOTE LISTING - DETAIL',
+                dateRangeSuffix: '',
+                headingRows: [$this->goodsReceiptReportService->detailHeadings()],
+                bodyRows: $this->goodsReceiptReportService->detailRows($receipts),
+                filters: $data,
+                documents: $receipts,
+                dateField: 'receipt_date',
+                lastColumn: 'R',
+                timestampColumn: 'R',
+                numberFormatColumns: [...$moneyColumns, 'J' => '#,##0.00'],
+            );
+            $export = new GoodsReceiptListingDetailExport($wrapped['rows'], $wrapped);
+            $filename = "GoodsReceiveNotesListing_Detail.{$format}";
+        } else {
+            $wrapped = $this->goodsReceiptReportService->wrapReport(
+                title: 'GOODS RECEIVE NOTE LISTING - SUMMARY',
+                dateRangeSuffix: '',
+                headingRows: [$this->goodsReceiptReportService->summaryHeadings()],
+                bodyRows: $this->goodsReceiptReportService->summaryRows($receipts),
+                filters: $data,
+                documents: $receipts,
+                dateField: 'receipt_date',
+                lastColumn: 'K',
+                timestampColumn: 'I',
+                numberFormatColumns: $moneyColumns,
+            );
+            $export = new GoodsReceiptListingSummaryExport($wrapped['rows'], $wrapped);
+            $filename = "GoodsReceiveNotesListing_Summary.{$format}";
+        }
+
+        return Excel::download($export, $filename);
     }
 }

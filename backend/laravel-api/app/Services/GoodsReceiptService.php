@@ -31,6 +31,7 @@ class GoodsReceiptService
         protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected QtyCategoryValidator $qtyCategoryValidator,
+        protected TaxService $taxService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -75,6 +76,8 @@ class GoodsReceiptService
                 $item = $poItem->item;
                 $this->qtyCategoryValidator->assertValid($item, $line['qty']);
                 $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
+                $amount = $qty * $poItem->rate;
+                [$taxId, $taxAmount] = $this->taxService->resolveLineTax(['tax_id' => $poItem->tax_id], null, '', $amount);
 
                 $this->goodsReceiptItemRepository->create([
                     'goods_receipt_id' => $goodsReceipt->id,
@@ -87,7 +90,9 @@ class GoodsReceiptService
                     'over_receipt_qty' => $overReceiptByIndex[$index] ?? 0,
                     'qty_category' => $item->qty_category,
                     'rate' => $poItem->rate,
-                    'amount' => $qty * $poItem->rate,
+                    'amount' => $amount,
+                    'tax_id' => $taxId,
+                    'tax_amount' => $taxAmount,
                 ]);
             }
 
@@ -131,6 +136,11 @@ class GoodsReceiptService
         $item = $this->itemRepository->findOrFail($line['item_id']);
         $this->qtyCategoryValidator->assertValid($item, $line['qty']);
         $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
+        $amount = $qty * $line['rate'];
+        // No Item default fallback (item: null) — a Direct Receipt line has no PO to inherit tax
+        // from, so its Tax is purely optional/manual; omitting `tax_id` from the request leaves it
+        // untaxed instead of silently defaulting to the Item's own purchase tax.
+        [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $amount);
 
         $this->goodsReceiptItemRepository->create([
             'goods_receipt_id' => $goodsReceipt->id,
@@ -142,7 +152,9 @@ class GoodsReceiptService
             'qty' => $qty,
             'qty_category' => $item->qty_category,
             'rate' => $line['rate'],
-            'amount' => $qty * $line['rate'],
+            'amount' => $amount,
+            'tax_id' => $taxId,
+            'tax_amount' => $taxAmount,
         ]);
     }
 
@@ -175,6 +187,8 @@ class GoodsReceiptService
                     $item = $poItem->item;
                     $this->qtyCategoryValidator->assertValid($item, $line['qty']);
                     $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
+                    $amount = $qty * $poItem->rate;
+                    [$taxId, $taxAmount] = $this->taxService->resolveLineTax(['tax_id' => $poItem->tax_id], null, '', $amount);
 
                     $this->goodsReceiptItemRepository->create([
                         'goods_receipt_id' => $goodsReceipt->id,
@@ -187,7 +201,9 @@ class GoodsReceiptService
                         'over_receipt_qty' => $overReceiptByIndex[$index] ?? 0,
                         'qty_category' => $item->qty_category,
                         'rate' => $poItem->rate,
-                        'amount' => $qty * $poItem->rate,
+                        'amount' => $amount,
+                        'tax_id' => $taxId,
+                        'tax_amount' => $taxAmount,
                     ]);
                 }
             }

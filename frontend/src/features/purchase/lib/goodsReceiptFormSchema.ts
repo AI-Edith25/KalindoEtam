@@ -40,6 +40,10 @@ export const goodsReceiptLineRowSchema = z
  * user picks the Item and types qty/rate directly, no PO line to snapshot
  * or cap against. Mirrors PurchaseOrderLineItemTable's row shape.
  * `qtyCategory` is a snapshot populated when the item is selected.
+ * `tax_id` is optional and manual only — a Direct Receipt line has no PO
+ * item to inherit tax from, and deliberately does NOT default from the
+ * Item's own purchase_tax_id the way PurchaseOrderLineItemTable does; it
+ * exists purely to back the Goods Receipt Listing export's Tax column.
  */
 export const directGoodsReceiptLineRowSchema = z
   .object({
@@ -49,6 +53,7 @@ export const directGoodsReceiptLineRowSchema = z
     item_uom: z.string().optional().or(z.literal('')),
     qtyCategory: z.enum(['unit', 'weight']),
     qty: z.string().min(1, 'Qty is required'),
+    tax_id: z.string().optional().or(z.literal('')),
     rate: z
       .string()
       .min(1, 'Rate is required')

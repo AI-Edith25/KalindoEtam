@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
@@ -13,7 +14,9 @@ import { lineAmount } from '@/shared/lib/documentTotals'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { DirectGoodsReceiptEditorValues } from '../lib/goodsReceiptFormSchema'
-import type { Item } from '@/features/master/types'
+import type { Item, Tax } from '@/features/master/types'
+
+const NO_TAX = '__none__'
 
 function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
   return `${item.item_code} — ${item.item_name}`
@@ -21,16 +24,20 @@ function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
 
 interface DirectGoodsReceiptLineItemTableProps {
   form: UseFormReturn<DirectGoodsReceiptEditorValues>
+  taxes: Tax[]
   disabled?: boolean
 }
 
 /**
  * Standalone/direct receipt (no source Purchase Order) — Add/Remove row,
  * item lookup autofilling Unit Price from standard_rate. Mirrors
- * PurchaseOrderLineItemTable minus the Tax column (GoodsReceiptItem
- * carries no tax fields).
+ * PurchaseOrderLineItemTable, plus an optional/manual Tax column — unlike
+ * that table, selecting an Item here does NOT autofill Tax from the Item's
+ * own purchase_tax_id; a Direct Receipt has no PO line to inherit from, so
+ * Tax stays unset unless picked explicitly. Exists purely to back the
+ * Goods Receipt Listing export's Tax column (GoodsReceiptService).
  */
-export function DirectGoodsReceiptLineItemTable({ form, disabled }: DirectGoodsReceiptLineItemTableProps) {
+export function DirectGoodsReceiptLineItemTable({ form, taxes, disabled }: DirectGoodsReceiptLineItemTableProps) {
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
@@ -62,6 +69,7 @@ export function DirectGoodsReceiptLineItemTable({ form, disabled }: DirectGoodsR
               <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
               <TableHead className="w-28">Qty</TableHead>
               <TableHead className="w-36">Rate</TableHead>
+              <TableHead className="w-44">Tax</TableHead>
               <TableHead className="w-36 text-right">Amount</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -69,7 +77,7 @@ export function DirectGoodsReceiptLineItemTable({ form, disabled }: DirectGoodsR
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={6} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start building this receipt." />
                 </TableCell>
               </TableRow>
@@ -137,6 +145,34 @@ export function DirectGoodsReceiptLineItemTable({ form, disabled }: DirectGoodsR
                       )}
                     />
                   </TableCell>
+                  <TableCell>
+                    <FormField
+                      control={control}
+                      name={`items.${index}.tax_id`}
+                      render={({ field: taxField }) => (
+                        <FormItem className="gap-0">
+                          <Select
+                            value={taxField.value || NO_TAX}
+                            onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
+                            disabled={disabled}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="No tax" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={NO_TAX}>No tax</SelectItem>
+                              {taxes.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>
+                                  {t.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(lineAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }))}
                   </TableCell>
@@ -166,7 +202,7 @@ export function DirectGoodsReceiptLineItemTable({ form, disabled }: DirectGoodsR
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '1', rate: '0' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '1', rate: '0', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

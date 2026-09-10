@@ -46,3 +46,13 @@ export async function cancelPurchaseOrder(id: string): Promise<PurchaseOrder> {
   const { data } = await apiClient.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/cancel`)
   return data.data
 }
+
+/** Purchase Orders' "Export XLSX/CSV" — Summary or Detail, same shape as exportSalesReport(). */
+export async function exportPurchaseOrderListing(
+  params: Omit<PurchaseOrderListParams, 'page' | 'per_page'>,
+  mode: 'summary' | 'detail',
+  format: 'xlsx' | 'csv',
+): Promise<Blob> {
+  const { data } = await apiClient.get('/purchase-orders/export', { params: { ...params, mode, format }, responseType: 'blob' })
+  return data as Blob
+}

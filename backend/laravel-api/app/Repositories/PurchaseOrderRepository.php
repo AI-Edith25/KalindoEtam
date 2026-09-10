@@ -43,6 +43,23 @@ class PurchaseOrderRepository extends BaseRepository
             ->paginate($perPage);
     }
 
+    /** Same filters as search(), unpaginated — for export. */
+    public function searchAll(array $filters): Collection
+    {
+        return $this->model->query()
+            ->with(self::EAGER)
+            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['supplier_id'] ?? null, fn ($query, $supplierId) => $query->where('supplier_id', $supplierId))
+            ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('order_date', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('order_date', '<=', $date))
+            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
+                fn ($q) => $q->where('document_number', 'like', "%{$search}%")
+                    ->orWhereHas('supplier', fn ($sq) => $sq->where('supplier_name', 'like', "%{$search}%"))
+            ))
+            ->latest('order_date')
+            ->get();
+    }
+
     public function findOrFail(string $id): Model
     {
         return $this->model->query()->with(self::EAGER)->findOrFail($id);

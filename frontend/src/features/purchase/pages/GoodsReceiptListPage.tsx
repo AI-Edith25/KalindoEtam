@@ -13,10 +13,12 @@ import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { formatDate, formatNumber } from '@/lib/utils'
-import { deleteGoodsReceipt, fetchGoodsReceipts, submitGoodsReceipt } from '../api/goodsReceiptApi'
+import { deleteGoodsReceipt, exportGoodsReceiptListing, fetchGoodsReceipts, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { fetchPurchaseOrders } from '../api/purchaseOrderApi'
 import { GoodsReceiptFiltersBar } from '../components/GoodsReceiptFiltersBar'
 import { emptyGoodsReceiptFilters } from '../lib/goodsReceiptFilters'
@@ -39,6 +41,7 @@ export function GoodsReceiptListPage() {
   const [filters, setFilters] = useState<GoodsReceiptFilterValues>(emptyGoodsReceiptFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingReceipt, setDeletingReceipt] = useState<GoodsReceipt | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const listQuery = useQuery({
     queryKey: ['goods-receipts', page, search, filters.status, filters.dateFrom, filters.dateTo],
@@ -99,6 +102,27 @@ export function GoodsReceiptListPage() {
 
   const handleSortChange = (key: string) => {
     setSort((prev) => (prev?.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }))
+  }
+
+  const exportAs = async (mode: 'summary' | 'detail', format: 'xlsx' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const blob = await exportGoodsReceiptListing(
+        {
+          ...(search ? { search } : {}),
+          ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+          ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+        },
+        mode,
+        format,
+      )
+      downloadBlob(`GoodsReceiveNotesListing_${mode === 'detail' ? 'Detail' : 'Summary'}.${format}`, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const actionsFor = (receipt: GoodsReceipt): RowAction[] => {
@@ -168,14 +192,39 @@ export function GoodsReceiptListPage() {
         description="Receive ordered goods into a warehouse against a submitted Purchase Order."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} receipts` : undefined}
         actions={
-          <ActionBar
-            actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
-            ]}
-            primary={canCreate ? { label: 'New Goods Receipt', icon: Plus, onClick: () => navigate('/purchase/goods-receipts/new') } : undefined}
-          />
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isExporting}>
+                  <Download className="size-4" />
+                  Export CSV
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportAs('detail', 'csv')}>Detail</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs('summary', 'csv')}>Summary</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isExporting}>
+                  <Download className="size-4" />
+                  Export XLSX
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportAs('detail', 'xlsx')}>Detail</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs('summary', 'xlsx')}>Summary</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <ActionBar
+              actions={[
+                { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+                { label: 'Import', icon: Upload, disabled: true },
+              ]}
+              primary={canCreate ? { label: 'New Goods Receipt', icon: Plus, onClick: () => navigate('/purchase/goods-receipts/new') } : undefined}
+            />
+          </>
         }
       />
 

@@ -9,6 +9,7 @@ use App\Models\PurchaseOrder;
 use App\Repositories\PurchaseOrderItemRepository;
 use App\Repositories\PurchaseOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -32,6 +33,12 @@ class PurchaseOrderService
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->purchaseOrderRepository->search($filters, $perPage);
+    }
+
+    /** Unpaginated, same filters as list() — for export. */
+    public function listAll(array $filters = []): Collection
+    {
+        return $this->purchaseOrderRepository->searchAll($filters);
     }
 
     public function create(array $data): PurchaseOrder

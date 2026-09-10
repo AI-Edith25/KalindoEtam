@@ -69,6 +69,19 @@ trait StylesSalesReportSheet
                     }
                 }
 
+                // Purchase Order/Goods Receipt listing exports keep money as real numeric cells
+                // (unlike Sales' pre-formatted-text money) — this column => format-code map is the
+                // only way those reports differ from Sales' own meta shape; Sales never sets these
+                // keys, so this block is a no-op for it.
+                $numberFormatColumns = $this->meta['numberFormatColumns'] ?? [];
+                $numberFormatRange = $this->meta['numberFormatRange'] ?? null;
+                if ($numberFormatColumns !== [] && $numberFormatRange !== null) {
+                    [$start, $end] = $numberFormatRange;
+                    foreach ($numberFormatColumns as $column => $formatCode) {
+                        $sheet->getStyle("{$column}{$start}:{$column}{$end}")->getNumberFormat()->setFormatCode($formatCode);
+                    }
+                }
+
                 // Auto-fit every column so no cell is truncated behind the default width — decorative
                 // only for CSV (ignored by that writer), harmless either way.
                 for ($i = 1; $i <= Coordinate::columnIndexFromString($lastColumn); $i++) {

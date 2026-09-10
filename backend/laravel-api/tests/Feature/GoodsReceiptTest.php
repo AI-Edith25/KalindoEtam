@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TaxTransactionType;
+use App\Enums\TaxType;
 use App\Enums\WarehouseType;
 use App\Exceptions\BusinessException;
 use App\Exceptions\OverReceiptConfirmationRequiredException;
@@ -13,6 +15,7 @@ use App\Models\ItemGroup;
 use App\Models\PurchaseSetting;
 use App\Models\StockLedger;
 use App\Models\Supplier;
+use App\Models\Tax;
 use App\Models\UnitOfMeasurement;
 use App\Models\Warehouse;
 use App\Services\GoodsReceiptService;
@@ -62,16 +65,24 @@ class GoodsReceiptTest extends TestCase
         ]);
     }
 
-    protected function submittedPurchaseOrder(int $qty, float $rate): \App\Models\PurchaseOrder
+    protected function submittedPurchaseOrder(int $qty, float $rate, ?string $taxId = null): \App\Models\PurchaseOrder
     {
         $purchaseOrder = $this->purchaseOrderService->create([
             'supplier_id' => $this->supplier->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
+            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'tax_id' => $taxId]],
         ]);
         $this->approveDocument($purchaseOrder);
 
         return $this->purchaseOrderService->submit($purchaseOrder);
+    }
+
+    protected function makeTax(array $overrides = []): Tax
+    {
+        return Tax::query()->create(array_merge([
+            'code' => 'PPN11', 'name' => 'PPN 11%', 'type' => TaxType::VAT,
+            'transaction_type' => TaxTransactionType::PURCHASE, 'rate' => 11, 'is_active' => true,
+        ], $overrides));
     }
 
     public function test_creates_and_submits_a_direct_receipt_with_no_purchase_order(): void
@@ -340,5 +351,101 @@ class GoodsReceiptTest extends TestCase
         ]);
 
         $this->assertEquals(200, (float) $goodsReceipt->items->first()->qty);
+    }
+
+    public function test_po_linked_item_copies_tax_from_the_purchase_order_item(): void
+    {
+        $tax = $this->makeTax();
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 10, rate: 100000, taxId: $tax->id);
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 10]],
+        ]);
+
+        $line = $goodsReceipt->items->first();
+        $this->assertEquals($tax->id, $line->tax_id);
+        $this->assertEquals(110000, (float) $line->tax_amount); // 10 * 100000 * 11%
+    }
+
+    public function test_po_linked_item_tax_amount_is_recomputed_against_the_gr_qty_not_copied_verbatim(): void
+    {
+        $tax = $this->makeTax();
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 10, rate: 100000, taxId: $tax->id); // PO item tax_amount = 11 * 10000 = 110000
+
+        // Only receiving half the ordered qty — the copied tax must scale with the GR item's own
+        // amount (5 * 100000 = 500000), not the PO item's full-qty tax_amount.
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 5]],
+        ]);
+
+        $this->assertEquals(55000, (float) $goodsReceipt->items->first()->tax_amount); // 5 * 100000 * 11%
+    }
+
+    public function test_po_linked_item_with_no_tax_stays_untaxed(): void
+    {
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 10, rate: 100000);
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 10]],
+        ]);
+
+        $line = $goodsReceipt->items->first();
+        $this->assertNull($line->tax_id);
+        $this->assertEquals(0, (float) $line->tax_amount);
+    }
+
+    public function test_direct_receipt_item_tax_is_optional_and_manual(): void
+    {
+        $tax = $this->makeTax();
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 4, 'rate' => 100000, 'tax_id' => $tax->id]],
+        ]);
+
+        $line = $goodsReceipt->items->first();
+        $this->assertEquals($tax->id, $line->tax_id);
+        $this->assertEquals(44000, (float) $line->tax_amount); // 4 * 100000 * 11%
+    }
+
+    /**
+     * The Item itself has a default purchase_tax_id — a Direct Receipt line must NOT fall back to
+     * it. Unlike PurchaseOrderLineItemTable (which autofills Tax from the Item on selection), a
+     * Direct Receipt line omitting tax_id entirely stays untaxed; the field exists purely to back
+     * the Goods Receipt Listing export and is opt-in only.
+     */
+    public function test_direct_receipt_item_tax_does_not_default_from_the_items_own_purchase_tax(): void
+    {
+        $itemTax = $this->makeTax(['code' => 'ITEM-DEFAULT']);
+        $this->item->update(['purchase_tax_id' => $itemTax->id]);
+
+        $goodsReceipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 4, 'rate' => 100000]], // no tax_id key at all
+        ]);
+
+        $line = $goodsReceipt->items->first();
+        $this->assertNull($line->tax_id);
+        $this->assertEquals(0, (float) $line->tax_amount);
     }
 }

@@ -32,6 +32,10 @@ class StoreGoodsReceiptRequest extends FormRequest
             // Whole-number-vs-decimal enforcement happens in GoodsReceiptService via
             // QtyCategoryValidator (needs the Item loaded, not available here).
             'items.*.qty' => ['required', 'numeric', 'min:0.01'],
+            // Only meaningful for a Direct Receipt line (no purchase_order_id) — PO-linked items
+            // always get their tax copied from the linked purchase_order_items row instead, see
+            // GoodsReceiptService::create(). Optional and manual, no default.
+            'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }

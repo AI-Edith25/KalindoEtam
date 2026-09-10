@@ -27,6 +27,8 @@ class UpdateGoodsReceiptRequest extends FormRequest
             'items.*.item_id' => ['nullable', 'uuid', 'exists:items,id'],
             'items.*.rate' => ['nullable', 'numeric', 'min:0'],
             'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01'],
+            // Only meaningful for a Direct Receipt line — see StoreGoodsReceiptRequest.
+            'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }

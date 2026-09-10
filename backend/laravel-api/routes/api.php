@@ -233,6 +233,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('reports/purchase/po-tracking/{purchaseOrderId}/items', [PoTrackingController::class, 'items'])->middleware('permission:reports.purchase.view');
 
     // Purchase Workflow (Sprint 4): Supplier -> PO -> Goods Receipt -> Stock Ledger(+) -> Accounts Payable.
+    // Registered before apiResource('purchase-orders', ...) below — same GET/{id}-swallowing-order
+    // trick as invoices/export/sales-report.
+    Route::get('purchase-orders/export', [PurchaseOrderController::class, 'export'])->middleware('permission:purchase.orders.view|reports.purchase.view');
     $withPagePermissions(Route::apiResource('purchase-orders', PurchaseOrderController::class), 'purchase.orders', 'reports.purchase.view');
     Route::post('purchase-orders/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submit'])->middleware('permission:purchase.orders.update');
     Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->middleware('permission:purchase.orders.update');
@@ -241,7 +244,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('purchase-orders/{purchaseOrder}/request-approval', [PurchaseOrderController::class, 'requestApproval'])->middleware('permission:purchase.orders.update');
 
     // Registered before apiResource('goods-receipts', ...) below — same GET/{id}-swallowing-order
-    // trick as invoices/export/sales-report.
+    // trick as invoices/export/sales-report. The more specific path goes first, same ordering
+    // invoices/export/sales-report uses ahead of invoices/export.
+    Route::get('goods-receipts/export/listing', [GoodsReceiptController::class, 'exportListing'])->middleware('permission:purchase.goods_receipts.view|reports.goods_receipts.view');
     Route::get('goods-receipts/export', [GoodsReceiptController::class, 'export'])->middleware('permission:purchase.goods_receipts.view|reports.goods_receipts.view');
     $withPagePermissions(Route::apiResource('goods-receipts', GoodsReceiptController::class), 'purchase.goods_receipts', 'reports.goods_receipts.view');
     Route::post('goods-receipts/{goodsReceipt}/submit', [GoodsReceiptController::class, 'submit'])->middleware('permission:purchase.goods_receipts.update');

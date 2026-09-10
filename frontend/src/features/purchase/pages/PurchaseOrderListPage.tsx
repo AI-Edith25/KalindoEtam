@@ -12,10 +12,13 @@ import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { cancelPurchaseOrder, deletePurchaseOrder, fetchPurchaseOrders, submitPurchaseOrder } from '../api/purchaseOrderApi'
+import { cancelPurchaseOrder, deletePurchaseOrder, exportPurchaseOrderListing, fetchPurchaseOrders, submitPurchaseOrder } from '../api/purchaseOrderApi'
 import { PurchaseOrderFiltersBar } from '../components/PurchaseOrderFiltersBar'
 import { ReceivingProgress } from '../components/ReceivingProgress'
 import { emptyPurchaseOrderFilters } from '../lib/purchaseOrderFilters'
@@ -39,6 +42,7 @@ export function PurchaseOrderListPage() {
   const [filters, setFilters] = useState<PurchaseOrderFilterValues>(emptyPurchaseOrderFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingOrder, setDeletingOrder] = useState<PurchaseOrder | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const listQuery = useQuery({
     queryKey: ['purchase-orders', page, search, filters.status, filters.dateFrom, filters.dateTo],
@@ -102,6 +106,27 @@ export function PurchaseOrderListPage() {
     setSort((prev) => (prev?.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }))
   }
 
+  const exportAs = async (mode: 'summary' | 'detail', format: 'xlsx' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const blob = await exportPurchaseOrderListing(
+        {
+          ...(search ? { search } : {}),
+          ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+          ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+        },
+        mode,
+        format,
+      )
+      downloadBlob(`PurchaseOrderListing_${mode === 'detail' ? 'Detail' : 'Summary'}.${format}`, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const actionsFor = (order: PurchaseOrder): RowAction[] => {
     const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/purchase/orders/${order.id}`) }]
 
@@ -152,14 +177,39 @@ export function PurchaseOrderListPage() {
         description="Track purchase orders from creation through submission."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} orders` : undefined}
         actions={
-          <ActionBar
-            actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
-            ]}
-            primary={canCreate ? { label: 'New Purchase Order', icon: Plus, onClick: () => navigate('/purchase/orders/new') } : undefined}
-          />
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isExporting}>
+                  <Download className="size-4" />
+                  Export CSV
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportAs('detail', 'csv')}>Detail</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs('summary', 'csv')}>Summary</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isExporting}>
+                  <Download className="size-4" />
+                  Export XLSX
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportAs('detail', 'xlsx')}>Detail</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs('summary', 'xlsx')}>Summary</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <ActionBar
+              actions={[
+                { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+                { label: 'Import', icon: Upload, disabled: true },
+              ]}
+              primary={canCreate ? { label: 'New Purchase Order', icon: Plus, onClick: () => navigate('/purchase/orders/new') } : undefined}
+            />
+          </>
         }
       />
 

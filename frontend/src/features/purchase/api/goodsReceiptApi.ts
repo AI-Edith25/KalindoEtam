@@ -47,4 +47,14 @@ export async function exportGoodsReceipts(params: Omit<GoodsReceiptListParams, '
   return data
 }
 
+/** Purchase > Goods Receipts' "Export XLSX/CSV" — Summary or Detail. Distinct from exportGoodsReceipts() above, which feeds the unrelated Reports module page. */
+export async function exportGoodsReceiptListing(
+  params: Omit<GoodsReceiptListParams, 'page' | 'per_page'>,
+  mode: 'summary' | 'detail',
+  format: 'xlsx' | 'csv',
+): Promise<Blob> {
+  const { data } = await apiClient.get('/goods-receipts/export/listing', { params: { ...params, mode, format }, responseType: 'blob' })
+  return data as Blob
+}
+
 /** No cancelGoodsReceipt — the backend has no route for it. GoodsReceipt::cancel() always throws; reversal is only via the (not yet implemented) Return workflow. */

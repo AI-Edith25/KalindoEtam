@@ -25,6 +25,8 @@ class GoodsReceiptItem extends Model
         'qty_category',
         'rate',
         'amount',
+        'tax_id',
+        'tax_amount',
     ];
 
     protected $casts = [
@@ -33,6 +35,7 @@ class GoodsReceiptItem extends Model
         'qty_category' => QtyCategory::class,
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
     ];
 
     public function goodsReceipt(): BelongsTo
@@ -48,5 +51,11 @@ class GoodsReceiptItem extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    /** Export-only — copied from the linked purchase_order_items row, or set manually for a Direct Receipt line. See docs/TAX_ENGINE_DESIGN.md §5/§6. */
+    public function tax(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class);
     }
 }

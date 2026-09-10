@@ -81,6 +81,8 @@ export interface GoodsReceiptItem {
   qty_category: 'unit' | 'weight'
   rate: string | number
   amount: string | number
+  /** Export-only (Purchase > Goods Receipts listing export's Tax column) — copied from the linked PurchaseOrderItem, or optional/manual for a Direct Receipt line. Not shown anywhere in the app UI besides that manual selector. */
+  tax_id: string | null
 }
 
 export interface GoodsReceipt {
@@ -112,8 +114,8 @@ export interface GoodsReceiptFormValues {
   receipt_date: string
   due_date: string
   remarks: string | null
-  /** From-PO lines carry purchase_order_item_id; direct-mode lines carry item_id + rate instead. */
-  items: { purchase_order_item_id?: string; item_id?: string; rate?: number; qty: number }[]
+  /** From-PO lines carry purchase_order_item_id; direct-mode lines carry item_id + rate instead. tax_id is direct-mode only (optional/manual, export-only — see GoodsReceiptItem). */
+  items: { purchase_order_item_id?: string; item_id?: string; rate?: number; qty: number; tax_id?: string | null }[]
   /** Confirms a Weight-category line's excess over the outstanding PO qty is intentional — see QtyCategoryValidator::assertWeightOverReceiptAllowed. */
   confirm_over_receipt?: boolean
 }

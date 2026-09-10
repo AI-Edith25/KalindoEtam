@@ -18,7 +18,7 @@ import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { getErrorMessage, isOverReceiptConfirmationRequired, toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { parseLocaleQty } from '@/shared/lib/qty'
-import { fetchSuppliersLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchSuppliersLookup, fetchTaxesLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { fetchGoodsReceipt, createGoodsReceipt, updateGoodsReceipt, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { fetchPurchaseOrder, fetchPurchaseOrders } from '../api/purchaseOrderApi'
 import { GoodsReceiptLineItemTable } from '../components/GoodsReceiptLineItemTable'
@@ -94,6 +94,9 @@ export function GoodsReceiptEditorPage() {
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup, enabled: isDirectMode })
   const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name })) ?? []
+  // Only for the Direct Receipt line-item table's optional/manual Tax column (export-only field, no PO to inherit from) — enabled only in direct mode, same as suppliers above.
+  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup, enabled: isDirectMode })
+  const activePurchaseTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'purchase')
 
   // Both forms always exist (Rules of Hooks) — only the one matching the active mode is rendered/submitted.
   const form = useForm<GoodsReceiptEditorValues>({
@@ -179,6 +182,7 @@ export function GoodsReceiptEditorPage() {
         qtyCategory: line.qty_category,
         qty: String(line.qty),
         rate: String(line.rate),
+        tax_id: line.tax_id ?? '',
       })),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,7 +234,12 @@ export function GoodsReceiptEditorPage() {
 
   const saveDirectMutation = useMutation({
     mutationFn: (values: DirectGoodsReceiptEditorValues) => {
-      const items = values.items.map((line) => ({ item_id: line.item_id, qty: parseLocaleQty(line.qty), rate: Number(line.rate) }))
+      const items = values.items.map((line) => ({
+        item_id: line.item_id,
+        qty: parseLocaleQty(line.qty),
+        rate: Number(line.rate),
+        tax_id: line.tax_id || null,
+      }))
 
       if (isEdit) {
         return updateGoodsReceipt(id!, {
@@ -440,7 +449,7 @@ export function GoodsReceiptEditorPage() {
                 <CardTitle>Line Items</CardTitle>
               </CardHeader>
               <CardContent>
-                <DirectGoodsReceiptLineItemTable form={directForm} />
+                <DirectGoodsReceiptLineItemTable form={directForm} taxes={activePurchaseTaxOptions} />
                 {directForm.formState.errors.items?.root && (
                   <p className="mt-2 text-sm text-destructive">{directForm.formState.errors.items.root.message}</p>
                 )}

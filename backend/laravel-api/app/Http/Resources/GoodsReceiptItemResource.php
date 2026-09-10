@@ -21,6 +21,9 @@ class GoodsReceiptItemResource extends JsonResource
             'qty_category' => $this->qty_category,
             'rate' => $this->rate,
             'amount' => $this->amount,
+            // Export-only field (see docs on GoodsReceiptItem::tax()) — exposed here purely so the
+            // Direct Receipt editor can round-trip its own optional/manual Tax selection on edit.
+            'tax_id' => $this->tax_id,
         ];
     }
 }
