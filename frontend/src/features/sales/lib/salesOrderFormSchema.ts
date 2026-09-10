@@ -11,6 +11,10 @@ import { z } from 'zod'
  */
 export const lineItemFormSchema = z.object({
   item_id: z.string().min(1, 'Item is required'),
+  // Denormalized display fields for the row's SearchableSelect — populated on pick
+  // (or from the loaded order's line for edit mode), never sent in the payload.
+  item_code: z.string().optional(),
+  item_name: z.string().optional(),
   qty: z
     .string()
     .min(1, 'Qty is required')

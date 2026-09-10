@@ -8,18 +8,23 @@ import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
-import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
 import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
-import type { SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
+import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { Item, Tax } from '@/features/master/types'
+import type { SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
 
 const NO_TAX = '__none__'
 
+function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
+  return `${item.item_code} — ${item.item_name}`
+}
+
 interface SalesOrderLineItemTableProps {
   form: UseFormReturn<SalesOrderEditorValues>
-  items: Item[]
-  itemsLoading: boolean
+  /** Reflects the order's selected Warehouse override — see SalesOrderEditorPage. */
+  warehouseId?: string
   taxes: Tax[]
   disabled?: boolean
 }
@@ -34,16 +39,22 @@ interface SalesOrderLineItemTableProps {
  * only a starting point. No stock check on qty: Sales Order may exceed
  * current inventory (that validation belongs to Delivery, not here).
  */
-export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disabled }: SalesOrderLineItemTableProps) {
+export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: SalesOrderLineItemTableProps) {
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
-  const itemOptions = items.map((item) => ({ value: item.id, label: `${item.item_code} — ${item.item_name}` }))
 
-  const handleItemChange = (index: number, itemId: string) => {
+  const loadItemOptions = async (query: string) => {
+    const items = await searchItemsLookup(query, warehouseId)
+    return items.map((item) => ({ value: item.id, label: itemLabel(item), data: item }))
+  }
+
+  const handleItemChange = (index: number, itemId: string, option?: SearchableSelectOption<Item>) => {
     setValue(`items.${index}.item_id`, itemId, { shouldValidate: true })
 
-    const selected = items.find((item) => item.id === itemId)
+    const selected = option?.data
+    setValue(`items.${index}.item_code`, selected?.item_code ?? '')
+    setValue(`items.${index}.item_name`, selected?.item_name ?? '')
     if (selected) {
       setValue(`items.${index}.rate`, String(selected.effective_rate), { shouldValidate: true })
       setValue(`items.${index}.tax_id`, selected.sales_tax_id ?? '', { shouldValidate: true })
@@ -73,7 +84,12 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
                 </TableCell>
               </TableRow>
             ) : (
-              fields.map((field, index) => (
+              fields.map((field, index) => {
+                const row = watchedItems?.[index]
+                const selectedOption: SearchableSelectOption<Item> | undefined =
+                  row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
+
+                return (
                 <TableRow key={field.id}>
                   <TableCell className="sticky left-0 z-10 bg-background">
                     <FormField
@@ -82,12 +98,13 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
                       render={({ field: itemField }) => (
                         <FormItem className="gap-0">
                           <SearchableSelect
-                            options={itemOptions}
+                            loadOptions={loadItemOptions}
+                            selectedOption={selectedOption}
                             value={itemField.value}
-                            onChange={(value) => handleItemChange(index, value ?? '')}
-                            loading={itemsLoading}
+                            onChange={(value, option) => handleItemChange(index, value ?? '', option)}
                             disabled={disabled}
                             placeholder="Select item"
+                            aria-label="Item"
                           />
                           <FormMessage />
                         </FormItem>
@@ -171,7 +188,8 @@ export function SalesOrderLineItemTable({ form, items, itemsLoading, taxes, disa
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))
+                )
+              })
             )}
           </TableBody>
         </Table>

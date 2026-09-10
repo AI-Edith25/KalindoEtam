@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
@@ -22,7 +21,6 @@ import { computeSubtotal, computeLineTaxTotal } from '@/shared/lib/documentTotal
 import {
   fetchBranches,
   fetchCustomersLookup,
-  fetchItemsLookup,
   fetchSalesPersonsLookup,
   fetchTaxesLookup,
   fetchTermsOfPaymentLookup,
@@ -37,7 +35,6 @@ import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
 import type { SalesOrderFormValues } from '../types'
 
 const APPROVABLE_TYPE = 'App\\Models\\SalesOrder'
-const NONE = '__none__'
 
 export function SalesOrderEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -54,9 +51,13 @@ export function SalesOrderEditorPage() {
   const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
   const customerOptions = customers.data?.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}` })) ?? []
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
+  const salesPersonOptions = salesPersons.data?.map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name })) ?? []
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
+  const branchOptions = branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.name} (${warehouse.code})` })) ?? []
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+  const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
 
   const form = useForm<SalesOrderEditorValues>({
@@ -64,14 +65,10 @@ export function SalesOrderEditorPage() {
     defaultValues: emptySalesOrderEditorValues,
   })
 
-  // Items are re-fetched whenever the order's Warehouse changes, so each item's effective_rate
-  // reflects the resolved warehouse override (falls back to standard_rate with none selected)
-  // — see ItemController::index, ItemPriceResolver, and SalesOrderLineItemTable's handleItemChange.
+  // Item search reflects the order's Warehouse so effective_rate resolves that warehouse's
+  // override (falls back to standard_rate with none selected) — see ItemController::index,
+  // ItemPriceResolver, and SalesOrderLineItemTable's handleItemChange.
   const selectedWarehouseId = form.watch('warehouse_id') || undefined
-  const items = useQuery({
-    queryKey: ['items-lookup', selectedWarehouseId],
-    queryFn: () => fetchItemsLookup(selectedWarehouseId),
-  })
 
   useEffect(() => {
     const order = orderQuery.data
@@ -102,6 +99,8 @@ export function SalesOrderEditorPage() {
       tax_id: '',
       items: order.items.map((line) => ({
         item_id: line.item_id,
+        item_code: line.item_code ?? '',
+        item_name: line.item_name ?? '',
         qty: String(line.qty),
         rate: String(line.rate),
         tax_id: line.tax_id ?? '',
@@ -312,21 +311,14 @@ export function SalesOrderEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sales Person</FormLabel>
-                    <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={salesPersons.isLoading ? 'Loading…' : 'Select sales person'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NONE}>None</SelectItem>
-                        {salesPersons.data?.map((salesPerson) => (
-                          <SelectItem key={salesPerson.id} value={salesPerson.id}>
-                            {salesPerson.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={salesPersonOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={salesPersons.isLoading}
+                      placeholder="Select sales person"
+                      aria-label="Sales Person"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -337,20 +329,15 @@ export function SalesOrderEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Branch</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={branches.isLoading ? 'Loading…' : 'Select branch'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {branches.data?.map((branch) => (
-                          <SelectItem key={branch.id} value={branch.id}>
-                            {branch.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={branchOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={branches.isLoading}
+                      clearable={false}
+                      placeholder="Select branch"
+                      aria-label="Branch"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -361,20 +348,15 @@ export function SalesOrderEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Warehouse</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={warehouses.isLoading ? 'Loading…' : 'Select warehouse'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {warehouses.data?.map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name} ({warehouse.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={warehouseOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      clearable={false}
+                      placeholder="Select warehouse"
+                      aria-label="Warehouse"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -437,21 +419,14 @@ export function SalesOrderEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Payment Terms</FormLabel>
-                    <Select value={field.value || NONE} onValueChange={(value) => field.onChange(value === NONE ? '' : value)}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={termsOfPayment.isLoading ? 'Loading…' : 'None'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NONE}>None</SelectItem>
-                        {termsOfPayment.data?.map((top) => (
-                          <SelectItem key={top.id} value={top.id}>
-                            {top.name} ({top.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={termsOfPaymentOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={termsOfPayment.isLoading}
+                      placeholder="None"
+                      aria-label="Payment Terms"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -503,7 +478,7 @@ export function SalesOrderEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <SalesOrderLineItemTable form={form} items={items.data ?? []} itemsLoading={items.isLoading} taxes={activeSalesTaxOptions} />
+              <SalesOrderLineItemTable form={form} warehouseId={selectedWarehouseId} taxes={activeSalesTaxOptions} />
               {form.formState.errors.items?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
               )}
