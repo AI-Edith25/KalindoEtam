@@ -244,7 +244,12 @@ export function InvoicePrintPage() {
             // Same margin-via-@page, zero-wrapper-padding convention as Continuous just below —
             // explicit width/minHeight (not max-w-3xl) so the on-screen preview is proportioned
             // like a 148x210mm sheet too, not just the print output. See PRINT_PAPER_PAGE_CSS.half.
-            ? 'mx-auto flex flex-col gap-4 bg-background p-6 text-foreground print:max-w-none print:p-0'
+            // min-h-[148mm] is screen-only (print:min-h-0 overrides it): the 148mm sheet height
+            // can't fit inside the @page's own 136mm usable area (148mm minus 2x6mm margin), so
+            // forcing it during print guaranteed a blank overflow page 2 no matter how little
+            // content there was. A Tailwind class can be overridden per-media-query; the inline
+            // style this replaced could not, since inline styles beat print: variants regardless.
+            ? 'mx-auto flex flex-col gap-4 bg-background p-6 text-foreground min-h-[148mm] print:max-w-none print:p-0 print:min-h-0'
             : isContinuous
               // @page's own margin (PRINT_PAPER_PAGE_CSS.continuous) does the inset here — no
               // extra wrapper padding on top of it, unlike A4's margin:0-on-@page + p-[12mm].
@@ -255,7 +260,7 @@ export function InvoicePrintPage() {
         format === 'roll'
           ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` }
           : isHalf
-            ? { width: `${HALF_PAGE_WIDTH_MM}mm`, minHeight: `${HALF_PAGE_HEIGHT_MM}mm` }
+            ? { width: `${HALF_PAGE_WIDTH_MM}mm` }
             : undefined
       }
     >
@@ -306,14 +311,13 @@ export function InvoicePrintPage() {
           minHeight: tight ? undefined : '27.3cm',
           fontFamily: printOptions.fontFamily ?? '"Times New Roman", "Tinos", "Liberation Serif", serif',
           fontSize: `${printOptions.fontSizePt ?? 10}pt`,
-          // The real gap after the fixes above turned out to be line-height, not spacing: the
-          // second PDF measured meta rows at ~5.5mm apart at a 10pt font, which only happens at
-          // a ~1.56 line-height ratio — Times New Roman's fallback (Tinos/Liberation Serif) uses
-          // far more built-in leading than assumed. That was inflating every text block on Half/
-          // Continuous (meta grid, table rows, E&O.E, header), not just one spot. Unitless 1.15
-          // is deterministic across fonts and inherits to every descendant here, unlike trying to
-          // pin each element's line-height in mm individually.
-          lineHeight: tight ? 1.15 : undefined,
+          // The real gap turned out to be line-height, not spacing: meta rows were measured at
+          // ~5.5mm apart at a 10pt font, which only happens at a ~1.56 ratio — the fallback serif
+          // font (Tinos/Liberation Serif) uses far more built-in leading than assumed, inflating
+          // every text block on Half/Continuous, not just one spot. 1.15 fixed the page count but
+          // read as too cramped; with the fix confirmed, content only needs ~116mm of the 136mm
+          // available, so 1.3 buys back readability while leaving real margin to spare.
+          lineHeight: tight ? 1.3 : undefined,
         }}
       >
         <div className={isHalf ? 'flex flex-col' : isContinuous ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
