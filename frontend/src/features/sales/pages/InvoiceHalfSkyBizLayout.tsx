@@ -142,20 +142,29 @@ function cellPadStyle(col: ItemCol, isData: boolean): React.CSSProperties {
 }
 
 /**
- * Section 8's totals box only ever showed TOTAL/TAX/Grand Total (the one reference sample had
- * both tax and no discount) — Discount is a legitimate real case this replica needs too, so the
- * box generalizes to 1-4 rows: Grand Total is always last and bottom-anchored at the spec's own
- * 100.75mm baseline, and TOTAL (shown whenever Tax or Discount is on)/TAX/DISC stack upward from
- * there in the spec's own constant 5.29mm baseline-to-baseline step. With every toggle off this
- * collapses to a bare Grand Total at its usual position — everything above it is just blank space
- * inside the box, not a resized box, since Section 8 defines the box border as a fixed rectangle.
+ * Row positions measured directly (pdfminer bbox extraction, not estimated) from two real legacy
+ * exports sharing this exact meta-block shape: tax.pdf (TOTAL/TAX/Grand Total) and tax+disc.pdf
+ * (TOTAL/TAX/DISC/Grand Total). Both confirm the first row always starts at a fixed 90.75mm and
+ * every later row uses a constant 5.29mm step from the row before it — EXCEPT stepping into DISC
+ * specifically, which measured a real, repeatable 4.76mm (not a rounding artifact — same kind of
+ * "irregular gap, don't smooth it" quirk the rest of this page's spec already documents). A row
+ * with no real reference sample (Grand Total alone, or DISC without Tax) reuses these same two
+ * constants as the most defensible extrapolation.
  */
+const TOTALS_FIRST_ROW_TOP = 90.75
+const TOTALS_NORMAL_PITCH = 5.29
+const TOTALS_DISC_PITCH = 4.76
+
 function buildTotalsRows(invoice: Invoice, showTax: boolean, showDiscount: boolean) {
-  const rows: { label: string; amount: number | string; isFinal?: boolean }[] = []
-  if (showTax || showDiscount) rows.push({ label: 'TOTAL', amount: invoice.subtotal })
-  if (showTax) rows.push({ label: 'TAX', amount: invoice.tax_amount })
-  if (showDiscount) rows.push({ label: 'DISC', amount: invoice.discount_amount })
-  rows.push({ label: 'Grand Total', amount: invoice.grand_total, isFinal: true })
+  const rows: { label: string; amount: number | string; top: number; isFinal?: boolean }[] = []
+  const push = (label: string, amount: number | string, pitchFromPrev: number, isFinal?: boolean) => {
+    const top = rows.length === 0 ? TOTALS_FIRST_ROW_TOP : rows[rows.length - 1].top + pitchFromPrev
+    rows.push({ label, amount, top, isFinal })
+  }
+  if (showTax || showDiscount) push('TOTAL', invoice.subtotal, TOTALS_NORMAL_PITCH)
+  if (showTax) push('TAX', invoice.tax_amount, TOTALS_NORMAL_PITCH)
+  if (showDiscount) push('DISC', invoice.discount_amount, TOTALS_DISC_PITCH)
+  push('Grand Total', invoice.grand_total, TOTALS_NORMAL_PITCH, true)
   return rows
 }
 
@@ -352,9 +361,27 @@ export function InvoiceHalfSkyBizLayout({
       <T top={102.05} left={13.7} size={9} bold>BCA NO A/C. 0271461312</T>
 
       {/* ---------- KOTAK TOTAL ---------- */}
-      <div style={{ position: 'absolute', left: '119.27mm', top: '89.08mm', width: '79.08mm', height: '18.49mm', border: '0.50mm solid #000', boxSizing: 'border-box' }} />
-      {totalsRows.map((row, i) => {
-        const top = 100.75 - (totalsRows.length - 1 - i) * 5.29
+      {/* Box hugs its rows tightly rather than sitting at the spec sample's fixed 18.49mm height —
+          it does NOT just track the last row's position plus fixed padding: measured directly
+          (pdfminer bbox) from tax.pdf (3 rows, box 89.08–107.57mm) and tax+disc.pdf (4 rows,
+          89.08–110.22mm), the closing gap after the last row actually SHRINKS as rows are added
+          (6.24mm at 3 rows, down to 4.13mm at 4) rather than staying constant — so total box
+          height is fit directly against those two real measurements (10.54 + 2.65mm per row)
+          instead of extrapolated from a per-row-padding assumption, which is what previously
+          produced a box tall enough to run into the signature block at 4 rows. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '119.27mm',
+          top: '89.08mm',
+          width: '79.08mm',
+          height: `${10.54 + totalsRows.length * 2.65}mm`,
+          border: '0.50mm solid #000',
+          boxSizing: 'border-box',
+        }}
+      />
+      {totalsRows.map((row) => {
+        const { top } = row
         const labelLeft = row.isFinal ? 121.12 : 120.6
         const rpLeft = row.isFinal ? 155.25 : 154.72
         return (
