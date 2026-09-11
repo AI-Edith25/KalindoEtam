@@ -554,6 +554,11 @@ export function InvoicePrintPage() {
       </div>
       )}
 
+      {/* Half is a fixed-size exact replica of the legacy SkyBiz PDF (InvoiceHalfSkyBizLayout) —
+          font, tax/discount lines, and decimal formatting are all spec-mandated constants there,
+          not user-configurable, so those controls are hidden rather than shown-but-dead when
+          Half is selected. Paper Type and the signature labels are the only options Half still
+          acts on. */}
       <PrintOptionsDialog
         open={optionsOpen}
         onOpenChange={setOptionsOpen}
@@ -563,10 +568,11 @@ export function InvoicePrintPage() {
         showPaperType
         paperTypeOptions={['a4', 'half', 'continuous', 'roll']}
         useNumericFontSize
-        showFontFamily
-        showTax
-        showDecimalToggle
-        showDiscount
+        showFontSize={!isHalf}
+        showFontFamily={!isHalf}
+        showTax={!isHalf}
+        showDecimalToggle={!isHalf}
+        showDiscount={!isHalf}
         showSignatureLabels
       />
     </div>
