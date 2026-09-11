@@ -16,7 +16,7 @@ import {
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
-import { InvoiceHalfSkyBizLayout } from './InvoiceHalfSkyBizLayout'
+import { DEJAVU_FONT_STACK, InvoiceHalfSkyBizLayout } from './InvoiceHalfSkyBizLayout'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -129,8 +129,14 @@ export function InvoicePrintPage() {
     amountDecimals: 2,
     showDiscount: loadShowDiscountPreference(),
     showTax: false,
-    showDecimalTotals: false,
-    fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif',
+    // Left unset (not false) — A4/Continuous/Roll treat unset as their own "off" (0 decimals,
+    // unchanged), while Half treats unset as ITS OWN default of "on" (2 decimals, matching the
+    // legacy Half output invoice-print-spec.md was extracted from). See InvoiceHalfSkyBizLayout.
+    showDecimalTotals: undefined,
+    // Left unset so each paper type falls back to its own default font: A4/Continuous keep Times
+    // New Roman (below), Half falls back to DejaVu Sans Condensed (InvoiceHalfSkyBizLayout) — the
+    // exact-replica default until the user explicitly picks something else from Font Style.
+    fontFamily: undefined,
     fontSizePt: 10,
     signatureLeftLabel: 'AUTHORISED SIGNATURE',
     signatureRightLabel: 'AUTHORISED SIGNATURE',
@@ -287,6 +293,11 @@ export function InvoicePrintPage() {
           location={location}
           signatureLeftLabel={printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
           signatureRightLabel={printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
+          fontFamily={printOptions.fontFamily}
+          fontSizePt={printOptions.fontSizePt}
+          showTax={showTax}
+          showDiscount={showDiscount}
+          showDecimalTotals={printOptions.showDecimalTotals}
         />
       )}
 
@@ -554,11 +565,12 @@ export function InvoicePrintPage() {
       </div>
       )}
 
-      {/* Half is a fixed-size exact replica of the legacy SkyBiz PDF (InvoiceHalfSkyBizLayout) —
-          font, tax/discount lines, and decimal formatting are all spec-mandated constants there,
-          not user-configurable, so those controls are hidden rather than shown-but-dead when
-          Half is selected. Paper Type and the signature labels are the only options Half still
-          acts on. */}
+      {/* Font Size/Style, Tax, Decimal, and Discount all stay live for Half too — real Half
+          invoices are routinely untaxed, so hardcoding the reference sample's tax-on look was
+          wrong. defaultFontFamily makes the Font Style dropdown correctly show "DejaVu Sans
+          Condensed" as selected on Half when the user hasn't explicitly overridden it, since
+          that's what actually renders there (see InvoiceHalfSkyBizLayout's own fontFamily
+          fallback). */}
       <PrintOptionsDialog
         open={optionsOpen}
         onOpenChange={setOptionsOpen}
@@ -568,11 +580,12 @@ export function InvoicePrintPage() {
         showPaperType
         paperTypeOptions={['a4', 'half', 'continuous', 'roll']}
         useNumericFontSize
-        showFontSize={!isHalf}
-        showFontFamily={!isHalf}
-        showTax={!isHalf}
-        showDecimalToggle={!isHalf}
-        showDiscount={!isHalf}
+        showFontFamily
+        defaultFontFamily={isHalf ? DEJAVU_FONT_STACK : undefined}
+        showTax
+        showDecimalToggle
+        defaultShowDecimalTotals={isHalf}
+        showDiscount
         showSignatureLabels
       />
     </div>

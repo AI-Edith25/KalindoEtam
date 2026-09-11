@@ -16,7 +16,19 @@ import type { Invoice } from '../types'
  * header anchor can serve directly as the box edge, and each data cell then adds exactly the
  * spec's own +0.32mm inward shift — column boundaries themselves are invisible (no vertical
  * table rules exist in this layout) so their exact placement doesn't affect fidelity.
+ *
+ * Font Size / Font Style / Tax / Decimal / Discount stay live Print Options here too (real Half
+ * invoices routinely have no tax — hardcoding the reference sample's tax-on look was wrong), but
+ * every value above is still the spec's exact-replica default: fontSizePt unset (or 10) renders
+ * at 1:1 scale, fontFamily unset renders DejaVu, showTax/showDiscount unset render off (no HCTax
+ * column, no TAX/DISC row — Grand Total alone), matching how a typical untaxed Half invoice
+ * actually prints. Turning a toggle on reproduces the spec's own geometry exactly (that's where
+ * every mm value below came from); scaling font size scales the whole page uniformly via a CSS
+ * transform rather than recomputing 100+ individual mm constants, so the default (scale 1) stays
+ * pixel-exact and any other size stays proportionally identical, just bigger/smaller.
  */
+
+export const DEJAVU_FONT_STACK = '"DejaVu Sans Condensed", sans-serif'
 
 const FONT_FACES = `
 @font-face{ font-family:'DejaVu Sans Condensed';
@@ -30,7 +42,7 @@ const FONT_FACES = `
   font-weight:700; font-style:italic; font-display:block; }
 `
 
-/** SI.pdf's own always-2-decimal, comma-thousands convention (Section 9) — not user-toggleable on this exact-replica layout. */
+/** SI.pdf's own always-2-decimal, comma-thousands convention (Section 9) for item-table money columns — fixed regardless of the Decimal toggle, same "table columns always show their own fixed decimals" convention A4 already documents. Only the totals box responds to the toggle (see showDecimalTotals below). */
 function fmt(value: number | string, decimals = 2): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))
 }
@@ -92,14 +104,17 @@ function Line({ top, left, width, height, color }: { top: number; left: number; 
 }
 
 type ColAlign = 'left' | 'right'
+type ItemCol = { key: string; label: string; align: ColAlign; width: number; pad: number }
 
 /**
  * Section 7 column geometry. `width` is this column's box width; `pad` is the header's own
  * inward padding from that box's leading edge (left-aligned) or trailing edge (right-aligned) —
  * 0 wherever the header anchor itself defines the box edge. Data cells always add +0.32mm on
  * top of the header pad (Section 7's documented "data selalu bergeser 0.32mm ke dalam").
+ * Widths sum to exactly 210mm (the full page width) — see getItemCols for how the HCTax column
+ * is dropped when Tax is off.
  */
-const ITEM_COLS: { key: string; label: string; align: ColAlign; width: number; pad: number }[] = [
+const ITEM_COLS: ItemCol[] = [
   { key: 'no', label: 'No', align: 'left', width: 19.99, pad: 10.53 },
   { key: 'itemCode', label: 'ItemCode', align: 'left', width: 27.45, pad: 0 },
   { key: 'description', label: 'Description', align: 'left', width: 48.99, pad: 0 },
@@ -110,9 +125,38 @@ const ITEM_COLS: { key: string; label: string; align: ColAlign; width: number; p
   { key: 'lineAmt', label: 'HCLineAmt', align: 'right', width: 35.33, pad: 10.72 },
 ]
 
-function cellPadStyle(col: (typeof ITEM_COLS)[number], isData: boolean): React.CSSProperties {
+/**
+ * Drops the HCTax column when Tax is off and gives its width to HCLineAmt instead of leaving a
+ * blank gap — safe because `pad` is an absolute mm padding, not a percentage, so widening the
+ * column moves only its left edge; the right-aligned figure's on-page position is unchanged.
+ */
+function getItemCols(showTax: boolean): ItemCol[] {
+  if (showTax) return ITEM_COLS
+  const taxCol = ITEM_COLS.find((c) => c.key === 'tax')!
+  return ITEM_COLS.filter((c) => c.key !== 'tax').map((c) => (c.key === 'lineAmt' ? { ...c, width: c.width + taxCol.width } : c))
+}
+
+function cellPadStyle(col: ItemCol, isData: boolean): React.CSSProperties {
   const pad = col.pad + (isData ? 0.32 : 0)
   return col.align === 'left' ? { paddingLeft: `${pad}mm` } : { paddingRight: `${pad}mm` }
+}
+
+/**
+ * Section 8's totals box only ever showed TOTAL/TAX/Grand Total (the one reference sample had
+ * both tax and no discount) — Discount is a legitimate real case this replica needs too, so the
+ * box generalizes to 1-4 rows: Grand Total is always last and bottom-anchored at the spec's own
+ * 100.75mm baseline, and TOTAL (shown whenever Tax or Discount is on)/TAX/DISC stack upward from
+ * there in the spec's own constant 5.29mm baseline-to-baseline step. With every toggle off this
+ * collapses to a bare Grand Total at its usual position — everything above it is just blank space
+ * inside the box, not a resized box, since Section 8 defines the box border as a fixed rectangle.
+ */
+function buildTotalsRows(invoice: Invoice, showTax: boolean, showDiscount: boolean) {
+  const rows: { label: string; amount: number | string; isFinal?: boolean }[] = []
+  if (showTax || showDiscount) rows.push({ label: 'TOTAL', amount: invoice.subtotal })
+  if (showTax) rows.push({ label: 'TAX', amount: invoice.tax_amount })
+  if (showDiscount) rows.push({ label: 'DISC', amount: invoice.discount_amount })
+  rows.push({ label: 'Grand Total', amount: invoice.grand_total, isFinal: true })
+  return rows
 }
 
 export interface InvoiceHalfSkyBizLayoutProps {
@@ -123,6 +167,16 @@ export interface InvoiceHalfSkyBizLayoutProps {
   location: string
   signatureLeftLabel: string
   signatureRightLabel: string
+  /** Font Style dropdown — unset renders the spec's own DejaVu Sans Condensed (the exact-replica default). */
+  fontFamily?: string
+  /** Font Size (pt) — unset (or 10) renders at the spec's exact 1:1 scale. Any other value scales the ENTIRE page uniformly via a CSS transform (every mm position/size and every font size all move together), so the layout stays proportionally identical at any size rather than being recomputed per element. */
+  fontSizePt?: number
+  /** Tampilkan Tax — unset/false renders the spec-default "no tax" look (no HCTax column, no TAX row): real Half invoices are usually untaxed. On reproduces the spec sample's own exact geometry. */
+  showTax: boolean
+  /** Tampilkan Diskon — adds a DISC row (see buildTotalsRows); off by default, matching every other paper type's own default. */
+  showDiscount: boolean
+  /** Tampilkan Desimal, totals box only (item-table money columns always show 2 decimals regardless, per Section 9) — unset defaults to ON (2 decimals) here, unlike A4/Continuous/Roll's own default-OFF, because the legacy Half output the spec was extracted from always showed 2-decimal totals. */
+  showDecimalTotals?: boolean
 }
 
 export function InvoiceHalfSkyBizLayout({
@@ -133,7 +187,18 @@ export function InvoiceHalfSkyBizLayout({
   location,
   signatureLeftLabel,
   signatureRightLabel,
+  fontFamily,
+  fontSizePt,
+  showTax,
+  showDiscount,
+  showDecimalTotals,
 }: InvoiceHalfSkyBizLayoutProps) {
+  const scale = (fontSizePt ?? 10) / 10
+  const effectiveFontFamily = fontFamily ?? DEJAVU_FONT_STACK
+  const itemCols = getItemCols(showTax)
+  const totalsDecimals = (showDecimalTotals ?? true) ? 2 : 0
+  const totalsRows = buildTotalsRows(invoice, showTax, showDiscount)
+
   return (
     <div
       style={{
@@ -141,9 +206,11 @@ export function InvoiceHalfSkyBizLayout({
         width: '210mm',
         height: '148.5mm',
         overflow: 'visible', // pagination for long invoices is unmeasured (spec Section 12) — flow past this box rather than silently clip line items
-        fontFamily: '"DejaVu Sans Condensed", sans-serif',
+        fontFamily: effectiveFontFamily,
         color: '#000',
         lineHeight: 1.164,
+        transform: scale !== 1 ? `scale(${scale})` : undefined,
+        transformOrigin: 'top left',
       }}
     >
       <style>{FONT_FACES}</style>
@@ -204,13 +271,13 @@ export function InvoiceHalfSkyBizLayout({
         }}
       >
         <colgroup>
-          {ITEM_COLS.map((col) => (
+          {itemCols.map((col) => (
             <col key={col.key} style={{ width: `${col.width}mm` }} />
           ))}
         </colgroup>
         <thead>
           <tr>
-            {ITEM_COLS.map((col) => (
+            {itemCols.map((col) => (
               <th
                 key={col.key}
                 style={{
@@ -230,7 +297,7 @@ export function InvoiceHalfSkyBizLayout({
         <tbody>
           {invoice.items.map((item, index) => (
             <tr key={item.id}>
-              {ITEM_COLS.map((col) => {
+              {itemCols.map((col) => {
                 const style: React.CSSProperties = {
                   height: '5.92mm',
                   verticalAlign: 'top',
@@ -286,15 +353,18 @@ export function InvoiceHalfSkyBizLayout({
 
       {/* ---------- KOTAK TOTAL ---------- */}
       <div style={{ position: 'absolute', left: '119.27mm', top: '89.08mm', width: '79.08mm', height: '18.49mm', border: '0.50mm solid #000', boxSizing: 'border-box' }} />
-      <T top={90.17} left={120.6} size={10} bold>TOTAL</T>
-      <T top={90.17} left={154.72} width={10} size={10} bold align="right">RP</T>
-      <T top={90.17} left={162.4} width={35} size={10} bold align="right">{fmt(invoice.subtotal)}</T>
-      <T top={95.46} left={120.6} size={10} bold>TAX</T>
-      <T top={95.46} left={154.72} width={10} size={10} bold align="right">RP</T>
-      <T top={95.46} left={162.4} width={35} size={10} bold align="right">{fmt(invoice.tax_amount)}</T>
-      <T top={100.75} left={121.12} size={10} bold>Grand Total</T>
-      <T top={100.75} left={155.25} width={10} size={10} bold align="right">RP</T>
-      <T top={100.75} left={162.4} width={35} size={10} bold align="right">{fmt(invoice.grand_total)}</T>
+      {totalsRows.map((row, i) => {
+        const top = 100.75 - (totalsRows.length - 1 - i) * 5.29
+        const labelLeft = row.isFinal ? 121.12 : 120.6
+        const rpLeft = row.isFinal ? 155.25 : 154.72
+        return (
+          <div key={row.label}>
+            <T top={top} left={labelLeft} size={10} bold>{row.label}</T>
+            <T top={top} left={rpLeft} width={10} size={10} bold align="right">RP</T>
+            <T top={top} left={162.4} width={35} size={10} bold align="right">{fmt(row.amount, totalsDecimals)}</T>
+          </div>
+        )
+      })}
 
       {/* ---------- TANDA TANGAN ---------- */}
       <T top={110.25} left={10.79} width={65} size={9} bold align="center">{invoice.customer?.customer_name ?? '—'}</T>

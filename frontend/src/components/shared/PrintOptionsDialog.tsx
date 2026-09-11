@@ -17,6 +17,9 @@ const FONT_FAMILY_OPTIONS = [
   { value: '"Times New Roman", "Tinos", "Liberation Serif", serif', label: 'Times New Roman' },
   { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
   { value: '"Courier New", "Cutive Mono", monospace', label: 'Courier New' },
+  // Invoice Half's own exact-replica default (see InvoiceHalfSkyBizLayout) — listed explicitly so
+  // it's a real selectable choice, not just an invisible fallback.
+  { value: '"DejaVu Sans Condensed", sans-serif', label: 'DejaVu Sans Condensed' },
 ]
 
 const NUMERIC_FONT_SIZE_CHOICES = [8, 9, 10, 11, 12, 13, 14, 16]
@@ -39,12 +42,19 @@ interface PrintOptionsDialogProps {
   showTax?: boolean
   /** Only Invoice print renders/acts on this (2 vs 0 decimals in the totals block only — table columns stay fixed at their own decimals) — every other consumer leaves it hidden, same convention as showDiscount. Distinct from `fields`, which controls the pre-existing per-column decimal Selects other pages still use. */
   showDecimalToggle?: boolean
+  /**
+   * Falls back to `false` (unchecked) when `options.showDecimalTotals` is unset — pass this when
+   * the caller has its own paper-type-specific default (Invoice's Half paper type defaults this
+   * ON, unlike every other paper type) so the checkbox's displayed state matches what's actually
+   * rendering instead of always reading as off.
+   */
+  defaultShowDecimalTotals?: boolean
   /** Only Invoice print renders/acts on this (Font Family dropdown) — every other consumer leaves it hidden, same convention as showDiscount. */
   showFontFamily?: boolean
+  /** Falls back to `FONT_FAMILY_OPTIONS[0]` (Times New Roman) when `options.fontFamily` is unset — pass this when the caller has its own paper-type-specific default (Invoice's Half paper type defaults to DejaVu Sans Condensed) so the dropdown's displayed selection matches what's actually rendering. */
+  defaultFontFamily?: string
   /** Only Invoice print uses this — swaps the Font Size control from the shared small/medium/large Select to a numeric point-size Select bound to `options.fontSizePt` instead of `options.fontSize`. Every other consumer leaves it off and keeps the small/medium/large control. */
   useNumericFontSize?: boolean
-  /** Hides the Font Size control entirely — for Invoice print's Half paper type, which is a fixed-size exact replica (see InvoiceHalfSkyBizLayout) with no font-size knob at all, numeric or otherwise. Every other consumer/paper-type leaves this at the default true. */
-  showFontSize?: boolean
   /** Only Invoice print renders/acts on this (editable signature block labels) — every other consumer leaves it hidden, same convention as showDiscount. */
   showSignatureLabels?: boolean
 }
@@ -65,9 +75,10 @@ export function PrintOptionsDialog({
   showDiscount = false,
   showTax = false,
   showDecimalToggle = false,
+  defaultShowDecimalTotals = false,
   showFontFamily = false,
+  defaultFontFamily,
   useNumericFontSize = false,
-  showFontSize = true,
   showSignatureLabels = false,
 }: PrintOptionsDialogProps) {
   return (
@@ -95,47 +106,49 @@ export function PrintOptionsDialog({
               </Select>
             </div>
           )}
-          {showFontSize &&
-            (useNumericFontSize ? (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Font Size (pt)</label>
-                <Select
-                  value={String(options.fontSizePt ?? DEFAULT_FONT_SIZE_PT)}
-                  onValueChange={(value) => onChange({ ...options, fontSizePt: Number(value) })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {NUMERIC_FONT_SIZE_CHOICES.map((pt) => (
-                      <SelectItem key={pt} value={String(pt)}>
-                        {pt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Font Size</label>
-                <Select value={options.fontSize} onValueChange={(value) => onChange({ ...options, fontSize: value as PrintFontSize })}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PRINT_FONT_SIZE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
+          {useNumericFontSize ? (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Font Size (pt)</label>
+              <Select
+                value={String(options.fontSizePt ?? DEFAULT_FONT_SIZE_PT)}
+                onValueChange={(value) => onChange({ ...options, fontSizePt: Number(value) })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {NUMERIC_FONT_SIZE_CHOICES.map((pt) => (
+                    <SelectItem key={pt} value={String(pt)}>
+                      {pt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Font Size</label>
+              <Select value={options.fontSize} onValueChange={(value) => onChange({ ...options, fontSize: value as PrintFontSize })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PRINT_FONT_SIZE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {showFontFamily && (
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Font Style</label>
-              <Select value={options.fontFamily ?? FONT_FAMILY_OPTIONS[0].value} onValueChange={(value) => onChange({ ...options, fontFamily: value })}>
+              <Select
+                value={options.fontFamily ?? defaultFontFamily ?? FONT_FAMILY_OPTIONS[0].value}
+                onValueChange={(value) => onChange({ ...options, fontFamily: value })}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -209,7 +222,7 @@ export function PrintOptionsDialog({
           {showDecimalToggle && (
             <label className="flex items-center gap-2 text-sm font-medium">
               <Checkbox
-                checked={options.showDecimalTotals ?? false}
+                checked={options.showDecimalTotals ?? defaultShowDecimalTotals}
                 onCheckedChange={(checked) => onChange({ ...options, showDecimalTotals: checked === true })}
               />
               Tampilkan Desimal
