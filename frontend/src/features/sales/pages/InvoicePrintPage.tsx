@@ -13,10 +13,10 @@ import {
   saveShowDiscountPreference,
   type PrintOptions,
 } from '@/shared/lib/printOptions'
-import { terbilangIdr } from '@/shared/lib/numberToWords'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
+import { InvoiceHalfSkyBizLayout } from './InvoiceHalfSkyBizLayout'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -25,26 +25,12 @@ const ROLL_PAPER_WIDTH_MM = 80
 const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
 
 /**
- * Half is A5 LANDSCAPE — 210 x 148mm (595.276 x 420.945pt in the reference PDF's own page box),
- * not a portrait 148 x 210mm sheet. Tighter 6mm margin than A4's 12mm wrapper padding, same
- * margin-via-@page + zero wrapper padding convention as Continuous (PRINT_PAPER_PAGE_CSS.half),
- * so this is the single source of truth for the page box (on-screen preview included — see the
- * wrapper's own width/minHeight style below, which reads these same two constants).
+ * Half is A5 LANDSCAPE — 210 x 148.5mm, replicating the legacy SkyBiz print pixel-for-pixel (see
+ * invoice-print-spec.md). Unlike A4/Continuous, Half's own content (InvoiceHalfSkyBizLayout) is
+ * absolutely positioned at this exact size — no @page margin, no flex-based stretching, no
+ * page-count estimate: the component IS the page.
  */
 const HALF_PAGE_WIDTH_MM = 210
-const HALF_PAGE_HEIGHT_MM = 148
-const HALF_PAGE_MARGIN_MM = 6
-/**
- * Safety margin subtracted from the page's theoretical usable height before it's used to stretch
- * content (flex-1 below) or estimate page count. The raw 136mm (148 - 2*6) is an exact printed-area
- * number with zero slack for browser rounding (mm->px conversion, line-height, border widths) —
- * filling flex-1 all the way to 136mm reliably tipped even a single-item invoice onto a phantom
- * second page, throwing the footer/signature block with it. 4mm buffer fixes that without a
- * visible gap.
- */
-const HALF_PAGE_SAFETY_MARGIN_MM = 4
-/** Available content height per printed page, after the @page margin on both edges and the safety margin above — the divisor for estimating how many physical pages the table will span (see the halfPageCount effect below). */
-const HALF_CONTENT_HEIGHT_MM = HALF_PAGE_HEIGHT_MM - HALF_PAGE_MARGIN_MM * 2 - HALF_PAGE_SAFETY_MARGIN_MM
 
 /** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
 function formatNum(value: number | string, decimals: number): string {
@@ -129,8 +115,6 @@ export function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>()
   const barcodeRef = useRef<SVGSVGElement>(null)
   const rollContentRef = useRef<HTMLDivElement>(null)
-  const halfContentRef = useRef<HTMLDivElement>(null)
-  const [halfPageCount, setHalfPageCount] = useState(1)
   const { user } = useAuth()
   const [printOptions, setPrintOptions] = useState<PrintOptions>(() => ({
     fontSize: 'medium',
@@ -169,13 +153,13 @@ export function InvoicePrintPage() {
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
   const isContinuous = format === 'a4' && printOptions.paperType === 'continuous'
   const isHalf = format === 'a4' && printOptions.paperType === 'half'
-  // Half/Continuous are dot-matrix-era continuous stationery where the physical page size is
-  // fixed (@page above) — spacing expressed in rem/px drifts against that fixed mm page depending
-  // on root font-size and DPI rounding, which is exactly what threw the Half footer onto a phantom
-  // page 2. A4 has no such fixed-size @page (browser/printer default) and already renders
-  // correctly, so it deliberately keeps its original rem-based Tailwind classes below — only
-  // Half/Continuous switch to the mm/pt arbitrary-value classes via this flag.
-  const tight = isHalf || isContinuous
+  // Continuous is dot-matrix-era continuous stationery where the physical page size is fixed
+  // (@page above) — spacing expressed in rem/px drifts against that fixed mm page depending on
+  // root font-size and DPI rounding. A4 has no such fixed-size @page (browser/printer default)
+  // and already renders correctly, so it deliberately keeps its original rem-based Tailwind
+  // classes below — only Continuous switches to the mm/pt arbitrary-value classes via this flag.
+  // (Half has its own fully independent absolutely-positioned layout, see InvoiceHalfSkyBizLayout.)
+  const tight = isContinuous
   const showDiscount = printOptions.showDiscount ?? false
   const showTax = printOptions.showTax ?? false
   const showBreakdown = showTax || showDiscount
@@ -207,18 +191,6 @@ export function InvoicePrintPage() {
       setRollHeightMm(Math.ceil((heightPx * 25.4) / 96) + 2)
     }
   }, [format, documentNumber, showTax])
-
-  // Half's own "Page No: 1 of N" — this file has no repeating per-page header/footer (that's a
-  // materially bigger feature than "the number is right"), so N is estimated by measuring the
-  // whole flowing content's rendered height and dividing by one page's available content height
-  // (HALF_CONTENT_HEIGHT_MM) — same "measure the DOM, feed the number back in" technique as
-  // rollHeightMm above, just producing a page count instead of a page size.
-  useEffect(() => {
-    if (isHalf && halfContentRef.current) {
-      const heightMm = (halfContentRef.current.scrollHeight * 25.4) / 96
-      setHalfPageCount(Math.max(1, Math.ceil(heightMm / HALF_CONTENT_HEIGHT_MM)))
-    }
-  }, [isHalf, documentNumber, showTax, showDiscount])
 
   if (invoiceQuery.isLoading) {
     return (
@@ -255,15 +227,11 @@ export function InvoicePrintPage() {
         format === 'roll'
           ? 'mx-auto flex flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-[2mm] print:shadow-none'
           : isHalf
-            // Same margin-via-@page, zero-wrapper-padding convention as Continuous just below —
-            // explicit width/minHeight (not max-w-3xl) so the on-screen preview is proportioned
-            // like a 148x210mm sheet too, not just the print output. See PRINT_PAPER_PAGE_CSS.half.
-            // min-h-[148mm] is screen-only (print:min-h-0 overrides it): the 148mm sheet height
-            // can't fit inside the @page's own 136mm usable area (148mm minus 2x6mm margin), so
-            // forcing it during print guaranteed a blank overflow page 2 no matter how little
-            // content there was. A Tailwind class can be overridden per-media-query; the inline
-            // style this replaced could not, since inline styles beat print: variants regardless.
-            ? 'mx-auto flex flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] min-h-[148mm] print:max-w-none print:p-0 print:min-h-0 print:shadow-none'
+            // InvoiceHalfSkyBizLayout is a fixed 210x148.5mm absolutely-positioned page (see that
+            // component) — this wrapper just centers it on screen and drops to zero padding for
+            // print, since @page margin:0 + the component's own coordinates already account for
+            // every inset (PRINT_PAPER_PAGE_CSS.half).
+            ? 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none'
             : isContinuous
               // @page's own margin (PRINT_PAPER_PAGE_CSS.continuous) does the inset here — no
               // extra wrapper padding on top of it, unlike A4's margin:0-on-@page + p-[12mm].
@@ -310,84 +278,46 @@ export function InvoicePrintPage() {
         </div>
       </div>
 
-      {format === 'a4' && (
+      {format === 'a4' && isHalf && (
+        <InvoiceHalfSkyBizLayout
+          invoice={invoice}
+          companyName={companyName}
+          printHeader={printHeaderQuery.data}
+          customerTel={tel}
+          location={location}
+          signatureLeftLabel={printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
+          signatureRightLabel={printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
+        />
+      )}
+
+      {format === 'a4' && !isHalf && (
       <div
-        ref={halfContentRef}
         className="flex flex-col text-black"
         style={{
-          // Half re-adds a bounded push-to-bottom stretch (removed once, reinstated here) now
-          // that real print output has been measured at every step: natural content lands around
-          // 116mm, HALF_CONTENT_HEIGHT_MM targets 132mm (136mm usable minus a 4mm safety margin),
-          // so the flex-1 spacer below only ever ADDS space up to that target — it can't push
-          // total height past 132mm, unlike the original bug where the target itself (136mm, zero
-          // margin, built on a wrong line-height assumption) already left no room for the footer.
-          // A longer invoice whose natural content exceeds 132mm simply isn't stretched further;
-          // it overflows to page 2 normally, protected by the footer's own break-inside-avoid.
-          // Continuous keeps flowing naturally — no real-world Half-style measurement exists for
-          // it yet, so it isn't given this same treatment. A4 keeps its own full-page stretch.
-          minHeight: isHalf ? `${HALF_CONTENT_HEIGHT_MM}mm` : isContinuous ? undefined : '27.3cm',
+          // Continuous keeps flowing naturally — no real-world measurement exists to safely bound
+          // it the same way Half's fixed-size layout doesn't need bounding at all anymore. A4
+          // keeps its own full-page stretch.
+          minHeight: isContinuous ? undefined : '27.3cm',
           fontFamily: printOptions.fontFamily ?? '"Times New Roman", "Tinos", "Liberation Serif", serif',
           fontSize: `${printOptions.fontSizePt ?? 10}pt`,
           // The real gap turned out to be line-height, not spacing: meta rows were measured at
           // ~5.5mm apart at a 10pt font, which only happens at a ~1.56 ratio — the fallback serif
           // font (Tinos/Liberation Serif) uses far more built-in leading than assumed, inflating
-          // every text block on Half/Continuous, not just one spot. 1.15 fixed the page count but
-          // read as too cramped; with the fix confirmed, content only needs ~116mm of the 136mm
-          // available, so 1.3 buys back readability while leaving real margin to spare.
+          // every text block on Continuous. 1.3 buys back readability while leaving real margin
+          // to spare.
           lineHeight: tight ? 1.3 : undefined,
         }}
       >
-        {isHalf ? (
-          // weblama.pdf (the legacy system's own Half-format export — its page box is the exact
-          // 595.276x420.945pt this format's own mm constants were derived from) puts the NO/Date/
-          // etc. meta block beside the header, not stacked below the INVOICE title: same vertical
-          // space as the header block instead of extra space on top of it. That's most of the
-          // remaining "too cramped" gap — stacking three sections (header, title, meta grid) was
-          // pure wasted height a two-column top row never needed. Customer name + Tel sit under
-          // the header on the left, exactly like weblama.pdf; Attn/Fax/Reference 2/Page No never
-          // appear in that file's Half template at all (not blank-hidden — structurally absent),
-          // so they're only kept here when they actually have something to say.
-          <div className="grid grid-cols-2 gap-[4.2mm]">
-            <div className="flex flex-col">
-              <p className="text-[12pt] font-bold">{companyName}</p>
-              {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
-              {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
-              {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
-              <div className="mt-[2.1mm] flex flex-col">
-                <p className="font-bold">{invoice.customer?.customer_name ?? '—'}</p>
-                {invoice.customer?.address && <p>{invoice.customer.address}</p>}
-                <MetaRow label="Attn" value={attn} tight />
-                <MetaRow label="Tel" value={tel} tight alwaysShow />
-                <MetaRow label="Fax" value={fax} tight />
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <MetaRow label="NO" value={invoice.document_number ?? '—'} bold tight />
-              <MetaRow label="Date" value={formatDdMmYyyy(invoice.invoice_date)} tight />
-              <MetaRow label="Reference 1" value={invoice.reference_1 ?? ''} tight />
-              <MetaRow label="Reference 2" value={invoice.reference_2 ?? ''} tight />
-              <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} tight />
-              <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} tight />
-              <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} tight />
-              {/* Only once the invoice genuinely spans more than one physical page — weblama.pdf's
-                  own Half template has no such field at all for the common single-page case. */}
-              {halfPageCount > 1 && <MetaRow label="Page No" value={`1 of ${halfPageCount}`} tight />}
-              <MetaRow label="Location" value={location} tight />
-            </div>
-          </div>
-        ) : (
-          <div className={isContinuous ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
-            <p className={isContinuous ? 'text-[15pt] font-bold' : 'text-xl font-bold'}>{companyName}</p>
-            {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
-            {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
-            {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
-          </div>
-        )}
+        <div className={isContinuous ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
+          <p className={isContinuous ? 'text-[15pt] font-bold' : 'text-xl font-bold'}>{companyName}</p>
+          {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
+          {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
+          {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
+        </div>
 
         <p className={tight ? 'mt-[3.2mm] text-center text-[13.5pt] font-bold' : 'mt-3 text-center text-lg font-bold'}>INVOICE</p>
         <hr className={tight ? 'mt-[2.1mm] border-black' : 'mt-2 border-black'} />
 
-        {!isHalf && (
         <div className={tight ? 'mt-[2.1mm] grid grid-cols-2 gap-[4.2mm] border-b border-black pb-[2.1mm]' : 'mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2'}>
           <div className={tight ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
             <p className="font-bold">{invoice.customer?.customer_name ?? '—'}</p>
@@ -410,7 +340,6 @@ export function InvoicePrintPage() {
             <MetaRow label="Location" value={location} tight={tight} />
           </div>
         </div>
-        )}
 
         <table className="w-full border-collapse text-left">
           <thead style={{ display: 'table-header-group' }}>
@@ -428,10 +357,10 @@ export function InvoicePrintPage() {
           </thead>
           <tbody>
             {invoice.items.map((item, index) => (
-              // break-inside-avoid for Continuous/Half — a genuinely multi-page invoice on
-              // continuous stock or a Half page must not split a row across the page break; A4 is
-              // left exactly as it already behaved (no page-break rule at all).
-              <tr key={item.id} className={isContinuous || isHalf ? 'break-inside-avoid' : undefined}>
+              // break-inside-avoid for Continuous — a genuinely multi-page invoice on continuous
+              // stock must not split a row across the page break; A4 is left exactly as it
+              // already behaved (no page-break rule at all).
+              <tr key={item.id} className={isContinuous ? 'break-inside-avoid' : undefined}>
                 <td className={`${cellPad} align-top`}>{index + 1}</td>
                 <td className={`${cellPad} align-top`}>{item.item_code ?? ''}</td>
                 <td className={`${cellPad} align-top`}>{item.item_name}</td>
@@ -446,21 +375,14 @@ export function InvoicePrintPage() {
           </tbody>
         </table>
 
-        {/* weblama.pdf leaves ~28mm of clear air between the table and this line — the legacy
-            system's table area holds a fixed number of row slots regardless of how many are
-            filled, so terbilang always lands at the same spot. We don't reserve fixed slots, but
-            matching the same visual gap here reads the same on a mostly-empty invoice. */}
-        {isHalf && <p className="mt-[10mm]">{terbilangIdr(invoice.grand_total)}</p>}
-
-        {/* Pushes the footer/signature toward the bottom of the page — A4 (full 297mm sheet) and
-            now Half again too, bounded this time by HALF_CONTENT_HEIGHT_MM above instead of the
-            unbuffered exact-page-height target that caused the original overflow. Continuous still
-            flows naturally; no real measurement exists yet to safely bound it the same way. */}
-        {(isHalf || !tight) && <div className="flex-1" />}
+        {/* Pushes the footer/signature toward the bottom of the page — A4's own full 297mm sheet.
+            Continuous flows naturally; no real measurement exists to safely bound it the same
+            way. */}
+        {!tight && <div className="flex-1" />}
 
         {/* One break-inside-avoid unit — E.&O.E/BCA account, totals box, and signature lines must
             land on the same physical page together, never split across a page break. */}
-        <div className={isContinuous || isHalf ? 'break-inside-avoid' : undefined}>
+        <div className={isContinuous ? 'break-inside-avoid' : undefined}>
         <p>RP</p>
         <hr className={tight ? 'mt-[2.1mm] border-black' : 'mt-2 border-black'} />
 

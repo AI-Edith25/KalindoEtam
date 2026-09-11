@@ -35,7 +35,7 @@ export const defaultPrintOptions: PrintOptions = {
 export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
   a4: 'A4',
   continuous: 'Continuous 9.5" × 11" (Dot Matrix)',
-  half: 'Half (A5 Landscape, 210 × 148mm)',
+  half: 'Half (A5 Landscape, 210 × 148.5mm)',
   roll: 'Roll (Thermal 80mm)',
 }
 
@@ -44,15 +44,16 @@ export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
  * default, exactly like before this option existed. Roll computes its own @page string at
  * render time (paper height depends on measured content), so it's left null here too.
  *
- * Half is A5 LANDSCAPE — 210 x 148mm (595.276 x 420.945pt per the reference PDF's own page
- * box), not the 148 x 210mm portrait box this shipped with initially. Explicit size here
- * (rather than relying on the printer's own paper-size setting) is what makes the printed
- * output match this regardless of what the OS print dialog defaults to.
+ * Half is A5 LANDSCAPE — 210 x 148.5mm (595.276 x 420.945pt per the reference PDF's own page
+ * box, see invoice-print-spec.md), not the 148 x 210mm portrait box this shipped with
+ * initially. margin:0 (not 6mm) because the precise SkyBiz-replica layout positions every
+ * element with absolute mm coordinates that already bake the page margin in — a nonzero
+ * @page margin here would double-offset everything.
  */
 export const PRINT_PAPER_PAGE_CSS: Record<PrintPaperType, string | null> = {
   a4: null,
   continuous: '@page { size: 9.5in 11in; margin: 6mm; }',
-  half: '@page { size: 210mm 148mm; margin: 6mm; }',
+  half: '@page { size: 210mm 148.5mm; margin: 0; }',
   roll: null,
 }
 
