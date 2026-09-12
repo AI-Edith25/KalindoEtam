@@ -1,14 +1,25 @@
+import { createContext, useContext } from 'react'
 import type { CompanyPrintHeader } from '@/features/administration/types'
 import { terbilangIdr } from '@/shared/lib/numberToWords'
 import type { Invoice } from '../types'
 
 /**
- * Precise replica of the legacy SkyBiz salesinvoice.php print (DocumentTemplate=23) for Half
- * (A5 landscape, 210x148.5mm) paper — see invoice-print-spec.md at the repo root, which is the
- * single source of truth for every mm value below (extracted from the PDF's own content stream,
- * not estimated). Absolute positioning throughout per that spec's own Section 0 rule 3: mPDF
- * places every text baseline independently with irregular gaps, which flow/flex layout cannot
- * reproduce. Do not "fix" the irregular spacing — it's how the original renders.
+ * Shared "classic" invoice template for the A4, Half, and Continuous paper types — originally a
+ * precise replica of the legacy SkyBiz salesinvoice.php print (DocumentTemplate=23) for Half (A5
+ * landscape, 210x148.5mm) only — see invoice-print-spec.md at the repo root, which is the single
+ * source of truth for every mm value below (extracted from the PDF's own content stream, not
+ * estimated). Absolute positioning throughout per that spec's own Section 0 rule 3: mPDF places
+ * every text baseline independently, which flow/flex layout cannot reproduce.
+ *
+ * A4 and Continuous now render this exact same component instead of their own separate markup.
+ * Every `top`/`height`/font-size value below is a literal mm/pt constant shared unscaled by all
+ * three paper types (same typography, same vertical rhythm) — only `left`/`width` values (via the
+ * `T`/`Line` helpers' own ScaleXContext read, see below) scale horizontally by `contentWidthMm /
+ * 210` to fill each paper type's own usable content width. A4's own content width (210mm, @page
+ * margin:0) equals this component's 210mm reference frame exactly, so A4 renders pixel-identical
+ * to Half with scale 1 — only Continuous (wider physical paper) actually scales. Neither paper
+ * type stretches vertically: on their taller physical sheets the content simply occupies the top
+ * portion, leaving blank paper below, same as a preprinted dot-matrix form on a larger sheet.
  *
  * Every top/left value is copied straight from the spec's Section 4/5/6/7/8/11 tables. The one
  * derived piece is the item-table column geometry (Section 7 only gives left/right text anchors,
@@ -26,7 +37,19 @@ import type { Invoice } from '../types'
  * every mm value below came from); scaling font size scales the whole page uniformly via a CSS
  * transform rather than recomputing 100+ individual mm constants, so the default (scale 1) stays
  * pixel-exact and any other size stays proportionally identical, just bigger/smaller.
+ *
+ * The Grand Total box's row pitch/height/bold rules (see buildTotalsRows and the totals box JSX)
+ * are a DELIBERATE departure from the original two-PDF-sample pixel measurements — a later ticket
+ * explicitly asked for uniform per-row height and auto-fit spacing across all three paper types.
+ * Do not "restore" the old irregular DISC pitch or unconditional bold; that was superseded on
+ * purpose, not an oversight.
  */
+
+/** Horizontal-only scale factor for the `T`/`Line` helpers below — `left`/`width` are multiplied
+    by this, `top`/`height`/font sizes never are (see file doc comment). Default 1 so any caller
+    that doesn't wrap in a Provider (there shouldn't be one) still renders at the 210mm reference
+    scale. */
+const ScaleXContext = createContext(1)
 
 export const DEJAVU_FONT_STACK = '"DejaVu Sans Condensed", sans-serif'
 
@@ -78,13 +101,14 @@ function T({
   align?: 'left' | 'right' | 'center'
   children: React.ReactNode
 }) {
+  const scaleX = useContext(ScaleXContext)
   return (
     <div
       style={{
         position: 'absolute',
         top: `${top}mm`,
-        left: `${left}mm`,
-        width: width != null ? `${width}mm` : undefined,
+        left: `${left * scaleX}mm`,
+        width: width != null ? `${width * scaleX}mm` : undefined,
         whiteSpace: 'nowrap',
         lineHeight: 1.164,
         fontSize: `${size}pt`,
@@ -100,7 +124,19 @@ function T({
 
 /** Section 5 horizontal rules. */
 function Line({ top, left, width, height, color }: { top: number; left: number; width: number; height: number; color: string }) {
-  return <div style={{ position: 'absolute', top: `${top}mm`, left: `${left}mm`, width: `${width}mm`, height: `${height}mm`, background: color }} />
+  const scaleX = useContext(ScaleXContext)
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: `${top}mm`,
+        left: `${left * scaleX}mm`,
+        width: `${width * scaleX}mm`,
+        height: `${height}mm`,
+        background: color,
+      }}
+    />
+  )
 }
 
 type ColAlign = 'left' | 'right'
@@ -142,33 +178,51 @@ function cellPadStyle(col: ItemCol, isData: boolean): React.CSSProperties {
 }
 
 /**
- * Row positions measured directly (pdfminer bbox extraction, not estimated) from two real legacy
- * exports sharing this exact meta-block shape: tax.pdf (TOTAL/TAX/Grand Total) and tax+disc.pdf
- * (TOTAL/TAX/DISC/Grand Total). Both confirm the first row always starts at a fixed 90.75mm and
- * every later row uses a constant 5.29mm step from the row before it — EXCEPT stepping into DISC
- * specifically, which measured a real, repeatable 4.76mm (not a rounding artifact — same kind of
- * "irregular gap, don't smooth it" quirk the rest of this page's spec already documents). A row
- * with no real reference sample (Grand Total alone, or DISC without Tax) reuses these same two
- * constants as the most defensible extrapolation.
+ * Row positions: first row starts at a fixed 90.75mm, every later row (including into DISC) uses
+ * one uniform 5.29mm step. A single pitch was chosen deliberately — this box now auto-fits its
+ * height/padding to row count and applies a conditional bold rule (see the totals box JSX below),
+ * so keeping one legacy PDF sample's irregular 4.76mm DISC step would have been an inconsistent
+ * half-measure once every other property of the box was already being redesigned.
  */
 const TOTALS_FIRST_ROW_TOP = 90.75
-const TOTALS_NORMAL_PITCH = 5.29
-const TOTALS_DISC_PITCH = 4.76
+const TOTALS_ROW_PITCH = 5.29
+const TOTALS_BOX_TOP_MM = 89.08
+/** Gap between the box's own top border and the first row's text top (89.08mm box top vs 90.75mm
+    first-row top, from the original measured sample) — reused as the box's top inner padding. */
+const TOTALS_BOX_PAD_TOP = TOTALS_FIRST_ROW_TOP - TOTALS_BOX_TOP_MM
+/** Bottom inner padding below the last row, tuned so the box reads as evenly padded top/bottom
+    rather than hugging the last row's text baseline. */
+const TOTALS_BOX_PAD_BOTTOM = 3.2
+
+/** Bottom of the left-column E&O.E/BCA note block (row-count-independent — that block's own
+    content never changes) — approximated from its last line's own top (102.05mm) plus a 9pt
+    line's height; needs one visual tuning pass against the real print preview once implemented. */
+const LEFT_COLUMN_BOTTOM_MM = 106
+/** Real clearance between whichever of the totals box or the left column ends lower, and the
+    signature name text below it — replaces the old fixed top=110.25mm, which left only 0.03mm at
+    4 rows and wasted space at 1 row. */
+const SIGNATURE_GAP_MM = 4
+/** Vertical offsets from the signature name's own top down to the rest of the signature block,
+    preserved exactly from the original fixed absolute values (135.12/134.86/136.18 minus the old
+    110.25 name top) — including the real 0.26mm left/right line asymmetry, not a rounding error. */
+const SIGNATURE_LINE_LEFT_OFFSET_MM = 24.87
+const SIGNATURE_LINE_RIGHT_OFFSET_MM = 24.61
+const SIGNATURE_LABEL_OFFSET_MM = 25.93
 
 function buildTotalsRows(invoice: Invoice, showTax: boolean, showDiscount: boolean) {
   const rows: { label: string; amount: number | string; top: number; isFinal?: boolean }[] = []
-  const push = (label: string, amount: number | string, pitchFromPrev: number, isFinal?: boolean) => {
-    const top = rows.length === 0 ? TOTALS_FIRST_ROW_TOP : rows[rows.length - 1].top + pitchFromPrev
+  const push = (label: string, amount: number | string, isFinal?: boolean) => {
+    const top = rows.length === 0 ? TOTALS_FIRST_ROW_TOP : rows[rows.length - 1].top + TOTALS_ROW_PITCH
     rows.push({ label, amount, top, isFinal })
   }
-  if (showTax || showDiscount) push('TOTAL', invoice.subtotal, TOTALS_NORMAL_PITCH)
-  if (showTax) push('TAX', invoice.tax_amount, TOTALS_NORMAL_PITCH)
-  if (showDiscount) push('DISC', invoice.discount_amount, TOTALS_DISC_PITCH)
-  push('Grand Total', invoice.grand_total, TOTALS_NORMAL_PITCH, true)
+  if (showTax || showDiscount) push('TOTAL', invoice.subtotal)
+  if (showTax) push('TAX', invoice.tax_amount)
+  if (showDiscount) push('DISC', invoice.discount_amount)
+  push('Grand Total', invoice.grand_total, true)
   return rows
 }
 
-export interface InvoiceHalfSkyBizLayoutProps {
+export interface InvoicePaperLayoutProps {
   invoice: Invoice
   companyName: string
   printHeader: CompanyPrintHeader | undefined
@@ -184,11 +238,13 @@ export interface InvoiceHalfSkyBizLayoutProps {
   showTax: boolean
   /** Tampilkan Diskon — adds a DISC row (see buildTotalsRows); off by default, matching every other paper type's own default. */
   showDiscount: boolean
-  /** Tampilkan Desimal, totals box only (item-table money columns always show 2 decimals regardless, per Section 9) — unset defaults to ON (2 decimals) here, unlike A4/Continuous/Roll's own default-OFF, because the legacy Half output the spec was extracted from always showed 2-decimal totals. */
+  /** Tampilkan Desimal, totals box only (item-table money columns always show 2 decimals regardless, per Section 9) — unset defaults to ON (2 decimals) here for all three paper types, matching the legacy Half output the spec was extracted from. */
   showDecimalTotals?: boolean
+  /** Usable content width in mm — 210 (default) for A4/Half, ~229.3 for Continuous (its wider physical page minus @page margin). Every `left`/`width` value below is expressed against a 210mm reference frame and scaled by `contentWidthMm / 210` via ScaleXContext; `top`/`height`/font sizes never scale. See file doc comment. */
+  contentWidthMm?: number
 }
 
-export function InvoiceHalfSkyBizLayout({
+export function InvoicePaperLayout({
   invoice,
   companyName,
   printHeader,
@@ -201,18 +257,22 @@ export function InvoiceHalfSkyBizLayout({
   showTax,
   showDiscount,
   showDecimalTotals,
-}: InvoiceHalfSkyBizLayoutProps) {
+  contentWidthMm = 210,
+}: InvoicePaperLayoutProps) {
   const scale = (fontSizePt ?? 10) / 10
+  const scaleX = contentWidthMm / 210
   const effectiveFontFamily = fontFamily ?? DEJAVU_FONT_STACK
   const itemCols = getItemCols(showTax)
   const totalsDecimals = (showDecimalTotals ?? true) ? 2 : 0
   const totalsRows = buildTotalsRows(invoice, showTax, showDiscount)
+  const totalsBoxHeight = TOTALS_BOX_PAD_TOP + totalsRows.length * TOTALS_ROW_PITCH + TOTALS_BOX_PAD_BOTTOM
+  const signatureNameTop = Math.max(LEFT_COLUMN_BOTTOM_MM, TOTALS_BOX_TOP_MM + totalsBoxHeight) + SIGNATURE_GAP_MM
 
   return (
     <div
       style={{
         position: 'relative',
-        width: '210mm',
+        width: `${contentWidthMm}mm`,
         height: '148.5mm',
         overflow: 'visible', // pagination for long invoices is unmeasured (spec Section 12) — flow past this box rather than silently clip line items
         fontFamily: effectiveFontFamily,
@@ -222,6 +282,7 @@ export function InvoiceHalfSkyBizLayout({
         transformOrigin: 'top left',
       }}
     >
+      <ScaleXContext.Provider value={scaleX}>
       <style>{FONT_FACES}</style>
 
       {/* ---------- BLOK KIRI (company + customer) ---------- */}
@@ -273,7 +334,7 @@ export function InvoiceHalfSkyBizLayout({
           position: 'absolute',
           left: 0,
           top: '47.51mm',
-          width: '210mm',
+          width: `${contentWidthMm}mm`,
           borderCollapse: 'collapse',
           tableLayout: 'fixed',
           fontSize: '9.99pt',
@@ -281,7 +342,7 @@ export function InvoiceHalfSkyBizLayout({
       >
         <colgroup>
           {itemCols.map((col) => (
-            <col key={col.key} style={{ width: `${col.width}mm` }} />
+            <col key={col.key} style={{ width: `${col.width * scaleX}mm` }} />
           ))}
         </colgroup>
         <thead>
@@ -361,45 +422,48 @@ export function InvoiceHalfSkyBizLayout({
       <T top={102.05} left={13.7} size={9} bold>BCA NO A/C. 0271461312</T>
 
       {/* ---------- KOTAK TOTAL ---------- */}
-      {/* Box hugs its rows tightly rather than sitting at the spec sample's fixed 18.49mm height —
-          it does NOT just track the last row's position plus fixed padding: measured directly
-          (pdfminer bbox) from tax.pdf (3 rows, box 89.08–107.57mm) and tax+disc.pdf (4 rows,
-          89.08–110.22mm), the closing gap after the last row actually SHRINKS as rows are added
-          (6.24mm at 3 rows, down to 4.13mm at 4) rather than staying constant — so total box
-          height is fit directly against those two real measurements (10.54 + 2.65mm per row)
-          instead of extrapolated from a per-row-padding assumption, which is what previously
-          produced a box tall enough to run into the signature block at 4 rows. */}
+      {/* Box auto-fits its height to row count (TOTALS_BOX_PAD_TOP + rows*TOTALS_ROW_PITCH +
+          TOTALS_BOX_PAD_BOTTOM) — no hardcoded height, no leftover blank space at 1 row, no
+          cramped closing gap at 4. */}
       <div
         style={{
           position: 'absolute',
-          left: '119.27mm',
-          top: '89.08mm',
-          width: '79.08mm',
-          height: `${10.54 + totalsRows.length * 2.65}mm`,
+          left: `${119.27 * scaleX}mm`,
+          top: `${TOTALS_BOX_TOP_MM}mm`,
+          width: `${79.08 * scaleX}mm`,
+          height: `${totalsBoxHeight}mm`,
           border: '0.50mm solid #000',
           boxSizing: 'border-box',
         }}
       />
-      {totalsRows.map((row) => {
+      {totalsRows.map((row, index) => {
         const { top } = row
         const labelLeft = row.isFinal ? 121.12 : 120.6
         const rpLeft = row.isFinal ? 155.25 : 154.72
         return (
           <div key={row.label}>
-            <T top={top} left={labelLeft} size={10} bold>{row.label}</T>
-            <T top={top} left={rpLeft} width={10} size={10} bold align="right">RP</T>
-            <T top={top} left={162.4} width={35} size={10} bold align="right">{fmt(row.amount, totalsDecimals)}</T>
+            {/* Thin separator directly above Grand Total, only when TOTAL/TAX/DISC rows precede it. */}
+            {row.isFinal && index > 0 && (
+              <Line top={top - TOTALS_ROW_PITCH / 2} left={120.6} width={73.4} height={0.2} color="#000" />
+            )}
+            <T top={top} left={labelLeft} size={10} bold={row.isFinal}>{row.label}</T>
+            <T top={top} left={rpLeft} width={10} size={10} bold={row.isFinal} align="right">RP</T>
+            <T top={top} left={162.4} width={35} size={10} bold={row.isFinal} align="right">{fmt(row.amount, totalsDecimals)}</T>
           </div>
         )
       })}
 
       {/* ---------- TANDA TANGAN ---------- */}
-      <T top={110.25} left={10.79} width={65} size={9} bold align="center">{invoice.customer?.customer_name ?? '—'}</T>
-      <T top={110.25} left={133.82} width={65} size={9} bold align="center">{companyName}</T>
-      <Line top={135.12} left={10.26} width={65} height={0.5} color="#000" />
-      <Line top={134.86} left={133.82} width={65} height={0.5} color="#000" />
-      <T top={136.18} left={10.26} width={65} size={9} align="center">({signatureLeftLabel})</T>
-      <T top={136.18} left={133.82} width={65} size={9} align="center">({signatureRightLabel})</T>
+      {/* signatureNameTop is computed above from whichever of the totals box or the left E&O.E
+          column ends lower, plus a real SIGNATURE_GAP_MM buffer — guarantees clearance at any
+          row count instead of the old fixed top that left 0.03mm at 4 rows. */}
+      <T top={signatureNameTop} left={10.79} width={65} size={9} bold align="center">{invoice.customer?.customer_name ?? '—'}</T>
+      <T top={signatureNameTop} left={133.82} width={65} size={9} bold align="center">{companyName}</T>
+      <Line top={signatureNameTop + SIGNATURE_LINE_LEFT_OFFSET_MM} left={10.26} width={65} height={0.5} color="#000" />
+      <Line top={signatureNameTop + SIGNATURE_LINE_RIGHT_OFFSET_MM} left={133.82} width={65} height={0.5} color="#000" />
+      <T top={signatureNameTop + SIGNATURE_LABEL_OFFSET_MM} left={10.26} width={65} size={9} align="center">({signatureLeftLabel})</T>
+      <T top={signatureNameTop + SIGNATURE_LABEL_OFFSET_MM} left={133.82} width={65} size={9} align="center">({signatureRightLabel})</T>
+      </ScaleXContext.Provider>
     </div>
   )
 }

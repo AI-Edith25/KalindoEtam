@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import JsBarcode from 'jsbarcode'
@@ -16,7 +16,7 @@ import {
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
-import { DEJAVU_FONT_STACK, InvoiceHalfSkyBizLayout } from './InvoiceHalfSkyBizLayout'
+import { DEJAVU_FONT_STACK, InvoicePaperLayout } from './InvoicePaperLayout'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -25,68 +25,39 @@ const ROLL_PAPER_WIDTH_MM = 80
 const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
 
 /**
- * Half is A5 LANDSCAPE — 210 x 148.5mm, replicating the legacy SkyBiz print pixel-for-pixel (see
- * invoice-print-spec.md). Unlike A4/Continuous, Half's own content (InvoiceHalfSkyBizLayout) is
- * absolutely positioned at this exact size — no @page margin, no flex-based stretching, no
- * page-count estimate: the component IS the page.
+ * A4/Half/Continuous now share one template (InvoicePaperLayout) whose absolute coordinates
+ * assume a 210mm-wide reference frame — see that file's own doc comment. A4's own usable width
+ * (210mm, @page margin:0) already equals that frame exactly, so both map to 210 here. Continuous
+ * is physically wider (9.5in = 241.3mm) with a 6mm @page margin each side (PRINT_PAPER_PAGE_CSS.
+ * continuous) — usable content width = 241.3 - 12 = 229.3mm — so it's the only one that actually
+ * scales (~1.09x) via InvoicePaperLayout's own contentWidthMm/scaleX handling.
  */
-const HALF_PAGE_WIDTH_MM = 210
+const CONTENT_WIDTH_MM: Record<'a4' | 'half' | 'continuous', number> = {
+  a4: 210,
+  half: 210,
+  continuous: 229.3,
+}
 
 /** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
 function formatNum(value: number | string, decimals: number): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))
 }
 
-/** invoice_date/due_date arrive as plain YYYY-MM-DD strings — split directly rather than re-parsing through a Date object, which shifts the calendar date in any timezone ahead of UTC (same pitfall SO/DO print already document). */
-function formatDdMmYyyy(dateStr: string | null | undefined): string {
-  if (!dateStr) return ''
-  const [year, month, day] = dateStr.split('-')
-  return `${day}/${month}/${year}`
-}
-
-/** Roll_paper.pdf's own date format — same split-string approach as formatDdMmYyyy, same reasoning. */
+/** Roll_paper.pdf's own date format — same split-string approach as InvoicePaperLayout's own ddmmyyyy helper, same reasoning. */
 function formatYyyyDotMmDotDd(dateStr: string | null | undefined): string {
   if (!dateStr) return ''
   const [year, month, day] = dateStr.split('-')
   return `${year}.${month}.${day}`
 }
 
-function MetaRow({
-  label,
-  value,
-  bold,
-  tight,
-  alwaysShow,
-}: {
-  label: string
-  value: ReactNode
-  bold?: boolean
-  tight?: boolean
-  /** weblama.pdf (the legacy Half reference) always prints "Tel :" even blank — unlike every
-      other tight field, which it drops from the template entirely rather than blank-hiding. */
-  alwaysShow?: boolean
-}) {
-  // A blank ": " line is pure wasted height on a page this small — Transportation invoices in
-  // particular leave Attn/Tel/Fax/Location empty on every single document (no sales_order_id to
-  // source them from), so skipping empty rows on Half/Continuous recovers real space instead of
-  // printing rows nobody reads. A4 keeps rendering them (blank row costs nothing there).
-  if (tight && !alwaysShow && (value === '' || value == null)) return null
-  return (
-    <div className="flex">
-      <span className={tight ? 'w-[29.6mm] shrink-0' : 'w-28 shrink-0'}>{label}</span>
-      <span className="shrink-0">:</span>
-      <span className={`${tight ? 'pl-[2.1mm]' : 'pl-2'} ${bold ? 'font-bold' : ''}`}>{value}</span>
-    </div>
-  )
-}
-
 /**
- * Classic dot-matrix-era layout matching the legacy system's Invoice print exactly (SI.pdf) —
- * replaces the old modern bordered/card style wholesale, the last of the SO/DO/Invoice print
- * series. Left-aligned header with no logo (DO's convention) but with TEL/EMAIL lines (SO's
- * convention) — SI.pdf's own header is a genuine hybrid of the two. Same print plumbing as
- * SO/DO (print:hidden toolbar, @page margin:0 + print:p-[12mm] wrapper, Times New Roman); own
- * from-scratch JSX, no shared print "shell" component exists in this codebase to extend.
+ * A4/Half/Continuous all render InvoicePaperLayout — the classic dot-matrix-era layout matching
+ * the legacy system's Invoice print exactly (SI.pdf), the last of the SO/DO/Invoice print series.
+ * A4 and Continuous used to have their own separate, older markup (different fonts, an extra
+ * "Sales" column, Reference 2/Page No/Attn/Tel/Fax fields, a broken amount-in-words line) — that's
+ * gone; all three paper types are now pixel-identical in layout/typography/structure and differ
+ * only in @page size + margin + InvoicePaperLayout's own horizontal contentWidthMm scale (see
+ * CONTENT_WIDTH_MM above and that file's own doc comment).
  *
  * Goods and Transportation invoices share this exact layout. Two Transportation-only gaps are
  * deliberate, not bugs: ItemCode/UOM render blank (createTransportation() never stores either —
@@ -129,13 +100,12 @@ export function InvoicePrintPage() {
     amountDecimals: 2,
     showDiscount: loadShowDiscountPreference(),
     showTax: false,
-    // Left unset (not false) — A4/Continuous/Roll treat unset as their own "off" (0 decimals,
-    // unchanged), while Half treats unset as ITS OWN default of "on" (2 decimals, matching the
-    // legacy Half output invoice-print-spec.md was extracted from). See InvoiceHalfSkyBizLayout.
+    // Left unset (not false) — InvoicePaperLayout (a4/half/continuous) treats unset as ON (2
+    // decimals, matching the legacy Half output invoice-print-spec.md was extracted from, now
+    // shared by all three). Roll keeps its own separate "unset = off" default (see totalsDecimals).
     showDecimalTotals: undefined,
-    // Left unset so each paper type falls back to its own default font: A4/Continuous keep Times
-    // New Roman (below), Half falls back to DejaVu Sans Condensed (InvoiceHalfSkyBizLayout) — the
-    // exact-replica default until the user explicitly picks something else from Font Style.
+    // Left unset so InvoicePaperLayout falls back to its own default font (DejaVu Sans Condensed,
+    // shared by a4/half/continuous) until the user explicitly picks something else from Font Style.
     fontFamily: undefined,
     fontSizePt: 10,
     signatureLeftLabel: 'AUTHORISED SIGNATURE',
@@ -159,13 +129,6 @@ export function InvoicePrintPage() {
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
   const isContinuous = format === 'a4' && printOptions.paperType === 'continuous'
   const isHalf = format === 'a4' && printOptions.paperType === 'half'
-  // Continuous is dot-matrix-era continuous stationery where the physical page size is fixed
-  // (@page above) — spacing expressed in rem/px drifts against that fixed mm page depending on
-  // root font-size and DPI rounding. A4 has no such fixed-size @page (browser/printer default)
-  // and already renders correctly, so it deliberately keeps its original rem-based Tailwind
-  // classes below — only Continuous switches to the mm/pt arbitrary-value classes via this flag.
-  // (Half has its own fully independent absolutely-positioned layout, see InvoiceHalfSkyBizLayout.)
-  const tight = isContinuous
   const showDiscount = printOptions.showDiscount ?? false
   const showTax = printOptions.showTax ?? false
   const showBreakdown = showTax || showDiscount
@@ -210,53 +173,33 @@ export function InvoicePrintPage() {
   if (!invoice) return null
 
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
-  const attn = invoice.sales_order?.attention ?? ''
   const tel = invoice.sales_order?.tel ?? invoice.customer?.phone ?? ''
-  const fax = invoice.sales_order?.fax ?? ''
   const location = invoice.delivery?.warehouse?.name ?? ''
-
-  // Table cell padding as mm on Half/Continuous (exact px-equivalent of Tailwind's py-1/pr-2/py-1
-  // scale, just expressed against a fixed physical unit instead of rem) — A4 keeps its original
-  // Tailwind classes untouched below.
-  const cellPad = tight ? 'py-[1.1mm] pr-[2.1mm]' : 'py-1 pr-2'
-  const cellPadLast = tight ? 'py-[1.1mm]' : 'py-1'
-  const totalsRow = tight
-    ? 'flex items-center justify-between gap-[8.5mm] border border-b-0 border-black px-[2.1mm] py-[1.1mm]'
-    : 'flex items-center justify-between gap-8 border border-b-0 border-black px-2 py-1'
-  const totalsRowFinal = tight
-    ? 'flex items-center justify-between gap-[8.5mm] border border-black px-[2.1mm] py-[1.1mm] font-bold'
-    : 'flex items-center justify-between gap-8 border border-black px-2 py-1 font-bold'
+  const contentWidthMm = isContinuous ? CONTENT_WIDTH_MM.continuous : isHalf ? CONTENT_WIDTH_MM.half : CONTENT_WIDTH_MM.a4
 
   return (
     <div
       className={
         format === 'roll'
           ? 'mx-auto flex flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-[2mm] print:shadow-none'
-          : isHalf
-            // InvoiceHalfSkyBizLayout is a fixed 210x148.5mm absolutely-positioned page (see that
-            // component) — this wrapper just centers it on screen and drops to zero padding for
-            // print, since @page margin:0 + the component's own coordinates already account for
-            // every inset (PRINT_PAPER_PAGE_CSS.half).
-            ? 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none'
-            : isContinuous
-              // @page's own margin (PRINT_PAPER_PAGE_CSS.continuous) does the inset here — no
-              // extra wrapper padding on top of it, unlike A4's margin:0-on-@page + p-[12mm].
-              ? 'mx-auto flex max-w-3xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-0 print:shadow-none'
-              : 'mx-auto flex max-w-3xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none'
+          // A4/Half/Continuous all render InvoicePaperLayout, a fixed-width absolutely-positioned
+          // page (see that component) — this wrapper just centers it on screen and drops to zero
+          // padding for print, since each paper type's own @page margin + the component's own
+          // baked-in coordinates already account for every inset (PRINT_PAPER_PAGE_CSS).
+          : 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none'
       }
       style={
         format === 'roll'
           ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` }
-          : isHalf
-            ? { width: `${HALF_PAGE_WIDTH_MM}mm` }
-            : undefined
+          : { width: `${contentWidthMm}mm` }
       }
     >
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
           + date on top, URL + page number on bottom) — that's not part of the document, it's
-          browser UI. Document margins come from this wrapper's own padding instead (A4/Roll) or
-          @page's own margin (Continuous/Half, see PRINT_PAPER_PAGE_CSS — kept as a single source
-          of truth rather than a second hardcoded copy here). */}
+          browser UI. Document margins come from this wrapper's own padding instead (Roll) or
+          @page's own margin plus InvoicePaperLayout's own baked-in coordinates (A4/Half/Continuous,
+          see PRINT_PAPER_PAGE_CSS — kept as a single source of truth rather than a second
+          hardcoded copy here). */}
       <style>
         {(format === 'roll'
           ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
@@ -284,8 +227,8 @@ export function InvoicePrintPage() {
         </div>
       </div>
 
-      {format === 'a4' && isHalf && (
-        <InvoiceHalfSkyBizLayout
+      {format === 'a4' && (
+        <InvoicePaperLayout
           invoice={invoice}
           companyName={companyName}
           printHeader={printHeaderQuery.data}
@@ -298,166 +241,8 @@ export function InvoicePrintPage() {
           showTax={showTax}
           showDiscount={showDiscount}
           showDecimalTotals={printOptions.showDecimalTotals}
+          contentWidthMm={contentWidthMm}
         />
-      )}
-
-      {format === 'a4' && !isHalf && (
-      <div
-        className="flex flex-col text-black"
-        style={{
-          // Continuous keeps flowing naturally — no real-world measurement exists to safely bound
-          // it the same way Half's fixed-size layout doesn't need bounding at all anymore. A4
-          // keeps its own full-page stretch.
-          minHeight: isContinuous ? undefined : '27.3cm',
-          fontFamily: printOptions.fontFamily ?? '"Times New Roman", "Tinos", "Liberation Serif", serif',
-          fontSize: `${printOptions.fontSizePt ?? 10}pt`,
-          // The real gap turned out to be line-height, not spacing: meta rows were measured at
-          // ~5.5mm apart at a 10pt font, which only happens at a ~1.56 ratio — the fallback serif
-          // font (Tinos/Liberation Serif) uses far more built-in leading than assumed, inflating
-          // every text block on Continuous. 1.3 buys back readability while leaving real margin
-          // to spare.
-          lineHeight: tight ? 1.3 : undefined,
-        }}
-      >
-        <div className={isContinuous ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
-          <p className={isContinuous ? 'text-[15pt] font-bold' : 'text-xl font-bold'}>{companyName}</p>
-          {printHeaderQuery.data?.address && <p>{printHeaderQuery.data.address}</p>}
-          {printHeaderQuery.data?.phone && <p>TEL : {printHeaderQuery.data.phone}</p>}
-          {printHeaderQuery.data?.email && <p>EMAIL : {printHeaderQuery.data.email}</p>}
-        </div>
-
-        <p className={tight ? 'mt-[3.2mm] text-center text-[13.5pt] font-bold' : 'mt-3 text-center text-lg font-bold'}>INVOICE</p>
-        <hr className={tight ? 'mt-[2.1mm] border-black' : 'mt-2 border-black'} />
-
-        <div className={tight ? 'mt-[2.1mm] grid grid-cols-2 gap-[4.2mm] border-b border-black pb-[2.1mm]' : 'mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2'}>
-          <div className={tight ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
-            <p className="font-bold">{invoice.customer?.customer_name ?? '—'}</p>
-            {invoice.customer?.address && <p>{invoice.customer.address}</p>}
-            <div className={tight ? 'mt-[2.1mm] flex flex-col gap-[0.5mm]' : 'mt-2 flex flex-col gap-0.5'}>
-              <MetaRow label="Attn" value={attn} tight={tight} />
-              <MetaRow label="Tel" value={tel} tight={tight} />
-              <MetaRow label="Fax" value={fax} tight={tight} />
-            </div>
-          </div>
-          <div className={tight ? 'flex flex-col gap-[0.5mm]' : 'flex flex-col gap-0.5'}>
-            <MetaRow label="NO" value={invoice.document_number ?? '—'} bold tight={tight} />
-            <MetaRow label="Date" value={formatDdMmYyyy(invoice.invoice_date)} tight={tight} />
-            <MetaRow label="Reference 1" value={invoice.reference_1 ?? ''} tight={tight} />
-            <MetaRow label="Reference 2" value={invoice.reference_2 ?? ''} tight={tight} />
-            <MetaRow label="Payment Term" value={invoice.terms_of_payment?.name ?? ''} tight={tight} />
-            <MetaRow label="Jatuh Tempo" value={formatDdMmYyyy(invoice.due_date)} tight={tight} />
-            <MetaRow label="Sales Person" value={invoice.sales_person?.name ?? ''} tight={tight} />
-            <MetaRow label="Page No" value="1 of 1" tight={tight} />
-            <MetaRow label="Location" value={location} tight={tight} />
-          </div>
-        </div>
-
-        <table className="w-full border-collapse text-left">
-          <thead style={{ display: 'table-header-group' }}>
-            <tr className="border-b border-black">
-              <th className={`${cellPad} font-normal`}>No</th>
-              <th className={`${cellPad} font-normal`}>ItemCode</th>
-              <th className={`${cellPad} font-normal`}>Description</th>
-              <th className={`${cellPad} font-normal`}>Sales</th>
-              <th className={`${cellPad} text-right font-normal`}>Qty</th>
-              <th className={`${cellPad} font-normal`}>UOM</th>
-              <th className={`${cellPad} text-right font-normal`}>HCUnitCost</th>
-              {showTax && <th className={`${cellPad} text-right font-normal`}>HCTax</th>}
-              <th className={`${cellPadLast} text-right font-normal`}>HCLineAmt</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoice.items.map((item, index) => (
-              // break-inside-avoid for Continuous — a genuinely multi-page invoice on continuous
-              // stock must not split a row across the page break; A4 is left exactly as it
-              // already behaved (no page-break rule at all).
-              <tr key={item.id} className={isContinuous ? 'break-inside-avoid' : undefined}>
-                <td className={`${cellPad} align-top`}>{index + 1}</td>
-                <td className={`${cellPad} align-top`}>{item.item_code ?? ''}</td>
-                <td className={`${cellPad} align-top`}>{item.item_name}</td>
-                <td className={`${cellPad} align-top`}>{item.sales_person?.name ?? invoice.sales_person?.name ?? ''}</td>
-                <td className={`${cellPad} text-right align-top`}>{formatNum(item.qty, 0)}</td>
-                <td className={`${cellPad} align-top`}>{item.uom ?? ''}</td>
-                <td className={`${cellPad} text-right align-top`}>{formatNum(item.rate, 2)}</td>
-                {showTax && <td className={`${cellPad} text-right align-top`}>{formatNum(item.tax_amount, 2)}</td>}
-                <td className={`${cellPadLast} text-right align-top`}>{formatNum(item.amount, 2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Pushes the footer/signature toward the bottom of the page — A4's own full 297mm sheet.
-            Continuous flows naturally; no real measurement exists to safely bound it the same
-            way. */}
-        {!tight && <div className="flex-1" />}
-
-        {/* One break-inside-avoid unit — E.&O.E/BCA account, totals box, and signature lines must
-            land on the same physical page together, never split across a page break. */}
-        <div className={isContinuous ? 'break-inside-avoid' : undefined}>
-        <p>RP</p>
-        <hr className={tight ? 'mt-[2.1mm] border-black' : 'mt-2 border-black'} />
-
-        <div className={tight ? 'mt-[2.1mm] grid grid-cols-2 gap-[4.2mm]' : 'mt-2 grid grid-cols-2 gap-4'}>
-          <div>
-            <p className="font-bold italic">E. &amp; O.E</p>
-            <ol className={tight ? 'mt-[1.1mm] list-decimal pl-[4.2mm]' : 'mt-1 list-decimal pl-4'}>
-              <li>
-                All cheque and payment should be crossed and made payable to
-                <br />
-                <span className="font-bold">PT. KALINDO ETAM</span>
-                <br />
-                BCA NO A/C. 0271461312
-              </li>
-            </ol>
-          </div>
-
-          <div className="self-start">
-            {/* TOTAL only appears once there's a breakdown to show (Tax and/or Discount on) —
-                with both off this collapses to a bare Grand Total, same as before either
-                checkbox existed. Real header-level figures only (Invoice.subtotal/tax_amount/
-                discount_amount/grand_total) — never recomputed here, matching InvoiceService's
-                own grand_total = subtotal - discount_amount + tax_amount. */}
-            {showBreakdown && (
-              <div className={totalsRow}>
-                <span>TOTAL</span>
-                <span>RP {formatNum(invoice.subtotal, totalsDecimals)}</span>
-              </div>
-            )}
-            {showTax && (
-              <div className={totalsRow}>
-                <span>TAX</span>
-                <span>RP {formatNum(invoice.tax_amount, totalsDecimals)}</span>
-              </div>
-            )}
-            {showDiscount && (
-              <div className={totalsRow}>
-                <span>DISC</span>
-                <span>RP {formatNum(invoice.discount_amount, totalsDecimals)}</span>
-              </div>
-            )}
-            <div className={totalsRowFinal}>
-              <span>Grand Total</span>
-              <span>RP {formatNum(invoice.grand_total, totalsDecimals)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* weblama.pdf leaves ~26mm of clear air between the printed name and the signature
-            line itself — real space to physically sign, not just a token gap. The Half restructure
-            above freed up enough room to restore most of that (9mm here, some already spent on
-            the grid's own pt/mt split above and below the name). */}
-        <div className={tight ? 'grid grid-cols-2 gap-[8.5mm] pt-[9mm]' : 'grid grid-cols-2 gap-8 pt-10'}>
-          <div className="text-center">
-            <p className="font-semibold">{invoice.customer?.customer_name ?? '—'}</p>
-            <div className={tight ? 'mt-[9mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'})</div>
-          </div>
-          <div className="text-center">
-            <p className="font-semibold">{companyName}</p>
-            <div className={tight ? 'mt-[9mm] border-t border-black pt-[1.1mm]' : 'mt-10 border-t border-black pt-1'}>({printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'})</div>
-          </div>
-        </div>
-        </div>
-      </div>
       )}
 
       {format === 'roll' && (
@@ -565,12 +350,11 @@ export function InvoicePrintPage() {
       </div>
       )}
 
-      {/* Font Size/Style, Tax, Decimal, and Discount all stay live for Half too — real Half
-          invoices are routinely untaxed, so hardcoding the reference sample's tax-on look was
-          wrong. defaultFontFamily makes the Font Style dropdown correctly show "DejaVu Sans
-          Condensed" as selected on Half when the user hasn't explicitly overridden it, since
-          that's what actually renders there (see InvoiceHalfSkyBizLayout's own fontFamily
-          fallback). */}
+      {/* Font Size/Style, Tax, Decimal, and Discount all stay live across every InvoicePaperLayout
+          paper type — real invoices are routinely untaxed, so hardcoding a tax-on look was wrong.
+          defaultFontFamily/defaultShowDecimalTotals make the dialog correctly show DejaVu/2-decimal
+          as selected for A4/Half/Continuous alike when the user hasn't explicitly overridden them,
+          since that's what actually renders (see InvoicePaperLayout's own fallbacks). */}
       <PrintOptionsDialog
         open={optionsOpen}
         onOpenChange={setOptionsOpen}
@@ -581,10 +365,10 @@ export function InvoicePrintPage() {
         paperTypeOptions={['a4', 'half', 'continuous', 'roll']}
         useNumericFontSize
         showFontFamily
-        defaultFontFamily={isHalf ? DEJAVU_FONT_STACK : undefined}
+        defaultFontFamily={format === 'a4' ? DEJAVU_FONT_STACK : undefined}
         showTax
         showDecimalToggle
-        defaultShowDecimalTotals={isHalf}
+        defaultShowDecimalTotals={format === 'a4'}
         showDiscount
         showSignatureLabels
       />

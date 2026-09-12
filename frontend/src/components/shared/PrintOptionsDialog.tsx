@@ -17,7 +17,7 @@ const FONT_FAMILY_OPTIONS = [
   { value: '"Times New Roman", "Tinos", "Liberation Serif", serif', label: 'Times New Roman' },
   { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
   { value: '"Courier New", "Cutive Mono", monospace', label: 'Courier New' },
-  // Invoice Half's own exact-replica default (see InvoiceHalfSkyBizLayout) — listed explicitly so
+  // Invoice print's own exact-replica default (see InvoicePaperLayout) — listed explicitly so
   // it's a real selectable choice, not just an invisible fallback.
   { value: '"DejaVu Sans Condensed", sans-serif', label: 'DejaVu Sans Condensed' },
 ]
