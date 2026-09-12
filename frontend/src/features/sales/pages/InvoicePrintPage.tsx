@@ -5,18 +5,13 @@ import JsBarcode from 'jsbarcode'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
-import {
-  loadInvoicePaperTypePreference,
-  loadShowDiscountPreference,
-  PRINT_PAPER_PAGE_CSS,
-  saveInvoicePaperTypePreference,
-  saveShowDiscountPreference,
-  type PrintOptions,
-} from '@/shared/lib/printOptions'
+import { loadInvoicePaperTypePreference, loadShowDiscountPreference, saveInvoicePaperTypePreference, saveShowDiscountPreference, type PrintOptions } from '@/shared/lib/printOptions'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
-import { DEJAVU_FONT_STACK, InvoicePaperLayout } from './InvoicePaperLayout'
+import { InvoiceLandscapeLayout } from './InvoiceLandscapeLayout'
+import { InvoicePortraitLayout } from './InvoicePortraitLayout'
+import { DEJAVU_FONT_STACK, PAPER_SIZES } from './invoicePrintConstants'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -24,28 +19,12 @@ import { DEJAVU_FONT_STACK, InvoicePaperLayout } from './InvoicePaperLayout'
 const ROLL_PAPER_WIDTH_MM = 80
 const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
 
-/**
- * Single source of truth for both physical paper size (drives the on-screen "page" framing below
- * and the @page rule) and usable content size after that paper type's own @page margin (drives
- * InvoicePaperLayout's own contentWidthMm/contentHeightMm — see that file's doc comment for why
- * usable, not physical, is what its root div must actually be sized to).
- *
- * A4/Half have @page margin:0, so physical === usable. Continuous is 9.5in x 11in physically
- * (241.3 x 279.4mm) with a 6mm @page margin each side (matches PRINT_PAPER_PAGE_CSS.continuous) —
- * usable = 241.3-12 x 279.4-12 = 229.3 x 267.4mm.
- */
-const PAPER_SIZES: Record<'a4' | 'half' | 'continuous', { pageWidthMm: number; pageHeightMm: number; contentWidthMm: number; contentHeightMm: number }> = {
-  a4: { pageWidthMm: 210, pageHeightMm: 297, contentWidthMm: 210, contentHeightMm: 297 },
-  half: { pageWidthMm: 210, pageHeightMm: 148.5, contentWidthMm: 210, contentHeightMm: 148.5 },
-  continuous: { pageWidthMm: 241.3, pageHeightMm: 279.4, contentWidthMm: 229.3, contentHeightMm: 267.4 },
-}
-
 /** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
 function formatNum(value: number | string, decimals: number): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))
 }
 
-/** Roll_paper.pdf's own date format — same split-string approach as InvoicePaperLayout's own ddmmyyyy helper, same reasoning. */
+/** Roll_paper.pdf's own date format — same split-string approach as the two layouts' own ddmmyyyy helper, same reasoning. */
 function formatYyyyDotMmDotDd(dateStr: string | null | undefined): string {
   if (!dateStr) return ''
   const [year, month, day] = dateStr.split('-')
@@ -53,36 +32,33 @@ function formatYyyyDotMmDotDd(dateStr: string | null | undefined): string {
 }
 
 /**
- * A4/Half/Continuous all render InvoicePaperLayout — the classic dot-matrix-era layout matching
- * the legacy system's Invoice print exactly (SI.pdf), the last of the SO/DO/Invoice print series.
- * A4 and Continuous used to have their own separate, older markup (different fonts, an extra
- * "Sales" column, Reference 2/Page No/Attn/Tel/Fax fields, a broken amount-in-words line) — that's
- * gone; all three paper types are now pixel-identical in layout/typography/structure and differ
- * only in @page size + margin + InvoicePaperLayout's own horizontal contentWidthMm scale (see
- * PAPER_SIZES above and that file's own doc comment).
+ * Two layouts, split by physical orientation, matching the legacy clouderp system's own two
+ * templates: LANDSCAPE (InvoiceLandscapeLayout — Half, A5 landscape, a precise SkyBiz replica
+ * using absolute mm positioning) and PORTRAIT (InvoicePortraitLayout — A4 and Continuous, built
+ * with normal document flow so a long invoice paginates naturally). A4/Continuous do NOT reuse
+ * Landscape's own layout scaled to a different paper size — that was tried and reverted; the two
+ * physical orientations need genuinely different structures (Half has no Attn/Fax/Reference 2/Page
+ * No, no "RP" prefix on the amount-in-words line; Portrait has all of those). Every mm/pt constant
+ * either layout uses lives in the one shared invoicePrintConstants.ts file.
  *
- * Goods and Transportation invoices share this exact layout. Two Transportation-only gaps are
- * deliberate, not bugs: ItemCode/UOM render blank (createTransportation() never stores either —
- * no form field collects them), and "Location" renders blank (Transportation invoices carry no
- * sales_order_id/delivery_id, so there is no warehouse/branch to source it from). SI.pdf's own
- * sample Transportation invoice happens to show non-blank values for both, most likely a legacy-
- * system convention this schema doesn't capture — confirmed with the user not to fabricate
- * placeholder text for either field.
+ * Goods and Transportation invoices share both layouts identically. Two Transportation-only gaps
+ * are deliberate, not bugs: ItemCode/UOM render blank (createTransportation() never stores either
+ * — no form field collects them), and "Location" renders blank (Transportation invoices carry no
+ * sales_order_id/delivery_id, so there is no warehouse/branch to source it from).
  *
- * A second "Roll" format renders alongside this A4/Continuous/Half layout from the same
- * query/data — an 80mm thermal-receipt style with its own sans-serif font, a Code128 barcode of
- * the document number, and one more schema gap of its own: "BIN" has no backing column anywhere
- * (Item/InvoiceItem/Warehouse all lack it), so it renders blank for every invoice, not just
- * Transportation. Paper Type is a single field inside "Print Options" (A4 / Half / Continuous /
- * Roll) — there is no separate toolbar toggle for it.
+ * A separate "Roll" format renders alongside these from the same query/data — an 80mm
+ * thermal-receipt style with its own sans-serif font, a Code128 barcode of the document number,
+ * and one more schema gap of its own: "BIN" has no backing column anywhere (Item/InvoiceItem/
+ * Warehouse all lack it), so it renders blank for every invoice, not just Transportation. Paper
+ * Type is a single field inside "Print Options" (A4 / Half / Continuous / Roll) — there is no
+ * separate toolbar toggle for it. Roll is entirely untouched by any of the above.
  *
  * Tax/Decimal/Discount are three independent checkboxes layered on top of every paper type:
  * Tax adds an HCTax column (A4/Continuous/Half) or TAX column (Roll) plus a TAX line in the
  * totals block; Discount adds a DISC line; Decimal switches the totals block between 0 and 2
  * decimals (table columns always show their own fixed decimals — Qty 0, money columns 2 —
  * regardless of this toggle). The totals block itself only expands into TOTAL/TAX/DISC/Grand
- * Total when Tax or Discount is on; with both off it collapses back to a bare Grand Total, same
- * as before either checkbox existed.
+ * Total when Tax or Discount is on; with both off it collapses back to a bare Grand Total.
  */
 export function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>()
@@ -102,14 +78,13 @@ export function InvoicePrintPage() {
     amountDecimals: 2,
     showDiscount: loadShowDiscountPreference(),
     showTax: false,
-    // Left unset (not false) — InvoicePaperLayout (a4/half/continuous) treats unset as ON (2
-    // decimals, matching the legacy Half output invoice-print-spec.md was extracted from, now
-    // shared by all three). Roll keeps its own separate "unset = off" default (see totalsDecimals).
+    // Left unset (not false) — both layouts treat unset as ON (2 decimals, matching the legacy
+    // Half output invoice-print-spec.md was extracted from). Roll keeps its own separate
+    // "unset = off" default (see totalsDecimals).
     showDecimalTotals: undefined,
-    // Left unset so InvoicePaperLayout falls back to its own default font (DejaVu Sans Condensed,
-    // shared by a4/half/continuous) until the user explicitly picks something else from Font Style.
+    // Left unset so both layouts fall back to their own default font (DejaVu Sans Condensed)
+    // until the user explicitly picks something else from Font Style.
     fontFamily: undefined,
-    fontSizePt: 10,
     signatureLeftLabel: 'AUTHORISED SIGNATURE',
     signatureRightLabel: 'AUTHORISED SIGNATURE',
   }))
@@ -129,7 +104,6 @@ export function InvoicePrintPage() {
   // one Paper Type field (A4/Half/Continuous/Roll) driving all four, so `format` is just derived
   // from it instead of tracked separately.
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
-  const isContinuous = format === 'a4' && printOptions.paperType === 'continuous'
   const isHalf = format === 'a4' && printOptions.paperType === 'half'
   const showDiscount = printOptions.showDiscount ?? false
   const showTax = printOptions.showTax ?? false
@@ -175,9 +149,11 @@ export function InvoicePrintPage() {
   if (!invoice) return null
 
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
+  const attn = invoice.sales_order?.attention ?? ''
   const tel = invoice.sales_order?.tel ?? invoice.customer?.phone ?? ''
+  const fax = invoice.sales_order?.fax ?? ''
   const location = invoice.delivery?.warehouse?.name ?? ''
-  const paperKey = isHalf ? 'half' : isContinuous ? 'continuous' : 'a4'
+  const paperKey = printOptions.paperType === 'half' ? 'half' : printOptions.paperType === 'continuous' ? 'continuous' : 'a4'
   const paperSize = PAPER_SIZES[paperKey]
 
   return (
@@ -185,39 +161,28 @@ export function InvoicePrintPage() {
       className={
         format === 'roll'
           ? 'mx-auto flex flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-[2mm] print:shadow-none'
-          // A4/Half/Continuous all render InvoicePaperLayout, a fixed-width absolutely-positioned
-          // page (see that component) — this wrapper centers it on screen, sized to the paper's
-          // real PHYSICAL dimensions (so A4 previews portrait-tall, Continuous previews wider) via
-          // the inline style below. print:w-auto!/h-auto! resets that physical sizing back to
-          // `auto` during an actual print/PDF, so the wrapper just shrink-wraps InvoicePaperLayout's
-          // own print-safe USABLE size instead of claiming more width than a margined paper type
-          // (Continuous) actually has room for — a fixed-physical-size wrapper active during print
-          // would silently clip content past the @page margin. print:p-0 drops the screen-only
-          // padding since @page's own margin + the component's own baked-in coordinates already
-          // account for every real print inset (PRINT_PAPER_PAGE_CSS).
-          : 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none print:w-auto! print:h-auto!'
+          // Landscape/Portrait both render at the paper's own PHYSICAL size — @page margin is
+          // always 0 (invoicePrintConstants.ts), with the 10mm content margin coming from
+          // Portrait's own padding or Landscape's baked-in coordinates, never a browser @page
+          // margin — so this wrapper's size is identical on screen and in print, with no
+          // clipping risk to reconcile and no print-only size override needed.
+          : 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none'
       }
       style={
         format === 'roll'
           ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` }
-          : { width: `${paperSize.pageWidthMm}mm`, height: `${paperSize.pageHeightMm}mm` }
+          : { width: `${paperSize.widthMm}mm`, minHeight: `${paperSize.heightMm}mm` }
       }
     >
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
           + date on top, URL + page number on bottom) — that's not part of the document, it's
           browser UI. Document margins come from this wrapper's own padding instead (Roll) or
-          @page's own margin plus InvoicePaperLayout's own baked-in coordinates (A4/Half/Continuous,
-          see PRINT_PAPER_PAGE_CSS — kept as a single source of truth rather than a second
-          hardcoded copy here, except A4 which is spelled out in explicit mm to match PAPER_SIZES
-          exactly rather than relying on the browser's own "A4" keyword). */}
+          each layout's own 10mm content inset (Landscape/Portrait — see invoicePrintConstants.ts's
+          MARGIN_MM), never a real @page margin, so screen and print always agree on paper size. */}
       <style>
         {(format === 'roll'
           ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
-          : isHalf
-            ? PRINT_PAPER_PAGE_CSS.half
-            : isContinuous
-              ? PRINT_PAPER_PAGE_CSS.continuous
-              : `@page { size: ${PAPER_SIZES.a4.pageWidthMm}mm ${PAPER_SIZES.a4.pageHeightMm}mm; margin: 0; }`) +
+          : `@page { size: ${paperSize.widthMm}mm ${paperSize.heightMm}mm; margin: 0; }`) +
           /* Without this, Chrome drops background/border colors that rely on print-color-adjust
              defaults, thinning out table borders and the totals box on some printers/PDF drivers. */
           ' @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'}
@@ -237,8 +202,8 @@ export function InvoicePrintPage() {
         </div>
       </div>
 
-      {format === 'a4' && (
-        <InvoicePaperLayout
+      {format === 'a4' && isHalf && (
+        <InvoiceLandscapeLayout
           invoice={invoice}
           companyName={companyName}
           printHeader={printHeaderQuery.data}
@@ -247,12 +212,28 @@ export function InvoicePrintPage() {
           signatureLeftLabel={printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
           signatureRightLabel={printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
           fontFamily={printOptions.fontFamily}
-          fontSizePt={printOptions.fontSizePt}
           showTax={showTax}
           showDiscount={showDiscount}
           showDecimalTotals={printOptions.showDecimalTotals}
-          contentWidthMm={paperSize.contentWidthMm}
-          contentHeightMm={paperSize.contentHeightMm}
+        />
+      )}
+
+      {format === 'a4' && !isHalf && (
+        <InvoicePortraitLayout
+          invoice={invoice}
+          companyName={companyName}
+          printHeader={printHeaderQuery.data}
+          attn={attn}
+          customerTel={tel}
+          fax={fax}
+          location={location}
+          signatureLeftLabel={printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
+          signatureRightLabel={printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
+          fontFamily={printOptions.fontFamily}
+          showTax={showTax}
+          showDiscount={showDiscount}
+          showDecimalTotals={printOptions.showDecimalTotals}
+          pageHeightMm={paperSize.heightMm}
         />
       )}
 
@@ -361,11 +342,12 @@ export function InvoicePrintPage() {
       </div>
       )}
 
-      {/* Font Size/Style, Tax, Decimal, and Discount all stay live across every InvoicePaperLayout
-          paper type — real invoices are routinely untaxed, so hardcoding a tax-on look was wrong.
-          defaultFontFamily/defaultShowDecimalTotals make the dialog correctly show DejaVu/2-decimal
-          as selected for A4/Half/Continuous alike when the user hasn't explicitly overridden them,
-          since that's what actually renders (see InvoicePaperLayout's own fallbacks). */}
+      {/* Font Style, Tax, Decimal, and Discount all stay live across every paper type — real
+          invoices are routinely untaxed, so hardcoding a tax-on look was wrong. Font Size (pt) has
+          been removed entirely (showFontSize=false) — typography is now locked, see both layouts'
+          own FONT_PT usage. defaultFontFamily/defaultShowDecimalTotals make the dialog correctly
+          show DejaVu/2-decimal as selected for every paper type when the user hasn't explicitly
+          overridden them, since that's what actually renders. */}
       <PrintOptionsDialog
         open={optionsOpen}
         onOpenChange={setOptionsOpen}
@@ -374,7 +356,7 @@ export function InvoicePrintPage() {
         fields={[]}
         showPaperType
         paperTypeOptions={['a4', 'half', 'continuous', 'roll']}
-        useNumericFontSize
+        showFontSize={false}
         showFontFamily
         defaultFontFamily={format === 'a4' ? DEJAVU_FONT_STACK : undefined}
         showTax

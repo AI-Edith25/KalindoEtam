@@ -16,8 +16,6 @@ export interface PrintOptions {
   showDecimalTotals?: boolean
   /** Only Invoice print acts on this (Font Family dropdown) — every other consumer leaves it unset, same convention as showDiscount. */
   fontFamily?: string
-  /** Only Invoice print acts on this — a numeric point size replacing the small/medium/large `fontSize` above for Invoice specifically (every other consumer keeps using `fontSize`, unaffected). */
-  fontSizePt?: number
   /** Only Invoice print acts on this (editable signature block labels, both default to "AUTHORISED SIGNATURE") — every other consumer leaves it unset, same convention as showDiscount. */
   signatureLeftLabel?: string
   signatureRightLabel?: string

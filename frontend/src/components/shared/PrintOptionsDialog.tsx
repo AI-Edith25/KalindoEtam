@@ -22,9 +22,6 @@ const FONT_FAMILY_OPTIONS = [
   { value: '"DejaVu Sans Condensed", sans-serif', label: 'DejaVu Sans Condensed' },
 ]
 
-const NUMERIC_FONT_SIZE_CHOICES = [8, 9, 10, 11, 12, 13, 14, 16]
-const DEFAULT_FONT_SIZE_PT = 10
-
 interface PrintOptionsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -53,8 +50,11 @@ interface PrintOptionsDialogProps {
   showFontFamily?: boolean
   /** Falls back to `FONT_FAMILY_OPTIONS[0]` (Times New Roman) when `options.fontFamily` is unset — pass this when the caller has its own paper-type-specific default (Invoice's Half paper type defaults to DejaVu Sans Condensed) so the dropdown's displayed selection matches what's actually rendering. */
   defaultFontFamily?: string
-  /** Only Invoice print uses this — swaps the Font Size control from the shared small/medium/large Select to a numeric point-size Select bound to `options.fontSizePt` instead of `options.fontSize`. Every other consumer leaves it off and keeps the small/medium/large control. */
-  useNumericFontSize?: boolean
+  /** Whether to render the Font Size control (the shared small/medium/large Select) at all —
+      defaults to true for every existing consumer. Invoice print sets this to `false`: its
+      typography is now locked to fixed pt values per element (no more user-adjustable scale), so
+      showing an ineffective Font Size control would be misleading. */
+  showFontSize?: boolean
   /** Only Invoice print renders/acts on this (editable signature block labels) — every other consumer leaves it hidden, same convention as showDiscount. */
   showSignatureLabels?: boolean
 }
@@ -78,7 +78,7 @@ export function PrintOptionsDialog({
   defaultShowDecimalTotals = false,
   showFontFamily = false,
   defaultFontFamily,
-  useNumericFontSize = false,
+  showFontSize = true,
   showSignatureLabels = false,
 }: PrintOptionsDialogProps) {
   return (
@@ -106,26 +106,7 @@ export function PrintOptionsDialog({
               </Select>
             </div>
           )}
-          {useNumericFontSize ? (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Font Size (pt)</label>
-              <Select
-                value={String(options.fontSizePt ?? DEFAULT_FONT_SIZE_PT)}
-                onValueChange={(value) => onChange({ ...options, fontSizePt: Number(value) })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {NUMERIC_FONT_SIZE_CHOICES.map((pt) => (
-                    <SelectItem key={pt} value={String(pt)}>
-                      {pt}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : (
+          {showFontSize && (
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Font Size</label>
               <Select value={options.fontSize} onValueChange={(value) => onChange({ ...options, fontSize: value as PrintFontSize })}>
