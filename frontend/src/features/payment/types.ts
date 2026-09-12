@@ -2,7 +2,7 @@ import type { Branch, ChartOfAccount, Customer, Supplier } from '@/features/mast
 
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 export type SettlementStatus = 'unpaid' | 'partially_paid' | 'paid'
-export type PaymentEntryType = 'supplier' | 'general_expense'
+export type PaymentEntryType = 'supplier' | 'general_expense' | 'mixed'
 /** Distinct from cash_account_id (the Chart-of-Accounts picker, labeled "Cash/Bank Account") — this is the actual "Payment Method" field (D2, UAT review 2026-08-12). */
 export type PaymentEntryMethod = 'cash' | 'bank_transfer' | 'cheque' | 'giro' | 'qris' | 'credit_card'
 
@@ -43,6 +43,47 @@ export interface PaymentEntryAllocation {
   is_reversed: boolean
 }
 
+/** One general-expense-purpose line inside a payment_type=mixed voucher — the expense-side
+    counterpart to PaymentEntryAllocation. Only ever present for mixed vouchers; a plain
+    general_expense voucher keeps its header-level expense_account_id/description instead (the
+    unified `lines` field below still synthesizes a virtual line for it, see PaymentEntry.lines). */
+export interface PaymentEntryExpenseLine {
+  id: string
+  payment_entry_id: string
+  line_no: number
+  expense_account_id: string
+  expense_account: ChartOfAccount | null
+  description: string
+  branch_id: string | null
+  amount: string | number
+  notes: string | null
+}
+
+/** One row of PaymentEntry.lines — the unified view across all three payment types, built
+    server-side (PaymentEntryResource::unifiedLines()) so the frontend never has to branch on
+    payment_type or on how old a voucher is to render "N allocation lines" consistently. */
+export type PaymentVoucherLine =
+  | {
+      purpose_type: 'supplier'
+      id: string | null
+      accounts_payable_id: string
+      accounts_payable: AccountsPayable | null
+      description: string | null
+      branch_id: string | null
+      amount: string | number
+      notes: string | null
+    }
+  | {
+      purpose_type: 'expense'
+      id: string | null
+      expense_account_id: string | null
+      expense_account: ChartOfAccount | null
+      description: string | null
+      branch_id: string | null
+      amount: string | number
+      notes: string | null
+    }
+
 export interface PaymentEntry {
   id: string
   document_number: string | null
@@ -65,10 +106,22 @@ export interface PaymentEntry {
   allocated_amount: string | number
   unallocated_amount: string | number
   items: PaymentEntryAllocation[]
+  /** Only ever populated for payment_type=mixed — see PaymentEntryExpenseLine's own doc comment. */
+  expense_lines: PaymentEntryExpenseLine[]
+  /** Unified across all three payment types — prefer this over `items`/`expense_lines` for any
+      new UI (list/detail/print) that needs to render "the voucher's allocation lines" generically. */
+  lines: PaymentVoucherLine[]
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string
 }
+
+/** One line the frontend sends to POST /payment-entries/{id}/submit for a mixed voucher —
+    mirrors SubmitPaymentEntryRequest's own shape on the backend. Ignored (omit `lines`
+    entirely) for supplier/general_expense, which keep their existing submit-then-allocate flow. */
+export type PaymentVoucherLineInput =
+  | { type: 'supplier'; accounts_payable_id: string; amount: number; branch_id?: string | null; notes?: string | null }
+  | { type: 'expense'; expense_account_id: string; description: string; amount: number; branch_id?: string | null; notes?: string | null }
 
 export interface PaymentEntryFilterValues {
   status: DocumentStatus | null

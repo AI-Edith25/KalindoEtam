@@ -75,6 +75,8 @@ export function OutgoingPaymentDetailPage() {
   if (!payment) return null
 
   const unallocated = Number(payment.unallocated_amount)
+  const supplierLinesTotal = payment.items.filter((item) => !item.is_reversed).reduce((sum, item) => sum + Number(item.allocated_amount), 0)
+  const expenseLinesTotal = payment.expense_lines.reduce((sum, line) => sum + Number(line.amount), 0)
 
   return (
     <div className="flex flex-col gap-4">
@@ -88,10 +90,15 @@ export function OutgoingPaymentDetailPage() {
                 <Pencil className="size-4" />
                 Edit
               </Button>
-              <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
-                {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                Confirm Payment
-              </Button>
+              {/* Mixed vouchers confirm from the editor, where their allocation lines are built —
+                  SubmitPaymentEntryRequest requires `lines` for payment_type=mixed, which this
+                  bare confirm button has no way to supply. */}
+              {payment.payment_type !== 'mixed' && (
+                <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+                  {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  Confirm Payment
+                </Button>
+              )}
               <Button variant="destructive" onClick={() => setConfirmingDelete(true)}>
                 <Trash2 className="size-4" />
                 Delete
@@ -128,7 +135,7 @@ export function OutgoingPaymentDetailPage() {
                 <DetailField label="Category" value={payment.expense_account?.name ?? '—'} />
                 <DetailField label="Description" value={payment.description || '—'} />
               </>
-            ) : (
+            ) : payment.payment_type === 'mixed' ? null : (
               <DetailField label="Supplier" value={payment.supplier?.supplier_name ?? '—'} />
             )}
             <DetailField label="Payment Date" value={formatDate(payment.payment_date)} />
@@ -140,7 +147,7 @@ export function OutgoingPaymentDetailPage() {
         </CardContent>
       </Card>
 
-      {payment.payment_type === 'supplier' && payment.status === 'submitted' && (
+      {(payment.payment_type === 'supplier' || payment.payment_type === 'mixed') && payment.status === 'submitted' && (
         <Card>
           <CardHeader>
             <CardTitle>Allocation Summary</CardTitle>
@@ -160,6 +167,18 @@ export function OutgoingPaymentDetailPage() {
                 {formatCurrency(unallocated)}
               </span>
             </div>
+            {payment.payment_type === 'mixed' && (
+              <>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">Supplier Subtotal</span>
+                  <span className="text-sm font-medium">{formatCurrency(supplierLinesTotal)}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">Expense Subtotal</span>
+                  <span className="text-sm font-medium">{formatCurrency(expenseLinesTotal)}</span>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
@@ -207,6 +226,28 @@ export function OutgoingPaymentDetailPage() {
                     Reverse
                   </Button>
                 )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {payment.expense_lines.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Expense Lines</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {/* No reverse action here — an expense line only ever posts as one leg of the
+                voucher's single combined journal, so undoing one would mean undoing the whole
+                voucher (not yet implemented for any payment type — see PaymentEntry::cancel()). */}
+            {payment.expense_lines.map((line) => (
+              <div key={line.id} className="flex flex-col gap-1 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium">{line.expense_account?.name ?? '—'}</span>
+                  <span className="text-xs text-muted-foreground">{line.description}</span>
+                </div>
+                <span className="text-sm font-medium">{formatCurrency(line.amount)}</span>
               </div>
             ))}
           </CardContent>

@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { DocumentStatus, PaymentEntry, PaymentEntryType } from '../types'
+import type { DocumentStatus, PaymentEntry, PaymentEntryType, PaymentVoucherLineInput } from '../types'
 
 export interface PaymentEntryListParams {
   page: number
@@ -60,7 +60,10 @@ export async function deletePaymentEntry(id: string): Promise<void> {
   await apiClient.delete(`/payment-entries/${id}`)
 }
 
-export async function submitPaymentEntry(id: string): Promise<PaymentEntry> {
-  const { data } = await apiClient.post<ApiResponse<PaymentEntry>>(`/payment-entries/${id}/submit`)
+/** `lines` is only meaningful (and required server-side) for payment_type=mixed — see
+    SubmitPaymentEntryRequest. Omit entirely for supplier/general_expense, which keep their
+    existing submit-then-allocate flow (paymentEntryAllocationApi.ts's own allocatePaymentEntry). */
+export async function submitPaymentEntry(id: string, lines?: PaymentVoucherLineInput[]): Promise<PaymentEntry> {
+  const { data } = await apiClient.post<ApiResponse<PaymentEntry>>(`/payment-entries/${id}/submit`, lines ? { lines } : undefined)
   return data.data
 }

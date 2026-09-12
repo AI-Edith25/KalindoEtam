@@ -21,8 +21,10 @@ import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymen
 import { fetchAccountsPayables } from '../api/accountsPayableApi'
 import { allocatePaymentEntry } from '../api/paymentEntryAllocationApi'
 import { OutstandingPayablesTable } from '../components/OutstandingPayablesTable'
-import { paymentEntryFormSchema, type PaymentEntryEditorValues } from '../lib/paymentEntryFormSchema'
-import type { PaymentEntryType } from '../types'
+import { MixedVoucherLinesTable } from '../components/MixedVoucherLinesTable'
+import { paymentEntryFormSchema, validateMixedVoucherLines, type MixedVoucherLineDraft, type PaymentEntryEditorValues } from '../lib/paymentEntryFormSchema'
+import type { PaymentEntryType, PaymentVoucherLineInput } from '../types'
+import { cn, formatCurrency } from '@/lib/utils'
 
 const emptyValues: PaymentEntryEditorValues = {
   payment_type: 'supplier',
@@ -66,6 +68,8 @@ export function OutgoingPaymentEditorPage() {
   const supplierId = form.watch('supplier_id')
   const paymentType = form.watch('payment_type')
   const isSupplierType = paymentType === 'supplier'
+  const isMixedType = paymentType === 'mixed'
+  const headerAmount = Number(form.watch('amount')) || 0
 
   // Payable -> user-entered "To Allocate" amount. Checked and "has an entry in this
   // map" are the same fact — Amount Paid below is derived as the sum of these, not
@@ -108,6 +112,68 @@ export function OutgoingPaymentEditorPage() {
     commitAllocations(next)
   }
 
+  // Mixed mode's own lines — never sent to the server until the final Confirm action (see
+  // PaymentEntryService::submitMixed()'s own doc comment for why), so this is plain component
+  // state, same as `allocations` above for the plain supplier flow.
+  const [mixedLines, setMixedLines] = useState<MixedVoucherLineDraft[]>([])
+
+  // "Quick add" panel — reuses OutstandingPayablesTable exactly as the plain supplier flow
+  // does, one supplier at a time, but writes directly into `mixedLines` instead of a
+  // standalone Map: checking a row immediately creates (or removes) the matching line, per the
+  // ticket's own "otomatis dibuatkan baris alokasi" requirement — no separate confirm step.
+  const [quickAddSupplierId, setQuickAddSupplierId] = useState('')
+  const quickAddOutstandingQuery = useQuery({
+    queryKey: ['accounts-payables', quickAddSupplierId],
+    queryFn: () => fetchAccountsPayables({ supplier_id: quickAddSupplierId, per_page: 100 }),
+    enabled: !!quickAddSupplierId && isMixedType,
+  })
+  const quickAddPayables = useMemo(
+    () => (quickAddOutstandingQuery.data?.data ?? []).filter((ap) => ap.status !== 'paid'),
+    [quickAddOutstandingQuery.data],
+  )
+  const quickAddAllocations = useMemo(() => {
+    const map = new Map<string, number>()
+    mixedLines.forEach((line) => {
+      if (line.type === 'supplier' && line.accounts_payable_id) map.set(line.accounts_payable_id, Number(line.amount) || 0)
+    })
+    return map
+  }, [mixedLines])
+
+  function quickAddToggle(accountsPayableId: string, checked: boolean) {
+    if (!checked) {
+      setMixedLines((prev) => prev.filter((line) => line.accounts_payable_id !== accountsPayableId))
+      return
+    }
+    if (mixedLines.some((line) => line.accounts_payable_id === accountsPayableId)) return // already added
+    const ap = quickAddPayables.find((row) => row.id === accountsPayableId)
+    if (!ap) return
+    setMixedLines((prev) => [
+      ...prev,
+      {
+        client_id: crypto.randomUUID(),
+        type: 'supplier',
+        accounts_payable_supplier_id: quickAddSupplierId,
+        accounts_payable_id: ap.id,
+        accounts_payable_reference: ap.reference_number,
+        accounts_payable_outstanding: Number(ap.outstanding_amount),
+        expense_account_id: '',
+        description: '',
+        branch_id: '',
+        amount: String(ap.outstanding_amount),
+        notes: '',
+      },
+    ])
+  }
+
+  function quickAddAmountChange(accountsPayableId: string, amount: number) {
+    setMixedLines((prev) => prev.map((line) => (line.accounts_payable_id === accountsPayableId ? { ...line, amount: String(amount) } : line)))
+  }
+
+  const mixedTotalAllocated = mixedLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
+  const mixedSupplierSubtotal = mixedLines.filter((line) => line.type === 'supplier').reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
+  const mixedExpenseSubtotal = mixedLines.filter((line) => line.type === 'expense').reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
+  const mixedDifference = Math.round((headerAmount - mixedTotalAllocated) * 100) / 100
+
   useEffect(() => {
     const payment = paymentQuery.data
     if (!payment) return
@@ -148,16 +214,28 @@ export function OutgoingPaymentEditorPage() {
               reference_number: values.reference_number || null,
               remarks: values.remarks || null,
             }
-          : {
-              payment_type: 'supplier',
-              supplier_id: values.supplier_id,
-              amount: Number(values.amount),
-              payment_date: values.payment_date,
-              cash_account_id: values.cash_account_id,
-              branch_id: values.branch_id || null,
-              reference_number: values.reference_number || null,
-              remarks: values.remarks || null,
-            }
+          : values.payment_type === 'mixed'
+            ? {
+                // Header only — no lines here. A mixed voucher's lines are only ever sent once,
+                // atomically, with the final Confirm action (see submitMutation below).
+                payment_type: 'mixed',
+                amount: Number(values.amount),
+                payment_date: values.payment_date,
+                cash_account_id: values.cash_account_id,
+                branch_id: values.branch_id || null,
+                reference_number: values.reference_number || null,
+                remarks: values.remarks || null,
+              }
+            : {
+                payment_type: 'supplier',
+                supplier_id: values.supplier_id,
+                amount: Number(values.amount),
+                payment_date: values.payment_date,
+                cash_account_id: values.cash_account_id,
+                branch_id: values.branch_id || null,
+                reference_number: values.reference_number || null,
+                remarks: values.remarks || null,
+              }
 
       return isEdit ? updatePaymentEntry(id!, payload) : createPaymentEntry(payload)
     },
@@ -171,6 +249,35 @@ export function OutgoingPaymentEditorPage() {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
+      if (isMixedType) {
+        const errors = validateMixedVoucherLines(mixedLines, headerAmount)
+        if (errors.length > 0) {
+          throw new Error(errors[0])
+        }
+
+        const lines: PaymentVoucherLineInput[] = mixedLines.map((line) =>
+          line.type === 'supplier'
+            ? {
+                type: 'supplier',
+                accounts_payable_id: line.accounts_payable_id,
+                amount: Number(line.amount),
+                branch_id: line.branch_id || null,
+                notes: line.notes || null,
+              }
+            : {
+                type: 'expense',
+                expense_account_id: line.expense_account_id,
+                description: line.description,
+                amount: Number(line.amount),
+                branch_id: line.branch_id || null,
+                notes: line.notes || null,
+              },
+        )
+
+        const payment = await submitPaymentEntry(id!, lines)
+        return { payment, allocationError: null as unknown }
+      }
+
       const payment = await submitPaymentEntry(id!)
 
       const lines = Array.from(allocations.entries())
@@ -195,7 +302,9 @@ export function OutgoingPaymentEditorPage() {
       queryClient.invalidateQueries({ queryKey: ['payment-entries'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
 
-      if (allocationError) {
+      if (isMixedType) {
+        toast.success('Payment confirmed and allocated across the lines above.')
+      } else if (allocationError) {
         toast.success('Payment confirmed.')
         toastApiError(allocationError)
       } else if (allocations.size > 0) {
@@ -221,7 +330,7 @@ export function OutgoingPaymentEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${paymentQuery.data?.document_number ?? 'Payment'}` : 'New Payment Voucher'}
-        description="Record a payment to a supplier, or a general office expense with no supplier/source document."
+        description="Record a payment to a supplier, a general office expense, or a mix of several purposes from one payment."
       />
 
       <Form {...form}>
@@ -247,6 +356,8 @@ export function OutgoingPaymentEditorPage() {
                         form.setValue('description', '')
                         form.setValue('amount', '')
                         commitAllocations(new Map())
+                        setMixedLines([])
+                        setQuickAddSupplierId('')
                       }}
                       disabled={isEdit}
                     >
@@ -258,6 +369,7 @@ export function OutgoingPaymentEditorPage() {
                       <SelectContent>
                         <SelectItem value="supplier">Against Supplier (Purchase)</SelectItem>
                         <SelectItem value="general_expense">General Expense / Office Cash</SelectItem>
+                        <SelectItem value="mixed">Mixed / Multiple Purposes</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -290,7 +402,7 @@ export function OutgoingPaymentEditorPage() {
                     </FormItem>
                   )}
                 />
-              ) : (
+              ) : isMixedType ? null : (
                 <>
                   <FormField
                     control={form.control}
@@ -381,7 +493,7 @@ export function OutgoingPaymentEditorPage() {
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{isSupplierType ? 'Amount Paid' : 'Amount'}</FormLabel>
+                    <FormLabel>{isSupplierType || isMixedType ? 'Amount Paid' : 'Amount'}</FormLabel>
                     <FormControl>
                       <RupiahInput value={field.value} onChange={field.onChange} disabled={isSupplierType && allocations.size > 0} />
                     </FormControl>
@@ -391,6 +503,9 @@ export function OutgoingPaymentEditorPage() {
                           ? 'Calculated automatically from the bills checked below.'
                           : 'Type an amount to record an unapplied payment, or check a bill below to allocate directly.'}
                       </FormDescription>
+                    )}
+                    {isMixedType && (
+                      <FormDescription>The one real amount paid out — e.g. the exact bank transfer amount. Allocate it across the lines below.</FormDescription>
                     )}
                     <FormMessage />
                   </FormItem>
@@ -442,13 +557,85 @@ export function OutgoingPaymentEditorPage() {
             </Card>
           )}
 
+          {isMixedType && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quick Add from Outstanding Payables</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="max-w-sm">
+                    <SearchableSelect
+                      options={supplierOptions}
+                      value={quickAddSupplierId}
+                      onChange={(value) => setQuickAddSupplierId(value ?? '')}
+                      loading={suppliers.isLoading}
+                      placeholder="Pick a supplier to browse their outstanding bills"
+                      aria-label="Quick add supplier"
+                    />
+                  </div>
+                  {quickAddSupplierId && (
+                    <OutstandingPayablesTable
+                      payables={quickAddPayables}
+                      isLoading={quickAddOutstandingQuery.isLoading}
+                      allocations={quickAddAllocations}
+                      onToggle={quickAddToggle}
+                      onAllocationChange={quickAddAmountChange}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment Allocation Lines</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <MixedVoucherLinesTable
+                    lines={mixedLines}
+                    onChange={setMixedLines}
+                    supplierOptions={supplierOptions}
+                    suppliersLoading={suppliers.isLoading}
+                    expenseAccountOptions={expenseAccountOptions}
+                    expenseAccountsLoading={chartOfAccounts.isLoading}
+                    branchOptions={branchOptions}
+                    branchesLoading={branches.isLoading}
+                  />
+
+                  <div className="grid grid-cols-2 gap-2 rounded-md border bg-muted/30 p-3 text-sm sm:grid-cols-4">
+                    <div>
+                      <p className="text-muted-foreground">Total Allocated</p>
+                      <p className="font-medium">{formatCurrency(mixedTotalAllocated)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Amount Paid</p>
+                      <p className="font-medium">{formatCurrency(headerAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Difference</p>
+                      <p className={cn('font-medium', mixedDifference !== 0 && 'text-destructive')}>{formatCurrency(mixedDifference)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Supplier / Expense</p>
+                      <p className="font-medium">
+                        {formatCurrency(mixedSupplierSubtotal)} / {formatCurrency(mixedExpenseSubtotal)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
           <p className="text-right text-sm text-muted-foreground">
             {isEdit && paymentQuery.data?.status === 'draft'
               ? isSupplierType
                 ? allocations.size > 0
                   ? 'Confirming marks the money as paid and allocates it to the bills checked above.'
                   : 'Saving records the payment. Confirming marks the money as paid — allocate it to a bill afterward.'
-                : 'Saving records the payment. Confirming posts it to the ledger — this cannot be undone.'
+                : isMixedType
+                  ? 'Confirming marks the money as paid and applies it across the allocation lines above — this cannot be undone.'
+                  : 'Saving records the payment. Confirming posts it to the ledger — this cannot be undone.'
               : 'Saving records the payment as a draft — nothing is posted until you confirm it.'}
           </p>
 

@@ -25,7 +25,9 @@ import { fetchPaymentEntry } from '../api/paymentEntryApi'
  * here would make the list not foot to the Allocated total printed above
  * it). Branches on payment_type exactly like OutgoingPaymentDetailPage:
  * general_expense has no supplier/allocation context at all (Category +
- * Description instead).
+ * Description instead); mixed renders payment.lines — the unified,
+ * already-reversed-exclusion-applied view (PaymentEntryResource::
+ * unifiedLines()) — as one table with Supplier/Expense subtotal rows.
  */
 export function OutgoingPaymentPrintPage() {
   const { id } = useParams<{ id: string }>()
@@ -60,8 +62,13 @@ export function OutgoingPaymentPrintPage() {
   const compact = printOptions.paperType === 'continuous'
   const pageCss = PRINT_PAPER_PAGE_CSS[printOptions.paperType]
   const isSupplierPayment = payment.payment_type === 'supplier'
+  const isMixedPayment = payment.payment_type === 'mixed'
   const activeItems = payment.items.filter((item) => !item.is_reversed)
   const unallocated = Number(payment.unallocated_amount)
+  // lines is already the reversed-allocation-excluding, all-purpose-types unified view — see
+  // PaymentEntryResource::unifiedLines().
+  const supplierLinesTotal = payment.lines.filter((line) => line.purpose_type === 'supplier').reduce((sum, line) => sum + Number(line.amount), 0)
+  const expenseLinesTotal = payment.lines.filter((line) => line.purpose_type === 'expense').reduce((sum, line) => sum + Number(line.amount), 0)
 
   return (
     <div
@@ -100,6 +107,11 @@ export function OutgoingPaymentPrintPage() {
             <div>
               <p className="font-medium">Paid To</p>
               <p className="font-semibold">{payment.supplier?.supplier_name ?? '—'}</p>
+            </div>
+          ) : isMixedPayment ? (
+            <div>
+              <p className="font-medium">Paid For</p>
+              <p className="font-semibold">Multiple Purposes ({payment.lines.length} line{payment.lines.length === 1 ? '' : 's'})</p>
             </div>
           ) : (
             <div>
@@ -141,12 +153,59 @@ export function OutgoingPaymentPrintPage() {
           </table>
         )}
 
+        {isMixedPayment && (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b-2 border-foreground/80 text-left">
+                <th className="border-r-2 border-foreground/80 p-2">Purpose</th>
+                <th className="border-r-2 border-foreground/80 p-2">Reference / Description</th>
+                <th className="p-2 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payment.lines.length > 0 ? (
+                payment.lines.map((line, index) => (
+                  <tr key={line.id ?? index} className="border-b border-foreground/30">
+                    <td className="border-r-2 border-foreground/80 p-2">{line.purpose_type === 'supplier' ? 'Supplier Bill' : 'General Expense'}</td>
+                    <td className="border-r-2 border-foreground/80 p-2">
+                      {line.purpose_type === 'supplier' ? line.accounts_payable?.reference_number : line.description}
+                    </td>
+                    <td className="p-2 text-right">{formatMoney(line.amount, printOptions.amountDecimals)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="p-2 text-center text-foreground/60">
+                    No allocation lines.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {payment.lines.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-foreground/80">
+                  <td colSpan={2} className="p-2 font-medium">
+                    Supplier Subtotal
+                  </td>
+                  <td className="p-2 text-right font-medium">{formatMoney(supplierLinesTotal, printOptions.amountDecimals)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={2} className="p-2 font-medium">
+                    Expense Subtotal
+                  </td>
+                  <td className="p-2 text-right font-medium">{formatMoney(expenseLinesTotal, printOptions.amountDecimals)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        )}
+
         <div className="flex flex-col items-end gap-1 border-t-2 border-foreground/80 p-3">
           <div className="flex w-64 justify-between">
             <span>Amount Paid</span>
             <span>{formatMoney(payment.total_amount, printOptions.amountDecimals)}</span>
           </div>
-          {isSupplierPayment && (
+          {(isSupplierPayment || isMixedPayment) && (
             <>
               <div className="flex w-64 justify-between text-base font-semibold">
                 <span>Allocated</span>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\PaymentEntryType;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -31,9 +32,70 @@ class PaymentEntryResource extends JsonResource
             'allocated_amount' => $this->allocated_amount,
             'unallocated_amount' => $this->unallocatedAmount(),
             'items' => PaymentEntryAllocationResource::collection($this->whenLoaded('items')),
+            'expense_lines' => PaymentEntryExpenseLineResource::collection($this->whenLoaded('expenseLines')),
+            // Unified view across all three payment types — one line per AP allocation, one per
+            // expense line, and (for a pre-existing general_expense voucher with no expense-line
+            // rows of its own) one synthesized from the header itself. Lets the frontend/detail/
+            // print pages render "N allocation lines" the same way regardless of payment_type or
+            // how old the voucher is, with no data migration of historical rows required.
+            'lines' => $this->unifiedLines(),
             'submitted_at' => $this->submitted_at,
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,
         ];
+    }
+
+    private function unifiedLines(): array
+    {
+        $lines = [];
+
+        if ($this->relationLoaded('items')) {
+            foreach ($this->items as $allocation) {
+                if ($allocation->is_reversed) {
+                    continue;
+                }
+
+                $lines[] = [
+                    'purpose_type' => 'supplier',
+                    'id' => $allocation->id,
+                    'accounts_payable_id' => $allocation->accounts_payable_id,
+                    'accounts_payable' => $allocation->relationLoaded('accountsPayable') ? new AccountsPayableResource($allocation->accountsPayable) : null,
+                    'description' => $allocation->relationLoaded('accountsPayable') ? $allocation->accountsPayable?->reference_number : null,
+                    'branch_id' => null,
+                    'amount' => $allocation->allocated_amount,
+                    'notes' => null,
+                ];
+            }
+        }
+
+        if ($this->relationLoaded('expenseLines')) {
+            foreach ($this->expenseLines as $expenseLine) {
+                $lines[] = [
+                    'purpose_type' => 'expense',
+                    'id' => $expenseLine->id,
+                    'expense_account_id' => $expenseLine->expense_account_id,
+                    'expense_account' => $expenseLine->relationLoaded('expenseAccount') ? new ChartOfAccountResource($expenseLine->expenseAccount) : null,
+                    'description' => $expenseLine->description,
+                    'branch_id' => $expenseLine->branch_id,
+                    'amount' => $expenseLine->amount,
+                    'notes' => $expenseLine->notes,
+                ];
+            }
+        }
+
+        if ($this->payment_type === PaymentEntryType::GENERAL_EXPENSE && empty($lines)) {
+            $lines[] = [
+                'purpose_type' => 'expense',
+                'id' => null,
+                'expense_account_id' => $this->expense_account_id,
+                'expense_account' => new ChartOfAccountResource($this->whenLoaded('expenseAccount')),
+                'description' => $this->description,
+                'branch_id' => $this->branch_id,
+                'amount' => $this->total_amount,
+                'notes' => null,
+            ];
+        }
+
+        return $lines;
     }
 }

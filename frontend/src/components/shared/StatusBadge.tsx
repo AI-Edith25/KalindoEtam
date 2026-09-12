@@ -40,9 +40,10 @@ const STATUS_STYLES: Record<string, string> = {
   pending: WARNING,
   approved: SUCCESS,
   rejected: ERROR,
-  // Outgoing Payment's Payment Type (Supplier vs. General Expense) — the list's type indicator.
+  // Outgoing Payment's Payment Type (Supplier vs. General Expense vs. Mixed) — the list's type indicator.
   supplier: INFO,
   general_expense: WARNING,
+  mixed: SUCCESS,
   // Outstanding view (Sales Order / Delivery inline badges) — self-describing rows on the "Semua" view.
   outstanding: WARNING,
   fully_delivered: SUCCESS,

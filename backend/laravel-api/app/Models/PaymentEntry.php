@@ -80,6 +80,17 @@ class PaymentEntry extends Model
     }
 
     /**
+     * General-expense-purpose lines — only ever populated for payment_type=mixed. Supplier-bill
+     * lines of a mixed voucher live in `items` above (same PaymentEntryAllocation table a plain
+     * supplier voucher uses), never here — see PaymentEntryExpenseLine's own doc comment for why
+     * these stay two separate tables instead of one unified line table.
+     */
+    public function expenseLines(): HasMany
+    {
+        return $this->hasMany(PaymentEntryExpenseLine::class);
+    }
+
+    /**
      * Cache-derived, computed not stored — see allocated_amount's column
      * comment. Mirrors ReceiptEntry::unallocatedAmount() exactly. Only
      * meaningful for payment_type=supplier; General Expense payments never
@@ -113,10 +124,59 @@ class PaymentEntry extends Model
             ];
         }
 
+        if ($this->payment_type === PaymentEntryType::MIXED) {
+            return $this->mixedJournalLines();
+        }
+
         return [
             ['account' => '1250', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Advance to Suppliers
             ['account' => $this->cashAccount->code, 'type' => 'credit', 'amount' => (float) $this->total_amount],
         ];
+    }
+
+    /**
+     * One aggregate journal for the whole mixed voucher: a single credit to cash/bank for
+     * total_amount (the one real bank movement this feature exists to match), plus one debit
+     * leg per line — supplier lines debit 1250 (Advance to Suppliers), same account the plain
+     * supplier flow's own aggregate journal already uses, and expense lines debit their own
+     * expense_account. This is IN ADDITION TO, not instead of, the existing per-allocation
+     * `Dr 2000/Cr 1250` journal each supplier line's own PaymentEntryAllocation::journalLines()
+     * posts (see PaymentEntryService::submit()'s MIXED branch) — that second journal is what
+     * PaymentEntryAllocationController::reverse() looks up to undo a single line later; folding
+     * a supplier line's debit straight into this aggregate journal instead would leave nothing
+     * for a future per-line reversal to find. Net accounting effect per supplier line across
+     * both journals is still "Dr Accounts Payable / Cr Cash", just via the same two-hop the
+     * existing supplier-only flow already uses.
+     */
+    private function mixedJournalLines(): array
+    {
+        $lines = [];
+        $applied = 0.0;
+
+        foreach ($this->items as $allocation) {
+            $lines[] = ['account' => '1250', 'type' => 'debit', 'amount' => (float) $allocation->allocated_amount];
+            $applied += (float) $allocation->allocated_amount;
+        }
+
+        foreach ($this->expenseLines as $expenseLine) {
+            $lines[] = ['account' => $expenseLine->expenseAccount->code, 'type' => 'debit', 'amount' => (float) $expenseLine->amount];
+            $applied += (float) $expenseLine->amount;
+        }
+
+        // Any shortfall between total_amount and the lines actually applied is money that left
+        // the bank but hasn't been assigned a purpose yet — same "unapplied" concept the plain
+        // supplier flow already has (its own aggregate journal always debits the FULL
+        // total_amount to 1250 regardless of how much gets allocated afterward). Debiting the
+        // remainder here too is what keeps this journal balanced against the one credit line,
+        // which must always equal the full total_amount per the ticket's own requirement.
+        $remainder = round((float) $this->total_amount - $applied, 2);
+        if ($remainder > 0) {
+            $lines[] = ['account' => '1250', 'type' => 'debit', 'amount' => $remainder];
+        }
+
+        $lines[] = ['account' => $this->cashAccount->code, 'type' => 'credit', 'amount' => (float) $this->total_amount];
+
+        return $lines;
     }
 
     /**

@@ -24,7 +24,7 @@ import type { PaymentEntry, PaymentEntryFilterValues } from '../types'
 
 const SORTERS: Record<string, (payment: PaymentEntry) => number> = {
   unallocated_amount: (payment) =>
-    payment.payment_type === 'supplier' && payment.status === 'submitted' ? Number(payment.unallocated_amount) : 0,
+    (payment.payment_type === 'supplier' || payment.payment_type === 'mixed') && payment.status === 'submitted' ? Number(payment.unallocated_amount) : 0,
 }
 
 /** Payment Voucher — either settles Accounts Payable created by Goods Receipt, or posts a General Expense (no Supplier/PO) directly to an Expense account. Never touches stock. */
@@ -58,7 +58,10 @@ export function OutgoingPaymentListPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['payment-entries'] })
 
   const submitMutation = useMutation({
-    mutationFn: submitPaymentEntry,
+    // Mixed vouchers are never submitted from here — they need their own lines built in the
+    // editor first (SubmitPaymentEntryRequest requires `lines` for payment_type=mixed) — see
+    // where this mutation is invoked below, gated to non-mixed rows only.
+    mutationFn: (id: string) => submitPaymentEntry(id),
     onSuccess: () => {
       invalidate()
       toast.success('Payment confirmed — payable updated.')
@@ -98,10 +101,12 @@ export function OutgoingPaymentListPage() {
 
     if (payment.status === 'draft') {
       if (canUpdate) {
-        actions.push(
-          { label: 'Edit', icon: Pencil, onClick: () => navigate(`/finance/outgoing/${payment.id}/edit`) },
-          { label: 'Confirm Payment', icon: Send, onClick: () => submitMutation.mutate(payment.id) },
-        )
+        actions.push({ label: 'Edit', icon: Pencil, onClick: () => navigate(`/finance/outgoing/${payment.id}/edit`) })
+        // Mixed vouchers have no one-click confirm here — their allocation lines are built and
+        // submitted together from the editor (SubmitPaymentEntryRequest requires them).
+        if (payment.payment_type !== 'mixed') {
+          actions.push({ label: 'Confirm Payment', icon: Send, onClick: () => submitMutation.mutate(payment.id) })
+        }
       }
       if (canDelete) {
         actions.push({ label: 'Delete', icon: Trash2, variant: 'destructive', onClick: () => setDeletingPayment(payment) })
@@ -120,6 +125,17 @@ export function OutgoingPaymentListPage() {
       accessor: (row) => {
         if (row.payment_type === 'general_expense') {
           return <span className="text-muted-foreground">General Expense</span>
+        }
+
+        if (row.payment_type === 'mixed') {
+          if (row.lines.length === 0) {
+            return <span className="text-muted-foreground">Unallocated</span>
+          }
+
+          const first = row.lines[0]
+          const firstLabel = first.purpose_type === 'supplier' ? (first.accounts_payable?.reference_number ?? '—') : (first.description ?? first.expense_account?.name ?? '—')
+
+          return row.lines.length === 1 ? firstLabel : `${firstLabel} +${row.lines.length - 1} lainnya`
         }
 
         // Allocation is now a separate step from paying — a payment can exist with no
@@ -158,7 +174,25 @@ export function OutgoingPaymentListPage() {
     },
     {
       header: 'Supplier',
-      accessor: (row) => (row.payment_type === 'general_expense' ? (row.expense_account?.name ?? '—') : (row.supplier?.supplier_name ?? '—')),
+      accessor: (row) => {
+        if (row.payment_type === 'general_expense') {
+          return row.expense_account?.name ?? '—'
+        }
+
+        if (row.payment_type === 'mixed') {
+          const supplierLines = row.lines.filter((line) => line.purpose_type === 'supplier')
+          const hasExpenseLine = row.lines.some((line) => line.purpose_type === 'expense')
+          const distinctSuppliers = new Set(
+            supplierLines.map((line) => (line.purpose_type === 'supplier' ? line.accounts_payable?.supplier?.supplier_name : undefined)).filter(Boolean),
+          )
+
+          if (supplierLines.length === 0) return hasExpenseLine ? 'General Expense' : '—'
+          if (hasExpenseLine || distinctSuppliers.size > 1) return 'Multiple'
+          return [...distinctSuppliers][0] ?? '—'
+        }
+
+        return row.supplier?.supplier_name ?? '—'
+      },
     },
     { header: 'Payment Method', accessor: (row) => row.cash_account?.name ?? '—' },
     { header: 'Date', accessor: (row) => formatDate(row.payment_date) },
@@ -167,7 +201,7 @@ export function OutgoingPaymentListPage() {
       header: 'Unallocated',
       sortKey: 'unallocated_amount',
       accessor: (row) =>
-        row.payment_type === 'supplier' && row.status === 'submitted' ? (
+        (row.payment_type === 'supplier' || row.payment_type === 'mixed') && row.status === 'submitted' ? (
           <span className={Number(row.unallocated_amount) > 0 ? 'text-amber-600' : undefined}>
             {formatCurrency(row.unallocated_amount)}
           </span>

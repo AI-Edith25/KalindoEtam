@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexPaymentEntryRequest;
 use App\Http\Requests\StorePaymentEntryRequest;
+use App\Http\Requests\SubmitPaymentEntryRequest;
 use App\Http\Requests\UpdatePaymentEntryRequest;
 use App\Http\Resources\PaymentEntryResource;
 use App\Models\PaymentEntry;
@@ -35,7 +36,9 @@ class PaymentEntryController extends Controller
 
     public function show(PaymentEntry $paymentEntry): JsonResponse
     {
-        return $this->success(new PaymentEntryResource($paymentEntry->load(['supplier', 'expenseAccount', 'cashAccount', 'items.accountsPayable'])));
+        return $this->success(new PaymentEntryResource($paymentEntry->load([
+            'supplier', 'expenseAccount', 'cashAccount', 'items.accountsPayable.supplier', 'expenseLines.expenseAccount',
+        ])));
     }
 
     public function update(UpdatePaymentEntryRequest $request, PaymentEntry $paymentEntry): JsonResponse
@@ -55,9 +58,9 @@ class PaymentEntryController extends Controller
     /**
      * No cancel() action here, deliberately — see PaymentEntry::cancel().
      */
-    public function submit(PaymentEntry $paymentEntry): JsonResponse
+    public function submit(SubmitPaymentEntryRequest $request, PaymentEntry $paymentEntry): JsonResponse
     {
-        $paymentEntry = $this->paymentEntryService->submit($paymentEntry);
+        $paymentEntry = $this->paymentEntryService->submit($paymentEntry, $request->validated()['lines'] ?? []);
 
         return $this->success(new PaymentEntryResource($paymentEntry), 'Payment Entry submitted.');
     }
