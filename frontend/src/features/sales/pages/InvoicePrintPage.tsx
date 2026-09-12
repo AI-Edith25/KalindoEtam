@@ -25,17 +25,19 @@ const ROLL_PAPER_WIDTH_MM = 80
 const ROLL_CONTENT_WIDTH_MM = ROLL_PAPER_WIDTH_MM - 8
 
 /**
- * A4/Half/Continuous now share one template (InvoicePaperLayout) whose absolute coordinates
- * assume a 210mm-wide reference frame — see that file's own doc comment. A4's own usable width
- * (210mm, @page margin:0) already equals that frame exactly, so both map to 210 here. Continuous
- * is physically wider (9.5in = 241.3mm) with a 6mm @page margin each side (PRINT_PAPER_PAGE_CSS.
- * continuous) — usable content width = 241.3 - 12 = 229.3mm — so it's the only one that actually
- * scales (~1.09x) via InvoicePaperLayout's own contentWidthMm/scaleX handling.
+ * Single source of truth for both physical paper size (drives the on-screen "page" framing below
+ * and the @page rule) and usable content size after that paper type's own @page margin (drives
+ * InvoicePaperLayout's own contentWidthMm/contentHeightMm — see that file's doc comment for why
+ * usable, not physical, is what its root div must actually be sized to).
+ *
+ * A4/Half have @page margin:0, so physical === usable. Continuous is 9.5in x 11in physically
+ * (241.3 x 279.4mm) with a 6mm @page margin each side (matches PRINT_PAPER_PAGE_CSS.continuous) —
+ * usable = 241.3-12 x 279.4-12 = 229.3 x 267.4mm.
  */
-const CONTENT_WIDTH_MM: Record<'a4' | 'half' | 'continuous', number> = {
-  a4: 210,
-  half: 210,
-  continuous: 229.3,
+const PAPER_SIZES: Record<'a4' | 'half' | 'continuous', { pageWidthMm: number; pageHeightMm: number; contentWidthMm: number; contentHeightMm: number }> = {
+  a4: { pageWidthMm: 210, pageHeightMm: 297, contentWidthMm: 210, contentHeightMm: 297 },
+  half: { pageWidthMm: 210, pageHeightMm: 148.5, contentWidthMm: 210, contentHeightMm: 148.5 },
+  continuous: { pageWidthMm: 241.3, pageHeightMm: 279.4, contentWidthMm: 229.3, contentHeightMm: 267.4 },
 }
 
 /** SI.pdf shows en-US grouping (comma thousands, dot decimal) with no currency symbol in the table — same reasoning as SO/DO print's own formatNum, not the shared id-ID formatMoney/formatQty. */
@@ -57,7 +59,7 @@ function formatYyyyDotMmDotDd(dateStr: string | null | undefined): string {
  * "Sales" column, Reference 2/Page No/Attn/Tel/Fax fields, a broken amount-in-words line) — that's
  * gone; all three paper types are now pixel-identical in layout/typography/structure and differ
  * only in @page size + margin + InvoicePaperLayout's own horizontal contentWidthMm scale (see
- * CONTENT_WIDTH_MM above and that file's own doc comment).
+ * PAPER_SIZES above and that file's own doc comment).
  *
  * Goods and Transportation invoices share this exact layout. Two Transportation-only gaps are
  * deliberate, not bugs: ItemCode/UOM render blank (createTransportation() never stores either —
@@ -175,7 +177,8 @@ export function InvoicePrintPage() {
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
   const tel = invoice.sales_order?.tel ?? invoice.customer?.phone ?? ''
   const location = invoice.delivery?.warehouse?.name ?? ''
-  const contentWidthMm = isContinuous ? CONTENT_WIDTH_MM.continuous : isHalf ? CONTENT_WIDTH_MM.half : CONTENT_WIDTH_MM.a4
+  const paperKey = isHalf ? 'half' : isContinuous ? 'continuous' : 'a4'
+  const paperSize = PAPER_SIZES[paperKey]
 
   return (
     <div
@@ -183,15 +186,21 @@ export function InvoicePrintPage() {
         format === 'roll'
           ? 'mx-auto flex flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-[2mm] print:shadow-none'
           // A4/Half/Continuous all render InvoicePaperLayout, a fixed-width absolutely-positioned
-          // page (see that component) — this wrapper just centers it on screen and drops to zero
-          // padding for print, since each paper type's own @page margin + the component's own
-          // baked-in coordinates already account for every inset (PRINT_PAPER_PAGE_CSS).
-          : 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none'
+          // page (see that component) — this wrapper centers it on screen, sized to the paper's
+          // real PHYSICAL dimensions (so A4 previews portrait-tall, Continuous previews wider) via
+          // the inline style below. print:w-auto!/h-auto! resets that physical sizing back to
+          // `auto` during an actual print/PDF, so the wrapper just shrink-wraps InvoicePaperLayout's
+          // own print-safe USABLE size instead of claiming more width than a margined paper type
+          // (Continuous) actually has room for — a fixed-physical-size wrapper active during print
+          // would silently clip content past the @page margin. print:p-0 drops the screen-only
+          // padding since @page's own margin + the component's own baked-in coordinates already
+          // account for every real print inset (PRINT_PAPER_PAGE_CSS).
+          : 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none print:w-auto! print:h-auto!'
       }
       style={
         format === 'roll'
           ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` }
-          : { width: `${contentWidthMm}mm` }
+          : { width: `${paperSize.pageWidthMm}mm`, height: `${paperSize.pageHeightMm}mm` }
       }
     >
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
@@ -199,7 +208,8 @@ export function InvoicePrintPage() {
           browser UI. Document margins come from this wrapper's own padding instead (Roll) or
           @page's own margin plus InvoicePaperLayout's own baked-in coordinates (A4/Half/Continuous,
           see PRINT_PAPER_PAGE_CSS — kept as a single source of truth rather than a second
-          hardcoded copy here). */}
+          hardcoded copy here, except A4 which is spelled out in explicit mm to match PAPER_SIZES
+          exactly rather than relying on the browser's own "A4" keyword). */}
       <style>
         {(format === 'roll'
           ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
@@ -207,7 +217,7 @@ export function InvoicePrintPage() {
             ? PRINT_PAPER_PAGE_CSS.half
             : isContinuous
               ? PRINT_PAPER_PAGE_CSS.continuous
-              : '@page { size: A4; margin: 0; }') +
+              : `@page { size: ${PAPER_SIZES.a4.pageWidthMm}mm ${PAPER_SIZES.a4.pageHeightMm}mm; margin: 0; }`) +
           /* Without this, Chrome drops background/border colors that rely on print-color-adjust
              defaults, thinning out table borders and the totals box on some printers/PDF drivers. */
           ' @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'}
@@ -241,7 +251,8 @@ export function InvoicePrintPage() {
           showTax={showTax}
           showDiscount={showDiscount}
           showDecimalTotals={printOptions.showDecimalTotals}
-          contentWidthMm={contentWidthMm}
+          contentWidthMm={paperSize.contentWidthMm}
+          contentHeightMm={paperSize.contentHeightMm}
         />
       )}
 
