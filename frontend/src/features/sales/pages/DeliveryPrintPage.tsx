@@ -4,68 +4,25 @@ import { useQuery } from '@tanstack/react-query'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
-import { PrintMetaTable } from '@/components/shared/PrintMetaTable'
 import { loadDeliveryPrintOptions, saveDeliveryPrintOptions, type PrintOptions } from '@/shared/lib/printOptions'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchDelivery } from '../api/deliveryApi'
-import { DEJAVU_FONT_FACES, DEJAVU_FONT_STACK } from './invoicePrintConstants'
+import { DEJAVU_FONT_STACK } from './invoicePrintConstants'
+import { A4, HALF } from './deliveryPrintConstants'
+import { DeliveryPortraitLayout } from './DeliveryPortraitLayout'
+import { DeliveryHalfLayout } from './DeliveryHalfLayout'
 
-/** Same static asset SalesOrderPrintLayout.tsx / TandaTerimaInvoicePrintPage.tsx use — not the admin-configurable company branding logo (which may not be set). */
-const KALINDO_ETAM_LOGO_URL = '/kalindo-etam-logo.png'
-
-const SIGNATURE_COLUMNS = ['Tanda Terima,', 'Dikeluarkan Oleh,', 'Diantar Oleh,', 'Diperiksa Oleh,', 'Security,', 'Hormat Kami,']
-
-type DeliveryPaperKey = 'a4' | 'half'
-
-/** Both paper types are 210mm wide (Half is A5 landscape, not A5 portrait) — only the height and
-    margins differ. Own div padding (never a real @page margin) so the on-screen preview box is
-    always the same size as the printed page, same convention invoicePrintConstants.ts documents
-    for Invoice's Portrait layout. */
-const PAPER: Record<DeliveryPaperKey, { heightMm: number; paddingMm: string; logoHeightMm: number }> = {
-  a4: { heightMm: 297, paddingMm: '10mm 12mm', logoHeightMm: 18 },
-  half: { heightMm: 148.5, paddingMm: '6mm 8mm', logoHeightMm: 12 },
-}
-
-/** Half is "one step" smaller than A4 across every element, per spec — a flat -1pt map rather than
-    a generic scale factor, since nothing here needs to be recomputed at arbitrary sizes. */
-const SIZES: Record<DeliveryPaperKey, Record<'pageMark' | 'title' | 'companyName' | 'meta' | 'tableHeader' | 'tableBody' | 'notes' | 'totalQty' | 'signatureCaption', number>> = {
-  a4: { pageMark: 8, title: 15, companyName: 13, meta: 8.5, tableHeader: 9, tableBody: 9, notes: 8.5, totalQty: 9.5, signatureCaption: 8.5 },
-  half: { pageMark: 7, title: 14, companyName: 12, meta: 7.5, tableHeader: 8, tableBody: 8, notes: 7.5, totalQty: 8.5, signatureCaption: 7.5 },
-}
-
-/** DO.pdf shows plain en-US grouping with no decimals for quantities ("150", not "150.00"). */
-function formatNum(value: number | string, decimals: number): string {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value))
-}
-
-/** OFF -> whole number ("25"), ON -> 3 decimals ("25.000") — formatting only, never changes the underlying qty value. */
-function formatQty(value: number | string, decimalsOn: boolean): string {
-  return formatNum(value, decimalsOn ? 3 : 0)
-}
-
-/** delivery_date arrives as a plain YYYY-MM-DD string — split it directly rather than re-parsing through a Date object, which shifts the calendar date in any timezone ahead of UTC (same pitfall dateMath.ts's addDays() already documents). */
-function formatDdMmYyyy(dateStr: string | null | undefined): string {
-  if (!dateStr) return ''
-  const [year, month, day] = dateStr.split('-')
-  return `${day}/${month}/${year}`
-}
-
-/** No | PKode | Nama Barang | Quantity | UOM — fixed percentage widths shared by the item table and
-    the total-row line below it, so "150 ZAK" always lands under the Quantity/UOM columns regardless
-    of how long any item's name happens to be. */
-const ITEM_COL_WIDTHS = ['6%', '14%', '44%', '18%', '18%']
+const DEFAULT_SIGNATURE_LEFT_LABEL = '(AUTHORISED SIGNATURE)'
+const DEFAULT_SIGNATURE_RIGHT_LABEL = "Receiver's Signature & Company Stamp"
 
 /**
- * Delivery Order print — replicates Invoice print's own Print Options pattern (Paper Type: A4/Half,
- * Font Style, Tampilkan Desimal/Logo checkboxes, editable signature labels — all reusing
- * PrintOptionsDialog/printOptions.ts/invoicePrintConstants.ts as-is, no parallel implementation) on
- * top of the classic clouderp-style DO body: two aligned meta columns (PrintMetaTable, shared with
- * Invoice's Portrait layout), a header-rule-only item table that repeats on every page, and a
- * 6-column signature footer where only the two outer columns get a signature line.
- *
- * Unlike Invoice, Delivery carries no pricing/tax authority in this system — the item table is
- * quantities only, and "Tampilkan Desimal" here controls Qty's own decimal precision (0 vs 3),
- * not a totals-box toggle (Delivery has no totals box).
+ * Delivery Order print — two pixel-measured templates (DeliveryPortraitLayout for A4,
+ * DeliveryHalfLayout for Half), chosen by Paper Type. Logo is no longer a separate toggle: it's
+ * tied to Paper Type itself (A4 always shows it, Half never does), per the ticket's final design
+ * decision. Print Options here is intentionally a 5-control subset of the shared dialog (Paper
+ * Type, Font Style, Tampilkan Desimal, and the two signature-label textboxes, A4-only) — no
+ * Font Size, no per-column decimal selects, no Tax/Discount (Delivery carries no pricing/tax
+ * authority in this system).
  */
 export function DeliveryPrintPage() {
   const { id } = useParams<{ id: string }>()
@@ -76,9 +33,8 @@ export function DeliveryPrintPage() {
     priceDecimals: 0,
     amountDecimals: 0,
     showDecimalTotals: false,
-    showLogo: true,
-    signatureLeftLabel: 'AUTHORISED SIGNATURE',
-    signatureRightLabel: 'AUTHORISED SIGNATURE',
+    signatureLeftLabel: DEFAULT_SIGNATURE_LEFT_LABEL,
+    signatureRightLabel: DEFAULT_SIGNATURE_RIGHT_LABEL,
     ...loadDeliveryPrintOptions(),
   }))
   const handlePrintOptionsChange = (next: PrintOptions) => {
@@ -106,31 +62,19 @@ export function DeliveryPrintPage() {
   if (!delivery) return null
 
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
-  const totalQty = delivery.items.reduce((sum, item) => sum + Number(item.qty), 0)
-  const uniformUom = delivery.items.length > 0 && delivery.items.every((item) => item.uom === delivery.items[0].uom) ? delivery.items[0].uom : ''
-  // Same source the Delivery form itself uses (DeliveryEditorPage.tsx) — the Delivery's own
-  // remarks, already seeded from the Sales Order's remarks at creation time and editable from
-  // there; the Sales Order fallback only covers a Delivery that somehow never got that default
-  // (e.g. a pre-existing record). Hidden entirely when empty — no "Notes: -" clutter.
-  const notes = delivery.remarks || delivery.sales_order?.remarks || ''
-
   const isHalf = printOptions.paperType === 'half'
-  const paperKey: DeliveryPaperKey = isHalf ? 'half' : 'a4'
-  const paper = PAPER[paperKey]
-  const sizes = SIZES[paperKey]
   const decimalsOn = printOptions.showDecimalTotals ?? false
-  const showLogo = printOptions.showLogo ?? true
   const fontFamily = printOptions.fontFamily ?? DEJAVU_FONT_STACK
-  const signatureLeftLabel = printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'
-  const signatureRightLabel = printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'
+  const signatureLeftLabel = printOptions.signatureLeftLabel ?? DEFAULT_SIGNATURE_LEFT_LABEL
+  const signatureRightLabel = printOptions.signatureRightLabel ?? DEFAULT_SIGNATURE_RIGHT_LABEL
+  const paper = isHalf ? HALF : A4
 
   return (
     <div className="mx-auto flex w-fit flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none">
-      {/* margin: 0 on @page suppresses the browser's own print header/footer chrome — document
-          margins come from the content div's own padding below instead, so screen and print
-          always agree on paper size (same convention as InvoicePrintPage.tsx). */}
+      {/* Real @page margin (see deliveryPrintConstants.ts) — both templates' own root div already
+          uses the identical margin as its own padding, so screen and print agree on paper size. */}
       <style>
-        {`@page { size: 210mm ${paper.heightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
+        {`@page { size: ${paper.pageWidthMm}mm ${paper.pageHeightMm}mm; margin: ${paper.marginMm}; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
       </style>
 
       <div className="flex items-start justify-between print:hidden">
@@ -147,178 +91,19 @@ export function DeliveryPrintPage() {
         </div>
       </div>
 
-      {/* Explicit 210mm here (not width:'100%' of this outer wrapper) is what keeps the on-screen
-          box's aspect ratio exact — the outer wrapper's own decorative p-6 (a border-box padding)
-          would otherwise eat into a percentage width and stretch the ratio away from the paper's
-          real 1:1.414 / 1.414:1 proportions. */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          width: '210mm',
-          minHeight: `${paper.heightMm}mm`,
-          boxSizing: 'border-box',
-          padding: paper.paddingMm,
-          fontFamily,
-          color: '#000',
-        }}
-      >
-        <style>{DEJAVU_FONT_FACES}</style>
-
-        <div className="flex items-start justify-between">
-          <p style={{ fontSize: `${sizes.pageMark}pt` }}>1 of 1</p>
-          <p className="flex-1 text-center" style={{ fontSize: `${sizes.title}pt`, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Delivery Order
-          </p>
-          <div style={{ width: '8mm' }} />
-        </div>
-
-        {/* Logo is absolutely positioned against this relative container (out-of-flow) so it can
-            never push or reflow the company name/address block, which stays centered regardless of
-            the toggle. A fixed min-height equal to the logo's own max height is reserved
-            UNCONDITIONALLY (not just when the logo is on) so toggling Logo never changes this
-            block's height either way — same technique SalesOrderPrintLayout/TandaTerimaInvoicePrintPage
-            use for the logo itself, extended here with the constant-height reservation B2 requires. */}
-        <div className="relative mt-2" style={{ minHeight: `${paper.logoHeightMm}mm` }}>
-          {showLogo && (
-            <img
-              src={KALINDO_ETAM_LOGO_URL}
-              alt={companyName}
-              className="absolute left-0 top-0"
-              style={{ height: `${paper.logoHeightMm}mm`, width: 'auto', objectFit: 'contain' }}
-            />
-          )}
-          <div className="text-center">
-            <p style={{ fontSize: `${sizes.companyName}pt`, fontWeight: 700 }}>{companyName}</p>
-            {printHeaderQuery.data?.address && <p style={{ fontSize: `${sizes.meta}pt` }}>{printHeaderQuery.data.address}</p>}
-          </div>
-        </div>
-
-        <div className="mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2">
-          <div>
-            <PrintMetaTable
-              size={sizes.meta}
-              rows={[
-                { label: 'Driver', value: delivery.driver ?? '' },
-                { label: 'Fleet', value: delivery.fleet ?? '' },
-                {
-                  label: 'Kepada Yth',
-                  value: (
-                    <div className="flex flex-col">
-                      {delivery.customer?.customer_name && <span style={{ fontWeight: 700 }}>{delivery.customer.customer_name}</span>}
-                      {delivery.customer?.phone && <span>{delivery.customer.phone}</span>}
-                      {delivery.customer?.address && <span>{delivery.customer.address}</span>}
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </div>
-          <div>
-            <PrintMetaTable
-              size={sizes.meta}
-              rows={[
-                { label: 'NO', value: delivery.document_number ?? '—', valueBold: true },
-                { label: 'Date', value: formatDdMmYyyy(delivery.delivery_date) },
-                { label: 'SO. No', value: delivery.sales_order?.document_number ?? '' },
-                { label: 'Sales Person', value: delivery.sales_order?.sales_person?.name ?? '' },
-                { label: 'Location', value: delivery.warehouse?.name ?? '' },
-              ]}
-            />
-          </div>
-        </div>
-
-        {/* flex: 1 0 auto stretches the table to fill remaining page height on a short delivery
-            (reserving the empty space before the total row, per spec) while letting a long one
-            grow past one page and paginate naturally — same technique InvoicePortraitLayout uses. */}
-        <div style={{ flex: '1 0 auto', marginTop: '3mm' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: `${sizes.tableBody}pt` }}>
-            <colgroup>
-              {ITEM_COL_WIDTHS.map((width) => (
-                <col key={width} style={{ width }} />
-              ))}
-            </colgroup>
-            {/* table-header-group repeats this row on every printed page for a multi-page delivery. */}
-            <thead style={{ display: 'table-header-group' }}>
-              <tr style={{ borderTop: '0.75mm solid #000', borderBottom: '0.75mm solid #000' }}>
-                <th style={{ textAlign: 'center', fontWeight: 700, padding: '1mm 1.5mm', fontSize: `${sizes.tableHeader}pt` }}>No</th>
-                <th style={{ textAlign: 'left', fontWeight: 700, padding: '1mm 1.5mm', fontSize: `${sizes.tableHeader}pt` }}>PKode</th>
-                <th style={{ textAlign: 'left', fontWeight: 700, padding: '1mm 1.5mm', fontSize: `${sizes.tableHeader}pt` }}>Nama Barang</th>
-                <th style={{ textAlign: 'right', fontWeight: 700, padding: '1mm 1.5mm', fontSize: `${sizes.tableHeader}pt` }}>Quantity</th>
-                <th style={{ textAlign: 'left', fontWeight: 700, padding: '1mm 1.5mm', fontSize: `${sizes.tableHeader}pt` }}>UOM</th>
-              </tr>
-            </thead>
-            <tbody>
-              {delivery.items.map((item, index) => (
-                <tr key={item.id} style={{ breakInside: 'avoid' }}>
-                  <td style={{ textAlign: 'center', verticalAlign: 'top', padding: '1mm 1.5mm' }}>{index + 1}</td>
-                  <td style={{ textAlign: 'left', verticalAlign: 'top', padding: '1mm 1.5mm' }}>{item.item_code}</td>
-                  <td style={{ textAlign: 'left', verticalAlign: 'top', padding: '1mm 1.5mm' }}>{item.item_name}</td>
-                  <td style={{ textAlign: 'right', verticalAlign: 'top', padding: '1mm 1.5mm' }}>{formatQty(item.qty, decimalsOn)}</td>
-                  <td style={{ textAlign: 'left', verticalAlign: 'top', padding: '1mm 1.5mm' }}>{item.uom}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {notes && (
-          <div className="mb-2">
-            <PrintMetaTable size={sizes.notes} rows={[{ label: 'Notes', value: notes }]} />
-          </div>
-        )}
-
-        {/* Total-qty row + signature block travel together so they can never split across a page. */}
-        <div style={{ breakInside: 'avoid' }}>
-          <div
-            style={{
-              borderTop: '0.75mm solid #000',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '2mm',
-              paddingTop: '1mm',
-              fontSize: `${sizes.totalQty}pt`,
-              fontWeight: 700,
-            }}
-          >
-            <span>{formatQty(totalQty, decimalsOn)}</span>
-            <span>{uniformUom}</span>
-          </div>
-
-          {/* Caption row is a single shared baseline across all 6 columns on both paper types.
-              The signature line + custom label (A4 only, per B3) renders as a SEPARATE row below
-              it, never mixed into the same grid row as the captions — that mixing (line/label
-              stacked above the caption inside only 2 of 6 cells) was what broke the shared
-              baseline before. */}
-          <div className="mt-3 grid grid-cols-6" style={{ fontSize: `${sizes.signatureCaption}pt` }}>
-            {SIGNATURE_COLUMNS.map((caption) => (
-              <p key={caption} className="text-center" style={{ whiteSpace: 'nowrap' }}>
-                {caption}
-              </p>
-            ))}
-          </div>
-
-          {!isHalf && (
-            <div className="grid grid-cols-6" style={{ marginTop: '18mm' }}>
-              {SIGNATURE_COLUMNS.map((_, index) => {
-                const isOuter = index === 0 || index === SIGNATURE_COLUMNS.length - 1
-                if (!isOuter) return <div key={index} />
-                const signatureLabel = index === 0 ? signatureLeftLabel : signatureRightLabel
-                return (
-                  <div key={index} className="flex flex-col items-center">
-                    <div style={{ width: '85%', borderTop: '0.3mm solid #000' }} />
-                    {signatureLabel && (
-                      <p className="mt-1 text-center" style={{ fontSize: `${sizes.signatureCaption}pt`, whiteSpace: 'nowrap' }}>
-                        ({signatureLabel})
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      {isHalf ? (
+        <DeliveryHalfLayout delivery={delivery} companyName={companyName} companyAddress={printHeaderQuery.data?.address ?? undefined} fontFamily={fontFamily} decimalsOn={decimalsOn} />
+      ) : (
+        <DeliveryPortraitLayout
+          delivery={delivery}
+          companyName={companyName}
+          printHeader={printHeaderQuery.data}
+          fontFamily={fontFamily}
+          decimalsOn={decimalsOn}
+          signatureLeftLabel={signatureLeftLabel}
+          signatureRightLabel={signatureRightLabel}
+        />
+      )}
 
       <PrintOptionsDialog
         open={optionsOpen}
@@ -332,9 +117,10 @@ export function DeliveryPrintPage() {
         showFontFamily
         defaultFontFamily={DEJAVU_FONT_STACK}
         showDecimalToggle
-        showLogo
         showSignatureLabels
-        signatureLabelsDisabledHint={isHalf ? 'Hanya tersedia untuk kertas A4' : undefined}
+        defaultSignatureLeftLabel={DEFAULT_SIGNATURE_LEFT_LABEL}
+        defaultSignatureRightLabel={DEFAULT_SIGNATURE_RIGHT_LABEL}
+        signatureLabelsDisabledHint={isHalf ? 'Hanya untuk kertas A4' : undefined}
       />
     </div>
   )

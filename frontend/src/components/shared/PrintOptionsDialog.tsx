@@ -55,10 +55,11 @@ interface PrintOptionsDialogProps {
       typography is now locked to fixed pt values per element (no more user-adjustable scale), so
       showing an ineffective Font Size control would be misleading. */
   showFontSize?: boolean
-  /** Only Invoice print renders/acts on this (editable signature block labels) — every other consumer leaves it hidden, same convention as showDiscount. */
+  /** Only Invoice/Delivery print renders/acts on this (editable signature block labels) — every other consumer leaves it hidden, same convention as showDiscount. */
   showSignatureLabels?: boolean
-  /** Only Delivery print renders/acts on this (company logo in the header) — every other consumer leaves it hidden, same convention as showDiscount. Checkbox defaults to checked (`options.showLogo ?? true`), unlike every other toggle below. */
-  showLogo?: boolean
+  /** Falls back to 'AUTHORISED SIGNATURE' (Invoice's own default) when `options.signatureLeftLabel`/`signatureRightLabel` are unset — pass these when the caller has its own different default text (Delivery's A4 template defaults to "(AUTHORISED SIGNATURE)" / "Receiver's Signature & Company Stamp", per its own reference layout). */
+  defaultSignatureLeftLabel?: string
+  defaultSignatureRightLabel?: string
   /** Only Delivery print sets this (Half paper renders no signature block at all) — when set, both signature-label inputs render disabled and this text shows as a hint below them instead of the inputs doing anything. Every other consumer leaves it unset, same convention as showDiscount. */
   signatureLabelsDisabledHint?: string
 }
@@ -84,7 +85,8 @@ export function PrintOptionsDialog({
   defaultFontFamily,
   showFontSize = true,
   showSignatureLabels = false,
-  showLogo = false,
+  defaultSignatureLeftLabel = 'AUTHORISED SIGNATURE',
+  defaultSignatureRightLabel = 'AUTHORISED SIGNATURE',
   signatureLabelsDisabledHint,
 }: PrintOptionsDialogProps) {
   return (
@@ -224,18 +226,12 @@ export function PrintOptionsDialog({
               Tampilkan Diskon
             </label>
           )}
-          {showLogo && (
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <Checkbox checked={options.showLogo ?? true} onCheckedChange={(checked) => onChange({ ...options, showLogo: checked === true })} />
-              Tampilkan Logo
-            </label>
-          )}
           {showSignatureLabels && (
             <div className="grid grid-cols-2 gap-2 border-t pt-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium">Label Tanda Tangan Kiri</label>
                 <Input
-                  value={options.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
+                  value={options.signatureLeftLabel ?? defaultSignatureLeftLabel}
                   onChange={(e) => onChange({ ...options, signatureLeftLabel: e.target.value })}
                   disabled={!!signatureLabelsDisabledHint}
                 />
@@ -243,7 +239,7 @@ export function PrintOptionsDialog({
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium">Label Tanda Tangan Kanan</label>
                 <Input
-                  value={options.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
+                  value={options.signatureRightLabel ?? defaultSignatureRightLabel}
                   onChange={(e) => onChange({ ...options, signatureRightLabel: e.target.value })}
                   disabled={!!signatureLabelsDisabledHint}
                 />
