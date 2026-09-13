@@ -10,7 +10,10 @@ function LeftMetaRow({ label, value }: { label: string; value: ReactNode }) {
     <div style={{ display: 'grid', gridTemplateColumns: `${HALF.leftLabelWidthMm}mm ${HALF.leftColonWidthMm}mm 1fr`, fontSize: '9pt' }}>
       <span>{label}</span>
       <span>:</span>
-      <span>{value}</span>
+      {/* minWidth:0 overrides a grid item's default min-width:auto (its content's own intrinsic
+          width) so a long unbreakable value actually wraps within the column instead of
+          overflowing and getting clipped at the page edge — same fix as A4's own MetaRow. */}
+      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{value}</span>
     </div>
   )
 }
@@ -20,7 +23,7 @@ function RightMetaRow({ label, value }: { label: string; value: string }) {
     <div style={{ display: 'grid', gridTemplateColumns: `${HALF.rightLabelWidthMm}mm ${HALF.rightColonWidthMm}mm 1fr`, fontSize: '9pt' }}>
       <span>{label}</span>
       <span>:</span>
-      <span>{value}</span>
+      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{value}</span>
     </div>
   )
 }
@@ -158,6 +161,12 @@ export function DeliveryHalfLayout({ delivery, companyName, companyAddress, font
             </span>
           ))}
         </div>
+
+        {/* Blank space reserved for a real pen signature under each label — measured directly off
+            DeliveryOrder_lanscape.pdf itself (caption row to the page's own bottom margin is
+            ~19mm there); the flex:1 0 auto table above already fills whatever's left of the page,
+            so without this explicit reservation that gap collapses to nothing. */}
+        <div style={{ height: '19mm' }} />
       </div>
     </div>
   )

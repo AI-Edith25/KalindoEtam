@@ -26,7 +26,12 @@ function MetaRow({ label, value, size = 9, bold = false }: { label: string; valu
     >
       <span>{label}</span>
       <span>:</span>
-      <span>{value}</span>
+      {/* minWidth:0 overrides a grid item's default min-width:auto (= its content's own
+          intrinsic width) — without it, an unbreakable value like a long document number never
+          wraps and instead overflows the column, getting clipped at the page edge (that's what
+          was cutting the year off a wrapped NO value). overflowWrap:anywhere then lets it break
+          mid-string exactly like the reference PDF's own "DO/KE/8535/0" / "9/2026" wrap. */}
+      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{value}</span>
     </div>
   )
 }
