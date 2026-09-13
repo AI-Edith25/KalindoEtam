@@ -9,6 +9,7 @@ import {
   DEJAVU_FONT_STACK,
   FONT_PT,
   LINE_HEIGHT,
+  legacyCompanyName,
   MARGIN_MM,
   PORTRAIT,
   PORTRAIT_ITEM_COLS,
@@ -46,11 +47,6 @@ function ddmmyyyy(dateStr: string | null | undefined): string {
   if (!dateStr) return ''
   const [year, month, day] = dateStr.split('-')
   return `${day}/${month}/${year}`
-}
-
-/** Same convention as Landscape: "PT Kalindo Etam" -> "PT. KALINDO ETAM". */
-function legacyCompanyName(name: string): string {
-  return name.toUpperCase().replace(/^PT\s+/, 'PT. ')
 }
 
 /** Drops HCTax when Tax is off, folding its width into HCLineAmt — same convention as Landscape's own getItemCols. */

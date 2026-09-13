@@ -97,25 +97,35 @@ export function saveShowDiscountPreference(showDiscount: boolean): void {
   localStorage.setItem(PRINT_SHOW_DISCOUNT_STORAGE_KEY, showDiscount ? '1' : '0')
 }
 
-const DELIVERY_PRINT_OPTIONS_STORAGE_KEY = 'print-options:delivery-order'
-
 /**
- * Delivery print's own persistence — unlike Invoice (which saves paperType/showDiscount as two
- * separate keys, see loadInvoicePaperTypePreference above), Delivery persists the whole
- * PrintOptions object as one JSON blob under its own key so it never collides with Invoice's.
+ * Whole-object PrintOptions persistence under one key — unlike Invoice (which saves
+ * paperType/showDiscount as two separate keys, see loadInvoicePaperTypePreference above), Delivery
+ * and Sales Order each persist their full PrintOptions object as one JSON blob under their own key
+ * so neither collides with Invoice's or each other's.
  */
-export function loadDeliveryPrintOptions(): Partial<PrintOptions> {
-  try {
-    const raw = localStorage.getItem(DELIVERY_PRINT_OPTIONS_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
+function createPrintOptionsStorage(storageKey: string) {
+  return {
+    load(): Partial<PrintOptions> {
+      try {
+        const raw = localStorage.getItem(storageKey)
+        return raw ? JSON.parse(raw) : {}
+      } catch {
+        return {}
+      }
+    },
+    save(options: PrintOptions): void {
+      localStorage.setItem(storageKey, JSON.stringify(options))
+    },
   }
 }
 
-export function saveDeliveryPrintOptions(options: PrintOptions): void {
-  localStorage.setItem(DELIVERY_PRINT_OPTIONS_STORAGE_KEY, JSON.stringify(options))
-}
+const deliveryPrintOptionsStorage = createPrintOptionsStorage('print-options:delivery-order')
+export const loadDeliveryPrintOptions = deliveryPrintOptionsStorage.load
+export const saveDeliveryPrintOptions = deliveryPrintOptionsStorage.save
+
+const salesOrderPrintOptionsStorage = createPrintOptionsStorage('print-options:sales-order')
+export const loadSalesOrderPrintOptions = salesOrderPrintOptionsStorage.load
+export const saveSalesOrderPrintOptions = salesOrderPrintOptionsStorage.save
 
 export const PRINT_FONT_SIZE_PX: Record<PrintFontSize, string> = {
   small: '11px',

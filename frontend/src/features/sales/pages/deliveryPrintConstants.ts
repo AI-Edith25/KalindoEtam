@@ -67,13 +67,6 @@ export function formatQty(value: number | string, decimalsOn: boolean): string {
   return formatNum(value, decimalsOn ? 3 : 0)
 }
 
-/** The stored company name ("PT Kalindo Etam") is plain title case — both reference PDFs print it
-    "PT. KALINDO ETAM" (all caps, period after "PT"), same convention InvoicePortraitLayout.tsx's
-    own legacyCompanyName() already applies for Invoice. */
-export function legacyCompanyName(name: string): string {
-  return name.toUpperCase().replace(/^PT\s+/, 'PT. ')
-}
-
 /** delivery_date arrives as a plain YYYY-MM-DD string — split it directly rather than re-parsing through a Date object, which shifts the calendar date in any timezone ahead of UTC (same pitfall dateMath.ts's addDays() already documents). */
 export function formatDdMmYyyy(dateStr: string | null | undefined): string {
   if (!dateStr) return ''

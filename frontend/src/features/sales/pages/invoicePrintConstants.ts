@@ -17,6 +17,13 @@
 
 export const DEJAVU_FONT_STACK = '"DejaVu Sans Condensed", sans-serif'
 
+/** The stored company name ("PT Kalindo Etam") is plain title case — every classic dot-matrix
+    print template (Invoice, Delivery Order, Sales Order) shows it "PT. KALINDO ETAM" (all caps,
+    period after "PT") instead. Shared here so none of the three re-implements it separately. */
+export function legacyCompanyName(name: string): string {
+  return name.toUpperCase().replace(/^PT\s+/, 'PT. ')
+}
+
 /** Shared @font-face declarations — both layouts render `<style>{DEJAVU_FONT_FACES}</style>` once
     each so the webfont is available regardless of which one is on screen. */
 export const DEJAVU_FONT_FACES = `

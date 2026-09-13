@@ -7,6 +7,7 @@ import {
   FONT_PT,
   LANDSCAPE_LEFT_COLUMN_BOTTOM_MM,
   LANDSCAPE_SIGNATURE_GAP_MM,
+  legacyCompanyName,
   LINE_HEIGHT,
   META_COLON_WIDTH_MM,
   META_GAP_MM,
@@ -153,11 +154,6 @@ function ddmmyyyy(dateStr: string | null | undefined): string {
   if (!dateStr) return ''
   const [year, month, day] = dateStr.split('-')
   return `${day}/${month}/${year}`
-}
-
-/** Section 9: "PT Kalindo Etam" -> "PT. KALINDO ETAM" (all caps, period after PT) for this replica header only — every other print format keeps the company name as configured. */
-function legacyCompanyName(name: string): string {
-  return name.toUpperCase().replace(/^PT\s+/, 'PT. ')
 }
 
 type ColAlign = 'left' | 'right'

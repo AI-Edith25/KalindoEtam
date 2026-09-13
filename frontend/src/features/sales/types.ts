@@ -36,7 +36,14 @@ export interface SalesOrder {
   status: SalesOrderStatus
   revision: number
   customer_id: string
-  customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
+  customer: {
+    id: string
+    customer_code: string
+    customer_name: string
+    terms_of_payment_id: string | null
+    phone: string | null
+    address: string | null
+  } | null
   sales_person_id: string | null
   sales_person: { id: string; code: string; name: string } | null
   branch_id: string | null

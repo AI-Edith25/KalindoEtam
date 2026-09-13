@@ -5,10 +5,15 @@ import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import { ErrorState } from '@/components/shared/ErrorState'
-import { type PrintOptions } from '@/shared/lib/printOptions'
+import { loadSalesOrderPrintOptions, saveSalesOrderPrintOptions, type PrintOptions } from '@/shared/lib/printOptions'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchSalesOrder } from '../api/salesOrderApi'
 import { SalesOrderPrintLayout } from '../components/SalesOrderPrintLayout'
+import { DEJAVU_FONT_STACK, legacyCompanyName } from './invoicePrintConstants'
+import { PAGE_HEIGHT_MM, PAGE_WIDTH_MM } from './salesOrderPrintConstants'
+
+const DEFAULT_SIGNATURE_LEFT_LABEL = '(AUTHORISED SIGNATURE)'
+const DEFAULT_SIGNATURE_RIGHT_LABEL = 'APPROVED BY'
 
 /** Same ceiling the backend enforces nowhere (bulk print never hits an API endpoint — it's N single-document fetches) but the ticket asks for explicitly: "batasi jumlah maksimal dokumen per sekali print". */
 export const BULK_PRINT_MAX_DOCUMENTS = 100
@@ -25,13 +30,21 @@ export function SalesOrderBulkPrintPage() {
   const [searchParams] = useSearchParams()
   const ids = (searchParams.get('ids') ?? '').split(',').filter(Boolean)
 
-  const [printOptions, setPrintOptions] = useState<PrintOptions>({
+  const [printOptions, setPrintOptions] = useState<PrintOptions>(() => ({
     fontSize: 'medium',
     paperType: 'a4',
-    qtyDecimals: 2,
-    priceDecimals: 2,
-    amountDecimals: 2,
-  })
+    qtyDecimals: 0,
+    priceDecimals: 0,
+    amountDecimals: 0,
+    showDecimalTotals: false,
+    signatureLeftLabel: DEFAULT_SIGNATURE_LEFT_LABEL,
+    signatureRightLabel: DEFAULT_SIGNATURE_RIGHT_LABEL,
+    ...loadSalesOrderPrintOptions(),
+  }))
+  const handlePrintOptionsChange = (next: PrintOptions) => {
+    setPrintOptions(next)
+    saveSalesOrderPrintOptions(next)
+  }
   const [optionsOpen, setOptionsOpen] = useState(false)
 
   const brandingQuery = useCompanyBranding()
@@ -65,11 +78,15 @@ export function SalesOrderBulkPrintPage() {
   }
 
   const salesOrders = orderQueries.map((query) => query.data!).filter(Boolean)
-  const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
+  const companyName = legacyCompanyName(brandingQuery.data?.name ?? 'PT Kalindo Etam')
+  const fontFamily = printOptions.fontFamily ?? DEJAVU_FONT_STACK
+  const decimalsOn = printOptions.showDecimalTotals ?? false
+  const signatureLeftLabel = printOptions.signatureLeftLabel ?? DEFAULT_SIGNATURE_LEFT_LABEL
+  const signatureRightLabel = printOptions.signatureRightLabel ?? DEFAULT_SIGNATURE_RIGHT_LABEL
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none">
-      <style>{'@page { size: A4; margin: 0; }'}</style>
+    <div className="mx-auto flex w-fit flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none">
+      <style>{`@page { size: ${PAGE_WIDTH_MM}mm ${PAGE_HEIGHT_MM}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}</style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Bulk Print — {salesOrders.length} Sales Orders</h1>
@@ -89,14 +106,30 @@ export function SalesOrderBulkPrintPage() {
         <SalesOrderPrintLayout
           key={salesOrder.id}
           salesOrder={salesOrder}
-          printOptions={printOptions}
           companyName={companyName}
           printHeader={printHeaderQuery.data}
+          fontFamily={fontFamily}
+          decimalsOn={decimalsOn}
+          signatureLeftLabel={signatureLeftLabel}
+          signatureRightLabel={signatureRightLabel}
           className={index > 0 ? 'print:break-before-page' : undefined}
         />
       ))}
 
-      <PrintOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} options={printOptions} onChange={setPrintOptions} fields={['qty', 'price', 'amount']} />
+      <PrintOptionsDialog
+        open={optionsOpen}
+        onOpenChange={setOptionsOpen}
+        options={printOptions}
+        onChange={handlePrintOptionsChange}
+        fields={[]}
+        showFontSize={false}
+        showFontFamily
+        defaultFontFamily={DEJAVU_FONT_STACK}
+        showDecimalToggle
+        showSignatureLabels
+        defaultSignatureLeftLabel={DEFAULT_SIGNATURE_LEFT_LABEL}
+        defaultSignatureRightLabel={DEFAULT_SIGNATURE_RIGHT_LABEL}
+      />
     </div>
   )
 }
