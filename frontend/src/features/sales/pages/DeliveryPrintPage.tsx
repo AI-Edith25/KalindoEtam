@@ -125,10 +125,7 @@ export function DeliveryPrintPage() {
   const signatureRightLabel = printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'
 
   return (
-    <div
-      className="mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none"
-      style={{ width: '210mm', minHeight: `${paper.heightMm}mm` }}
-    >
+    <div className="mx-auto flex w-fit flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none">
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome — document
           margins come from the content div's own padding below instead, so screen and print
           always agree on paper size (same convention as InvoicePrintPage.tsx). */}
@@ -150,11 +147,15 @@ export function DeliveryPrintPage() {
         </div>
       </div>
 
+      {/* Explicit 210mm here (not width:'100%' of this outer wrapper) is what keeps the on-screen
+          box's aspect ratio exact — the outer wrapper's own decorative p-6 (a border-box padding)
+          would otherwise eat into a percentage width and stretch the ratio away from the paper's
+          real 1:1.414 / 1.414:1 proportions. */}
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
-          width: '100%',
+          width: '210mm',
           minHeight: `${paper.heightMm}mm`,
           boxSizing: 'border-box',
           padding: paper.paddingMm,
@@ -172,40 +173,46 @@ export function DeliveryPrintPage() {
           <div style={{ width: '8mm' }} />
         </div>
 
+        {/* Logo is absolutely positioned against this relative container (out-of-flow) so it can
+            never push or reflow the company name/address block, which stays centered regardless of
+            the toggle. A fixed min-height equal to the logo's own max height is reserved
+            UNCONDITIONALLY (not just when the logo is on) so toggling Logo never changes this
+            block's height either way — same technique SalesOrderPrintLayout/TandaTerimaInvoicePrintPage
+            use for the logo itself, extended here with the constant-height reservation B2 requires. */}
+        <div className="relative mt-2" style={{ minHeight: `${paper.logoHeightMm}mm` }}>
+          {showLogo && (
+            <img
+              src={KALINDO_ETAM_LOGO_URL}
+              alt={companyName}
+              className="absolute left-0 top-0"
+              style={{ height: `${paper.logoHeightMm}mm`, width: 'auto', objectFit: 'contain' }}
+            />
+          )}
+          <div className="text-center">
+            <p style={{ fontSize: `${sizes.companyName}pt`, fontWeight: 700 }}>{companyName}</p>
+            {printHeaderQuery.data?.address && <p style={{ fontSize: `${sizes.meta}pt` }}>{printHeaderQuery.data.address}</p>}
+          </div>
+        </div>
+
         <div className="mt-2 grid grid-cols-2 gap-4 border-b border-black pb-2">
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-start gap-2">
-              {showLogo && (
-                <img
-                  src={KALINDO_ETAM_LOGO_URL}
-                  alt={companyName}
-                  style={{ height: `${paper.logoHeightMm}mm`, width: 'auto', objectFit: 'contain', flexShrink: 0 }}
-                />
-              )}
-              <div className="flex flex-col gap-0.5">
-                <p style={{ fontSize: `${sizes.companyName}pt`, fontWeight: 700 }}>{companyName}</p>
-                {printHeaderQuery.data?.address && <p style={{ fontSize: `${sizes.meta}pt` }}>{printHeaderQuery.data.address}</p>}
-              </div>
-            </div>
-            <div className="mt-2">
-              <PrintMetaTable
-                size={sizes.meta}
-                rows={[
-                  { label: 'Driver', value: delivery.driver ?? '' },
-                  { label: 'Fleet', value: delivery.fleet ?? '' },
-                  {
-                    label: 'Kepada Yth',
-                    value: (
-                      <div className="flex flex-col">
-                        {delivery.customer?.customer_name && <span style={{ fontWeight: 700 }}>{delivery.customer.customer_name}</span>}
-                        {delivery.customer?.phone && <span>{delivery.customer.phone}</span>}
-                        {delivery.customer?.address && <span>{delivery.customer.address}</span>}
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </div>
+          <div>
+            <PrintMetaTable
+              size={sizes.meta}
+              rows={[
+                { label: 'Driver', value: delivery.driver ?? '' },
+                { label: 'Fleet', value: delivery.fleet ?? '' },
+                {
+                  label: 'Kepada Yth',
+                  value: (
+                    <div className="flex flex-col">
+                      {delivery.customer?.customer_name && <span style={{ fontWeight: 700 }}>{delivery.customer.customer_name}</span>}
+                      {delivery.customer?.phone && <span>{delivery.customer.phone}</span>}
+                      {delivery.customer?.address && <span>{delivery.customer.address}</span>}
+                    </div>
+                  ),
+                },
+              ]}
+            />
           </div>
           <div>
             <PrintMetaTable
@@ -233,7 +240,7 @@ export function DeliveryPrintPage() {
             </colgroup>
             {/* table-header-group repeats this row on every printed page for a multi-page delivery. */}
             <thead style={{ display: 'table-header-group' }}>
-              <tr style={{ borderTop: '0.53mm solid #000', borderBottom: '0.53mm solid #000' }}>
+              <tr style={{ borderTop: '0.75mm solid #000', borderBottom: '0.75mm solid #000' }}>
                 <th style={{ textAlign: 'center', fontWeight: 700, padding: '1mm 1.5mm', fontSize: `${sizes.tableHeader}pt` }}>No</th>
                 <th style={{ textAlign: 'left', fontWeight: 700, padding: '1mm 1.5mm', fontSize: `${sizes.tableHeader}pt` }}>PKode</th>
                 <th style={{ textAlign: 'left', fontWeight: 700, padding: '1mm 1.5mm', fontSize: `${sizes.tableHeader}pt` }}>Nama Barang</th>
@@ -265,7 +272,7 @@ export function DeliveryPrintPage() {
         <div style={{ breakInside: 'avoid' }}>
           <div
             style={{
-              borderTop: '0.53mm solid #000',
+              borderTop: '0.75mm solid #000',
               display: 'flex',
               justifyContent: 'flex-end',
               gap: '2mm',
@@ -278,24 +285,38 @@ export function DeliveryPrintPage() {
             <span>{uniformUom}</span>
           </div>
 
-          <div className="mt-4 grid grid-cols-6 gap-2 text-center" style={{ fontSize: `${sizes.signatureCaption}pt` }}>
-            {SIGNATURE_COLUMNS.map((caption, index) => {
-              const isOuter = index === 0 || index === SIGNATURE_COLUMNS.length - 1
-              const signatureLabel = index === 0 ? signatureLeftLabel : signatureRightLabel
-              return (
-                <div key={caption} className="flex flex-col items-center gap-1">
-                  {isOuter && (
-                    <>
-                      <div style={{ height: '18mm' }} />
-                      <div style={{ width: '85%', borderTop: '0.3mm solid #000' }} />
-                      {signatureLabel && <p>({signatureLabel})</p>}
-                    </>
-                  )}
-                  <p>{caption}</p>
-                </div>
-              )
-            })}
+          {/* Caption row is a single shared baseline across all 6 columns on both paper types.
+              The signature line + custom label (A4 only, per B3) renders as a SEPARATE row below
+              it, never mixed into the same grid row as the captions — that mixing (line/label
+              stacked above the caption inside only 2 of 6 cells) was what broke the shared
+              baseline before. */}
+          <div className="mt-3 grid grid-cols-6" style={{ fontSize: `${sizes.signatureCaption}pt` }}>
+            {SIGNATURE_COLUMNS.map((caption) => (
+              <p key={caption} className="text-center" style={{ whiteSpace: 'nowrap' }}>
+                {caption}
+              </p>
+            ))}
           </div>
+
+          {!isHalf && (
+            <div className="grid grid-cols-6" style={{ marginTop: '18mm' }}>
+              {SIGNATURE_COLUMNS.map((_, index) => {
+                const isOuter = index === 0 || index === SIGNATURE_COLUMNS.length - 1
+                if (!isOuter) return <div key={index} />
+                const signatureLabel = index === 0 ? signatureLeftLabel : signatureRightLabel
+                return (
+                  <div key={index} className="flex flex-col items-center">
+                    <div style={{ width: '85%', borderTop: '0.3mm solid #000' }} />
+                    {signatureLabel && (
+                      <p className="mt-1 text-center" style={{ fontSize: `${sizes.signatureCaption}pt`, whiteSpace: 'nowrap' }}>
+                        ({signatureLabel})
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -313,6 +334,7 @@ export function DeliveryPrintPage() {
         showDecimalToggle
         showLogo
         showSignatureLabels
+        signatureLabelsDisabledHint={isHalf ? 'Hanya tersedia untuk kertas A4' : undefined}
       />
     </div>
   )

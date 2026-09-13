@@ -59,6 +59,8 @@ interface PrintOptionsDialogProps {
   showSignatureLabels?: boolean
   /** Only Delivery print renders/acts on this (company logo in the header) — every other consumer leaves it hidden, same convention as showDiscount. Checkbox defaults to checked (`options.showLogo ?? true`), unlike every other toggle below. */
   showLogo?: boolean
+  /** Only Delivery print sets this (Half paper renders no signature block at all) — when set, both signature-label inputs render disabled and this text shows as a hint below them instead of the inputs doing anything. Every other consumer leaves it unset, same convention as showDiscount. */
+  signatureLabelsDisabledHint?: string
 }
 
 /**
@@ -83,6 +85,7 @@ export function PrintOptionsDialog({
   showFontSize = true,
   showSignatureLabels = false,
   showLogo = false,
+  signatureLabelsDisabledHint,
 }: PrintOptionsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -234,6 +237,7 @@ export function PrintOptionsDialog({
                 <Input
                   value={options.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
                   onChange={(e) => onChange({ ...options, signatureLeftLabel: e.target.value })}
+                  disabled={!!signatureLabelsDisabledHint}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -241,8 +245,10 @@ export function PrintOptionsDialog({
                 <Input
                   value={options.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
                   onChange={(e) => onChange({ ...options, signatureRightLabel: e.target.value })}
+                  disabled={!!signatureLabelsDisabledHint}
                 />
               </div>
+              {signatureLabelsDisabledHint && <p className="col-span-2 text-xs text-muted-foreground">{signatureLabelsDisabledHint}</p>}
             </div>
           )}
         </div>
