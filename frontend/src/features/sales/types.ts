@@ -131,7 +131,14 @@ export interface Delivery {
     remarks: string | null
   } | null
   customer_id: string
-  customer: { id: string; customer_code: string; customer_name: string; terms_of_payment_id: string | null } | null
+  customer: {
+    id: string
+    customer_code: string
+    customer_name: string
+    terms_of_payment_id: string | null
+    phone: string | null
+    address: string | null
+  } | null
   warehouse_id: string
   warehouse: { id: string; name: string; code: string } | null
   delivery_date: string

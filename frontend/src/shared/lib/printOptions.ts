@@ -19,6 +19,8 @@ export interface PrintOptions {
   /** Only Invoice print acts on this (editable signature block labels, both default to "AUTHORISED SIGNATURE") — every other consumer leaves it unset, same convention as showDiscount. */
   signatureLeftLabel?: string
   signatureRightLabel?: string
+  /** Only Delivery print acts on this (company logo in the header) — every other consumer leaves it unset, same convention as showDiscount. Defaults to ON (see PrintOptionsDialog's `?? true`), unlike every other boolean toggle here. */
+  showLogo?: boolean
 }
 
 /** Matches the pre-existing print output exactly (formatNumber/formatCurrency both rendered 0 decimals, A4/browser-default paper) so opening this dialog is opt-in, never a silent format change. */
@@ -95,6 +97,26 @@ export function loadShowDiscountPreference(): boolean {
 
 export function saveShowDiscountPreference(showDiscount: boolean): void {
   localStorage.setItem(PRINT_SHOW_DISCOUNT_STORAGE_KEY, showDiscount ? '1' : '0')
+}
+
+const DELIVERY_PRINT_OPTIONS_STORAGE_KEY = 'print-options:delivery-order'
+
+/**
+ * Delivery print's own persistence — unlike Invoice (which saves paperType/showDiscount as two
+ * separate keys, see loadInvoicePaperTypePreference above), Delivery persists the whole
+ * PrintOptions object as one JSON blob under its own key so it never collides with Invoice's.
+ */
+export function loadDeliveryPrintOptions(): Partial<PrintOptions> {
+  try {
+    const raw = localStorage.getItem(DELIVERY_PRINT_OPTIONS_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export function saveDeliveryPrintOptions(options: PrintOptions): void {
+  localStorage.setItem(DELIVERY_PRINT_OPTIONS_STORAGE_KEY, JSON.stringify(options))
 }
 
 export const PRINT_FONT_SIZE_PX: Record<PrintFontSize, string> = {

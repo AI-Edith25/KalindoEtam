@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { PrintMetaTable } from '@/components/shared/PrintMetaTable'
 import type { CompanyPrintHeader } from '@/features/administration/types'
 import { terbilangIdr } from '@/shared/lib/numberToWords'
 import type { Invoice } from '../types'
@@ -9,7 +10,6 @@ import {
   FONT_PT,
   LINE_HEIGHT,
   MARGIN_MM,
-  META_GAP_MM,
   PORTRAIT,
   PORTRAIT_ITEM_COLS,
   TOTALS_BOX,
@@ -51,49 +51,6 @@ function ddmmyyyy(dateStr: string | null | undefined): string {
 /** Same convention as Landscape: "PT Kalindo Etam" -> "PT. KALINDO ETAM". */
 function legacyCompanyName(name: string): string {
   return name.toUpperCase().replace(/^PT\s+/, 'PT. ')
-}
-
-/**
- * One label/":"/value block (BUG 1) — a real `<table>` with `table-layout: auto` (the default), so
- * the label column auto-sizes to whichever label in THIS block is widest, guaranteeing the ":"
- * never touches any label regardless of content, with no pre-measured width needed (unlike
- * Landscape, which must use absolute positioning and therefore does need pre-measured widths).
- */
-function MetaTable({ rows, size }: { rows: { label: string; value: ReactNode; bold?: boolean; valueBold?: boolean }[]; size: number }) {
-  return (
-    <table style={{ borderCollapse: 'collapse' }}>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.label}>
-            <td
-              style={{
-                whiteSpace: 'nowrap',
-                textAlign: 'left',
-                verticalAlign: 'top',
-                paddingRight: `${META_GAP_MM}mm`,
-                fontSize: `${size}pt`,
-                fontWeight: row.bold ? 700 : 400,
-              }}
-            >
-              {row.label}
-            </td>
-            <td style={{ whiteSpace: 'nowrap', textAlign: 'left', verticalAlign: 'top', fontSize: `${size}pt`, fontWeight: row.bold ? 700 : 400 }}>:</td>
-            <td
-              style={{
-                textAlign: 'left',
-                verticalAlign: 'top',
-                paddingLeft: `${META_GAP_MM}mm`,
-                fontSize: `${size}pt`,
-                fontWeight: (row.valueBold ?? row.bold) ? 700 : 400,
-              }}
-            >
-              {row.value}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
 }
 
 /** Drops HCTax when Tax is off, folding its width into HCLineAmt — same convention as Landscape's own getItemCols. */
@@ -196,7 +153,7 @@ export function InvoicePortraitLayout({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5mm' }}>
         <div style={{ fontSize: `${FONT_PT.companyName}pt`, fontWeight: 700 }}>{legacyCompanyName(companyName)}</div>
         {printHeader?.address && <div style={{ fontSize: `${FONT_PT.metaLeft}pt` }}>{printHeader.address}</div>}
-        <MetaTable
+        <PrintMetaTable
           size={FONT_PT.metaLeft}
           rows={[
             { label: 'TEL', value: printHeader?.phone ?? '' },
@@ -224,7 +181,7 @@ export function InvoicePortraitLayout({
           <div style={{ fontSize: `${FONT_PT.customerName}pt`, fontWeight: 700 }}>{invoice.customer?.customer_name ?? '—'}</div>
           {invoice.customer?.address && <div style={{ fontSize: `${FONT_PT.metaLeft}pt` }}>{invoice.customer.address}</div>}
           <div style={{ marginTop: '2mm' }}>
-            <MetaTable
+            <PrintMetaTable
               size={FONT_PT.metaLeft}
               rows={[
                 { label: 'Attn', value: attn, bold: true, valueBold: false },
@@ -235,7 +192,7 @@ export function InvoicePortraitLayout({
           </div>
         </div>
         <div>
-          <MetaTable
+          <PrintMetaTable
             size={FONT_PT.metaRight}
             rows={[
               { label: 'NO', value: invoice.document_number ?? '—', bold: true },

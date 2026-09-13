@@ -57,6 +57,8 @@ interface PrintOptionsDialogProps {
   showFontSize?: boolean
   /** Only Invoice print renders/acts on this (editable signature block labels) — every other consumer leaves it hidden, same convention as showDiscount. */
   showSignatureLabels?: boolean
+  /** Only Delivery print renders/acts on this (company logo in the header) — every other consumer leaves it hidden, same convention as showDiscount. Checkbox defaults to checked (`options.showLogo ?? true`), unlike every other toggle below. */
+  showLogo?: boolean
 }
 
 /**
@@ -80,6 +82,7 @@ export function PrintOptionsDialog({
   defaultFontFamily,
   showFontSize = true,
   showSignatureLabels = false,
+  showLogo = false,
 }: PrintOptionsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -216,6 +219,12 @@ export function PrintOptionsDialog({
                 onCheckedChange={(checked) => onChange({ ...options, showDiscount: checked === true })}
               />
               Tampilkan Diskon
+            </label>
+          )}
+          {showLogo && (
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox checked={options.showLogo ?? true} onCheckedChange={(checked) => onChange({ ...options, showLogo: checked === true })} />
+              Tampilkan Logo
             </label>
           )}
           {showSignatureLabels && (
