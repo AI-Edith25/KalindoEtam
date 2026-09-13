@@ -8,7 +8,7 @@ import { loadDeliveryPrintOptions, saveDeliveryPrintOptions, type PrintOptions }
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchDelivery } from '../api/deliveryApi'
 import { DEJAVU_FONT_STACK } from './invoicePrintConstants'
-import { A4, HALF } from './deliveryPrintConstants'
+import { A4, HALF, legacyCompanyName } from './deliveryPrintConstants'
 import { DeliveryPortraitLayout } from './DeliveryPortraitLayout'
 import { DeliveryHalfLayout } from './DeliveryHalfLayout'
 
@@ -61,7 +61,7 @@ export function DeliveryPrintPage() {
   const delivery = deliveryQuery.data
   if (!delivery) return null
 
-  const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
+  const companyName = legacyCompanyName(brandingQuery.data?.name ?? 'PT Kalindo Etam')
   const isHalf = printOptions.paperType === 'half'
   const decimalsOn = printOptions.showDecimalTotals ?? false
   const fontFamily = printOptions.fontFamily ?? DEJAVU_FONT_STACK
@@ -71,10 +71,13 @@ export function DeliveryPrintPage() {
 
   return (
     <div className="mx-auto flex w-fit flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none">
-      {/* Real @page margin (see deliveryPrintConstants.ts) — both templates' own root div already
-          uses the identical margin as its own padding, so screen and print agree on paper size. */}
+      {/* @page margin MUST be 0 — the margin is already the layout's own div padding (paper.marginMm
+          in deliveryPrintConstants.ts). Setting both (as this used to) double-margins the actual
+          printed page (the physical @page inset PLUS the div's own padding on top of it), which is
+          also what was pushing Half's content past one physical page. margin:0 here + the div's own
+          padding is the same convention InvoicePrintPage.tsx already uses. */}
       <style>
-        {`@page { size: ${paper.pageWidthMm}mm ${paper.pageHeightMm}mm; margin: ${paper.marginMm}; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
+        {`@page { size: ${paper.pageWidthMm}mm ${paper.pageHeightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
       </style>
 
       <div className="flex items-start justify-between print:hidden">
