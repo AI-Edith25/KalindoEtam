@@ -167,6 +167,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('item-warehouse-prices/import-preview', [ItemWarehousePriceController::class, 'importPreview'])->middleware('permission:master.item_prices.import');
     Route::post('item-warehouse-prices/import-commit', [ItemWarehousePriceController::class, 'importCommit'])->middleware('permission:master.item_prices.import');
     $withPagePermissions(Route::apiResource('suppliers', SupplierController::class), 'master.suppliers');
+    // Must come before the apiResource below — otherwise 'next-code' is captured by sales-persons/{sales_person}.
+    Route::get('sales-persons/next-code', [SalesPersonController::class, 'nextCode'])->middleware('permission:master.sales_persons.create');
     $withPagePermissions(Route::apiResource('sales-persons', SalesPersonController::class), 'master.sales_persons');
     $withPagePermissions(Route::apiResource('sales-targets', SalesTargetController::class), 'master.sales_targets');
     $withPagePermissions(Route::apiResource('terms-of-payments', TermsOfPaymentController::class), 'master.terms_of_payment');

@@ -18,6 +18,12 @@ class SalesPersonController extends Controller
 
     public function __construct(protected SalesPersonService $salesPersonService) {}
 
+    /** Preview of the code the New Sales Person form will get on save — see SalesPersonService::peekNextCode(). */
+    public function nextCode(): JsonResponse
+    {
+        return $this->success(['code' => $this->salesPersonService->peekNextCode()]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         return $this->success(SalesPersonResource::collection($this->salesPersonService->list((int) ($request->query('per_page') ?? 15))));
@@ -32,7 +38,7 @@ class SalesPersonController extends Controller
 
     public function show(SalesPerson $salesPerson): JsonResponse
     {
-        return $this->success(new SalesPersonResource($salesPerson));
+        return $this->success(new SalesPersonResource($salesPerson->load('warehouse')));
     }
 
     public function update(UpdateSalesPersonRequest $request, SalesPerson $salesPerson): JsonResponse

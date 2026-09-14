@@ -45,6 +45,7 @@ export function SalesPersonListPage() {
     { header: 'Name', accessor: (row) => row.name, sortKey: 'name' },
     { header: 'Phone', accessor: (row) => row.phone ?? '—' },
     { header: 'Email', accessor: (row) => row.email ?? '—' },
+    { header: 'Location / Area', accessor: (row) => row.warehouse?.name ?? '—' },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.is_active ? 'active' : 'inactive'} /> },
     {
       header: '',

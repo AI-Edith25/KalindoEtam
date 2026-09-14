@@ -29,6 +29,7 @@ export function SalesPersonDetailDrawer({ open, onOpenChange, salesPerson, onEdi
         <DetailField label="Name" value={salesPerson.name} />
         <DetailField label="Phone" value={salesPerson.phone ?? '—'} />
         <DetailField label="Email" value={salesPerson.email ?? '—'} />
+        <DetailField label="Location / Area" value={salesPerson.warehouse?.name ?? '—'} />
       </DetailSection>
 
       <Separator />

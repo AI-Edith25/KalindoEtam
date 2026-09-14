@@ -15,6 +15,12 @@ class SalesPersonResource extends JsonResource
             'name' => $this->name,
             'phone' => $this->phone,
             'email' => $this->email,
+            'warehouse_id' => $this->warehouse_id,
+            'warehouse' => $this->whenLoaded('warehouse', fn () => [
+                'id' => $this->warehouse->id,
+                'code' => $this->warehouse->code,
+                'name' => $this->warehouse->name,
+            ]),
             'is_active' => $this->is_active,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

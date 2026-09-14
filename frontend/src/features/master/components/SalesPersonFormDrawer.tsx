@@ -2,16 +2,18 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { createSalesPerson, updateSalesPerson } from '../api/salesPersonApi'
+import { fetchWarehousesLookup } from '../api/lookupsApi'
+import { createSalesPerson, fetchNextSalesPersonCode, updateSalesPerson } from '../api/salesPersonApi'
 import type { SalesPerson } from '../types'
 
 const salesPersonFormSchema = z.object({
@@ -19,6 +21,7 @@ const salesPersonFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   phone: z.string().max(50).optional().or(z.literal('')),
   email: z.string().email('Enter a valid email address').optional().or(z.literal('')),
+  warehouse_id: z.string().optional().or(z.literal('')),
   is_active: z.boolean(),
 })
 
@@ -29,6 +32,7 @@ const emptyValues: SalesPersonFormValues = {
   name: '',
   phone: '',
   email: '',
+  warehouse_id: '',
   is_active: true,
 }
 
@@ -41,6 +45,17 @@ interface SalesPersonFormDrawerProps {
 export function SalesPersonFormDrawer({ open, onOpenChange, salesPerson }: SalesPersonFormDrawerProps) {
   const isEdit = !!salesPerson
   const queryClient = useQueryClient()
+  const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  /**
+   * Suggested default only, not a lock — the field stays editable, same as Customer Code.
+   * Can go stale under concurrent creates; SalesPersonService::create() re-consumes a fresh
+   * number server-side regardless, and only falls back to it when code is submitted blank.
+   */
+  const nextCode = useQuery({
+    queryKey: ['sales-persons', 'next-code'],
+    queryFn: fetchNextSalesPersonCode,
+    enabled: open && !isEdit,
+  })
 
   const form = useForm<SalesPersonFormValues>({
     resolver: zodResolver(salesPersonFormSchema),
@@ -57,11 +72,21 @@ export function SalesPersonFormDrawer({ open, onOpenChange, salesPerson }: Sales
             name: salesPerson.name,
             phone: salesPerson.phone ?? '',
             email: salesPerson.email ?? '',
+            warehouse_id: salesPerson.warehouse_id ?? '',
             is_active: salesPerson.is_active,
           }
         : emptyValues,
     )
   }, [open, salesPerson, form])
+
+  // Fills the suggestion in once it arrives — only if the user hasn't already typed something
+  // over it (e.g. the query resolving after they started editing shouldn't clobber their input).
+  useEffect(() => {
+    if (!open || isEdit || !nextCode.data) return
+    if (!form.getValues('code')) {
+      form.setValue('code', nextCode.data)
+    }
+  }, [open, isEdit, nextCode.data, form])
 
   const mutation = useMutation({
     mutationFn: (values: SalesPersonFormValues) => {
@@ -69,6 +94,7 @@ export function SalesPersonFormDrawer({ open, onOpenChange, salesPerson }: Sales
         ...values,
         phone: values.phone || null,
         email: values.email || null,
+        warehouse_id: values.warehouse_id || null,
       }
       return isEdit ? updateSalesPerson(salesPerson.id, payload) : createSalesPerson(payload)
     },
@@ -102,7 +128,11 @@ export function SalesPersonFormDrawer({ open, onOpenChange, salesPerson }: Sales
                   <FormItem>
                     <FormLabel>Code</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. SP001" autoComplete="off" {...field} />
+                      <Input
+                        placeholder={!isEdit && nextCode.isLoading ? 'Generating…' : 'e.g. SP-0001'}
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -143,6 +173,24 @@ export function SalesPersonFormDrawer({ open, onOpenChange, salesPerson }: Sales
                     <FormControl>
                       <Input type="email" placeholder="Optional" autoComplete="off" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="warehouse_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location / Area</FormLabel>
+                    <SearchableSelect
+                      options={warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      placeholder="No default"
+                      aria-label="Location / Area"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

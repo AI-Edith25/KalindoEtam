@@ -261,6 +261,8 @@ export interface SalesPerson {
   name: string
   phone: string | null
   email: string | null
+  warehouse_id: string | null
+  warehouse: { id: string; code: string; name: string } | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -271,6 +273,7 @@ export interface SalesPersonFormValues {
   name: string
   phone: string | null
   email: string | null
+  warehouse_id: string | null
   is_active: boolean
 }
 

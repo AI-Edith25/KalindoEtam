@@ -19,6 +19,7 @@ class UpdateSalesPersonRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:255'],
+            'warehouse_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
