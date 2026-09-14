@@ -96,6 +96,7 @@ class DeliveryService
         $deliveries = $this->deliveryRepository->searchAll($filters, $ids);
 
         $bodyRows = $deliveries->map(function (Delivery $delivery) {
+            $qty = (float) $delivery->items->sum('qty');
             $excl = (float) $delivery->items->sum('amount');
             $tax = round((float) $delivery->items->sum('tax_amount'), 2);
 
@@ -104,6 +105,7 @@ class DeliveryService
                 $delivery->document_number,
                 $delivery->customer?->customer_code,
                 $delivery->customer?->customer_name,
+                $qty,
                 $excl,
                 0.0,
                 $tax,
@@ -112,10 +114,11 @@ class DeliveryService
             ];
         })->all();
 
+        $sumQty = (float) $deliveries->sum(fn (Delivery $d) => (float) $d->items->sum('qty'));
         $sumExcl = round($deliveries->sum(fn (Delivery $d) => (float) $d->items->sum('amount')), 2);
         $sumTax = round($deliveries->sum(fn (Delivery $d) => (float) $d->items->sum('tax_amount')), 2);
 
-        $bodyRows[] = [null, null, null, 'Total By Header', $sumExcl, 0.0, $sumTax, round($sumExcl + $sumTax, 2), null];
+        $bodyRows[] = [null, null, null, 'Total By Header', $sumQty, $sumExcl, 0.0, $sumTax, round($sumExcl + $sumTax, 2), null];
 
         $taxGroups = $this->groupTaxSummary($deliveries, fn (Delivery $d) => $d->items->map(fn ($item) => [
             $item->tax?->code, (float) ($item->tax?->rate ?? 0), (float) $item->amount, (float) $item->tax_amount,
@@ -125,12 +128,12 @@ class DeliveryService
             title: 'DELIVERY ORDER LISTING - SUMMARY',
             periodLabel: $this->summaryPeriodLabel($filters, $deliveries, 'delivery_date'),
             companyName: $this->companyRepository->defaultOrById(null)?->name ?? 'PT. KALINDO ETAM',
-            headingRow: ['Date', 'Document', 'Customer', 'Customer Name', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax', 'Reference'],
+            headingRow: ['Date', 'Document', 'Customer', 'Customer Name', 'Qty', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax', 'Reference'],
             bodyRows: $bodyRows,
             taxGroups: $taxGroups,
             printedBy: Auth::user()?->name ?? 'System',
-            lastColumn: 'I',
-            numberFormatColumns: ['E', 'F', 'G', 'H'],
+            lastColumn: 'J',
+            numberFormatColumns: ['E', 'F', 'G', 'H', 'I'],
         );
     }
 

@@ -126,9 +126,10 @@ class SalesOrderDeliverySummaryExportTest extends TestCase
         Excel::assertDownloaded('DeliveryOrderListing_Summary_'.now()->toDateString().'_'.now()->toDateString().'.xlsx', function ($export) {
             $rows = $export->array();
             $this->assertSame('DELIVERY ORDER LISTING - SUMMARY', $rows[0][0]);
-            // Currency dropped: 9 columns (no Currency), Reference last.
-            $this->assertSame(['Date', 'Document', 'Customer', 'Customer Name', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax', 'Reference'], $rows[7]);
-            $this->assertSame('SO/KE/0001/08/2026', $rows[8][8]);
+            // Currency dropped: 10 columns (no Currency), Qty added, Reference last.
+            $this->assertSame(['Date', 'Document', 'Customer', 'Customer Name', 'Qty', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax', 'Reference'], $rows[7]);
+            $this->assertSame(1.0, $rows[8][4]);
+            $this->assertSame('SO/KE/0001/08/2026', $rows[8][9]);
 
             return true;
         });
