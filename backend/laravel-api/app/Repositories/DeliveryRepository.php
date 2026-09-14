@@ -19,12 +19,17 @@ class DeliveryRepository extends BaseRepository
     }
 
     /**
-     * Unpaginated Builder (not ->get()) for DeliveryDetailDataSheet's
+     * Unpaginated Builder (not ->get()) for DeliveryDetailExport's
      * FromQuery + WithChunkReading — the filtered set is streamed in bounded
      * batches instead of ever materializing the whole thing at once. Same
      * filter/$ids contract as searchAll(). Items ordered by id (Laravel's
      * ordered-UUID HasUuids default), so "original item row order" survives
      * without a created_at column of its own.
+     *
+     * Ordering defaults to the same "latest first" as paginate()/search()
+     * (DeliveryListPage.tsx's own default) — sort_by/sort_direction (see
+     * IndexDeliveryRequest) let the export follow the column the user
+     * actually sorted by on screen instead.
      */
     public function detailExportQuery(array $filters, ?array $ids = null): Builder
     {
@@ -44,7 +49,29 @@ class DeliveryRepository extends BaseRepository
             $this->applyFilters($query, $filters);
         }
 
-        return $query->orderBy('delivery_date')->orderBy('document_number');
+        return $query->orderBy($filters['sort_by'] ?? 'delivery_date', $filters['sort_direction'] ?? 'desc');
+    }
+
+    /**
+     * Min/max delivery_date within the filtered set, for the export's period
+     * label/filename when the caller gave no explicit date_from/date_to —
+     * see DeliveryService::detailExportPeriod(). A plain query builder
+     * (->toBase()), not detailExportQuery()'s — eager loads/ordering are
+     * irrelevant to a MIN/MAX aggregate.
+     */
+    public function detailExportDateBounds(array $filters, ?array $ids = null): array
+    {
+        $query = $this->model->query();
+
+        if (! empty($ids)) {
+            $query->whereIn('id', $ids);
+        } else {
+            $this->applyFilters($query, $filters);
+        }
+
+        $row = $query->toBase()->selectRaw('MIN(delivery_date) as min_date, MAX(delivery_date) as max_date')->first();
+
+        return ['from' => $row?->min_date, 'to' => $row?->max_date];
     }
 
     public function paginate(int $perPage = 15): LengthAwarePaginator

@@ -242,13 +242,16 @@ export function DeliveryListPage() {
   const runExport = async (format: 'xlsx' | 'csv') => {
     setIsExporting(true)
     try {
-      const blob = await exportDeliveries({
+      // Mirrors whatever the on-screen table is currently sorted by (default: unsorted -> the
+      // server's own "latest first"); only delivery_date/document_number are ever sortable here.
+      const sortParams = sort ? { sort_by: sort.key as 'delivery_date' | 'document_number', sort_direction: sort.direction } : {}
+      const { blob, filename } = await exportDeliveries({
         format,
         ids: selection.selectedIdsForRequest ?? undefined,
         ...queryFilters,
+        ...sortParams,
       })
-      const today = new Date().toISOString().slice(0, 10)
-      downloadBlob(`DeliveryOrderListing_Detail_${urlFilters.date_from || today}_${urlFilters.date_to || today}.${format}`, blob)
+      downloadBlob(filename, blob)
       toast.success('Export started — check your downloads.')
     } catch (error) {
       toastApiError(error)
@@ -260,13 +263,13 @@ export function DeliveryListPage() {
   const runSummaryExport = async (format: 'xlsx' | 'csv') => {
     setIsExporting(true)
     try {
-      const blob = await exportDeliveries({
+      const { blob, filename } = await exportDeliveries({
         format,
         mode: 'summary',
         ids: selection.selectedIdsForRequest ?? undefined,
         ...queryFilters,
       })
-      downloadBlob(`DeliveryOrderListing_Summary.${format}`, blob)
+      downloadBlob(filename, blob)
       toast.success('Export started — check your downloads.')
     } catch (error) {
       toastApiError(error)

@@ -18,19 +18,22 @@ use App\Models\TermsOfPayment;
 use App\Models\UnitOfMeasurement;
 use App\Models\User;
 use App\Models\Warehouse;
+use Carbon\Carbon;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Tests\TestCase;
 
 /**
  * mode=detail (the default) — the flat, one-row-per-delivery-line replacement
- * for the legacy xlsDeliveryOrderListing_Detail.xlsx layout. See
- * DeliveryDetailExport/DeliveryDetailDataSheet for the column contract.
+ * for the legacy xlsDeliveryOrderListing_Detail.xlsx layout. Metadata
+ * (title/period/company/generated-at) lives on the same data sheet at the
+ * legacy template's own A1/A2/A5/D5 positions (see DeliveryDetailExport);
+ * there is no separate "Info" sheet and no auto filter.
  */
 class DeliveryDetailExportTest extends TestCase
 {
@@ -76,20 +79,19 @@ class DeliveryDetailExportTest extends TestCase
         ]);
     }
 
-    /** @return array{0: Delivery, 1: int} [delivery, line count] */
-    protected function makeDeliveryWithLines(string $documentNumber, array $lines): Delivery
+    protected function makeDeliveryWithLines(string $documentNumber, string $deliveryDate, array $lines): Delivery
     {
         $salesOrder = SalesOrder::query()->create([
             'document_number' => 'SO/KE/'.$documentNumber, 'status' => 'approved',
             'customer_id' => $this->customer->id, 'sales_person_id' => $this->salesPerson->id,
-            'reference' => 'PO-'.$documentNumber, 'order_date' => '2026-08-01',
+            'reference' => 'PO-'.$documentNumber, 'order_date' => $deliveryDate,
             'total_amount' => 0, 'grand_total' => 0,
         ]);
         $delivery = Delivery::query()->create([
             'document_number' => 'DO/KE/'.$documentNumber, 'status' => 'complete',
             'sales_order_id' => $salesOrder->id, 'customer_id' => $this->customer->id,
             'warehouse_id' => $this->warehouse->id, 'terms_of_payment_id' => $this->terms->id,
-            'delivery_date' => '2026-08-05', 'due_date' => '2026-09-04', 'remarks' => 'Handle with care',
+            'delivery_date' => $deliveryDate, 'due_date' => '2026-09-04', 'remarks' => 'Handle with care',
         ]);
 
         foreach ($lines as [$qty, $rate]) {
@@ -109,90 +111,97 @@ class DeliveryDetailExportTest extends TestCase
         return $delivery->load(['items']);
     }
 
-    protected function downloadXlsx(string $query = ''): Spreadsheet
+    protected function downloadXlsx(string $query = ''): Worksheet
     {
         $response = $this->get('/api/v1/deliveries/export?format=xlsx'.($query ? "&{$query}" : ''));
         $response->assertOk();
 
         $tmpPath = tempnam(sys_get_temp_dir(), 'delivery-detail').'.xlsx';
         file_put_contents($tmpPath, $response->streamedContent());
-        $spreadsheet = IOFactory::load($tmpPath);
+        $sheet = IOFactory::load($tmpPath)->getSheetByName('Delivery Detail');
         unlink($tmpPath);
 
-        return $spreadsheet;
+        return $sheet;
     }
 
-    public function test_detail_export_has_single_header_row_no_merges_and_one_row_per_line(): void
+    public function test_metadata_and_header_layout_matches_legacy_positions(): void
     {
-        $this->makeDeliveryWithLines('0001', [[2, 10000], [1, 5000]]);
-        $this->makeDeliveryWithLines('0002', [[3, 7000]]);
+        $this->makeDeliveryWithLines('0001', '2026-08-05', [[2, 10000], [1, 5000]]);
+        $this->makeDeliveryWithLines('0002', '2026-05-10', [[3, 7000]]);
 
-        $spreadsheet = $this->downloadXlsx();
-        $sheet = $spreadsheet->getSheetByName('Delivery Detail');
-        $this->assertNotNull($sheet);
+        $sheet = $this->downloadXlsx();
 
+        $this->assertSame('DELIVERY ORDER LISTING - DETAIL', $sheet->getCell('A1')->getValue());
+        $this->assertSame('10/05/2026 - 05/08/2026', $sheet->getCell('A2')->getValue()); // no date filter -> actual min/max of the exported data
+        $this->assertSame('PT. KALINDO ETAM', $sheet->getCell('A5')->getValue());
+        $this->assertMatchesRegularExpression('/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/', (string) $sheet->getCell('D5')->getValue());
+
+        // Rows 3, 4, 6, 7 stay blank.
+        foreach ([3, 4, 6, 7] as $row) {
+            $this->assertNull($sheet->getCell("A{$row}")->getValue());
+        }
+
+        // Header is exactly row 8 — one row, 24 columns, no merges anywhere.
         $this->assertSame([
             'No', 'Tanggal', 'No Dokumen', 'Kode Customer', 'Nama Customer',
             'Kode Item', 'Deskripsi Item', 'UOM', 'Quantity', 'Unit Price',
-            'Disc', 'Tax', 'Line Amount', 'Reference 1', 'Reference 2',
-            'Sales Person', 'Lokasi', 'Status', 'Jatuh Tempo', 'Termin',
-            'Kode Pajak', 'Catatan', 'Subtotal Dokumen', 'Tax Dokumen', 'Grand Total Dokumen',
-        ], $sheet->rangeToArray('A1:Y1')[0]);
-
-        // 3 delivery lines total (2 + 1), all on rows 2-4 — no separate document-header row anywhere.
-        $this->assertSame(4, $sheet->getHighestRow());
+            'Disc', 'Tax', 'Line Amount', 'Reference', 'Sales Person', 'Lokasi',
+            'Status', 'Jatuh Tempo', 'Termin', 'Kode Pajak', 'Catatan',
+            'Subtotal Dokumen', 'Tax Dokumen', 'Grand Total Dokumen',
+        ], $sheet->rangeToArray('A8:X8')[0]);
         $this->assertCount(0, $sheet->getMergeCells());
 
-        // Info sheet exists separately and doesn't leak into the data sheet.
-        $this->assertNotNull($spreadsheet->getSheetByName('Info'));
-        $this->assertSame(2, $spreadsheet->getSheetCount());
+        // 3 delivery lines total (2 + 1), data starting row 9 -> highest row 11.
+        $this->assertSame(11, $sheet->getHighestRow());
+
+        // No auto filter.
+        $this->assertSame('', $sheet->getAutoFilter()->getRange());
     }
 
     public function test_numeric_and_date_cells_are_typed_not_text(): void
     {
-        $this->makeDeliveryWithLines('0003', [[2, 10000]]);
+        $this->makeDeliveryWithLines('0003', '2026-08-05', [[2, 10000]]);
 
-        $sheet = $this->downloadXlsx()->getSheetByName('Delivery Detail');
+        $sheet = $this->downloadXlsx();
 
-        // Quantity (I2), Unit Price (J2), Line Amount (M2) — real numeric cells.
-        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('I2')->getDataType());
-        $this->assertSame(2.0, $sheet->getCell('I2')->getValue());
-        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('J2')->getDataType());
-        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('M2')->getDataType());
-        $this->assertSame(20000.0, $sheet->getCell('M2')->getValue());
+        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('I9')->getDataType());
+        $this->assertSame(2.0, $sheet->getCell('I9')->getValue());
+        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('J9')->getDataType());
+        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('M9')->getDataType());
+        $this->assertSame(20000.0, $sheet->getCell('M9')->getValue());
 
         // Disc column always 0 (numeric), never blank/"-" — no per-line discount concept exists in this schema.
-        $this->assertSame(0.0, $sheet->getCell('K2')->getValue());
+        $this->assertSame(0.0, $sheet->getCell('K9')->getValue());
 
-        // Tanggal (B2) — a real Excel date serial, not a formatted string.
-        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('B2')->getDataType());
-        $this->assertEqualsWithDelta(ExcelDate::PHPToExcel(\Carbon\Carbon::parse('2026-08-05')), (float) $sheet->getCell('B2')->getValue(), 0.0001);
+        // Tanggal (B9) — a real Excel date serial, not a formatted string.
+        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('B9')->getDataType());
+        $this->assertEqualsWithDelta(ExcelDate::PHPToExcel(Carbon::parse('2026-08-05')), (float) $sheet->getCell('B9')->getValue(), 0.0001);
     }
 
     public function test_document_totals_repeat_per_line_and_match_sum_of_line_amounts(): void
     {
-        $this->makeDeliveryWithLines('0004', [[2, 10000], [1, 5000]]); // amounts 20000 + 5000 = 25000
+        $this->makeDeliveryWithLines('0004', '2026-08-05', [[2, 10000], [1, 5000]]); // amounts 20000 + 5000 = 25000
 
-        $sheet = $this->downloadXlsx()->getSheetByName('Delivery Detail');
+        $sheet = $this->downloadXlsx();
 
-        $lineAmounts = [(float) $sheet->getCell('M2')->getValue(), (float) $sheet->getCell('M3')->getValue()];
-        $subtotalRow2 = (float) $sheet->getCell('W2')->getValue();
-        $subtotalRow3 = (float) $sheet->getCell('W3')->getValue();
+        $lineAmounts = [(float) $sheet->getCell('M9')->getValue(), (float) $sheet->getCell('M10')->getValue()];
+        $subtotalRow9 = (float) $sheet->getCell('V9')->getValue();
+        $subtotalRow10 = (float) $sheet->getCell('V10')->getValue();
 
         $this->assertSame(25000.0, array_sum($lineAmounts));
-        $this->assertSame(25000.0, $subtotalRow2);
-        $this->assertSame($subtotalRow2, $subtotalRow3); // denormalized identically on every line of the same document
+        $this->assertSame(25000.0, $subtotalRow9);
+        $this->assertSame($subtotalRow9, $subtotalRow10); // denormalized identically on every line of the same document
 
-        $tax = (float) $sheet->getCell('X2')->getValue();
-        $grandTotal = (float) $sheet->getCell('Y2')->getValue();
-        $this->assertEqualsWithDelta($subtotalRow2 + $tax, $grandTotal, 0.001);
+        $tax = (float) $sheet->getCell('W9')->getValue();
+        $grandTotal = (float) $sheet->getCell('X9')->getValue();
+        $this->assertEqualsWithDelta($subtotalRow9 + $tax, $grandTotal, 0.001);
     }
 
     public function test_status_shows_invoiced_only_once_actually_invoiced(): void
     {
-        $delivery = $this->makeDeliveryWithLines('0005', [[1, 1000]]);
-        $sheet = $this->downloadXlsx()->getSheetByName('Delivery Detail');
-        $this->assertSame('Complete', $sheet->getCell('R2')->getValue());
+        $delivery = $this->makeDeliveryWithLines('0005', '2026-08-05', [[1, 1000]]);
+        $sheet = $this->downloadXlsx();
+        $this->assertSame('Complete', $sheet->getCell('Q9')->getValue());
 
         \App\Models\Invoice::query()->create([
             'invoice_type' => 'goods', 'status' => 'submitted', 'customer_id' => $this->customer->id,
@@ -200,22 +209,22 @@ class DeliveryDetailExportTest extends TestCase
             'subtotal' => 1000, 'discount_amount' => 0, 'tax_amount' => 0, 'grand_total' => 1000,
         ])->deliveries()->attach($delivery->id);
 
-        $sheet = $this->downloadXlsx()->getSheetByName('Delivery Detail');
-        $this->assertSame('Invoiced', $sheet->getCell('R2')->getValue());
+        $sheet = $this->downloadXlsx();
+        $this->assertSame('Invoiced', $sheet->getCell('Q9')->getValue());
     }
 
-    public function test_respects_active_filters_and_defaults_to_date_then_document_order(): void
+    public function test_default_order_is_latest_first_matching_the_list_page_and_respects_filters(): void
     {
-        $this->makeDeliveryWithLines('0006', [[1, 1000]]);
+        $this->makeDeliveryWithLines('0006', '2026-08-05', [[1, 1000]]);
         $other = Customer::query()->create(['customer_code' => 'C-0099', 'customer_name' => 'Other Co']);
         $salesOrder = SalesOrder::query()->create([
             'document_number' => 'SO/KE/0099', 'status' => 'approved', 'customer_id' => $other->id,
-            'order_date' => '2026-08-02', 'total_amount' => 0, 'grand_total' => 0,
+            'order_date' => '2026-08-10', 'total_amount' => 0, 'grand_total' => 0,
         ]);
         $delivery = Delivery::query()->create([
             'document_number' => 'DO/KE/0099', 'status' => 'complete', 'sales_order_id' => $salesOrder->id,
             'customer_id' => $other->id, 'warehouse_id' => $this->warehouse->id,
-            'delivery_date' => '2026-08-01', 'due_date' => '2026-08-31',
+            'delivery_date' => '2026-08-10', 'due_date' => '2026-08-31',
         ]);
         $soItem = $salesOrder->items()->create(['item_id' => $this->item->id, 'qty' => 1, 'rate' => 500, 'amount' => 500, 'delivered_qty' => 0]);
         $delivery->items()->create([
@@ -224,19 +233,62 @@ class DeliveryDetailExportTest extends TestCase
             'rate' => 500, 'qty' => 1, 'amount' => 500,
         ]);
 
-        $sheet = $this->downloadXlsx('customer_id='.$this->customer->id)->getSheetByName('Delivery Detail');
-        $this->assertSame(2, $sheet->getHighestRow()); // header + exactly 1 line — the other customer's delivery is excluded.
-        $this->assertSame('DO/KE/0006', $sheet->getCell('C2')->getValue());
+        $sheet = $this->downloadXlsx('customer_id='.$this->customer->id);
+        $this->assertSame(9, $sheet->getHighestRow()); // header (8) + exactly 1 line — the other customer's delivery is excluded.
+        $this->assertSame('DO/KE/0006', $sheet->getCell('C9')->getValue());
 
-        // No filter: both deliveries, ordered by delivery_date ASC (0099's 08-01 before 0006's 08-05).
-        $sheetAll = $this->downloadXlsx()->getSheetByName('Delivery Detail');
-        $this->assertSame('DO/KE/0099', $sheetAll->getCell('C2')->getValue());
-        $this->assertSame('DO/KE/0006', $sheetAll->getCell('C3')->getValue());
+        // No filter, no explicit sort: same "latest first" default as /sales/deliveries (0099's 08-10 before 0006's 08-05).
+        $sheetAll = $this->downloadXlsx();
+        $this->assertSame('DO/KE/0099', $sheetAll->getCell('C9')->getValue());
+        $this->assertSame('DO/KE/0006', $sheetAll->getCell('C10')->getValue());
     }
 
-    public function test_csv_export_has_bom_single_header_line_and_plain_values(): void
+    public function test_export_follows_the_sort_the_user_picked_on_screen(): void
     {
-        $this->makeDeliveryWithLines('0007', [[2, 10000]]);
+        $this->makeDeliveryWithLines('0010', '2026-08-05', [[1, 1000]]);
+        $this->makeDeliveryWithLines('0009', '2026-08-10', [[1, 1000]]);
+
+        // Sorted by Document ascending -> 0009 before 0010, regardless of delivery_date.
+        $sheet = $this->downloadXlsx('sort_by=document_number&sort_direction=asc');
+        $this->assertSame('DO/KE/0009', $sheet->getCell('C9')->getValue());
+        $this->assertSame('DO/KE/0010', $sheet->getCell('C10')->getValue());
+    }
+
+    public function test_filename_and_period_use_actual_data_range_when_no_date_filter(): void
+    {
+        $this->makeDeliveryWithLines('0011', '2026-05-01', [[1, 1000]]);
+        $this->makeDeliveryWithLines('0012', '2026-09-14', [[1, 1000]]);
+
+        $response = $this->get('/api/v1/deliveries/export?format=xlsx');
+        $response->assertOk();
+
+        $this->assertStringContainsString(
+            'DeliveryOrderListing_Detail_2026-05-01_2026-09-14.xlsx',
+            (string) $response->headers->get('content-disposition'),
+        );
+    }
+
+    public function test_filename_and_period_use_explicit_date_filter_when_given(): void
+    {
+        $this->makeDeliveryWithLines('0013', '2026-05-01', [[1, 1000]]);
+
+        $response = $this->get('/api/v1/deliveries/export?format=xlsx&date_from=2026-01-01&date_to=2026-12-31');
+        $response->assertOk();
+        $this->assertStringContainsString(
+            'DeliveryOrderListing_Detail_2026-01-01_2026-12-31.xlsx',
+            (string) $response->headers->get('content-disposition'),
+        );
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'delivery-detail').'.xlsx';
+        file_put_contents($tmpPath, $response->streamedContent());
+        $sheet = IOFactory::load($tmpPath)->getSheetByName('Delivery Detail');
+        unlink($tmpPath);
+        $this->assertSame('01/01/2026 - 31/12/2026', $sheet->getCell('A2')->getValue());
+    }
+
+    public function test_csv_export_has_no_metadata_single_header_line_and_plain_values(): void
+    {
+        $this->makeDeliveryWithLines('0007', '2026-08-05', [[2, 10000]]);
 
         $response = $this->get('/api/v1/deliveries/export?format=csv');
         $response->assertOk();
@@ -245,10 +297,12 @@ class DeliveryDetailExportTest extends TestCase
         $this->assertStringStartsWith("\xEF\xBB\xBF", $content); // UTF-8 BOM
         $body = str_replace("\xEF\xBB\xBF", '', trim($content));
         $lines = preg_split('/\r\n|\n/', $body);
-        $this->assertCount(2, $lines); // header + 1 line, no document-header row.
+        $this->assertCount(2, $lines); // header + 1 line only — no metadata rows, no document-header row.
 
         $header = str_getcsv($lines[0]);
         $this->assertSame(['No', 'Tanggal', 'No Dokumen', 'Kode Customer'], array_slice($header, 0, 4));
+        $this->assertSame('Reference', $header[13]);
+        $this->assertCount(24, $header);
 
         // Date as plain dd/mm/yyyy text (CSV has no cell type), amounts as bare numbers — no "Rp", no thousand separator.
         $row = str_getcsv($lines[1]);

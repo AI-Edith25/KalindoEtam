@@ -12,7 +12,10 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // Lets the frontend read the server-computed filename off a blob export response
+    // (Content-Disposition: attachment; filename="...") instead of guessing its own —
+    // see exportDeliveries()/downloadBlob() call sites.
+    'exposed_headers' => ['Content-Disposition'],
 
     'max_age' => 0,
 

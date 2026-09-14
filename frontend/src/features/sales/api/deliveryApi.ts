@@ -51,7 +51,7 @@ export async function completeDelivery(id: string): Promise<Delivery> {
 
 export interface DeliveryExportParams {
   format: 'xlsx' | 'csv'
-  /** Omit/'detail' = the flat per-line DeliveryDetailExport (fixed 25-column contract); 'summary' = the legacy-report layout. */
+  /** Omit/'detail' = the flat per-line DeliveryDetailExport (fixed 24-column contract); 'summary' = the legacy-report layout. */
   mode?: 'detail' | 'summary'
   ids?: string[]
   search?: string
@@ -62,10 +62,20 @@ export interface DeliveryExportParams {
   sales_order_number?: string
   date_from?: string
   date_to?: string
+  /** Mirrors whatever column the user has the on-screen table sorted by — detail mode only, see IndexDeliveryRequest. */
+  sort_by?: 'delivery_date' | 'document_number'
+  sort_direction?: 'asc' | 'desc'
 }
 
-/** Bulk export — same filter contract as fetchDeliveries, plus `ids`/`columns`. See DeliveryController::export(). */
-export async function exportDeliveries(params: DeliveryExportParams): Promise<Blob> {
-  const { data } = await apiClient.get('/deliveries/export', { params, responseType: 'blob' })
-  return data
+/** Filename the server actually computed (from Content-Disposition), so the browser save dialog matches what's really in the file (e.g. the exported date range) instead of a client-side guess. Falls back to `fallback` if the header is missing/unreadable (e.g. CORS). */
+function filenameFromResponse(headers: Record<string, unknown>, fallback: string): string {
+  const disposition = String(headers['content-disposition'] ?? '')
+  const match = /filename="?([^";]+)"?/i.exec(disposition)
+  return match?.[1] ?? fallback
+}
+
+/** Bulk export — same filter contract as fetchDeliveries, plus `ids`/`sort_by`. See DeliveryController::export(). */
+export async function exportDeliveries(params: DeliveryExportParams): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get('/deliveries/export', { params, responseType: 'blob' })
+  return { blob: response.data, filename: filenameFromResponse(response.headers, `deliveries_export.${params.format}`) }
 }

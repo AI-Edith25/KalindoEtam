@@ -47,6 +47,12 @@ class IndexDeliveryRequest extends FormRequest
             // Laravel's boolean rule rejects (it only accepts 1/0/"1"/"0"/true/false). The
             // frontend only ever sends this param to enable the filter, never `=false`.
             'outstanding' => ['sometimes', 'nullable'],
+            // Export-only today (see DeliveryRepository::detailExportQuery()) — mirrors the two
+            // sortable columns DeliveryListPage.tsx's DataTable actually exposes (sortKey values
+            // 'delivery_date'/'document_number'); the page itself still only re-sorts its current
+            // fetched page client-side, this doesn't change that.
+            'sort_by' => ['sometimes', 'nullable', Rule::in(['delivery_date', 'document_number'])],
+            'sort_direction' => ['sometimes', 'nullable', Rule::in(['asc', 'desc'])],
         ];
     }
 }

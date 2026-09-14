@@ -108,16 +108,17 @@ class DeliveryController extends Controller
             throw new BusinessException('Tidak ada data untuk diekspor.');
         }
 
+        // Same range backs both the filename and the sheet's own A2 period label (see
+        // DeliveryDetailExport::periodLabel()) — explicit date_from/date_to when given,
+        // else the actual min/max delivery_date of what's being exported.
+        $period = $this->deliveryService->detailExportPeriod($filters, $ids);
         $filename = sprintf(
             'DeliveryOrderListing_Detail_%s_%s.%s',
-            $filters['date_from'] ?? now()->toDateString(),
-            $filters['date_to'] ?? now()->toDateString(),
+            $period['from']?->toDateString() ?? now()->toDateString(),
+            $period['to']?->toDateString() ?? now()->toDateString(),
             $format,
         );
 
-        return Excel::download(
-            new DeliveryDetailExport($query, $this->deliveryService->detailExportMeta($filters, $ids), $format),
-            $filename,
-        );
+        return Excel::download(new DeliveryDetailExport($query, $period, $format), $filename);
     }
 }
