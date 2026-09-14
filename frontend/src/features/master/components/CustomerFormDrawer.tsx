@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchTermsOfPaymentLookup } from '../api/lookupsApi'
+import { fetchSalesPersonsLookup, fetchTermsOfPaymentLookup } from '../api/lookupsApi'
 import { createCustomer, fetchNextCustomerCode, updateCustomer } from '../api/customerApi'
 import type { Customer } from '../types'
 
@@ -23,6 +24,10 @@ const customerFormSchema = z.object({
   telephone: z.string().max(50).optional().or(z.literal('')),
   email: z.string().email('Enter a valid email address').optional().or(z.literal('')),
   address: z.string().max(255).optional().or(z.literal('')),
+  no_ktp: z.string().max(50).optional().or(z.literal('')),
+  no_npwp: z.string().max(50).optional().or(z.literal('')),
+  area: z.string().max(255).optional().or(z.literal('')),
+  sales_person_id: z.string().optional().or(z.literal('')),
   credit_limit: z
     .string()
     .optional()
@@ -41,6 +46,10 @@ const emptyValues: CustomerFormValues = {
   telephone: '',
   email: '',
   address: '',
+  no_ktp: '',
+  no_npwp: '',
+  area: '',
+  sales_person_id: '',
   credit_limit: '',
   terms_of_payment_id: '',
   is_active: true,
@@ -56,6 +65,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
   const isEdit = !!customer
   const queryClient = useQueryClient()
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+  const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   /**
    * Suggested default only, not a lock — the field stays editable (user feedback: codes need
    * to stay correctable even with a system default). Can go stale under concurrent creates;
@@ -85,6 +95,10 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
             telephone: customer.telephone ?? '',
             email: customer.email ?? '',
             address: customer.address ?? '',
+            no_ktp: customer.no_ktp ?? '',
+            no_npwp: customer.no_npwp ?? '',
+            area: customer.area ?? '',
+            sales_person_id: customer.sales_person_id ?? '',
             credit_limit: customer.credit_limit != null ? String(customer.credit_limit) : '',
             terms_of_payment_id: customer.terms_of_payment_id ?? '',
             is_active: customer.is_active,
@@ -110,6 +124,10 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
         telephone: values.telephone || null,
         email: values.email || null,
         address: values.address || null,
+        no_ktp: values.no_ktp || null,
+        no_npwp: values.no_npwp || null,
+        area: values.area || null,
+        sales_person_id: values.sales_person_id || null,
         credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
         terms_of_payment_id: values.terms_of_payment_id || null,
       }
@@ -222,12 +240,69 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
               />
               <FormField
                 control={form.control}
+                name="no_ktp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>No. KTP</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="no_npwp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>No. NPWP</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="area"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location / Area</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sales_person_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nama Sales</FormLabel>
+                    <SearchableSelect
+                      options={salesPersons.data?.map((person) => ({ value: person.id, label: person.name })) ?? []}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={salesPersons.isLoading}
+                      placeholder="No default"
+                      aria-label="Nama Sales"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="credit_limit"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Credit Limit</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" placeholder="Leave blank for unlimited" autoComplete="off" {...field} />
+                      <RupiahInput value={field.value ?? ''} onChange={field.onChange} placeholder="Leave blank for unlimited" aria-label="Credit Limit" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

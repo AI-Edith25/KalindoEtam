@@ -14,7 +14,7 @@ class CustomerRepository extends BaseRepository
 
     public function paginate(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
-        $query = $this->model->query();
+        $query = $this->model->query()->with('salesPerson');
 
         if ($search) {
             $query->where(fn ($q) => $q->where('customer_code', 'like', "%{$search}%")->orWhere('customer_name', 'like', "%{$search}%"));

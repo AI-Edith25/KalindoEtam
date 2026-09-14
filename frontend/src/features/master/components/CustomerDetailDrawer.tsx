@@ -31,6 +31,10 @@ export function CustomerDetailDrawer({ open, onOpenChange, customer, onEdit }: C
         <DetailField label="Telephone" value={customer.telephone ?? '—'} />
         <DetailField label="Email" value={customer.email ?? '—'} />
         <DetailField label="Address" value={customer.address ?? '—'} />
+        <DetailField label="No. KTP" value={customer.no_ktp ?? '—'} />
+        <DetailField label="No. NPWP" value={customer.no_npwp ?? '—'} />
+        <DetailField label="Location / Area" value={customer.area ?? '—'} />
+        <DetailField label="Nama Sales" value={customer.sales_person?.name ?? '—'} />
       </DetailSection>
 
       <Separator />

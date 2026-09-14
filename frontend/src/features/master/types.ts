@@ -206,6 +206,11 @@ export interface Customer {
   telephone: string | null
   email: string | null
   address: string | null
+  no_ktp: string | null
+  no_npwp: string | null
+  area: string | null
+  sales_person_id: string | null
+  sales_person: { id: string; code: string; name: string } | null
   credit_limit: string | number | null
   terms_of_payment_id: string | null
   is_active: boolean
@@ -220,6 +225,10 @@ export interface CustomerFormValues {
   telephone: string | null
   email: string | null
   address: string | null
+  no_ktp: string | null
+  no_npwp: string | null
+  area: string | null
+  sales_person_id: string | null
   credit_limit: number | null
   terms_of_payment_id: string | null
   is_active: boolean

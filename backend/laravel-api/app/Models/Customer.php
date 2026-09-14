@@ -19,6 +19,10 @@ class Customer extends Model
         'telephone',
         'email',
         'address',
+        'no_ktp',
+        'no_npwp',
+        'area',
+        'sales_person_id',
         'credit_limit',
         'terms_of_payment_id',
         'is_active',
@@ -32,5 +36,10 @@ class Customer extends Model
     public function termsOfPayment(): BelongsTo
     {
         return $this->belongsTo(TermsOfPayment::class);
+    }
+
+    public function salesPerson(): BelongsTo
+    {
+        return $this->belongsTo(SalesPerson::class);
     }
 }
