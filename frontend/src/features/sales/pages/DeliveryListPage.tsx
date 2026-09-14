@@ -14,7 +14,6 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { AdvancedFilterToolbar, type AdvancedFilterValue } from '@/components/shared/AdvancedFilterToolbar'
-import { ExportColumnPickerDialog, type ExportColumn } from '@/components/shared/ExportColumnPickerDialog'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
@@ -34,15 +33,6 @@ const SORTERS: Record<string, (delivery: Delivery) => string | number> = {
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'complete', label: 'Complete' },
-]
-
-const EXPORT_COLUMNS: ExportColumn[] = [
-  { key: 'delivery_date', label: 'Date' },
-  { key: 'document_number', label: 'Document' },
-  { key: 'reference', label: 'Reference' },
-  { key: 'customer_name', label: 'Customer Name' },
-  { key: 'amount', label: 'Amount' },
-  { key: 'status', label: 'Status' },
 ]
 
 const EMPTY_FILTERS: AdvancedFilterValue = {
@@ -71,8 +61,6 @@ export function DeliveryListPage() {
   const [page, setPage] = useState(1)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingDelivery, setDeletingDelivery] = useState<Delivery | null>(null)
-  const [exportPickerOpen, setExportPickerOpen] = useState(false)
-  const [pendingExportFormat, setPendingExportFormat] = useState<'xlsx' | 'csv' | null>(null)
   const [isExporting, setIsExporting] = useState(false)
 
   const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters<AdvancedFilterValue>(EMPTY_FILTERS)
@@ -251,17 +239,16 @@ export function DeliveryListPage() {
     },
   ].filter((chip): chip is { key: string; label: string; onRemove: () => void } => !!chip)
 
-  const runExport = async (format: 'xlsx' | 'csv', columns?: string[]) => {
+  const runExport = async (format: 'xlsx' | 'csv') => {
     setIsExporting(true)
     try {
       const blob = await exportDeliveries({
         format,
-        columns,
         ids: selection.selectedIdsForRequest ?? undefined,
         ...queryFilters,
       })
       const today = new Date().toISOString().slice(0, 10)
-      downloadBlob(`deliveries_${urlFilters.date_from || today}_${urlFilters.date_to || today}.${format}`, blob)
+      downloadBlob(`DeliveryOrderListing_Detail_${urlFilters.date_from || today}_${urlFilters.date_to || today}.${format}`, blob)
       toast.success('Export started — check your downloads.')
     } catch (error) {
       toastApiError(error)
@@ -328,14 +315,7 @@ export function DeliveryListPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setPendingExportFormat('csv')
-                    setExportPickerOpen(true)
-                  }}
-                >
-                  Detail
-                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => runExport('csv')}>Detail</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => runSummaryExport('csv')}>Summary</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -348,14 +328,7 @@ export function DeliveryListPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setPendingExportFormat('xlsx')
-                    setExportPickerOpen(true)
-                  }}
-                >
-                  Detail
-                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => runExport('xlsx')}>Detail</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => runSummaryExport('xlsx')}>Summary</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -438,20 +411,6 @@ export function DeliveryListPage() {
         itemLabel={deletingDelivery?.document_number ?? undefined}
         onConfirm={() => {
           if (deletingDelivery) deleteMutation.mutate(deletingDelivery.id)
-        }}
-      />
-
-      <ExportColumnPickerDialog
-        open={exportPickerOpen}
-        onOpenChange={setExportPickerOpen}
-        columns={EXPORT_COLUMNS}
-        targetDescription={
-          hasExplicitSelection
-            ? `${selection.selectedCount} dokumen terpilih akan diekspor.`
-            : `Semua ${totalFiltered} hasil filter saat ini akan diekspor.`
-        }
-        onConfirm={(selectedColumns) => {
-          if (pendingExportFormat) runExport(pendingExportFormat, selectedColumns)
         }}
       />
     </div>

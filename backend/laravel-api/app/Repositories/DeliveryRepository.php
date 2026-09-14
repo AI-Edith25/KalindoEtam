@@ -18,6 +18,35 @@ class DeliveryRepository extends BaseRepository
         parent::__construct($model);
     }
 
+    /**
+     * Unpaginated Builder (not ->get()) for DeliveryDetailDataSheet's
+     * FromQuery + WithChunkReading — the filtered set is streamed in bounded
+     * batches instead of ever materializing the whole thing at once. Same
+     * filter/$ids contract as searchAll(). Items ordered by id (Laravel's
+     * ordered-UUID HasUuids default), so "original item row order" survives
+     * without a created_at column of its own.
+     */
+    public function detailExportQuery(array $filters, ?array $ids = null): Builder
+    {
+        $query = $this->model->query()->with([
+            'customer',
+            'warehouse',
+            'termsOfPayment',
+            'salesOrder.salesPerson',
+            'invoices',
+            'items' => fn ($q) => $q->orderBy('id'),
+            'items.tax',
+        ]);
+
+        if (! empty($ids)) {
+            $query->whereIn('id', $ids);
+        } else {
+            $this->applyFilters($query, $filters);
+        }
+
+        return $query->orderBy('delivery_date')->orderBy('document_number');
+    }
+
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return $this->model->query()->with(self::EAGER)->latest('delivery_date')->paginate($perPage);

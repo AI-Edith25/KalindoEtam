@@ -16,6 +16,7 @@ use App\Repositories\DeliveryRepository;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -46,6 +47,62 @@ class DeliveryService
     public function listAll(array $filters = [], ?array $ids = null): Collection
     {
         return $this->deliveryRepository->searchAll($filters, $ids);
+    }
+
+    /** The "Detail" export's data source — see DeliveryDetailDataSheet. Unevaluated Builder, streamed by the caller. */
+    public function detailExportQuery(array $filters = [], ?array $ids = null): Builder
+    {
+        return $this->deliveryRepository->detailExportQuery($filters, $ids);
+    }
+
+    /**
+     * Human-readable snapshot of the export's scope for the "Info" sheet —
+     * purely cosmetic, no bearing on DeliveryDetailDataSheet's own rows.
+     * $ids (checked-rows export) replaces the filter summary entirely, same
+     * "checked rows win outright" contract as detailExportQuery()/searchAll().
+     *
+     * @return array{company: string, title: string, generated_at: string, generated_by: string, filters: array<int, array{0: string, 1: string}>}
+     */
+    public function detailExportMeta(array $filters, ?array $ids): array
+    {
+        $active = [];
+
+        if (! empty($ids)) {
+            $active[] = ['Baris Terpilih', count($ids).' delivery dipilih manual (filter lain diabaikan)'];
+        } else {
+            if (! empty($filters['search'])) {
+                $active[] = ['Pencarian', $filters['search']];
+            }
+            if (! empty($filters['status'])) {
+                $active[] = ['Status', collect((array) $filters['status'])->map(fn ($s) => ucfirst($s instanceof \BackedEnum ? $s->value : $s))->implode(', ')];
+            }
+            if (! empty($filters['date_from']) || ! empty($filters['date_to'])) {
+                $active[] = ['Periode', ($filters['date_from'] ?? '-').' s/d '.($filters['date_to'] ?? '-')];
+            }
+            if (! empty($filters['customer_id'])) {
+                $active[] = ['Customer', \App\Models\Customer::find($filters['customer_id'])?->customer_name ?? $filters['customer_id']];
+            }
+            if (! empty($filters['sales_person_id'])) {
+                $active[] = ['Sales Person', \App\Models\SalesPerson::find($filters['sales_person_id'])?->name ?? $filters['sales_person_id']];
+            }
+            if (! empty($filters['warehouse_id'])) {
+                $active[] = ['Lokasi / Gudang', \App\Models\Warehouse::find($filters['warehouse_id'])?->name ?? $filters['warehouse_id']];
+            }
+            if (! empty($filters['sales_order_number'])) {
+                $active[] = ['No. Sales Order', $filters['sales_order_number']];
+            }
+            if (! empty($filters['outstanding'])) {
+                $active[] = ['Outstanding', 'Ya (Complete, belum diinvoice)'];
+            }
+        }
+
+        return [
+            'company' => $this->companyRepository->defaultOrById(null)?->name ?? 'PT. KALINDO ETAM',
+            'title' => 'DELIVERY ORDER LISTING - DETAIL',
+            'generated_at' => now()->format('d/m/Y H:i:s'),
+            'generated_by' => Auth::user()?->name ?? 'System',
+            'filters' => $active,
+        ];
     }
 
     /**

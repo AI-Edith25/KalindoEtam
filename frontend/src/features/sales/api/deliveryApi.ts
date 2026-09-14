@@ -51,9 +51,8 @@ export async function completeDelivery(id: string): Promise<Delivery> {
 
 export interface DeliveryExportParams {
   format: 'xlsx' | 'csv'
-  /** Omit/'detail' = today's column-selectable export; 'summary' = the fixed legacy-report layout, no columns param. */
+  /** Omit/'detail' = the flat per-line DeliveryDetailExport (fixed 25-column contract); 'summary' = the legacy-report layout. */
   mode?: 'detail' | 'summary'
-  columns?: string[]
   ids?: string[]
   search?: string
   status?: string[]

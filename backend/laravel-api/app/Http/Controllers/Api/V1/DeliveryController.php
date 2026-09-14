@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\BusinessException;
+use App\Exports\DeliveryDetailExport;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Concerns\ExportsSalesList;
 use App\Http\Controllers\Controller;
@@ -13,21 +15,12 @@ use App\Models\Delivery;
 use App\Services\DeliveryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class DeliveryController extends Controller
 {
     use ApiResponse, ExportsSalesList;
-
-    /** Ordered [columnKey => label] — mirrors DeliveryListPage.tsx's own table columns. */
-    protected const COLUMNS = [
-        'delivery_date' => 'Date',
-        'document_number' => 'Document',
-        'reference' => 'Reference',
-        'customer_name' => 'Customer Name',
-        'amount' => 'Amount',
-        'status' => 'Status',
-    ];
 
     public function __construct(protected DeliveryService $deliveryService) {}
 
@@ -77,7 +70,14 @@ class DeliveryController extends Controller
         return $this->success(new DeliveryResource($delivery), 'Delivery completed.');
     }
 
-    /** Bulk export — same contract as SalesOrderController::export(). */
+    /**
+     * Bulk export. mode=summary keeps the legacy-report-styled layout (same
+     * contract as SalesOrderController::export()). mode=detail (the
+     * default) is DeliveryDetailExport — one physical row per delivery
+     * line, a fixed 25-column contract, streamed straight from a Builder
+     * (see DeliveryService::detailExportQuery()) rather than a pre-fetched
+     * Collection, so export size no longer depends on per_page/memory.
+     */
     public function export(IndexDeliveryRequest $request): BinaryFileResponse
     {
         $extra = $request->validate([
@@ -85,42 +85,39 @@ class DeliveryController extends Controller
             'mode' => ['sometimes', Rule::in(['detail', 'summary'])],
             'ids' => ['sometimes', 'array'],
             'ids.*' => ['uuid'],
-            'columns' => ['sometimes', 'array'],
-            'columns.*' => [Rule::in(array_keys(self::COLUMNS))],
         ]);
 
         $filters = $request->validated();
         unset($filters['per_page']);
+        $format = $extra['format'] ?? 'xlsx';
+        $ids = $extra['ids'] ?? null;
 
         if (($extra['mode'] ?? 'detail') === 'summary') {
             return $this->exportSalesSummary(
-                $this->deliveryService->summaryExportRows($filters, $extra['ids'] ?? null),
+                $this->deliveryService->summaryExportRows($filters, $ids),
                 'DeliveryOrder',
                 $filters['date_from'] ?? null,
                 $filters['date_to'] ?? null,
-                $extra['format'] ?? 'xlsx',
+                $format,
             );
         }
 
-        $rows = $this->deliveryService->listAll($filters, $extra['ids'] ?? null);
+        $query = $this->deliveryService->detailExportQuery($filters, $ids);
 
-        return $this->exportSalesList(
-            $rows,
-            self::COLUMNS,
-            $extra['columns'] ?? null,
-            fn (Delivery $row, string $key) => match ($key) {
-                'delivery_date' => $row->delivery_date?->format('Y-m-d'),
-                'document_number' => $row->document_number,
-                'reference' => $row->salesOrder?->document_number,
-                'customer_name' => $row->customer?->customer_name,
-                'amount' => (float) $row->items->sum('amount'),
-                'status' => ucfirst($row->status?->value ?? ''),
-                default => null,
-            },
-            'deliveries',
-            $filters['date_from'] ?? null,
-            $filters['date_to'] ?? null,
-            $extra['format'] ?? 'xlsx',
+        if (! $query->exists()) {
+            throw new BusinessException('Tidak ada data untuk diekspor.');
+        }
+
+        $filename = sprintf(
+            'DeliveryOrderListing_Detail_%s_%s.%s',
+            $filters['date_from'] ?? now()->toDateString(),
+            $filters['date_to'] ?? now()->toDateString(),
+            $format,
+        );
+
+        return Excel::download(
+            new DeliveryDetailExport($query, $this->deliveryService->detailExportMeta($filters, $ids), $format),
+            $filename,
         );
     }
 }
