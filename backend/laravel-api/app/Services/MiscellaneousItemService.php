@@ -14,9 +14,9 @@ class MiscellaneousItemService
         protected AuditLogService $auditLogService,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    public function list(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
-        return $this->miscellaneousItemRepository->paginate($perPage);
+        return $this->miscellaneousItemRepository->paginate($perPage, $search);
     }
 
     public function create(array $data): MiscellaneousItem

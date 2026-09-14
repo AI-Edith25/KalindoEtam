@@ -12,8 +12,14 @@ class MiscellaneousItemRepository extends BaseRepository
         parent::__construct($model);
     }
 
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
-        return $this->model->query()->with(['uom', 'salesAccount', 'purchaseAccount'])->paginate($perPage);
+        $query = $this->model->query()->with(['uom', 'salesAccount', 'purchaseAccount']);
+
+        if ($search) {
+            $query->where(fn ($q) => $q->where('misc_code', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%"));
+        }
+
+        return $query->paginate($perPage);
     }
 }

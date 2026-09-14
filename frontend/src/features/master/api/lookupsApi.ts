@@ -1,5 +1,5 @@
 import { fetchLookupList } from '@/shared/services/lookupApi'
-import type { Branch, ChartOfAccount, Company, Customer, Item, ItemGroup, SalesPerson, Supplier, Tax, TermsOfPayment, Uom, Warehouse } from '../types'
+import type { Branch, ChartOfAccount, Company, Customer, Item, ItemGroup, MiscellaneousItem, SalesPerson, Supplier, Tax, TermsOfPayment, Uom, Warehouse } from '../types'
 
 export const fetchItemGroups = () => fetchLookupList<ItemGroup>('/item-groups', { per_page: '200' })
 export const fetchUoms = () => fetchLookupList<Uom>('/uoms', { per_page: '200' })
@@ -26,3 +26,5 @@ export const fetchChartOfAccountsLookup = () => fetchLookupList<ChartOfAccount>(
 export const fetchTermsOfPaymentLookup = () => fetchLookupList<TermsOfPayment>('/terms-of-payments', { per_page: '200' })
 /** Invoice/Purchase Order editors filter to is_active client-side — only a handful of taxes ever exist. */
 export const fetchTaxesLookup = () => fetchLookupList<Tax>('/taxes', { per_page: '200' })
+/** Server-side search for SearchableSelect's async mode — Transportation Invoice's Description picker. */
+export const searchMiscellaneousItemsLookup = (search: string) => fetchLookupList<MiscellaneousItem>('/miscellaneous-items', { per_page: '30', search })

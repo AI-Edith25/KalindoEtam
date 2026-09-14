@@ -10,6 +10,7 @@ use App\Http\Resources\MiscellaneousItemResource;
 use App\Models\MiscellaneousItem;
 use App\Services\MiscellaneousItemService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class MiscellaneousItemController extends Controller
 {
@@ -17,9 +18,12 @@ class MiscellaneousItemController extends Controller
 
     public function __construct(protected MiscellaneousItemService $miscellaneousItemService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(MiscellaneousItemResource::collection($this->miscellaneousItemService->list()));
+        return $this->success(MiscellaneousItemResource::collection($this->miscellaneousItemService->list(
+            perPage: (int) ($request->query('per_page') ?? 15),
+            search: $request->query('search'),
+        )));
     }
 
     public function store(StoreMiscellaneousItemRequest $request): JsonResponse

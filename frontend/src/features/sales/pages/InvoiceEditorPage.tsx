@@ -23,10 +23,10 @@ import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { fetchBranches, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, searchCustomersLookup, searchMiscellaneousItemsLookup } from '@/features/master/api/lookupsApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { computeSubtotal, lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
-import type { Customer } from '@/features/master/types'
+import type { Customer, MiscellaneousItem } from '@/features/master/types'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
@@ -50,9 +50,15 @@ interface PreviewLine {
   tax_amount: string | number
 }
 
-/** Transportation-only manual line — no Item/inventory link, matching Debit Note's own freestanding-line pattern (a plain useState array, not RHF/zod). */
+/**
+ * Transportation-only manual line — no Item/inventory link, matching Debit Note's own
+ * freestanding-line pattern (a plain useState array, not RHF/zod). `misc_item_id` is
+ * local-only (never sent to the backend, which only accepts description/qty/rate) — it
+ * just lets the SearchableSelect show its selection without a search round-trip.
+ */
 interface TransportLine {
   key: string
+  misc_item_id: string
   description: string
   qty: string
   rate: string
@@ -60,7 +66,7 @@ interface TransportLine {
 
 let transportLineCounter = 0
 const nextTransportLineKey = () => `transport-${++transportLineCounter}`
-const emptyTransportLine = (): TransportLine => ({ key: nextTransportLineKey(), description: '', qty: '1', rate: '0' })
+const emptyTransportLine = (): TransportLine => ({ key: nextTransportLineKey(), misc_item_id: '', description: '', qty: '1', rate: '0' })
 
 const lineColumns: DataTableColumn<PreviewLine>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
@@ -333,6 +339,10 @@ function InvoiceForm({
   const removeTransportLine = (key: string) => setTransportLines((prev) => prev.filter((line) => line.key !== key))
   const setTransportLine = (key: string, patch: Partial<TransportLine>) =>
     setTransportLines((prev) => prev.map((line) => (line.key === key ? { ...line, ...patch } : line)))
+  const loadMiscItemOptions = async (query: string) => {
+    const miscItems = await searchMiscellaneousItemsLookup(query)
+    return miscItems.map((item) => ({ value: item.id, label: item.description, data: item }))
+  }
 
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
@@ -823,10 +833,15 @@ function InvoiceForm({
                       {transportLines.map((line) => (
                         <TableRow key={line.key}>
                           <TableCell className="sticky left-0 z-10 bg-background">
-                            <Input
-                              placeholder="e.g. Ongkos Angkut Semen 50kg"
-                              value={line.description}
-                              onChange={(event) => setTransportLine(line.key, { description: event.target.value })}
+                            <SearchableSelect<MiscellaneousItem>
+                              loadOptions={loadMiscItemOptions}
+                              selectedOption={line.misc_item_id ? { value: line.misc_item_id, label: line.description } : undefined}
+                              value={line.misc_item_id}
+                              onChange={(value, option) =>
+                                setTransportLine(line.key, { misc_item_id: value ?? '', description: option?.label ?? '' })
+                              }
+                              placeholder="Select description"
+                              aria-label="Description"
                             />
                           </TableCell>
                           <TableCell className="min-w-32">
