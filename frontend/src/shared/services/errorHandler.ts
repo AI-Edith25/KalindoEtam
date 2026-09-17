@@ -70,6 +70,16 @@ export function isOverReceiptConfirmationRequired(error: unknown): boolean {
 }
 
 /**
+ * True for JournalTypeMismatchException's 409 shape (CashBookImportController::store()) — the
+ * uploaded file's own section label doesn't match the Journal Type selected in the UI. Same
+ * "are you sure" gate as isOverReceiptConfirmationRequired; callers show a confirm dialog and,
+ * on confirm, resubmit importCashBook(file, view, confirmJournalType: true).
+ */
+export function isJournalTypeMismatch(error: unknown): boolean {
+  return isOverReceiptConfirmationRequired(error)
+}
+
+/**
  * True for the 1-step import auto-endpoint's 422 rejection (a required column wasn't
  * confidently recognized) — callers show the message + missing_fields inline (with a link
  * to the manual wizard where one exists) instead of a plain toast.

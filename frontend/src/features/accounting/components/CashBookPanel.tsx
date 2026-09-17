@@ -1,16 +1,19 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Download, RotateCw } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Download, RotateCw, Upload } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { LedgerImportReportDialog } from '@/features/payment/components/LedgerImportReportDialog'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
-import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchCashBook } from '../api/cashBookApi'
+import { useHasPermission } from '@/shared/hooks/usePermission'
+import { getErrorMessage, isJournalTypeMismatch, toastApiError } from '@/shared/services/errorHandler'
+import { fetchCashBook, fetchCashBookImportBatch, importCashBook } from '../api/cashBookApi'
 import { exportJournalList, journalListFileName } from '../api/journalListApi'
 import { CashBookFiltersBar } from './CashBookFiltersBar'
 import type { CashBookFilterValues, CashBookRow, CashBookView } from '../types'
@@ -35,7 +38,12 @@ interface CashBookPanelProps {
  */
 export function CashBookPanel({ view, search, onSearchChange, filters, onFiltersChange, page, onPageChange, journalTypeSelect }: CashBookPanelProps) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const canImport = useHasPermission('accounting.journal_list.import')
   const [isExporting, setIsExporting] = useState(false)
+  const [importBatchId, setImportBatchId] = useState<string | null>(null)
+  const [mismatchConfirm, setMismatchConfirm] = useState<{ message: string; file: File } | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const activeParams = {
     view,
@@ -63,6 +71,21 @@ export function CashBookPanel({ view, search, onSearchChange, filters, onFilters
       setIsExporting(false)
     }
   }
+
+  const importMutation = useMutation({
+    mutationFn: ({ file, confirmJournalType }: { file: File; confirmJournalType: boolean }) => importCashBook(file, view, confirmJournalType),
+    onSuccess: (batch) => {
+      setImportBatchId(batch.id)
+      setMismatchConfirm(null)
+    },
+    onError: (error, variables) => {
+      if (isJournalTypeMismatch(error)) {
+        setMismatchConfirm({ message: getErrorMessage(error), file: variables.file })
+        return
+      }
+      toastApiError(error)
+    },
+  })
 
   const rows = listQuery.data?.data ?? []
 
@@ -99,9 +122,27 @@ export function CashBookPanel({ view, search, onSearchChange, filters, onFilters
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },
             { label: 'Export CSV', icon: Download, onClick: () => exportReport('csv'), disabled: isExporting },
+            {
+              label: importMutation.isPending ? 'Mengunggah…' : 'Import',
+              icon: Upload,
+              disabled: !canImport || importMutation.isPending,
+              onClick: () => importFileInputRef.current?.click(),
+            },
           ]}
         />
       </div>
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) importMutation.mutate({ file, confirmJournalType: false })
+        }}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox value={search} onChange={onSearchChange} placeholder="Search document number or party…" />
@@ -120,6 +161,27 @@ export function CashBookPanel({ view, search, onSearchChange, filters, onFilters
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={onPageChange} />}
+
+      <ConfirmationDialog
+        open={!!mismatchConfirm}
+        onOpenChange={(open) => !open && setMismatchConfirm(null)}
+        title="File sepertinya untuk Journal Type lain"
+        description={mismatchConfirm?.message}
+        confirmLabel="Lanjutkan Import"
+        onConfirm={() => {
+          if (mismatchConfirm) importMutation.mutate({ file: mismatchConfirm.file, confirmJournalType: true })
+        }}
+      />
+
+      <LedgerImportReportDialog
+        title="Import Cash Book"
+        batchId={importBatchId}
+        fetchBatch={fetchCashBookImportBatch}
+        onClose={() => {
+          setImportBatchId(null)
+          queryClient.invalidateQueries({ queryKey: ['cash-book'] })
+        }}
+      />
     </div>
   )
 }

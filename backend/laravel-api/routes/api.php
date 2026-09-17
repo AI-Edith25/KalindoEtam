@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BalanceSheetController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CashBookController;
+use App\Http\Controllers\Api\V1\CashBookImportController;
 use App\Http\Controllers\Api\V1\CashFlowController;
 use App\Http\Controllers\Api\V1\ChartOfAccountController;
 use App\Http\Controllers\Api\V1\CompanyController;
@@ -460,6 +461,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // stays unpopulated, same as General Ledger's — this report deliberately doesn't touch it).
     Route::get('cash-book', [CashBookController::class, 'index'])->middleware('permission:accounting.journal_list.view');
     Route::get('journal-list/export', [JournalListController::class, 'export'])->middleware('permission:accounting.journal_list.view');
+    // Cash Book smart import — one click, no mapping/preview wizard. Re-imports this system's own
+    // Journal List > Cash Book export (not the legacy Payment Voucher/Official Receipt Listing
+    // files PaymentVoucherImportController/OfficialReceiptImportController already handle) — see
+    // CashBookImportService.
+    Route::post('cash-book/import', [CashBookImportController::class, 'store'])->middleware('permission:accounting.journal_list.import');
+    Route::get('cash-book/import/{batch}', [CashBookImportController::class, 'show'])->middleware('permission:accounting.journal_list.import');
 
     // Journal List's Sales Journal / Purchase Journal tabs (Sales Invoice/Credit Note,
     // Purchase Invoice/Purchase Return sub-tabs) — same permission as Cash Book/General Journal
