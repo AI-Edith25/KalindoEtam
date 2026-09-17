@@ -64,7 +64,6 @@ export function TrialBalanceListPage() {
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
-      <SectionNav group="accounting" />
 
       <PageHeader
         title="Trial Balance"
@@ -80,6 +79,8 @@ export function TrialBalanceListPage() {
           />
         }
       />
+
+      <SectionNav group="accounting" variant="pills" end />
 
       <div className="flex flex-wrap items-center gap-3">
         <TrialBalanceFiltersBar value={filters} onChange={setFilters} />

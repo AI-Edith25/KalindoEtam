@@ -121,12 +121,13 @@ export function JournalListPage() {
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
-      <SectionNav group="accounting" />
 
       <PageHeader
         title="Journal List"
         description="Every posted journal, by source — read-only reports derived from posted Journal Entries."
       />
+
+      <SectionNav group="accounting" variant="pills" end />
 
       <div className="flex items-center gap-1 rounded-md border p-1">
         {JOURNALS.map((option) => (

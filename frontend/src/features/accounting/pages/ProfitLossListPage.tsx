@@ -97,13 +97,14 @@ export function ProfitLossListPage() {
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
-      <SectionNav group="accounting" />
 
       <PageHeader
         title="Income Statement"
         description="A read-only report of Revenue, Cost of Goods Sold, Operating Expenses, and Net Profit for a reporting period — derived entirely from posted Journal Entries, never a second calculation."
         actions={<ActionBar actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => reportQuery.refetch(), disabled: reportQuery.isFetching }]} />}
       />
+
+      <SectionNav group="accounting" variant="pills" end />
 
       <div className="flex flex-wrap items-center gap-3">
         <ProfitLossFiltersBar value={filters} onChange={setFilters} />

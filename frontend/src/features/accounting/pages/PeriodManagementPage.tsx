@@ -130,7 +130,6 @@ export function PeriodManagementPage() {
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
-      <SectionNav group="accounting" />
 
       <PageHeader
         title="Period Closing"
@@ -142,6 +141,8 @@ export function PeriodManagementPage() {
           />
         }
       />
+
+      <SectionNav group="accounting" variant="pills" end />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-col gap-1.5">

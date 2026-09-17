@@ -46,7 +46,6 @@ export function GeneralLedgerListPage() {
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
-      <SectionNav group="accounting" />
 
       <PageHeader
         title="Print Ledger"
@@ -62,6 +61,8 @@ export function GeneralLedgerListPage() {
           />
         }
       />
+
+      <SectionNav group="accounting" variant="pills" end />
 
       <div className="flex flex-wrap items-center gap-3">
         <GeneralLedgerFiltersBar value={filters} onChange={setFilters} variant="list" />

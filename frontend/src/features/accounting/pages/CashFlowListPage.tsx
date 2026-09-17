@@ -89,13 +89,14 @@ export function CashFlowListPage() {
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
-      <SectionNav group="accounting" />
 
       <PageHeader
         title="Cash Flow"
         description="A read-only Indirect Method Cash Flow Statement for a reporting period — Net Profit from Profit & Loss, adjusted for changes in Balance Sheet accounts, never a second calculation."
         actions={<ActionBar actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => reportQuery.refetch(), disabled: reportQuery.isFetching }]} />}
       />
+
+      <SectionNav group="accounting" variant="pills" end />
 
       <div className="flex flex-wrap items-center gap-3">
         <CashFlowFiltersBar value={filters} onChange={setFilters} />

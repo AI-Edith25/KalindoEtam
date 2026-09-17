@@ -95,13 +95,14 @@ export function BalanceSheetListPage() {
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
-      <SectionNav group="accounting" />
 
       <PageHeader
         title="Balance Sheet"
         description="A read-only snapshot of Assets, Liabilities, and Equity as of a chosen date — derived entirely from posted Journal Entries plus Profit & Loss's own Current Year Profit, never a second calculation."
         actions={<ActionBar actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => reportQuery.refetch(), disabled: reportQuery.isFetching }]} />}
       />
+
+      <SectionNav group="accounting" variant="pills" end />
 
       <div className="flex flex-wrap items-center gap-3">
         <BalanceSheetFiltersBar value={filters} onChange={setFilters} />
