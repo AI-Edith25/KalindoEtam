@@ -63,6 +63,7 @@ export function TrialBalanceListPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <SectionNav group="reports" />
       <SectionNav group="accounting" />
 
       <PageHeader
