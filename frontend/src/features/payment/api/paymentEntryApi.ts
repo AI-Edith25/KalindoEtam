@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { DocumentStatus, PaymentEntry, PaymentEntryType, PaymentVoucherLineInput } from '../types'
+import type { DocumentStatus, PaymentEntry, PaymentEntryType, PaymentVoucherImportBatch, PaymentVoucherLineInput } from '../types'
 
 export interface PaymentEntryListParams {
   page: number
@@ -65,5 +65,25 @@ export async function deletePaymentEntry(id: string): Promise<void> {
     existing submit-then-allocate flow (paymentEntryAllocationApi.ts's own allocatePaymentEntry). */
 export async function submitPaymentEntry(id: string, lines?: PaymentVoucherLineInput[]): Promise<PaymentEntry> {
   const { data } = await apiClient.post<ApiResponse<PaymentEntry>>(`/payment-entries/${id}/submit`, lines ? { lines } : undefined)
+  return data.data
+}
+
+/**
+ * One-click smart import — no mapping/preview wizard (see
+ * PaymentVoucherImportService). Returns the queued batch immediately; poll
+ * it with fetchPaymentVoucherImportBatch until status is completed/failed.
+ */
+export async function importPaymentVouchers(file: File): Promise<PaymentVoucherImportBatch> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const { data } = await apiClient.post<ApiResponse<PaymentVoucherImportBatch>>('/payment-entries/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data.data
+}
+
+export async function fetchPaymentVoucherImportBatch(batchId: string): Promise<PaymentVoucherImportBatch> {
+  const { data } = await apiClient.get<ApiResponse<PaymentVoucherImportBatch>>(`/payment-entries/import/${batchId}`)
   return data.data
 }

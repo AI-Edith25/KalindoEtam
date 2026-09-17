@@ -54,6 +54,10 @@ const STATUS_STYLES: Record<string, string> = {
   partially_delivered: WARNING,
   partially_invoiced: WARNING,
   fully_invoiced: SUCCESS,
+  // Payment Voucher smart import's per-voucher report outcome.
+  success: SUCCESS,
+  needs_review: WARNING,
+  failed: ERROR,
 }
 
 function formatLabel(status: string): string {

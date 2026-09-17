@@ -130,6 +130,34 @@ export interface PaymentEntryFilterValues {
   unallocatedOnly: boolean
 }
 
+/** One voucher (one DOCUMENT # group) outcome from the smart import — see PaymentVoucherImportService::processGroup(). */
+export interface PaymentVoucherImportOutcome {
+  document_number: string
+  status: 'success' | 'needs_review' | 'failed'
+  reason: string | null
+  payment_entry_id?: string
+}
+
+/** Only ever meaningful once the batch is completed — see PaymentVoucherImportService::import(). */
+export interface PaymentVoucherImportSummary {
+  needs_review_rows: number
+  vouchers: PaymentVoucherImportOutcome[]
+}
+
+export type PaymentVoucherImportBatchStatus = 'uploaded' | 'queued' | 'processing' | 'completed' | 'failed'
+
+/** Same ImportBatch table/resource every 1-step import module uses, but this module never goes through mapping/preview — see PaymentVoucherImportController. */
+export interface PaymentVoucherImportBatch {
+  id: string
+  status: PaymentVoucherImportBatchStatus
+  total_rows: number
+  processed_rows: number
+  success_rows: number
+  failed_rows: number
+  failure_reason: string | null
+  preview_summary: PaymentVoucherImportSummary | null
+}
+
 export interface AccountsReceivable {
   id: string
   customer_id: string

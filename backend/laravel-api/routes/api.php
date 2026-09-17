@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\OpenOrdersController;
 use App\Http\Controllers\Api\V1\PaymentAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryAllocationController;
 use App\Http\Controllers\Api\V1\PaymentEntryController;
+use App\Http\Controllers\Api\V1\PaymentVoucherImportController;
 use App\Http\Controllers\Api\V1\PeriodController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\PoTrackingController;
@@ -401,6 +402,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Financial Settlement (Sprint 6): AP -> Payment Entry -> paid_amount/status; AR -> Receipt Entry -> paid_amount/status.
     $withPagePermissions(Route::apiResource('payment-entries', PaymentEntryController::class), 'finance.outgoing_payment');
     Route::post('payment-entries/{paymentEntry}/submit', [PaymentEntryController::class, 'submit'])->middleware('permission:finance.outgoing_payment.update');
+    // Payment Voucher smart import — one click, no mapping/preview wizard. See PaymentVoucherImportService.
+    Route::post('payment-entries/import', [PaymentVoucherImportController::class, 'store'])->middleware('permission:finance.outgoing_payment.import');
+    Route::get('payment-entries/import/{batch}', [PaymentVoucherImportController::class, 'show'])->middleware('permission:finance.outgoing_payment.import');
 
     $withPagePermissions(Route::apiResource('receipt-entries', ReceiptEntryController::class), 'finance.incoming_payment');
     Route::post('receipt-entries/{receiptEntry}/submit', [ReceiptEntryController::class, 'submit'])->middleware('permission:finance.incoming_payment.update');

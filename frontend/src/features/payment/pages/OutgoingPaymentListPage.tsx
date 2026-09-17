@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -16,8 +16,9 @@ import { Button } from '@/components/ui/button'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { deletePaymentEntry, fetchPaymentEntries, submitPaymentEntry } from '../api/paymentEntryApi'
+import { deletePaymentEntry, fetchPaymentEntries, importPaymentVouchers, submitPaymentEntry } from '../api/paymentEntryApi'
 import { PaymentEntryFiltersBar } from '../components/PaymentEntryFiltersBar'
+import { PaymentVoucherImportDialog } from '../components/PaymentVoucherImportDialog'
 import { emptyPaymentEntryFilters } from '../lib/paymentEntryFilters'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 import type { PaymentEntry, PaymentEntryFilterValues } from '../types'
@@ -34,12 +35,15 @@ export function OutgoingPaymentListPage() {
   const canCreate = useHasPermission('finance.outgoing_payment.create')
   const canUpdate = useHasPermission('finance.outgoing_payment.update')
   const canDelete = useHasPermission('finance.outgoing_payment.delete')
+  const canImport = useHasPermission('finance.outgoing_payment.import')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<PaymentEntryFilterValues>(emptyPaymentEntryFilters)
   const [deletingPayment, setDeletingPayment] = useState<PaymentEntry | null>(null)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
+  const [importBatchId, setImportBatchId] = useState<string | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const listQuery = useQuery({
     queryKey: ['payment-entries', page, search, filters.status, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
@@ -76,6 +80,12 @@ export function OutgoingPaymentListPage() {
       toast.success('Payment deleted.')
       setDeletingPayment(null)
     },
+    onError: (error) => toastApiError(error),
+  })
+
+  const importMutation = useMutation({
+    mutationFn: importPaymentVouchers,
+    onSuccess: (batch) => setImportBatchId(batch.id),
     onError: (error) => toastApiError(error),
   })
 
@@ -241,11 +251,28 @@ export function OutgoingPaymentListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              {
+                label: importMutation.isPending ? 'Mengunggah…' : 'Import',
+                icon: Upload,
+                disabled: !canImport || importMutation.isPending,
+                onClick: () => importFileInputRef.current?.click(),
+              },
             ]}
             primary={canCreate ? { label: 'New Payment', icon: Plus, onClick: () => navigate('/finance/outgoing/new') } : undefined}
           />
         }
+      />
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) importMutation.mutate(file)
+        }}
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -287,6 +314,14 @@ export function OutgoingPaymentListPage() {
         itemLabel={deletingPayment?.document_number ?? undefined}
         onConfirm={() => {
           if (deletingPayment) deleteMutation.mutate(deletingPayment.id)
+        }}
+      />
+
+      <PaymentVoucherImportDialog
+        batchId={importBatchId}
+        onClose={() => {
+          setImportBatchId(null)
+          invalidate()
         }}
       />
     </div>
