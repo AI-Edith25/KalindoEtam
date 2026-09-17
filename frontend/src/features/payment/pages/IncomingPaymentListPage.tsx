@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -15,8 +15,9 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { deleteReceiptEntry, fetchReceiptEntries, submitReceiptEntry } from '../api/receiptEntryApi'
+import { deleteReceiptEntry, fetchOfficialReceiptImportBatch, fetchReceiptEntries, importOfficialReceipts, submitReceiptEntry } from '../api/receiptEntryApi'
 import { ReceiptEntryFiltersBar } from '../components/ReceiptEntryFiltersBar'
+import { LedgerImportReportDialog } from '../components/LedgerImportReportDialog'
 import { emptyReceiptEntryFilters } from '../lib/receiptEntryFilters'
 import type { ReceiptEntry, ReceiptEntryFilterValues } from '../types'
 
@@ -31,12 +32,15 @@ export function IncomingPaymentListPage() {
   const canCreate = useHasPermission('finance.incoming_payment.create')
   const canUpdate = useHasPermission('finance.incoming_payment.update')
   const canDelete = useHasPermission('finance.incoming_payment.delete')
+  const canImport = useHasPermission('finance.incoming_payment.import')
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<ReceiptEntryFilterValues>(emptyReceiptEntryFilters)
   const [deletingReceipt, setDeletingReceipt] = useState<ReceiptEntry | null>(null)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
+  const [importBatchId, setImportBatchId] = useState<string | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const listQuery = useQuery({
     queryKey: ['receipt-entries', page, search, filters.status, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
@@ -70,6 +74,12 @@ export function IncomingPaymentListPage() {
       toast.success('Payment deleted.')
       setDeletingReceipt(null)
     },
+    onError: (error) => toastApiError(error),
+  })
+
+  const importMutation = useMutation({
+    mutationFn: importOfficialReceipts,
+    onSuccess: (batch) => setImportBatchId(batch.id),
     onError: (error) => toastApiError(error),
   })
 
@@ -151,11 +161,28 @@ export function IncomingPaymentListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              {
+                label: importMutation.isPending ? 'Mengunggah…' : 'Import',
+                icon: Upload,
+                disabled: !canImport || importMutation.isPending,
+                onClick: () => importFileInputRef.current?.click(),
+              },
             ]}
             primary={canCreate ? { label: 'New Payment', icon: Plus, onClick: () => navigate('/finance/incoming/new') } : undefined}
           />
         }
+      />
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) importMutation.mutate(file)
+        }}
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -197,6 +224,16 @@ export function IncomingPaymentListPage() {
         itemLabel={deletingReceipt?.document_number ?? undefined}
         onConfirm={() => {
           if (deletingReceipt) deleteMutation.mutate(deletingReceipt.id)
+        }}
+      />
+
+      <LedgerImportReportDialog
+        title="Import Official Receipt"
+        batchId={importBatchId}
+        fetchBatch={fetchOfficialReceiptImportBatch}
+        onClose={() => {
+          setImportBatchId(null)
+          invalidate()
         }}
       />
     </div>

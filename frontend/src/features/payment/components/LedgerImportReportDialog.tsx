@@ -4,25 +4,30 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { fetchPaymentVoucherImportBatch } from '../api/paymentEntryApi'
+import type { LegacyLedgerImportBatch } from '../types'
 
 const TERMINAL_STATUSES = ['completed', 'failed']
 
-interface PaymentVoucherImportDialogProps {
+interface LedgerImportReportDialogProps {
+  title: string
   batchId: string | null
+  fetchBatch: (batchId: string) => Promise<LegacyLedgerImportBatch>
   onClose: () => void
 }
 
 /**
- * Post-import report — the ticket's own requirement: no per-row preview
- * before import, just a one-click run followed by a summary of what
- * succeeded, what needs manual review (created but Unallocated/Draft/
- * partially applied), and what failed outright (with why), per voucher.
+ * Post-import report — shared by Payment Voucher and Official Receipt's
+ * smart imports (same underlying import_batches shape, see
+ * PaymentVoucherImportService/OfficialReceiptImportService). The ticket's
+ * own requirement for both: no per-row preview before import, just a
+ * one-click run followed by a summary of what succeeded, what needs manual
+ * review (created but Unallocated/Draft/partially applied), and what failed
+ * outright (with why), per voucher.
  */
-export function PaymentVoucherImportDialog({ batchId, onClose }: PaymentVoucherImportDialogProps) {
+export function LedgerImportReportDialog({ title, batchId, fetchBatch, onClose }: LedgerImportReportDialogProps) {
   const batchQuery = useQuery({
-    queryKey: ['payment-voucher-import-batch', batchId],
-    queryFn: () => fetchPaymentVoucherImportBatch(batchId as string),
+    queryKey: ['ledger-import-batch', batchId],
+    queryFn: () => fetchBatch(batchId as string),
     enabled: batchId !== null,
     refetchInterval: (query) => (query.state.data && TERMINAL_STATUSES.includes(query.state.data.status) ? false : 1000),
   })
@@ -37,7 +42,7 @@ export function PaymentVoucherImportDialog({ batchId, onClose }: PaymentVoucherI
     <Dialog open={batchId !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Import Payment Voucher</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {!isDone && 'Memproses file — mengelompokkan baris per voucher dan mencocokkan ke data master…'}
             {isDone && batch?.status === 'completed' && 'Import selesai. Berikut ringkasan hasilnya.'}

@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { DocumentStatus, PaymentEntry, PaymentEntryType, PaymentVoucherImportBatch, PaymentVoucherLineInput } from '../types'
+import type { DocumentStatus, LegacyLedgerImportBatch, PaymentEntry, PaymentEntryType, PaymentVoucherLineInput } from '../types'
 
 export interface PaymentEntryListParams {
   page: number
@@ -73,17 +73,17 @@ export async function submitPaymentEntry(id: string, lines?: PaymentVoucherLineI
  * PaymentVoucherImportService). Returns the queued batch immediately; poll
  * it with fetchPaymentVoucherImportBatch until status is completed/failed.
  */
-export async function importPaymentVouchers(file: File): Promise<PaymentVoucherImportBatch> {
+export async function importPaymentVouchers(file: File): Promise<LegacyLedgerImportBatch> {
   const formData = new FormData()
   formData.append('file', file)
 
-  const { data } = await apiClient.post<ApiResponse<PaymentVoucherImportBatch>>('/payment-entries/import', formData, {
+  const { data } = await apiClient.post<ApiResponse<LegacyLedgerImportBatch>>('/payment-entries/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return data.data
 }
 
-export async function fetchPaymentVoucherImportBatch(batchId: string): Promise<PaymentVoucherImportBatch> {
-  const { data } = await apiClient.get<ApiResponse<PaymentVoucherImportBatch>>(`/payment-entries/import/${batchId}`)
+export async function fetchPaymentVoucherImportBatch(batchId: string): Promise<LegacyLedgerImportBatch> {
+  const { data } = await apiClient.get<ApiResponse<LegacyLedgerImportBatch>>(`/payment-entries/import/${batchId}`)
   return data.data
 }

@@ -130,32 +130,37 @@ export interface PaymentEntryFilterValues {
   unallocatedOnly: boolean
 }
 
-/** One voucher (one DOCUMENT # group) outcome from the smart import — see PaymentVoucherImportService::processGroup(). */
-export interface PaymentVoucherImportOutcome {
+/**
+ * One voucher (one DOCUMENT # group) outcome from the smart legacy-ledger
+ * import — shared shape for both Payment Voucher and Official Receipt (see
+ * PaymentVoucherImportService::processGroup() / OfficialReceiptImportService::processGroup()).
+ */
+export interface LegacyLedgerImportOutcome {
   document_number: string
   status: 'success' | 'needs_review' | 'failed'
   reason: string | null
   payment_entry_id?: string
+  receipt_entry_id?: string
 }
 
-/** Only ever meaningful once the batch is completed — see PaymentVoucherImportService::import(). */
-export interface PaymentVoucherImportSummary {
+/** Only ever meaningful once the batch is completed — see *ImportService::import(). */
+export interface LegacyLedgerImportSummary {
   needs_review_rows: number
-  vouchers: PaymentVoucherImportOutcome[]
+  vouchers: LegacyLedgerImportOutcome[]
 }
 
-export type PaymentVoucherImportBatchStatus = 'uploaded' | 'queued' | 'processing' | 'completed' | 'failed'
+export type LegacyLedgerImportBatchStatus = 'uploaded' | 'queued' | 'processing' | 'completed' | 'failed'
 
-/** Same ImportBatch table/resource every 1-step import module uses, but this module never goes through mapping/preview — see PaymentVoucherImportController. */
-export interface PaymentVoucherImportBatch {
+/** Same ImportBatch table/resource every 1-step import module uses, but Payment Voucher/Official Receipt never go through mapping/preview — see PaymentVoucherImportController/OfficialReceiptImportController. */
+export interface LegacyLedgerImportBatch {
   id: string
-  status: PaymentVoucherImportBatchStatus
+  status: LegacyLedgerImportBatchStatus
   total_rows: number
   processed_rows: number
   success_rows: number
   failed_rows: number
   failure_reason: string | null
-  preview_summary: PaymentVoucherImportSummary | null
+  preview_summary: LegacyLedgerImportSummary | null
 }
 
 export interface AccountsReceivable {

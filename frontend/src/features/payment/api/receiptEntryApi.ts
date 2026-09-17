@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { DocumentStatus, ReceiptEntry } from '../types'
+import type { DocumentStatus, LegacyLedgerImportBatch, ReceiptEntry } from '../types'
 
 export interface ReceiptEntryListParams {
   page: number
@@ -53,5 +53,25 @@ export async function deleteReceiptEntry(id: string): Promise<void> {
 
 export async function submitReceiptEntry(id: string): Promise<ReceiptEntry> {
   const { data } = await apiClient.post<ApiResponse<ReceiptEntry>>(`/receipt-entries/${id}/submit`)
+  return data.data
+}
+
+/**
+ * One-click smart import — no mapping/preview wizard (see
+ * OfficialReceiptImportService). Returns the queued batch immediately; poll
+ * it with fetchOfficialReceiptImportBatch until status is completed/failed.
+ */
+export async function importOfficialReceipts(file: File): Promise<LegacyLedgerImportBatch> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const { data } = await apiClient.post<ApiResponse<LegacyLedgerImportBatch>>('/receipt-entries/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data.data
+}
+
+export async function fetchOfficialReceiptImportBatch(batchId: string): Promise<LegacyLedgerImportBatch> {
+  const { data } = await apiClient.get<ApiResponse<LegacyLedgerImportBatch>>(`/receipt-entries/import/${batchId}`)
   return data.data
 }

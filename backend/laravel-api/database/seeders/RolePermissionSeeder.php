@@ -69,7 +69,7 @@ class RolePermissionSeeder extends Seeder
         'sales.credit_notes' => ['view', 'create', 'update', 'delete'],
         'sales.debit_notes' => ['view', 'create', 'update', 'delete'],
         'finance.outgoing_payment' => ['view', 'create', 'update', 'delete', 'import'],
-        'finance.incoming_payment' => ['view', 'create', 'update', 'delete'],
+        'finance.incoming_payment' => ['view', 'create', 'update', 'delete', 'import'],
         'finance.general_journal' => ['view'],
         'finance.accounts_payable' => ['view'],
         'finance.accounts_receivable' => ['view'],

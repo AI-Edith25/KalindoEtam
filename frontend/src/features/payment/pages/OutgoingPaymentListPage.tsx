@@ -16,9 +16,9 @@ import { Button } from '@/components/ui/button'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { deletePaymentEntry, fetchPaymentEntries, importPaymentVouchers, submitPaymentEntry } from '../api/paymentEntryApi'
+import { deletePaymentEntry, fetchPaymentEntries, fetchPaymentVoucherImportBatch, importPaymentVouchers, submitPaymentEntry } from '../api/paymentEntryApi'
 import { PaymentEntryFiltersBar } from '../components/PaymentEntryFiltersBar'
-import { PaymentVoucherImportDialog } from '../components/PaymentVoucherImportDialog'
+import { LedgerImportReportDialog } from '../components/LedgerImportReportDialog'
 import { emptyPaymentEntryFilters } from '../lib/paymentEntryFilters'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 import type { PaymentEntry, PaymentEntryFilterValues } from '../types'
@@ -317,8 +317,10 @@ export function OutgoingPaymentListPage() {
         }}
       />
 
-      <PaymentVoucherImportDialog
+      <LedgerImportReportDialog
+        title="Import Payment Voucher"
         batchId={importBatchId}
+        fetchBatch={fetchPaymentVoucherImportBatch}
         onClose={() => {
           setImportBatchId(null)
           invalidate()

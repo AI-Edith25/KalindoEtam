@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\JournalListController;
 use App\Http\Controllers\Api\V1\MarginController;
 use App\Http\Controllers\Api\V1\MiscellaneousItemController;
 use App\Http\Controllers\Api\V1\NamingSeriesController;
+use App\Http\Controllers\Api\V1\OfficialReceiptImportController;
 use App\Http\Controllers\Api\V1\OpeningStockController;
 use App\Http\Controllers\Api\V1\OpenOrdersController;
 use App\Http\Controllers\Api\V1\PaymentAllocationController;
@@ -408,6 +409,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
 
     $withPagePermissions(Route::apiResource('receipt-entries', ReceiptEntryController::class), 'finance.incoming_payment');
     Route::post('receipt-entries/{receiptEntry}/submit', [ReceiptEntryController::class, 'submit'])->middleware('permission:finance.incoming_payment.update');
+    // Official Receipt smart import — one click, no mapping/preview wizard. See OfficialReceiptImportService.
+    Route::post('receipt-entries/import', [OfficialReceiptImportController::class, 'store'])->middleware('permission:finance.incoming_payment.import');
+    Route::get('receipt-entries/import/{batch}', [OfficialReceiptImportController::class, 'show'])->middleware('permission:finance.incoming_payment.import');
 
     // Payment Allocation (Sprint 12): applies an already-received Receipt Entry to one or more
     // outstanding Invoices' receivables — a separate step from receiving the money itself.
