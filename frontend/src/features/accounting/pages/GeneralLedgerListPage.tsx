@@ -1,21 +1,28 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SectionNav } from '@/components/shared/SectionNav'
+import { LedgerImportReportDialog } from '@/features/payment/components/LedgerImportReportDialog'
+import { toastApiError } from '@/shared/services/errorHandler'
+import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { fetchLedgerAccounts } from '../api/generalLedgerApi'
+import { fetchGeneralLedgerImportBatch, fetchLedgerAccounts, importGeneralLedger } from '../api/generalLedgerApi'
 import { GeneralLedgerFiltersBar } from '../components/GeneralLedgerFiltersBar'
 import { emptyGeneralLedgerFilters } from '../lib/generalLedgerFilters'
 import type { GeneralLedgerFilterValues, LedgerAccountSummary } from '../types'
 
-/** A read model — no create/edit/delete anywhere on this page. See docs/GENERAL_LEDGER_DESIGN.md §1. */
+/** A read model — no create/edit/delete anywhere on this page, Opening Balance import excepted (posts a real Journal Entry, see PrintLedgerImportService). See docs/GENERAL_LEDGER_DESIGN.md §1. */
 export function GeneralLedgerListPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const canImport = useHasPermission('accounting.general_ledger.import')
   const [filters, setFilters] = useState<GeneralLedgerFilterValues>(emptyGeneralLedgerFilters)
+  const [importBatchId, setImportBatchId] = useState<string | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const listQuery = useQuery({
     queryKey: ['general-ledger-accounts', filters.status, filters.referenceType, filters.branchId, filters.companyId, filters.dateFrom, filters.dateTo],
@@ -29,6 +36,12 @@ export function GeneralLedgerListPage() {
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
       }),
     placeholderData: (previous) => previous,
+  })
+
+  const importMutation = useMutation({
+    mutationFn: importGeneralLedger,
+    onSuccess: (batch) => setImportBatchId(batch.id),
+    onError: (error) => toastApiError(error),
   })
 
   const rows = listQuery.data ?? []
@@ -56,10 +69,27 @@ export function GeneralLedgerListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              {
+                label: importMutation.isPending ? 'Mengunggah…' : 'Import',
+                icon: Upload,
+                disabled: !canImport || importMutation.isPending,
+                onClick: () => importFileInputRef.current?.click(),
+              },
             ]}
           />
         }
+      />
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) importMutation.mutate(file)
+        }}
       />
 
       <SectionNav group="accounting" variant="pills" end />
@@ -77,6 +107,16 @@ export function GeneralLedgerListPage() {
         onRetry={() => listQuery.refetch()}
         emptyMessage="No account activity matches these filters."
         onRowClick={(row) => navigate(`/reports/general-ledger/${row.id}`)}
+      />
+
+      <LedgerImportReportDialog
+        title="Import Print Ledger (Opening Balance)"
+        batchId={importBatchId}
+        fetchBatch={fetchGeneralLedgerImportBatch}
+        onClose={() => {
+          setImportBatchId(null)
+          queryClient.invalidateQueries({ queryKey: ['general-ledger-accounts'] })
+        }}
       />
     </div>
   )

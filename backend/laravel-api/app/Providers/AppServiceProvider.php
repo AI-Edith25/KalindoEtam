@@ -6,6 +6,7 @@ use App\Contracts\DocumentNumberGeneratorInterface;
 use App\Models\CreditNote;
 use App\Models\DebitNote;
 use App\Models\GoodsReceipt;
+use App\Models\ImportBatch;
 use App\Models\Invoice;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentEntry;
@@ -51,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
             'payment_entry_allocation' => PaymentEntryAllocation::class,
             'purchase_invoice' => PurchaseInvoice::class,
             'purchase_return' => PurchaseReturn::class,
+            'import_batch' => ImportBatch::class,
         ]);
     }
 }

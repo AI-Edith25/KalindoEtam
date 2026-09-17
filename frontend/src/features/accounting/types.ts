@@ -73,6 +73,26 @@ export interface LedgerAccountSummary {
   ending_balance: string | number
 }
 
+/** Same shape as payment feature's LegacyLedgerImportOutcome/Batch (structurally compatible with LedgerImportReportDialog, reused as-is from there) — `document_number` here holds "CODE — Account Name" rather than a voucher number. */
+export interface GeneralLedgerImportOutcome {
+  document_number: string
+  status: 'success' | 'needs_review' | 'failed'
+  reason: string | null
+}
+
+export type GeneralLedgerImportBatchStatus = 'uploaded' | 'queued' | 'processing' | 'completed' | 'failed'
+
+export interface GeneralLedgerImportBatch {
+  id: string
+  status: GeneralLedgerImportBatchStatus
+  total_rows: number
+  processed_rows: number
+  success_rows: number
+  failed_rows: number
+  failure_reason: string | null
+  preview_summary: { needs_review_rows: number; vouchers: GeneralLedgerImportOutcome[] } | null
+}
+
 /** One Ledger Detail row — a journal_entry_line with its running balance attached. */
 export interface LedgerLine {
   id: string

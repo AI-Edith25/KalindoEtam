@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiResponse, PaginationMeta } from '@/shared/types/api'
-import type { AccountLedgerData, LedgerAccountSummary } from '../types'
+import type { AccountLedgerData, GeneralLedgerImportBatch, LedgerAccountSummary } from '../types'
 
 export interface GeneralLedgerListParams {
   status?: string
@@ -27,4 +27,23 @@ export async function fetchLedgerAccounts(params: GeneralLedgerListParams): Prom
 export async function fetchAccountLedger(accountId: string, params: AccountLedgerParams): Promise<{ data: AccountLedgerData; meta: PaginationMeta }> {
   const { data } = await apiClient.get<ApiResponse<AccountLedgerData> & { meta: PaginationMeta }>(`/general-ledger/accounts/${accountId}`, { params })
   return { data: data.data, meta: data.meta }
+}
+
+/**
+ * Print Ledger opening-balance import — one click, no mapping wizard. Posts a Journal Entry
+ * (see PrintLedgerImportService); poll it with fetchGeneralLedgerImportBatch until completed/failed.
+ */
+export async function importGeneralLedger(file: File): Promise<GeneralLedgerImportBatch> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const { data } = await apiClient.post<ApiResponse<GeneralLedgerImportBatch>>('/general-ledger/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data.data
+}
+
+export async function fetchGeneralLedgerImportBatch(batchId: string): Promise<GeneralLedgerImportBatch> {
+  const { data } = await apiClient.get<ApiResponse<GeneralLedgerImportBatch>>(`/general-ledger/import/${batchId}`)
+  return data.data
 }

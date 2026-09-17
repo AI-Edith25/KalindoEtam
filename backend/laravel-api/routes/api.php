@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\DocumentTimelineController;
 use App\Http\Controllers\Api\V1\FifoValuationController;
 use App\Http\Controllers\Api\V1\InventoryValuationController;
 use App\Http\Controllers\Api\V1\GeneralLedgerController;
+use App\Http\Controllers\Api\V1\GeneralLedgerImportController;
 use App\Http\Controllers\Api\V1\GoodsReceiptController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\ImportMappingPresetController;
@@ -446,6 +447,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Its own distinct Accounting Reports page — no longer shares journal_entries' permission.
     Route::get('general-ledger/accounts', [GeneralLedgerController::class, 'accounts'])->middleware('permission:accounting.general_ledger.view');
     Route::get('general-ledger/accounts/{chartOfAccount}', [GeneralLedgerController::class, 'ledger'])->middleware('permission:accounting.general_ledger.view');
+    // Print Ledger opening-balance import — one click, no mapping/preview wizard. Posts a real
+    // Journal Entry (see PrintLedgerImportService); still never writes to a General Ledger table.
+    Route::post('general-ledger/import', [GeneralLedgerImportController::class, 'store'])->middleware('permission:accounting.general_ledger.import');
+    Route::get('general-ledger/import/{batch}', [GeneralLedgerImportController::class, 'show'])->middleware('permission:accounting.general_ledger.import');
 
     // Journal List: Cash Book Transaction (Official Receipt + Payment Voucher, unioned) and General
     // Journal, each paginated + exportable. Screen data is document-level (CashBookController, one

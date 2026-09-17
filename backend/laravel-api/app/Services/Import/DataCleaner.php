@@ -78,13 +78,22 @@ final class DataCleaner
             return null;
         }
 
-        $stripped = preg_replace('/[^0-9.,]/', '', trim($value)) ?? '';
+        $trimmed = trim($value);
+        $negative = str_starts_with($trimmed, '-') || (str_starts_with($trimmed, '(') && str_ends_with($trimmed, ')'));
+
+        $stripped = preg_replace('/[^0-9.,]/', '', $trimmed) ?? '';
 
         $normalized = $decimalStyle === 'dot_decimal'
             ? str_replace(',', '', $stripped)
             : str_replace(',', '.', str_replace('.', '', $stripped));
 
-        return $normalized === '' || $normalized === '.' ? null : (float) $normalized;
+        if ($normalized === '' || $normalized === '.') {
+            return null;
+        }
+
+        $result = (float) $normalized;
+
+        return $negative ? -abs($result) : $result;
     }
 
     /**
@@ -109,11 +118,17 @@ final class DataCleaner
                 continue;
             }
 
-            $trimmed = trim($value);
+            $trimmed = ltrim(trim($value), '-');
 
-            if (preg_match('/^\d+\.\d{1,2}$/', $trimmed) === 1) {
+            // Bare "1234.56" (no grouping) or a fully-grouped American amount like
+            // "118,574,800.00" — both are unambiguous dot-decimal evidence.
+            if (preg_match('/^\d+\.\d{1,2}$/', $trimmed) === 1
+                || preg_match('/^\d{1,3}(,\d{3})+\.\d{1,2}$/', $trimmed) === 1) {
                 $sawDecimal = true;
-            } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $trimmed) === 1) {
+            // Bare "540.541" (dot-only grouping) or a fully-grouped European amount like
+            // "118.574.800,00" — both are unambiguous dot-thousands evidence.
+            } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $trimmed) === 1
+                || preg_match('/^\d{1,3}(\.\d{3})+,\d{1,2}$/', $trimmed) === 1) {
                 $sawThousands = true;
             }
         }
