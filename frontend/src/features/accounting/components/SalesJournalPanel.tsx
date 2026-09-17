@@ -1,11 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download, RotateCw } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
-import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -14,29 +13,25 @@ import { SalesJournalFiltersBar } from './SalesJournalFiltersBar'
 import type { SalesJournalFilterValues, SalesJournalView } from '../types'
 import type { SalesListingRow } from '@/features/reports/types'
 
-const VIEWS: { value: SalesJournalView; label: string }[] = [
-  { value: 'invoice', label: 'Sales Invoice' },
-  { value: 'credit_note', label: 'Credit Note' },
-]
-
 interface SalesJournalPanelProps {
   view: SalesJournalView
-  onViewChange: (view: SalesJournalView) => void
   search: string
   onSearchChange: (search: string) => void
   filters: SalesJournalFilterValues
   onFiltersChange: (filters: SalesJournalFilterValues) => void
   page: number
   onPageChange: (page: number) => void
+  /** The Journal Type select — which of Sales Journal's 2 views this is comes from there now, not an in-panel toggle. */
+  journalTypeSelect: ReactNode
 }
 
 /**
- * Sales Journal — Sales Invoice/Credit Note sub-tabs, same structural pattern as CashBookPanel
- * (an inner view toggle, not separate routed tabs; filters/pagination/export stay in place across
- * the toggle). Screen rows reuse SalesListingRow's shape as-is — SalesJournalRepository's screen
- * query is SalesListingRepository::query() pinned to one type.
+ * Sales Journal — Sales Invoice/Credit Note, `view` changes only the table's contents (Journal
+ * Type in the filter row picks it, not an in-panel toggle). Screen rows reuse SalesListingRow's
+ * shape as-is — SalesJournalRepository's screen query is SalesListingRepository::query() pinned
+ * to one type.
  */
-export function SalesJournalPanel({ view, onViewChange, search, onSearchChange, filters, onFiltersChange, page, onPageChange }: SalesJournalPanelProps) {
+export function SalesJournalPanel({ view, search, onSearchChange, filters, onFiltersChange, page, onPageChange, journalTypeSelect }: SalesJournalPanelProps) {
   const [isExporting, setIsExporting] = useState(false)
 
   const activeParams = {
@@ -80,19 +75,7 @@ export function SalesJournalPanel({ view, onViewChange, search, onSearchChange, 
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1 rounded-md border p-1">
-          {VIEWS.map((option) => (
-            <Button
-              key={option.value}
-              size="sm"
-              variant={view === option.value ? 'default' : 'ghost'}
-              onClick={() => onViewChange(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
+      <div className="flex justify-end">
         <ActionBar
           actions={[
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
@@ -104,7 +87,7 @@ export function SalesJournalPanel({ view, onViewChange, search, onSearchChange, 
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox value={search} onChange={onSearchChange} placeholder="Search document number…" />
-        <SalesJournalFiltersBar value={filters} onChange={onFiltersChange} />
+        <SalesJournalFiltersBar value={filters} onChange={onFiltersChange} leading={journalTypeSelect} />
       </div>
 
       <DataTable

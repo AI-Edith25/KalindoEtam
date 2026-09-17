@@ -1,11 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download, RotateCw } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
-import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -13,24 +12,20 @@ import { exportPurchaseJournal, fetchPurchaseJournal, purchaseJournalFileName } 
 import { PurchaseJournalFiltersBar } from './PurchaseJournalFiltersBar'
 import type { PurchaseJournalFilterValues, PurchaseJournalRow, PurchaseJournalView } from '../types'
 
-const VIEWS: { value: PurchaseJournalView; label: string }[] = [
-  { value: 'purchase_invoice', label: 'Purchase Invoice' },
-  { value: 'purchase_return', label: 'Purchase Return' },
-]
-
 interface PurchaseJournalPanelProps {
   view: PurchaseJournalView
-  onViewChange: (view: PurchaseJournalView) => void
   search: string
   onSearchChange: (search: string) => void
   filters: PurchaseJournalFilterValues
   onFiltersChange: (filters: PurchaseJournalFilterValues) => void
   page: number
   onPageChange: (page: number) => void
+  /** The Journal Type select — which of Purchase Journal's 2 views this is comes from there now, not an in-panel toggle. */
+  journalTypeSelect: ReactNode
 }
 
-/** Purchase Journal — Purchase Invoice/Purchase Return sub-tabs, same structural pattern as SalesJournalPanel/CashBookPanel. */
-export function PurchaseJournalPanel({ view, onViewChange, search, onSearchChange, filters, onFiltersChange, page, onPageChange }: PurchaseJournalPanelProps) {
+/** Purchase Journal — Purchase Invoice/Purchase Return, same structural pattern as SalesJournalPanel/CashBookPanel. */
+export function PurchaseJournalPanel({ view, search, onSearchChange, filters, onFiltersChange, page, onPageChange, journalTypeSelect }: PurchaseJournalPanelProps) {
   const [isExporting, setIsExporting] = useState(false)
 
   const activeParams = {
@@ -74,19 +69,7 @@ export function PurchaseJournalPanel({ view, onViewChange, search, onSearchChang
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1 rounded-md border p-1">
-          {VIEWS.map((option) => (
-            <Button
-              key={option.value}
-              size="sm"
-              variant={view === option.value ? 'default' : 'ghost'}
-              onClick={() => onViewChange(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
+      <div className="flex justify-end">
         <ActionBar
           actions={[
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
@@ -98,7 +81,7 @@ export function PurchaseJournalPanel({ view, onViewChange, search, onSearchChang
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox value={search} onChange={onSearchChange} placeholder="Search document number or supplier…" />
-        <PurchaseJournalFiltersBar value={filters} onChange={onFiltersChange} />
+        <PurchaseJournalFiltersBar value={filters} onChange={onFiltersChange} leading={journalTypeSelect} />
       </div>
 
       <DataTable

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
@@ -11,13 +12,16 @@ const ALL = '__all__'
 interface CashBookFiltersBarProps {
   value: CashBookFilterValues
   onChange: (value: CashBookFilterValues) => void
+  /** The Journal Type select, rendered first in the same filter row — see JournalListPage. */
+  leading?: ReactNode
 }
 
-export function CashBookFiltersBar({ value, onChange }: CashBookFiltersBarProps) {
+export function CashBookFiltersBar({ value, onChange, leading }: CashBookFiltersBarProps) {
   const branches = useBranchesLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyCashBookFilters)} hasActiveFilters={hasActiveCashBookFilters(value)}>
+      {leading}
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Status</span>
         <Select value={value.status ?? ALL} onValueChange={(next) => onChange({ ...value, status: next === ALL ? null : next })}>

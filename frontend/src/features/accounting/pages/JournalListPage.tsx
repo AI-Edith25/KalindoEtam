@@ -1,51 +1,31 @@
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionNav } from '@/components/shared/SectionNav'
-import { Button } from '@/components/ui/button'
 import { CashBookPanel } from '../components/CashBookPanel'
 import { GeneralJournalPanel } from '../components/GeneralJournalPanel'
 import { SalesJournalPanel } from '../components/SalesJournalPanel'
 import { PurchaseJournalPanel } from '../components/PurchaseJournalPanel'
-import type {
-  CashBookFilterValues,
-  CashBookView,
-  JournalEntryFilterValues,
-  PurchaseJournalFilterValues,
-  PurchaseJournalView,
-  SalesJournalFilterValues,
-  SalesJournalView,
-} from '../types'
-
-type JournalKey = 'cashbook' | 'general-journal' | 'sales-journal' | 'purchase-journal'
-
-const JOURNALS: { value: JournalKey; label: string; enabled: boolean }[] = [
-  { value: 'cashbook', label: 'Cash Book', enabled: true },
-  { value: 'general-journal', label: 'General Journal', enabled: true },
-  { value: 'sales-journal', label: 'Sales Journal', enabled: true },
-  { value: 'purchase-journal', label: 'Purchase Journal', enabled: true },
-]
+import { JournalTypeSelect } from '../components/JournalTypeSelect'
+import { DEFAULT_JOURNAL_LIST_TYPE, type JournalListType } from '../lib/journalListType'
+import type { CashBookFilterValues, JournalEntryFilterValues, PurchaseJournalFilterValues, SalesJournalFilterValues } from '../types'
 
 /**
- * Journal List — 4 journals (Cash Book, General Journal, Sales Journal,
- * Purchase Journal), each its own paginated + exportable read-only report.
- * All 4 are built — Sales/Purchase Journal each carry an inner sub-tab
- * (Sales Invoice/Credit Note, Purchase Invoice/Purchase Return) via the same
- * `view` URL slot Cash Book already established, owned by their own Panel
- * component exactly the way Cash Book's own "all/receipt/payment" toggle is.
+ * Journal List — one flat "Journal Type" dropdown (in the filter row, not a
+ * tab) picks one of 8 combinations that used to be a 2-level pill-tab +
+ * sub-tab (Cash Book/General Journal/Sales Journal/Purchase Journal, the
+ * first/third/fourth each with their own inner view toggle). Each panel's
+ * own data/columns/filters are unchanged — journalType is split back into
+ * the same (journal, view) pair the old tabs produced, below.
  *
- * Every bit of state that should survive a refresh or be shareable — active
- * journal, the active sub-view, filters, page — lives in the URL, read and
- * written directly via useSearchParams (this is the only page with this
- * need, so no shared "useUrlState" abstraction).
+ * Every bit of state that should survive a refresh or be shareable —
+ * journal type, filters, page — lives in the URL, read and written directly
+ * via useSearchParams (this is the only page with this need, so no shared
+ * "useUrlState" abstraction).
  */
 export function JournalListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const journal = (searchParams.get('journal') as JournalKey) || 'cashbook'
-  const rawView = searchParams.get('view')
-  const view = (rawView as CashBookView) || 'all'
-  const salesJournalView = (rawView as SalesJournalView) || 'invoice'
-  const purchaseJournalView = (rawView as PurchaseJournalView) || 'purchase_invoice'
+  const journalType = (searchParams.get('type') as JournalListType) || DEFAULT_JOURNAL_LIST_TYPE
   const search = searchParams.get('search') ?? ''
   const page = Number(searchParams.get('page') ?? '1')
 
@@ -87,10 +67,7 @@ export function JournalListPage() {
     })
   }
 
-  const setJournal = (next: JournalKey) => update({ journal: next === 'cashbook' ? null : next, view: null, page: null })
-  const setView = (next: CashBookView) => update({ view: next === 'all' ? null : next, page: null })
-  const setSalesJournalView = (next: SalesJournalView) => update({ view: next === 'invoice' ? null : next, page: null })
-  const setPurchaseJournalView = (next: PurchaseJournalView) => update({ view: next === 'purchase_invoice' ? null : next, page: null })
+  const setJournalType = (next: JournalListType) => update({ type: next === DEFAULT_JOURNAL_LIST_TYPE ? null : next, page: null })
   const setSearch = (next: string) => update({ search: next || null, page: null })
   const setPage = (next: number) => update({ page: next > 1 ? String(next) : null })
 
@@ -118,6 +95,8 @@ export function JournalListPage() {
   const setPurchaseJournalFilters = (next: PurchaseJournalFilterValues) =>
     update({ date_from: next.dateFrom || null, date_to: next.dateTo || null, page: null })
 
+  const journalTypeSelect = <JournalTypeSelect value={journalType} onChange={setJournalType} />
+
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
@@ -129,21 +108,7 @@ export function JournalListPage() {
 
       <SectionNav group="accounting" variant="pills" end />
 
-      <div className="flex items-center gap-1 rounded-md border p-1">
-        {JOURNALS.map((option) => (
-          <Button
-            key={option.value}
-            size="sm"
-            variant={journal === option.value ? 'default' : 'ghost'}
-            disabled={!option.enabled}
-            onClick={() => setJournal(option.value)}
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
-
-      {journal === 'general-journal' ? (
+      {journalType === 'general_journal' ? (
         <GeneralJournalPanel
           search={search}
           onSearchChange={setSearch}
@@ -151,39 +116,40 @@ export function JournalListPage() {
           onFiltersChange={setGeneralJournalFilters}
           page={page}
           onPageChange={setPage}
+          journalTypeSelect={journalTypeSelect}
         />
-      ) : journal === 'sales-journal' ? (
+      ) : journalType === 'sales_invoice' || journalType === 'sales_credit_note' ? (
         <SalesJournalPanel
-          view={salesJournalView}
-          onViewChange={setSalesJournalView}
+          view={journalType === 'sales_credit_note' ? 'credit_note' : 'invoice'}
           search={search}
           onSearchChange={setSearch}
           filters={salesJournalFilters}
           onFiltersChange={setSalesJournalFilters}
           page={page}
           onPageChange={setPage}
+          journalTypeSelect={journalTypeSelect}
         />
-      ) : journal === 'purchase-journal' ? (
+      ) : journalType === 'purchase_invoice' || journalType === 'purchase_return' ? (
         <PurchaseJournalPanel
-          view={purchaseJournalView}
-          onViewChange={setPurchaseJournalView}
+          view={journalType === 'purchase_return' ? 'purchase_return' : 'purchase_invoice'}
           search={search}
           onSearchChange={setSearch}
           filters={purchaseJournalFilters}
           onFiltersChange={setPurchaseJournalFilters}
           page={page}
           onPageChange={setPage}
+          journalTypeSelect={journalTypeSelect}
         />
       ) : (
         <CashBookPanel
-          view={view}
-          onViewChange={setView}
+          view={journalType === 'cashbook_receipt' ? 'receipt' : journalType === 'cashbook_payment' ? 'payment' : 'all'}
           search={search}
           onSearchChange={setSearch}
           filters={cashBookFilters}
           onFiltersChange={setCashBookFilters}
           page={page}
           onPageChange={setPage}
+          journalTypeSelect={journalTypeSelect}
         />
       )}
     </div>

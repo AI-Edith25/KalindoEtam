@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, RotateCw } from 'lucide-react'
@@ -7,7 +7,6 @@ import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -16,30 +15,25 @@ import { exportJournalList, journalListFileName } from '../api/journalListApi'
 import { CashBookFiltersBar } from './CashBookFiltersBar'
 import type { CashBookFilterValues, CashBookRow, CashBookView } from '../types'
 
-const VIEWS: { value: CashBookView; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'receipt', label: 'Official Receipt' },
-  { value: 'payment', label: 'Payment Voucher' },
-]
-
 interface CashBookPanelProps {
   view: CashBookView
-  onViewChange: (view: CashBookView) => void
   search: string
   onSearchChange: (search: string) => void
   filters: CashBookFilterValues
   onFiltersChange: (filters: CashBookFilterValues) => void
   page: number
   onPageChange: (page: number) => void
+  /** The Journal Type select — which of Cash Book's 3 views this is comes from there now, not an in-panel toggle. */
+  journalTypeSelect: ReactNode
 }
 
 /**
- * Cash Book Transaction — one page, one table, a view toggle (not separate
- * tabs) that changes only the table's contents; filters/pagination/export
- * stay in place. All URL-synced state (view/search/filters/page) is owned by
- * JournalListPage — this component is a pure display + fetch layer.
+ * Cash Book Transaction — one page, one table; `view` changes only the
+ * table's contents, filters/pagination/export stay in place. All URL-synced
+ * state (view/search/filters/page) is owned by JournalListPage — this
+ * component is a pure display + fetch layer.
  */
-export function CashBookPanel({ view, onViewChange, search, onSearchChange, filters, onFiltersChange, page, onPageChange }: CashBookPanelProps) {
+export function CashBookPanel({ view, search, onSearchChange, filters, onFiltersChange, page, onPageChange, journalTypeSelect }: CashBookPanelProps) {
   const navigate = useNavigate()
   const [isExporting, setIsExporting] = useState(false)
 
@@ -99,19 +93,7 @@ export function CashBookPanel({ view, onViewChange, search, onSearchChange, filt
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1 rounded-md border p-1">
-          {VIEWS.map((option) => (
-            <Button
-              key={option.value}
-              size="sm"
-              variant={view === option.value ? 'default' : 'ghost'}
-              onClick={() => onViewChange(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
+      <div className="flex justify-end">
         <ActionBar
           actions={[
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
@@ -123,7 +105,7 @@ export function CashBookPanel({ view, onViewChange, search, onSearchChange, filt
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox value={search} onChange={onSearchChange} placeholder="Search document number or party…" />
-        <CashBookFiltersBar value={filters} onChange={onFiltersChange} />
+        <CashBookFiltersBar value={filters} onChange={onFiltersChange} leading={journalTypeSelect} />
       </div>
 
       <DataTable

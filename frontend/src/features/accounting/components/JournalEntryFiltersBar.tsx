@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
@@ -17,14 +18,17 @@ const REFERENCE_TYPE_OPTIONS = [
 interface JournalEntryFiltersBarProps {
   value: JournalEntryFilterValues
   onChange: (value: JournalEntryFilterValues) => void
+  /** The Journal Type select, rendered first in the same filter row — see JournalListPage. */
+  leading?: ReactNode
 }
 
-export function JournalEntryFiltersBar({ value, onChange }: JournalEntryFiltersBarProps) {
+export function JournalEntryFiltersBar({ value, onChange, leading }: JournalEntryFiltersBarProps) {
   const accounts = useChartOfAccountsLookup()
   const branches = useBranchesLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyJournalEntryFilters)} hasActiveFilters={hasActiveJournalEntryFilters(value)}>
+      {leading}
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Status</span>
         <Select

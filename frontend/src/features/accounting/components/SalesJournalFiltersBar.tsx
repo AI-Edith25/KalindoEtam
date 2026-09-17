@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
@@ -7,14 +8,17 @@ import type { SalesJournalFilterValues } from '../types'
 interface SalesJournalFiltersBarProps {
   value: SalesJournalFilterValues
   onChange: (value: SalesJournalFilterValues) => void
+  /** The Journal Type select, rendered first in the same filter row — see JournalListPage. */
+  leading?: ReactNode
 }
 
-export function SalesJournalFiltersBar({ value, onChange }: SalesJournalFiltersBarProps) {
+export function SalesJournalFiltersBar({ value, onChange, leading }: SalesJournalFiltersBarProps) {
   const branches = useBranchesLookup()
   const hasActiveFilters = value.branchId !== null || value.dateFrom !== '' || value.dateTo !== ''
 
   return (
     <FilterPanel onClear={() => onChange({ branchId: null, dateFrom: '', dateTo: '' })} hasActiveFilters={hasActiveFilters}>
+      {leading}
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Branch</span>
         <SearchableSelect

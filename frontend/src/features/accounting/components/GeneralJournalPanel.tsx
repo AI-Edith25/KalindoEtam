@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, RotateCw } from 'lucide-react'
@@ -21,6 +21,8 @@ interface GeneralJournalPanelProps {
   onFiltersChange: (filters: JournalEntryFilterValues) => void
   page: number
   onPageChange: (page: number) => void
+  /** The Journal Type select, rendered first in the filter row — see JournalListPage. */
+  journalTypeSelect: ReactNode
 }
 
 /**
@@ -30,7 +32,7 @@ interface GeneralJournalPanelProps {
  * this is purely another read surface over already-paginated, already-
  * exportable data.
  */
-export function GeneralJournalPanel({ search, onSearchChange, filters, onFiltersChange, page, onPageChange }: GeneralJournalPanelProps) {
+export function GeneralJournalPanel({ search, onSearchChange, filters, onFiltersChange, page, onPageChange, journalTypeSelect }: GeneralJournalPanelProps) {
   const navigate = useNavigate()
   const [isExporting, setIsExporting] = useState(false)
 
@@ -93,7 +95,7 @@ export function GeneralJournalPanel({ search, onSearchChange, filters, onFilters
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox value={search} onChange={onSearchChange} placeholder="Search journal number or description…" />
-        <JournalEntryFiltersBar value={filters} onChange={onFiltersChange} />
+        <JournalEntryFiltersBar value={filters} onChange={onFiltersChange} leading={journalTypeSelect} />
       </div>
 
       <DataTable
