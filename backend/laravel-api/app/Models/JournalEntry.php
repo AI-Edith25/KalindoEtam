@@ -27,6 +27,7 @@ class JournalEntry extends Model
         'reference_type',
         'reference_id',
         'description',
+        'source_document_number',
         'total_debit',
         'total_credit',
         'reverses_id',

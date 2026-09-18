@@ -58,6 +58,7 @@ class JournalEntryService
                 'description' => $data['description'] ?? null,
                 'reference_type' => $data['reference_type'] ?? null,
                 'reference_id' => $data['reference_id'] ?? null,
+                'source_document_number' => $data['source_document_number'] ?? null,
                 'reverses_id' => $data['reverses_id'] ?? null,
                 'total_debit' => $totalDebit,
                 'total_credit' => $totalCredit,

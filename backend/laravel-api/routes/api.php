@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\V1\ReceiptStockController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesJournalController;
 use App\Http\Controllers\Api\V1\SalesListingController;
+use App\Http\Controllers\Api\V1\SalesPurchaseJournalImportController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
 use App\Http\Controllers\Api\V1\SalesPersonController;
 use App\Http\Controllers\Api\V1\SalesReportController;
@@ -477,6 +478,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('sales-journal/export', [SalesJournalController::class, 'export'])->middleware('permission:accounting.journal_list.view');
     Route::get('purchase-journal', [PurchaseJournalController::class, 'index'])->middleware('permission:accounting.journal_list.view');
     Route::get('purchase-journal/export', [PurchaseJournalController::class, 'export'])->middleware('permission:accounting.journal_list.view');
+
+    // Sales/Purchase Journal smart import — one click, no mapping/preview wizard. Posts raw,
+    // balanced Journal Entries straight to the General Ledger rather than fabricating Invoice/
+    // CreditNote/PurchaseInvoice/PurchaseReturn documents (none of those can be built from a
+    // GL-only export) — see SalesPurchaseJournalImportService. Same permission as Cash Book import
+    // above, reused unchanged.
+    Route::post('sales-purchase-journal/import', [SalesPurchaseJournalImportController::class, 'store'])->middleware('permission:accounting.journal_list.import');
+    Route::get('sales-purchase-journal/import/{batch}', [SalesPurchaseJournalImportController::class, 'show'])->middleware('permission:accounting.journal_list.import');
 
     // Trial Balance (Sprint 16A): a presentation layer over GeneralLedgerService::listAccounts()
     // — no new balance calculation, no new accounting table. See docs/TRIAL_BALANCE_DESIGN.md.
