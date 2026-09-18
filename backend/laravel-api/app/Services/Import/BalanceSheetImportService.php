@@ -8,36 +8,35 @@ use App\Models\ImportBatch;
 use App\Models\JournalEntry;
 use App\Services\Import\Concerns\ParsesLegacyLedgerExport;
 use App\Services\JournalEntryService;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * Smart, one-click Income Statement import — same posture as TrialBalanceImportService: Income
- * Statement is a pure read model over GeneralLedgerService::listAccounts()' period movement
- * (ProfitLossService, docs/PROFIT_LOSS_DESIGN.md), no writable state of its own, so this posts one
- * combined, balanced Journal Entry per file instead of touching any report table directly.
+ * Smart, one-click Balance Sheet import — same posture as TrialBalanceImportService/
+ * IncomeStatementImportService: Balance Sheet is a pure read model (BalanceSheetService — a
+ * presentation layer over GeneralLedgerService::listAccounts() and ProfitLossService::summarize(),
+ * docs/BALANCE_SHEET_DESIGN.md), no writable state of its own, so this posts one combined,
+ * balanced Journal Entry per file instead of touching any report table directly.
  *
- * Unlike every other importer here, this source file has NO column-name header row at all — row 5
- * is just a "Year-To-Date (RP)" / "%" sub-label floating over columns C/D, confirmed against the
- * real attached xlsincomestatement.xlsx. So this class skips HeaderDetector/mapColumns() entirely
- * and reads fixed positions (A=code/label, B=description, C=value, D=%, ignored), data always
- * starting at row 6.
+ * Like Income Statement, no column-name header row exists (row 5 is a floating "Year-To-Date
+ * (RP)"/"%" sub-label) — fixed positions, data starting at row 6.
  *
- * Row classification is corrected from the ticket's own prose against that real file: a data row's
- * column A always holds a dotted numeric code ("410.01.02") — that pattern alone identifies it, not
- * "column C has a number," since subtotal rows ("Total Income") and summary/derived rows
- * ("GROSS PROFIT/(LOSS)") both also carry a real number in column C with the label in column A.
+ * Unlike Income Statement's fixed 7 named sections, this file has a real 3-level hierarchy
+ * (Section > Group > Sub-group > Account) whose section names and order aren't fixed (confirmed
+ * against the real attached xlsbalancesheet_maintainstockvalue.xlsx — a different section shape
+ * than Income Statement's). The only reliable level signal is dot-count in column A, NOT
+ * indentation — that file has a real Level-3 account ("350.01.01", 2 dots) indented exactly like a
+ * Level-2 sub-group ("121.03", 1 dot). So instead of a known-section whitelist, this class resets
+ * its running checksum sum on ANY line starting with "Total" (case-insensitive), using that line's
+ * own text as the checksum's report label — verified against the real file: "TOTAL PROPERTY, PLANT
+ * & EQUIPMENT" exactly equals the sum of the two sub-groups' worth of Level-3 accounts above it,
+ * confirming one Total line can close out however many sub-groups came since the last reset.
  *
- * Account resolution and the suspense-account balancing plug are identical to
- * TrialBalanceImportService (exact code → fuzzy name via ParsesLegacyLedgerExport::
- * matchLedgerPartyByName(), 70% threshold → excluded and reported, never guessed at). Sign
- * handling follows the ticket's own explicit, literal rule: a positive Year-To-Date value posts to
- * the account's own normal side (ChartOfAccount::isDebitNormal()), negative posts to the opposite
- * side — deliberately with no awareness of ProfitLossService's own contra-account section-display
- * sign flip (confirmed user decision).
+ * Account resolution, sign handling, and the suspense-account balancing plug are identical to
+ * IncomeStatementImportService (resolveAccountByCodeOrName()/findOrCreateMigrationSuspenseAccount(),
+ * both now shared via ParsesLegacyLedgerExport since this is their 3rd occurrence).
  */
-final class IncomeStatementImportService
+final class BalanceSheetImportService
 {
     use ParsesLegacyLedgerExport;
 
@@ -47,37 +46,16 @@ final class IncomeStatementImportService
 
     private const DATA_START_ROW = 6;
 
-    // Requires at least 2 dots (3+ segments) — every real code in this file happens to have
-    // exactly 2 ("410.01.02"), but a looser 1-dot pattern would also (wrongly) match a
-    // sub-group-level code from a Balance-Sheet-shaped file (BalanceSheetImportService needs the
-    // stricter form to exclude its own real "121.03" sub-group rows) — kept the same here for
-    // consistency between the two, and because it's simply the more correct pattern.
+    /** At least 2 dots (3+ segments) — a 1-dot code ("121.03") is a sub-group header, not an account, confirmed in the real file. */
     private const ACCOUNT_CODE_PATTERN = '/^\d+(\.\d+){2,}$/';
-
-    /** The file's own 7 section labels — open/reset the running per-section sum used for the "Total X" checksum below. Not posted themselves. */
-    private const SECTION_LABELS = [
-        'Income', 'Cost of Sales', 'Other Income', 'Administrative Expenses',
-        'Operating Expenses', 'Others Expenses', 'Taxation',
-    ];
-
-    /**
-     * Derived/summary lines — combine multiple sections or carry no account of their own, so
-     * they're neither postable data nor a per-section checksum. Matched whitespace-normalized:
-     * the real file spells some of these with irregular spacing ("RETAINED PROFIT /( LOSS) B/F").
-     */
-    private const SUMMARY_LABELS = [
-        'GROSS PROFIT/(LOSS)', 'PROFIT/(LOSS) BEFORE TAXATION', 'PROFIT/(LOSS) AFTER TAXATION',
-        'NET PROFIT/(LOSS)', 'CURRENT ADJUSMENT TO RETAINED EARNING A/C',
-        'RETAINED PROFIT/(LOSS) B/F', 'RETAINED PROFIT/(LOSS) C/F',
-    ];
 
     public function __construct(protected JournalEntryService $journalEntryService) {}
 
     /**
-     * Parses the whole file — small (one row per Chart of Account, dozens to low hundreds of rows)
-     * like Trial Balance, so plain ImportFileReader::readRaw() is fine, no streaming needed.
+     * Parses the whole file — small (one row per Chart of Account, dozens to low hundreds of
+     * rows), so plain ImportFileReader::readRaw() is fine, no streaming needed.
      *
-     * @return array{accounts: array<int, array{code: string, description: ?string, value: float}>, section_checksums: array<string, float>, period_label: ?string, period_end_date: ?string}|array{error: string}
+     * @return array{accounts: array<int, array{code: string, description: ?string, value: float}>, section_checksums: array<string, array{file: ?float, parsed: float}>, period_label: ?string, period_end_date: ?string}|array{error: string}
      */
     public function parse(string $absolutePath, string $extension): array
     {
@@ -89,14 +67,11 @@ final class IncomeStatementImportService
 
         $dataRows = array_slice($rawRows, self::DATA_START_ROW - 1);
 
-        $decimalValues = array_column($dataRows, 2);
-        $decimalStyle = DataCleaner::detectDecimalStyle($decimalValues);
+        $decimalStyle = DataCleaner::detectDecimalStyle(array_column($dataRows, 2));
 
         $accounts = [];
         $sectionChecksums = [];
-        $unrecognized = [];
-        $currentSection = null;
-        $runningSectionSum = 0.0;
+        $runningSum = 0.0;
         $sawAnyAccountCode = false;
 
         foreach ($dataRows as $row) {
@@ -108,53 +83,36 @@ final class IncomeStatementImportService
                 continue;
             }
 
+            // A "Total ..." line (label can sit in column A or B) closes out everything
+            // accumulated since the last reset — however many groups/sub-groups that spanned —
+            // and is never itself account data, regardless of whether it also happens to carry a
+            // number in column C.
+            $totalLabel = $this->startsWithTotal($codeCell) ? $codeCell : ($this->startsWithTotal($descriptionCell) ? $descriptionCell : null);
+
+            if ($totalLabel !== null) {
+                $sectionChecksums[$totalLabel] = ['file' => $value, 'parsed' => round($runningSum, 2)];
+                $runningSum = 0.0;
+
+                continue;
+            }
+
             if ($codeCell !== null && preg_match(self::ACCOUNT_CODE_PATTERN, $codeCell) === 1) {
                 $sawAnyAccountCode = true;
                 $accounts[] = ['code' => $codeCell, 'description' => $descriptionCell, 'value' => $value ?? 0.0];
-                $runningSectionSum += $value ?? 0.0;
+                $runningSum += $value ?? 0.0;
 
                 continue;
             }
 
-            // Everything past here has no account code — a section label, a "Total X" subtotal, or
-            // one of the summary/derived lines. Label text can sit in either column (confirmed:
-            // section labels and "Total X" use column A; this system never puts it in B alone).
-            $label = $codeCell ?? $descriptionCell;
-
-            if ($label === null) {
-                continue;
-            }
-
-            if (stripos($label, 'Total ') === 0) {
-                if ($currentSection !== null) {
-                    $sectionChecksums[$currentSection] = ['file' => $value, 'parsed' => round($runningSectionSum, 2)];
-                }
-                $currentSection = null;
-                $runningSectionSum = 0.0;
-
-                continue;
-            }
-
-            if (in_array($label, self::SECTION_LABELS, true)) {
-                $currentSection = $label;
-                $runningSectionSum = 0.0;
-
-                continue;
-            }
-
-            // A known summary/derived line ("GROSS PROFIT/(LOSS)", ...) — informational only,
-            // never posted, never part of a section checksum. Whitespace-normalized: the real file
-            // spells some of these with irregular spacing ("RETAINED PROFIT /( LOSS) B/F").
-            $normalizedLabel = preg_replace('/\s+/', '', strtoupper($label));
-            $isKnownSummaryLine = in_array($normalizedLabel, array_map(fn ($s) => preg_replace('/\s+/', '', strtoupper($s)), self::SUMMARY_LABELS), true);
-
-            if (! $isKnownSummaryLine) {
-                $unrecognized[] = $label;
-            }
+            // Everything else — a pure-integer group, a pure-text section/sub-header, a 1-dot
+            // sub-group, or a blank-A/B derived summary line (the file's own unlabeled "Net
+            // Assets"/grand-total rows) — is structural noise, not data. Never resets the running
+            // sum: it didn't close anything, and the next real section's accounts should still
+            // accumulate correctly regardless of what sits between them and the last Total line.
         }
 
         if (! $sawAnyAccountCode) {
-            return ['error' => 'Tidak ada baris data akun (kolom A berformat kode seperti "410.01.02") yang terdeteksi di file ini.'];
+            return ['error' => 'Tidak ada baris data akun (kolom A berformat kode seperti "121.03.01") yang terdeteksi di file ini.'];
         }
 
         $period = $this->findDateRangeHeader($rawRows);
@@ -162,16 +120,15 @@ final class IncomeStatementImportService
         return [
             'accounts' => $accounts,
             'section_checksums' => $sectionChecksums,
-            'unrecognized' => $unrecognized,
             'period_label' => $period['label'] ?? null,
             'period_end_date' => $period['end_date'] ?? null,
         ];
     }
 
-    /** "IMPORT-IS-01/01/2022-31/12/2025" — the dedup/tracing key, stored in journal_entries.source_document_number. */
+    /** "IMPORT-BS-01/01/2022-31/12/2025" — the dedup/tracing key, stored in journal_entries.source_document_number. */
     public function referenceFor(string $periodLabel): string
     {
-        return 'IMPORT-IS-'.str_replace(' ', '', $periodLabel);
+        return 'IMPORT-BS-'.str_replace(' ', '', $periodLabel);
     }
 
     public function import(ImportBatch $batch): void
@@ -255,8 +212,8 @@ final class IncomeStatementImportService
             }
 
             // Positive posts to the account's own normal side, negative to the opposite side —
-            // literal per the ticket, no awareness of ProfitLossService's own contra-account
-            // section-display sign flip (confirmed decision).
+            // identical rule to IncomeStatementImportService, based on the account's own
+            // ChartOfAccount type (isDebitNormal()), never a report-section convention.
             $isDebitNormal = $resolved['account']->isDebitNormal();
             $debit = $isDebitNormal ? max($row['value'], 0) : max(-$row['value'], 0);
             $credit = $isDebitNormal ? max(-$row['value'], 0) : max($row['value'], 0);
@@ -265,7 +222,7 @@ final class IncomeStatementImportService
                 'chart_of_account_id' => $resolved['account']->id,
                 'debit' => $debit,
                 'credit' => $credit,
-                'description' => "Income Statement import — {$row['code']} {$row['description']}",
+                'description' => "Balance Sheet import — {$row['code']} {$row['description']}",
             ];
             $postedDebit += $debit;
             $postedCredit += $credit;
@@ -288,7 +245,7 @@ final class IncomeStatementImportService
                 'chart_of_account_id' => $suspense->id,
                 'debit' => $plug < 0 ? abs($plug) : 0,
                 'credit' => $plug > 0 ? $plug : 0,
-                'description' => 'Income Statement import — selisih akun yang tidak match/dilewati, supaya Journal Entry tetap balance.',
+                'description' => 'Balance Sheet import — selisih akun yang tidak match/dilewati, supaya Journal Entry tetap balance.',
             ];
             $report[] = [
                 'document_number' => $suspense->code.' — '.$suspense->name,
@@ -297,18 +254,18 @@ final class IncomeStatementImportService
             ];
         }
 
-        foreach ($parsed['section_checksums'] as $section => $figures) {
+        foreach ($parsed['section_checksums'] as $label => $figures) {
             if ($figures['file'] === null) {
                 continue;
             }
 
             if (abs($figures['file'] - $figures['parsed']) > self::AMOUNT_EPSILON) {
                 $report[] = [
-                    'document_number' => "CHECKSUM: {$section}",
+                    'document_number' => "CHECKSUM: {$label}",
                     'status' => 'needs_review',
                     'reason' => sprintf(
-                        'Total "%s" di file: Rp %s. Total hasil parsing baris akun di section ini: Rp %s.',
-                        $section, number_format($figures['file'], 0, ',', '.'), number_format($figures['parsed'], 0, ',', '.'),
+                        '"%s" di file: Rp %s. Total hasil parsing baris akun sejak reset sebelumnya: Rp %s.',
+                        $label, number_format($figures['file'], 0, ',', '.'), number_format($figures['parsed'], 0, ',', '.'),
                     ),
                 ];
             }
@@ -318,18 +275,10 @@ final class IncomeStatementImportService
             $report[] = ['document_number' => $reference, 'status' => 'needs_review', 'reason' => 'Periode ini sudah pernah diimpor sebelumnya — dibuat lagi sebagai entry tambahan (create anyway).'];
         }
 
-        foreach ($parsed['unrecognized'] as $label) {
-            $report[] = [
-                'document_number' => 'UNRECOGNIZED',
-                'status' => 'needs_review',
-                'reason' => "Baris \"{$label}\" tidak dikenali sebagai kode akun, section, subtotal, atau summary line yang diketahui — dilewati, periksa format file.",
-            ];
-        }
-
         try {
             $entry = $this->journalEntryService->create([
                 'posting_date' => $parsed['period_end_date'],
-                'description' => "Income Statement import ({$batch->original_filename}) — periode {$parsed['period_label']}",
+                'description' => "Balance Sheet import ({$batch->original_filename}) — periode {$parsed['period_label']}",
                 // Non-null reference_type is what keeps Documentable::requiresApproval() false for
                 // this "manual" entry — same convention every prior importer this session relies on.
                 'reference_type' => $batch->getMorphClass(),
@@ -350,6 +299,11 @@ final class IncomeStatementImportService
             'preview_summary' => ['needs_review_rows' => count($report), 'vouchers' => $report],
             'status' => ImportBatchStatus::COMPLETED,
         ]);
+    }
+
+    private function startsWithTotal(?string $label): bool
+    {
+        return $label !== null && stripos($label, 'Total') === 0;
     }
 
     private function toStringOrNull(mixed $value): ?string

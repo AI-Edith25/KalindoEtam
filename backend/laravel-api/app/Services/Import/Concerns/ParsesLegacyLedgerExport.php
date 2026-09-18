@@ -2,9 +2,11 @@
 
 namespace App\Services\Import\Concerns;
 
+use App\Enums\AccountType;
 use App\Models\ChartOfAccount;
 use App\Services\Import\DataCleaner;
 use App\Services\Import\ImportFieldDefinition;
+use App\Services\Import\PrintLedgerImportService;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Throwable;
@@ -376,5 +378,45 @@ trait ParsesLegacyLedgerExport
         }
 
         return null;
+    }
+
+    /**
+     * Exact chart_of_accounts.code match, falling back to a fuzzy match on the account NAME
+     * (matchLedgerPartyByName()) when the legacy code doesn't exist in this system's own Chart of
+     * Accounts at all — the same 3rd-occurrence promotion as findDateRangeHeader() above:
+     * TrialBalanceImportService, IncomeStatementImportService, and BalanceSheetImportService all
+     * had byte-identical copies of this. Never guesses below $threshold — the caller excludes the
+     * row and reports it instead.
+     *
+     * @return array{account: ?ChartOfAccount, match_type: 'exact'|'fuzzy'|'unmatched'}
+     */
+    protected function resolveAccountByCodeOrName(?string $code, ?string $description, Collection $accountsByCode, Collection $allAccounts, float $threshold): array
+    {
+        if ($code !== null && $accountsByCode->has($code)) {
+            return ['account' => $accountsByCode->get($code), 'match_type' => 'exact'];
+        }
+
+        if ($description !== null) {
+            $match = $this->matchLedgerPartyByName($description, $allAccounts, fn (ChartOfAccount $a) => $a->name, $threshold);
+
+            if ($match !== null) {
+                return ['account' => $match, 'match_type' => 'fuzzy'];
+            }
+        }
+
+        return ['account' => null, 'match_type' => 'unmatched'];
+    }
+
+    /**
+     * Reuses PrintLedgerImportService's own suspense account (same "unreconciled migration
+     * difference" concept) across every importer that needs to plug a balancing gap left by
+     * excluded/unmatched rows, rather than each one creating its own.
+     */
+    protected function findOrCreateMigrationSuspenseAccount(): ChartOfAccount
+    {
+        return ChartOfAccount::query()->firstOrCreate(
+            ['code' => PrintLedgerImportService::SUSPENSE_ACCOUNT_CODE],
+            ['name' => 'Opening Balance Equity (Migration Suspense)', 'account_type' => AccountType::EQUITY, 'is_active' => true],
+        );
     }
 }

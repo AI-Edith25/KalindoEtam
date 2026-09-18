@@ -2,7 +2,6 @@
 
 namespace App\Services\Import;
 
-use App\Enums\AccountType;
 use App\Enums\ImportBatchStatus;
 use App\Models\ChartOfAccount;
 use App\Models\ImportBatch;
@@ -235,7 +234,7 @@ final class TrialBalanceImportService
         foreach ($parsed['accounts'] as $row) {
             $batch->increment('processed_rows');
 
-            $resolved = $this->resolveAccount($row['code'], $row['description'], $accountsByCode, $allAccounts);
+            $resolved = $this->resolveAccountByCodeOrName($row['code'], $row['description'], $accountsByCode, $allAccounts, self::ACCOUNT_NAME_MATCH_THRESHOLD);
             $label = "{$row['code']} — {$row['description']}";
 
             if ($resolved['account'] === null) {
@@ -291,7 +290,7 @@ final class TrialBalanceImportService
         }
 
         if (abs($plug) >= self::AMOUNT_EPSILON) {
-            $suspense = $this->findOrCreateSuspenseAccount();
+            $suspense = $this->findOrCreateMigrationSuspenseAccount();
             $lines[] = [
                 'chart_of_account_id' => $suspense->id,
                 'debit' => $plug < 0 ? abs($plug) : 0,
@@ -356,24 +355,6 @@ final class TrialBalanceImportService
         ]);
     }
 
-    /** @return array{account: ?ChartOfAccount, match_type: 'exact'|'fuzzy'|'unmatched'} */
-    private function resolveAccount(?string $code, ?string $description, Collection $accountsByCode, Collection $allAccounts): array
-    {
-        if ($code !== null && $accountsByCode->has($code)) {
-            return ['account' => $accountsByCode->get($code), 'match_type' => 'exact'];
-        }
-
-        if ($description !== null) {
-            $match = $this->matchLedgerPartyByName($description, $allAccounts, fn (ChartOfAccount $a) => $a->name, self::ACCOUNT_NAME_MATCH_THRESHOLD);
-
-            if ($match !== null) {
-                return ['account' => $match, 'match_type' => 'fuzzy'];
-            }
-        }
-
-        return ['account' => null, 'match_type' => 'unmatched'];
-    }
-
     private function toStringOrNull(mixed $value): ?string
     {
         if ($value === null) {
@@ -381,14 +362,5 @@ final class TrialBalanceImportService
         }
 
         return $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : (string) $value;
-    }
-
-    /** Reuses PrintLedgerImportService's own suspense account (same "unreconciled migration difference" concept) rather than creating a second one. */
-    private function findOrCreateSuspenseAccount(): ChartOfAccount
-    {
-        return ChartOfAccount::query()->firstOrCreate(
-            ['code' => PrintLedgerImportService::SUSPENSE_ACCOUNT_CODE],
-            ['name' => 'Opening Balance Equity (Migration Suspense)', 'account_type' => AccountType::EQUITY, 'is_active' => true],
-        );
     }
 }

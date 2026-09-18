@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\ApprovalController;
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BalanceSheetController;
+use App\Http\Controllers\Api\V1\BalanceSheetImportController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CashBookController;
 use App\Http\Controllers\Api\V1\CashBookImportController;
@@ -517,6 +518,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Year Profit / Retained Earnings) — no new balance calculation. See docs/BALANCE_SHEET_DESIGN.md.
     // Own distinct page/permission.
     Route::get('balance-sheet', [BalanceSheetController::class, 'summary'])->middleware('permission:accounting.balance_sheet.view');
+
+    // Balance Sheet smart import — one click, no mapping/preview wizard. Posts one combined,
+    // balanced Journal Entry rather than writing to any report table directly, same posture as
+    // Trial Balance/Income Statement import above. See BalanceSheetImportService.
+    Route::post('balance-sheet/import', [BalanceSheetImportController::class, 'store'])->middleware('permission:accounting.balance_sheet.import');
+    Route::get('balance-sheet/import/{batch}', [BalanceSheetImportController::class, 'show'])->middleware('permission:accounting.balance_sheet.import');
 
     // Cash Flow (Sprint 19B): Indirect Method — reuses ProfitLossService::summarize() (Net Profit
     // for the Period) and GeneralLedgerService::listAccounts() (opening/ending balance per account

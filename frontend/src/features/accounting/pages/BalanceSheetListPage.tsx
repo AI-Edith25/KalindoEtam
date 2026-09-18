@@ -1,16 +1,21 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Loader2, RotateCw } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Loader2, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { LedgerImportReportDialog } from '@/features/payment/components/LedgerImportReportDialog'
 import { formatCurrency } from '@/lib/utils'
 import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
+import { useHasPermission } from '@/shared/hooks/usePermission'
+import { getImportConfirmationReason, toastApiError } from '@/shared/services/errorHandler'
 import { fetchBalanceSheet } from '../api/balanceSheetApi'
+import { fetchBalanceSheetImportBatch, importBalanceSheet } from '../api/balanceSheetImportApi'
 import { BalanceSheetFiltersBar } from '../components/BalanceSheetFiltersBar'
 import { emptyBalanceSheetFilters } from '../lib/balanceSheetFilters'
 import { resolveFiscalYearStart, toDateString } from '../lib/profitLossFilters'
@@ -19,7 +24,28 @@ import type { BalanceSheetFilterValues, BalanceSheetSectionData } from '../types
 /** A read model, like General Ledger/Trial Balance/Profit & Loss — no create/edit/delete anywhere on this page. See docs/BALANCE_SHEET_DESIGN.md §1. */
 export function BalanceSheetListPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const canImport = useHasPermission('accounting.balance_sheet.import')
   const [filters, setFilters] = useState<BalanceSheetFilterValues>(emptyBalanceSheetFilters)
+  const [importBatchId, setImportBatchId] = useState<string | null>(null)
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{ message: string; file: File } | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
+
+  const importMutation = useMutation({
+    mutationFn: ({ file, duplicatePolicy }: { file: File; duplicatePolicy?: 'skip' | 'create_anyway' }) => importBalanceSheet(file, duplicatePolicy),
+    onSuccess: (batch) => {
+      setImportBatchId(batch.id)
+      setDuplicateConfirm(null)
+    },
+    onError: (error, variables) => {
+      const confirmation = getImportConfirmationReason(error)
+      if (confirmation?.reason === 'duplicate') {
+        setDuplicateConfirm({ message: confirmation.message, file: variables.file })
+        return
+      }
+      toastApiError(error)
+    },
+  })
 
   const companies = useCompaniesLookup()
 
@@ -99,7 +125,31 @@ export function BalanceSheetListPage() {
       <PageHeader
         title="Balance Sheet"
         description="A read-only snapshot of Assets, Liabilities, and Equity as of a chosen date — derived entirely from posted Journal Entries plus Profit & Loss's own Current Year Profit, never a second calculation."
-        actions={<ActionBar actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => reportQuery.refetch(), disabled: reportQuery.isFetching }]} />}
+        actions={
+          <ActionBar
+            actions={[
+              { label: 'Refresh', icon: RotateCw, onClick: () => reportQuery.refetch(), disabled: reportQuery.isFetching },
+              {
+                label: importMutation.isPending ? 'Mengunggah…' : 'Import',
+                icon: Upload,
+                disabled: !canImport || importMutation.isPending,
+                onClick: () => importFileInputRef.current?.click(),
+              },
+            ]}
+          />
+        }
+      />
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) importMutation.mutate({ file })
+        }}
       />
 
       <SectionNav group="accounting" variant="pills" end />
@@ -160,6 +210,30 @@ export function BalanceSheetListPage() {
           </Card>
         </>
       )}
+
+      <ConfirmationDialog
+        open={!!duplicateConfirm}
+        onOpenChange={(open) => !open && setDuplicateConfirm(null)}
+        title="Periode ini sudah pernah diimpor"
+        description={duplicateConfirm?.message}
+        confirmLabel="Buat sebagai entry tambahan"
+        onConfirm={() => {
+          if (duplicateConfirm) importMutation.mutate({ file: duplicateConfirm.file, duplicatePolicy: 'create_anyway' })
+        }}
+      />
+
+      <LedgerImportReportDialog
+        title="Import Balance Sheet"
+        batchId={importBatchId}
+        fetchBatch={fetchBalanceSheetImportBatch}
+        onClose={() => {
+          setImportBatchId(null)
+          // Posts to General Ledger via a Journal Entry, not to any Balance Sheet table directly
+          // (there isn't one — see BalanceSheetImportService) — refresh this page's own query too
+          // since it's a live re-derivation of the same underlying ledger data.
+          queryClient.invalidateQueries({ queryKey: ['balance-sheet'] })
+        }}
+      />
     </div>
   )
 }
