@@ -83,9 +83,16 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
 
   const resolveMutation = useMutation({
     mutationFn: () => {
-      const payload: PurchaseHistoryResolutionInput[] = (needsResolution ?? []).flatMap((entry) => {
+      // Every entry ships explicitly — a duplicate left untouched still needs a real 'skip' row here,
+      // since the backend's `resolutions` field is `required` and rejects an empty array outright.
+      const payload: PurchaseHistoryResolutionInput[] = (needsResolution ?? []).map((entry) => {
         const resolution = resolutions[resolutionKey(entry.category, entry.value)]
-        return resolution ? [{ category: entry.category, value: entry.value, action: resolution.action, target_id: resolution.target_id }] : []
+        return {
+          category: entry.category,
+          value: entry.value,
+          action: resolution?.action ?? 'skip',
+          target_id: resolution?.target_id ?? null,
+        }
       })
       return resolvePurchaseHistoryImport(batchId as string, payload)
     },
