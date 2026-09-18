@@ -340,4 +340,41 @@ trait ParsesLegacyLedgerExport
 
         return trim($value);
     }
+
+    /**
+     * Scans the report's own title rows for "dd/mm/yyyy - dd/mm/yyyy" (row 3 in every one of
+     * these legacy exports, but scanned across the first few rows rather than hardcoded to that
+     * index, in case of minor layout drift) and returns the raw label plus both parsed dates.
+     * Shared here (not left duplicated per-importer, the way splitParticulars()/
+     * looksLikeGroupLabelRow() still are for their 2-consumer cases) because this exact regex was
+     * about to be copy-pasted a third time — PrintLedgerImportService's own findOpeningDate() has
+     * an older, still-private copy of the same logic that's out of scope to touch here.
+     *
+     * @return array{label: string, start_date: string, end_date: string}|null
+     */
+    protected function findDateRangeHeader(array $rawRows, int $scanRows = 6): ?array
+    {
+        foreach (array_slice($rawRows, 0, $scanRows) as $row) {
+            foreach ($row as $cell) {
+                if (! is_string($cell)) {
+                    continue;
+                }
+
+                if (preg_match('#(\d{2})/(\d{2})/(\d{4})\s*-\s*(\d{2})/(\d{2})/(\d{4})#', $cell, $m) === 1) {
+                    $start = \DateTime::createFromFormat('!d/m/Y', "{$m[1]}/{$m[2]}/{$m[3]}");
+                    $end = \DateTime::createFromFormat('!d/m/Y', "{$m[4]}/{$m[5]}/{$m[6]}");
+
+                    if ($start !== false && $end !== false) {
+                        return [
+                            'label' => "{$m[1]}/{$m[2]}/{$m[3]} - {$m[4]}/{$m[5]}/{$m[6]}",
+                            'start_date' => $start->format('Y-m-d'),
+                            'end_date' => $end->format('Y-m-d'),
+                        ];
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
 }

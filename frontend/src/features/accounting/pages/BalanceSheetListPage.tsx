@@ -45,7 +45,7 @@ export function BalanceSheetListPage() {
   const goToProfitLoss = () => {
     const fiscalYearStart = toDateString(resolveFiscalYearStart(companies.data ?? [], filters.companyId))
     const params = new URLSearchParams({ date_from: fiscalYearStart, date_to: filters.asOfDate })
-    navigate(`/reports/general-ledger/profit-loss?${params.toString()}`)
+    navigate(`/reports/general-ledger/income-statement?${params.toString()}`)
   }
 
   const renderSection = (section: BalanceSheetSectionData | undefined) => {

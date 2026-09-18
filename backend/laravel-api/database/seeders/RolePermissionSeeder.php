@@ -79,7 +79,7 @@ class RolePermissionSeeder extends Seeder
         'accounting.journal_list' => ['view', 'import'],
         'accounting.general_ledger' => ['view', 'import'],
         'accounting.trial_balance' => ['view', 'import'],
-        'accounting.profit_loss' => ['view'],
+        'accounting.profit_loss' => ['view', 'import'],
         'accounting.balance_sheet' => ['view'],
         'accounting.cash_flow' => ['view'],
         'accounting.period_closing' => ['view', 'create', 'update'],

@@ -158,7 +158,7 @@ final class TrialBalanceImportService
             }
         }
 
-        $period = $this->findPeriodRange($rawRows);
+        $period = $this->findDateRangeHeader($rawRows);
 
         return [
             'accounts' => $accounts,
@@ -372,28 +372,6 @@ final class TrialBalanceImportService
         }
 
         return ['account' => null, 'match_type' => 'unmatched'];
-    }
-
-    /** @return array{label: string, end_date: string}|null */
-    private function findPeriodRange(array $rawRows): ?array
-    {
-        foreach (array_slice($rawRows, 0, 6) as $row) {
-            foreach ($row as $cell) {
-                if (! is_string($cell)) {
-                    continue;
-                }
-
-                if (preg_match('#(\d{2}/\d{2}/\d{4})\s*-\s*(\d{2})/(\d{2})/(\d{4})#', $cell, $m) === 1) {
-                    $endDate = \DateTime::createFromFormat('!d/m/Y', "{$m[2]}/{$m[3]}/{$m[4]}");
-
-                    if ($endDate !== false) {
-                        return ['label' => "{$m[1]} - {$m[2]}/{$m[3]}/{$m[4]}", 'end_date' => $endDate->format('Y-m-d')];
-                    }
-                }
-            }
-        }
-
-        return null;
     }
 
     private function toStringOrNull(mixed $value): ?string

@@ -398,7 +398,7 @@ export function AppRouter() {
         <Route path="/reports/general-ledger/:accountId" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerDetailPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/journal-list" element={<ProtectedRoute permission="accounting.journal_list.view"><JournalListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/trial-balance" element={<ProtectedRoute permission="accounting.trial_balance.view"><TrialBalanceListPage /></ProtectedRoute>} />
-        <Route path="/reports/general-ledger/profit-loss" element={<ProtectedRoute permission="accounting.profit_loss.view"><ProfitLossListPage /></ProtectedRoute>} />
+        <Route path="/reports/general-ledger/income-statement" element={<ProtectedRoute permission="accounting.profit_loss.view"><ProfitLossListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/balance-sheet" element={<ProtectedRoute permission="accounting.balance_sheet.view"><BalanceSheetListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/cash-flow" element={<ProtectedRoute permission="accounting.cash_flow.view"><CashFlowListPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger/period-closing" element={<ProtectedRoute permission="accounting.period_closing.view"><PeriodManagementPage /></ProtectedRoute>} />
@@ -441,7 +441,9 @@ export function AppRouter() {
         <Route path="/finance/general-journal/journal-list" element={<Navigate to="/reports/general-ledger/journal-list" replace />} />
         <Route path="/finance/general-journal/general-ledger" element={<Navigate to="/reports/general-ledger" replace />} />
         <Route path="/finance/general-journal/trial-balance" element={<Navigate to="/reports/general-ledger/trial-balance" replace />} />
-        <Route path="/finance/general-journal/profit-loss" element={<Navigate to="/reports/general-ledger/profit-loss" replace />} />
+        <Route path="/finance/general-journal/profit-loss" element={<Navigate to="/reports/general-ledger/income-statement" replace />} />
+        {/* Income Statement's URL moved from "profit-loss" to match its already-renamed display label (2026-09-18) — keeps old bookmarks/links working, and stops "profit-loss" falling through to the /:accountId drill-down route below. */}
+        <Route path="/reports/general-ledger/profit-loss" element={<Navigate to="/reports/general-ledger/income-statement" replace />} />
         <Route path="/finance/general-journal/balance-sheet" element={<Navigate to="/reports/general-ledger/balance-sheet" replace />} />
         <Route path="/finance/general-journal/cash-flow" element={<Navigate to="/reports/general-ledger/cash-flow" replace />} />
         <Route path="/finance/general-journal/period-closing" element={<Navigate to="/reports/general-ledger/period-closing" replace />} />

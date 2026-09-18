@@ -21,7 +21,7 @@ export function FinancialSummaryCards() {
         description="Month to date"
         icon={TrendingUp}
         isLoading={isLoading}
-        to="/reports/general-ledger/profit-loss"
+        to="/reports/general-ledger/income-statement"
       />
       <SummaryCard
         title="Net Profit (MTD)"
@@ -29,7 +29,7 @@ export function FinancialSummaryCards() {
         description="Month to date"
         icon={DollarSign}
         isLoading={isLoading}
-        to="/reports/general-ledger/profit-loss"
+        to="/reports/general-ledger/income-statement"
       />
     </>
   )

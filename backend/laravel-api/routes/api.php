@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\GeneralLedgerImportController;
 use App\Http\Controllers\Api\V1\GoodsReceiptController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\ImportMappingPresetController;
+use App\Http\Controllers\Api\V1\IncomeStatementImportController;
 use App\Http\Controllers\Api\V1\InvoiceChangeRequestController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\IssueStockController;
@@ -503,6 +504,13 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // classified via the separate report_account_mappings table — chart_of_accounts gains no new
     // columns. See docs/PROFIT_LOSS_DESIGN.md. Own distinct page/permission.
     Route::get('profit-loss', [ProfitLossController::class, 'summary'])->middleware('permission:accounting.profit_loss.view');
+
+    // Income Statement (= this app's own Profit & Loss, page/permission untouched — only its
+    // frontend URL was ever renamed) smart import — one click, no mapping/preview wizard. Posts
+    // one combined, balanced Journal Entry rather than writing to any report table directly, same
+    // posture as Trial Balance import above. See IncomeStatementImportService.
+    Route::post('profit-loss/import', [IncomeStatementImportController::class, 'store'])->middleware('permission:accounting.profit_loss.import');
+    Route::get('profit-loss/import/{batch}', [IncomeStatementImportController::class, 'show'])->middleware('permission:accounting.profit_loss.import');
 
     // Balance Sheet (Sprint 18B): a presentation layer over GeneralLedgerService::listAccounts()
     // (cumulative ending_balance, not period movement) and ProfitLossService::summarize() (Current

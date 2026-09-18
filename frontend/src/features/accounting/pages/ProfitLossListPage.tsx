@@ -1,15 +1,20 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Loader2, RotateCw } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Download, Loader2, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { LedgerImportReportDialog } from '@/features/payment/components/LedgerImportReportDialog'
 import { formatCurrency } from '@/lib/utils'
 import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
+import { useHasPermission } from '@/shared/hooks/usePermission'
+import { getImportConfirmationReason, toastApiError } from '@/shared/services/errorHandler'
 import { fetchProfitLoss } from '../api/profitLossApi'
+import { fetchProfitLossImportBatch, importProfitLoss } from '../api/profitLossImportApi'
 import { ProfitLossFiltersBar } from '../components/ProfitLossFiltersBar'
 import { emptyProfitLossFilters, resolvePeriodPreset } from '../lib/profitLossFilters'
 import type { ProfitLossFilterValues, ProfitLossSectionData } from '../types'
@@ -17,7 +22,28 @@ import type { ProfitLossFilterValues, ProfitLossSectionData } from '../types'
 /** A read model, like General Ledger and Trial Balance — no create/edit/delete anywhere on this page. See docs/PROFIT_LOSS_DESIGN.md §1. */
 export function ProfitLossListPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const canImport = useHasPermission('accounting.profit_loss.import')
   const [searchParams] = useSearchParams()
+  const [importBatchId, setImportBatchId] = useState<string | null>(null)
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{ message: string; file: File } | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
+
+  const importMutation = useMutation({
+    mutationFn: ({ file, duplicatePolicy }: { file: File; duplicatePolicy?: 'skip' | 'create_anyway' }) => importProfitLoss(file, duplicatePolicy),
+    onSuccess: (batch) => {
+      setImportBatchId(batch.id)
+      setDuplicateConfirm(null)
+    },
+    onError: (error, variables) => {
+      const confirmation = getImportConfirmationReason(error)
+      if (confirmation?.reason === 'duplicate') {
+        setDuplicateConfirm({ message: confirmation.message, file: variables.file })
+        return
+      }
+      toastApiError(error)
+    },
+  })
   // Balance Sheet's Current Year Profit drill-down (docs/BALANCE_SHEET_DESIGN.md §9) carries
   // date_from/date_to as query params, the same "opens pre-scoped, absent behaves exactly as
   // before" pattern already used for General Ledger's own Account Detail page.
@@ -101,7 +127,32 @@ export function ProfitLossListPage() {
       <PageHeader
         title="Income Statement"
         description="A read-only report of Revenue, Cost of Goods Sold, Operating Expenses, and Net Profit for a reporting period — derived entirely from posted Journal Entries, never a second calculation."
-        actions={<ActionBar actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => reportQuery.refetch(), disabled: reportQuery.isFetching }]} />}
+        actions={
+          <ActionBar
+            actions={[
+              { label: 'Refresh', icon: RotateCw, onClick: () => reportQuery.refetch(), disabled: reportQuery.isFetching },
+              { label: 'Export', icon: Download, disabled: true },
+              {
+                label: importMutation.isPending ? 'Mengunggah…' : 'Import',
+                icon: Upload,
+                disabled: !canImport || importMutation.isPending,
+                onClick: () => importFileInputRef.current?.click(),
+              },
+            ]}
+          />
+        }
+      />
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) importMutation.mutate({ file })
+        }}
       />
 
       <SectionNav group="accounting" variant="pills" end />
@@ -145,6 +196,30 @@ export function ProfitLossListPage() {
           </Card>
         </>
       )}
+
+      <ConfirmationDialog
+        open={!!duplicateConfirm}
+        onOpenChange={(open) => !open && setDuplicateConfirm(null)}
+        title="Periode ini sudah pernah diimpor"
+        description={duplicateConfirm?.message}
+        confirmLabel="Buat sebagai entry tambahan"
+        onConfirm={() => {
+          if (duplicateConfirm) importMutation.mutate({ file: duplicateConfirm.file, duplicatePolicy: 'create_anyway' })
+        }}
+      />
+
+      <LedgerImportReportDialog
+        title="Import Income Statement"
+        batchId={importBatchId}
+        fetchBatch={fetchProfitLossImportBatch}
+        onClose={() => {
+          setImportBatchId(null)
+          // Posts to General Ledger via a Journal Entry, not to any Income Statement table
+          // directly (there isn't one — see IncomeStatementImportService) — refresh this page's
+          // own query too since it's a live re-derivation of the same underlying ledger data.
+          queryClient.invalidateQueries({ queryKey: ['profit-loss'] })
+        }}
+      />
     </div>
   )
 }
