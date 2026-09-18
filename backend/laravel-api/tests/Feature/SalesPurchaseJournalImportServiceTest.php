@@ -98,6 +98,37 @@ class SalesPurchaseJournalImportServiceTest extends TestCase
         $this->assertNotNull($taxLine, 'Tax Code should be folded into the line description.');
     }
 
+    public function test_account_code_not_found_falls_back_to_fuzzy_name_match_before_suspense(): void
+    {
+        // Old long-format code — never seeded, doesn't exist in the new Chart of Accounts at all.
+        // Only the account NAME embedded in Particulars can resolve it. Deliberately distinct from
+        // setUp()'s own "210.01.01 / HUTANG SUPPLIER" so this proves the fuzzy match, not a name
+        // collision with an unrelated account.
+        ChartOfAccount::query()->create(['code' => '2000', 'name' => 'HUTANG SUPPLIER LEASING KENDARAAN', 'account_type' => 'liability', 'is_active' => true]);
+
+        $csv = self::PREAMBLE.self::HEADER
+            .'Purchase Journal,,,,,,,,,,'."\r\n"
+            .'PI-0002,01/07/2022,,"210.99.99 - HUTANG SUPPLIER LEASING KENDARAAN - [Purchases, PT XYZ]",0,100000,,,,,'."\r\n"
+            .',01/07/2022,,"510.01.02 - PEMBELIAN - [Beli barang]",100000,0,,,,,'."\r\n"
+            .'Total For :[Purchase Journal],,,,100000,100000,,,,,'."\r\n";
+
+        $batch = $this->makeBatch($csv, 'purchase_invoice');
+        $this->service->import($batch);
+        $batch->refresh();
+
+        $this->assertEquals(ImportBatchStatus::COMPLETED, $batch->status);
+        $this->assertSame(0, $batch->failed_rows, 'nothing should land in suspense once the fuzzy fallback resolves it');
+        $this->assertSame(1, $batch->preview_summary['needs_review_rows'], 'a fuzzy match is still flagged for human verification');
+
+        $entry = JournalEntry::query()->where('source_document_number', 'PI-0002')->with('lines.chartOfAccount')->firstOrFail();
+        $fuzzyLine = $entry->lines->first(fn ($l) => $l->chartOfAccount->code === '2000');
+        $this->assertNotNull($fuzzyLine, 'should resolve to the new HUTANG SUPPLIER account by name, not suspense');
+        $this->assertEquals(100000, (float) $fuzzyLine->credit);
+
+        $voucher = collect($batch->preview_summary['vouchers'])->firstWhere('document_number', 'PI-0002');
+        $this->assertStringContainsString('dicocokkan otomatis by nama', $voucher['reason']);
+    }
+
     public function test_unmatched_account_code_is_redirected_to_suspense_and_flagged_for_review(): void
     {
         $csv = self::PREAMBLE.self::HEADER

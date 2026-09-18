@@ -80,6 +80,22 @@ export function isJournalTypeMismatch(error: unknown): boolean {
 }
 
 /**
+ * For ImportConfirmationRequiredException's 409 shape (TrialBalanceImportController::store()) —
+ * unlike isJournalTypeMismatch/isOverReceiptConfirmationRequired's plain boolean, this controller
+ * needs more than one distinct confirmation in the same flow (a duplicate period vs. the file's
+ * own out-of-balance figure), so the reason and any extra data (e.g. the out-of-balance amount)
+ * come back too. Returns null for any other error shape.
+ */
+export function getImportConfirmationReason(error: unknown): { reason: string; message: string; data: Record<string, unknown> } | null {
+  if (!axios.isAxiosError(error) || error.response?.status !== 409) return null
+
+  const data = error.response.data as { message?: string; data?: { requires_confirmation?: boolean; reason?: string } } | undefined
+  if (data?.data?.requires_confirmation !== true || !data.data.reason) return null
+
+  return { reason: data.data.reason, message: data.message ?? '', data: data.data }
+}
+
+/**
  * True for the 1-step import auto-endpoint's 422 rejection (a required column wasn't
  * confidently recognized) — callers show the message + missing_fields inline (with a link
  * to the manual wizard where one exists) instead of a plain toast.

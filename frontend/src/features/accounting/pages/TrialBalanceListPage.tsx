@@ -1,16 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { LedgerImportReportDialog } from '@/features/payment/components/LedgerImportReportDialog'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { useCompaniesLookup } from '@/features/master/hooks/useLookups'
+import { useHasPermission } from '@/shared/hooks/usePermission'
+import { getImportConfirmationReason, toastApiError } from '@/shared/services/errorHandler'
 import { fetchTrialBalance } from '../api/trialBalanceApi'
+import { fetchTrialBalanceImportBatch, importTrialBalance, type TrialBalanceDuplicatePolicy } from '../api/trialBalanceImportApi'
 import { TrialBalanceFiltersBar } from '../components/TrialBalanceFiltersBar'
 import { emptyTrialBalanceFilters, resolvePeriodPreset, withinAccountRange } from '../lib/trialBalanceFilters'
 import type { TrialBalanceFilterValues, TrialBalanceRow } from '../types'
@@ -18,7 +23,35 @@ import type { TrialBalanceFilterValues, TrialBalanceRow } from '../types'
 /** A read model, like General Ledger — no create/edit/delete anywhere on this page. See docs/TRIAL_BALANCE_DESIGN.md §1. */
 export function TrialBalanceListPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const canImport = useHasPermission('accounting.trial_balance.import')
   const [filters, setFilters] = useState<TrialBalanceFilterValues>(emptyTrialBalanceFilters)
+  const [importBatchId, setImportBatchId] = useState<string | null>(null)
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{ message: string; file: File } | null>(null)
+  const [outOfBalanceConfirm, setOutOfBalanceConfirm] = useState<{ message: string; file: File } | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
+
+  const importMutation = useMutation({
+    mutationFn: ({ file, duplicatePolicy, confirmOutOfBalance }: { file: File; duplicatePolicy?: TrialBalanceDuplicatePolicy; confirmOutOfBalance?: boolean }) =>
+      importTrialBalance(file, duplicatePolicy, confirmOutOfBalance),
+    onSuccess: (batch) => {
+      setImportBatchId(batch.id)
+      setDuplicateConfirm(null)
+      setOutOfBalanceConfirm(null)
+    },
+    onError: (error, variables) => {
+      const confirmation = getImportConfirmationReason(error)
+      if (confirmation?.reason === 'duplicate') {
+        setDuplicateConfirm({ message: confirmation.message, file: variables.file })
+        return
+      }
+      if (confirmation?.reason === 'out_of_balance') {
+        setOutOfBalanceConfirm({ message: confirmation.message, file: variables.file })
+        return
+      }
+      toastApiError(error)
+    },
+  })
 
   const companies = useCompaniesLookup()
   const { dateFrom, dateTo } = resolvePeriodPreset(filters, companies.data ?? [])
@@ -74,10 +107,27 @@ export function TrialBalanceListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              {
+                label: importMutation.isPending ? 'Mengunggah…' : 'Import',
+                icon: Upload,
+                disabled: !canImport || importMutation.isPending,
+                onClick: () => importFileInputRef.current?.click(),
+              },
             ]}
           />
         }
+      />
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) importMutation.mutate({ file })
+        }}
       />
 
       <SectionNav group="accounting" variant="pills" end />
@@ -114,6 +164,41 @@ export function TrialBalanceListPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmationDialog
+        open={!!duplicateConfirm}
+        onOpenChange={(open) => !open && setDuplicateConfirm(null)}
+        title="Periode ini sudah pernah diimpor"
+        description={duplicateConfirm?.message}
+        confirmLabel="Buat sebagai entry tambahan"
+        onConfirm={() => {
+          if (duplicateConfirm) importMutation.mutate({ file: duplicateConfirm.file, duplicatePolicy: 'create_anyway' })
+        }}
+      />
+
+      <ConfirmationDialog
+        open={!!outOfBalanceConfirm}
+        onOpenChange={(open) => !open && setOutOfBalanceConfirm(null)}
+        title="File tidak balance"
+        description={outOfBalanceConfirm?.message}
+        confirmLabel="Lanjutkan Import"
+        onConfirm={() => {
+          if (outOfBalanceConfirm) importMutation.mutate({ file: outOfBalanceConfirm.file, confirmOutOfBalance: true })
+        }}
+      />
+
+      <LedgerImportReportDialog
+        title="Import Trial Balance"
+        batchId={importBatchId}
+        fetchBatch={fetchTrialBalanceImportBatch}
+        onClose={() => {
+          setImportBatchId(null)
+          // Posts to General Ledger via a Journal Entry, not to any Trial Balance table directly
+          // (there isn't one — see TrialBalanceImportService) — refresh this page's own query too
+          // since it's a live re-derivation of the same underlying ledger data.
+          queryClient.invalidateQueries({ queryKey: ['trial-balance'] })
+        }}
+      />
     </div>
   )
 }

@@ -59,6 +59,9 @@ final class SalesPurchaseJournalImportService
 
     private const PEEK_ROWS = 20;
 
+    /** Legacy account codes (e.g. "112.01.01") don't match this system's own Chart of Accounts codes (e.g. "1200") at all — confirmed against real production data. Same threshold as TrialBalanceImportService's own account-name fallback. */
+    private const ACCOUNT_NAME_MATCH_THRESHOLD = 70.0;
+
     public const SUSPENSE_ACCOUNT_CODE = 'JOURNAL-IMPORT-SUSPENSE';
 
     private const GROUP_LABELS = [
@@ -194,6 +197,7 @@ final class SalesPurchaseJournalImportService
         $batch->update(['status' => ImportBatchStatus::PROCESSING, 'started_at' => now()]);
 
         $accountsByCode = ChartOfAccount::query()->where('is_active', true)->get()->keyBy('code');
+        $allAccounts = $accountsByCode->values();
         $branchesByCode = Branch::query()->where('is_active', true)->get()->keyBy(fn (Branch $b) => strtoupper(trim($b->code)));
 
         $tally = [
@@ -203,12 +207,12 @@ final class SalesPurchaseJournalImportService
             'trailer' => null,
         ];
 
-        $flush = function () use (&$tally, $accountsByCode, $branchesByCode, $view, $duplicatePolicy, $batch) {
+        $flush = function () use (&$tally, $accountsByCode, $allAccounts, $branchesByCode, $view, $duplicatePolicy, $batch) {
             if ($tally['group'] === []) {
                 return;
             }
 
-            $outcome = $this->processGroup($tally['groupTransaction'], $tally['group'], $accountsByCode, $branchesByCode, $view, $duplicatePolicy, $batch);
+            $outcome = $this->processGroup($tally['groupTransaction'], $tally['group'], $accountsByCode, $allAccounts, $branchesByCode, $view, $duplicatePolicy, $batch);
 
             if ($outcome['status'] !== 'success') {
                 $tally['report'][] = $outcome;
@@ -318,7 +322,7 @@ final class SalesPurchaseJournalImportService
         return $transaction !== null && $date === null && $debit === null && $credit === null;
     }
 
-    /** @return array{date: string, account_code: ?string, remark: string, secondary_reference: ?string, tax_code: ?string, salesman_code: ?string, branch_code: ?string, debit: float, credit: float}|null */
+    /** @return array{date: string, account_code: ?string, account_name: ?string, remark: string, secondary_reference: ?string, tax_code: ?string, salesman_code: ?string, branch_code: ?string, debit: float, credit: float}|null */
     private function parseRow(array $raw, array $columnIndex, string $decimalStyle): ?array
     {
         $get = fn (string $field) => isset($columnIndex[$field]) ? ($raw[$columnIndex[$field]] ?? null) : null;
@@ -334,11 +338,12 @@ final class SalesPurchaseJournalImportService
             return null;
         }
 
-        [$accountCode, $remark] = $this->splitParticulars((string) ($get('particulars') ?? ''));
+        [$accountCode, $accountName, $remark] = $this->splitParticulars((string) ($get('particulars') ?? ''));
 
         return [
             'date' => $date,
             'account_code' => $accountCode,
+            'account_name' => $accountName,
             'remark' => $remark,
             'secondary_reference' => DataCleaner::normalizeText($this->rawToStringOrNull($get('secondary_reference'))),
             'tax_code' => DataCleaner::normalizeText($this->rawToStringOrNull($get('tax_code'))),
@@ -360,19 +365,20 @@ final class SalesPurchaseJournalImportService
 
     /**
      * "{code} - {name} - [{remark}]" (see SalesJournalExport::particulars()/JournalListExport's
-     * own convention) — the leading code, and the bracketed remark. Same regex as
-     * CashBookImportService::splitParticulars() (duplicated for the same reason noted on
-     * looksLikeGroupLabelRow() above).
+     * own convention) — code, account name, and the bracketed remark. The name segment (unlike
+     * CashBookImportService::splitParticulars(), which only needs code+remark since it resolves
+     * accounts by exact code alone) is what lets processGroup() fall back to a fuzzy name match
+     * when the legacy code doesn't exist in this system's own Chart of Accounts at all.
      *
-     * @return array{0: ?string, 1: string}
+     * @return array{0: ?string, 1: ?string, 2: string}
      */
     private function splitParticulars(string $particulars): array
     {
-        if (preg_match('/^(\S+)\s*-\s*.*?\[(.*)\]\s*$/', trim($particulars), $matches) !== 1) {
-            return [null, trim($particulars)];
+        if (preg_match('/^(\S+)\s*-\s*(.*?)\s*-\s*\[(.*)\]\s*$/', trim($particulars), $matches) !== 1) {
+            return [null, null, trim($particulars)];
         }
 
-        return [$matches[1], trim($matches[2])];
+        return [$matches[1], $matches[2] !== '' ? $matches[2] : null, trim($matches[3])];
     }
 
     private function rawToStringOrNull(mixed $value): ?string
@@ -384,7 +390,7 @@ final class SalesPurchaseJournalImportService
      * @param  array<int, array>  $rows
      * @return array{document_number: string, status: string, reason: ?string}
      */
-    private function processGroup(string $documentNumber, array $rows, Collection $accountsByCode, Collection $branchesByCode, string $view, string $duplicatePolicy, ImportBatch $batch): array
+    private function processGroup(string $documentNumber, array $rows, Collection $accountsByCode, Collection $allAccounts, Collection $branchesByCode, string $view, string $duplicatePolicy, ImportBatch $batch): array
     {
         $base = ['document_number' => $documentNumber];
 
@@ -413,9 +419,23 @@ final class SalesPurchaseJournalImportService
 
             $account = $row['account_code'] !== null ? $accountsByCode->get($row['account_code']) : null;
 
+            // Legacy long-format codes (e.g. "112.01.01") routinely don't exist in this system's
+            // own Chart of Accounts (short-format, e.g. "1200") at all — confirmed against real
+            // production data. Before giving up to suspense, try a fuzzy match on the account NAME
+            // segment of Particulars (splitParticulars()'s 2nd capture group), same primitive
+            // TrialBalanceImportService's own account resolution uses.
+            if ($account === null && $row['account_name'] !== null) {
+                $fuzzyAccount = $this->matchLedgerPartyByName($row['account_name'], $allAccounts, fn (ChartOfAccount $a) => $a->name, self::ACCOUNT_NAME_MATCH_THRESHOLD);
+
+                if ($fuzzyAccount !== null) {
+                    $account = $fuzzyAccount;
+                    $reviewNotes[] = "Kode akun \"{$row['account_code']}\" ({$row['account_name']}) tidak ditemukan — dicocokkan otomatis by nama ke \"{$account->code} - {$account->name}\", mohon verifikasi.";
+                }
+            }
+
             if ($account === null) {
                 $account = $this->findOrCreateSuspenseAccount();
-                $reviewNotes[] = "Kode akun \"{$row['account_code']}\" tidak ditemukan di Chart of Accounts — dialihkan ke akun suspense.";
+                $reviewNotes[] = "Kode akun \"{$row['account_code']}\" ({$row['account_name']}) tidak ditemukan di Chart of Accounts (exact maupun fuzzy) — dialihkan ke akun suspense.";
             }
 
             $branch = $row['branch_code'] !== null ? $branchesByCode->get(strtoupper(trim($row['branch_code']))) : null;

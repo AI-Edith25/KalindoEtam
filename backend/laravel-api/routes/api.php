@@ -77,6 +77,7 @@ use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TaxController;
 use App\Http\Controllers\Api\V1\TermsOfPaymentController;
 use App\Http\Controllers\Api\V1\TrialBalanceController;
+use App\Http\Controllers\Api\V1\TrialBalanceImportController;
 use App\Http\Controllers\Api\V1\UomController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\WarehouseController;
@@ -491,6 +492,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // — no new balance calculation, no new accounting table. See docs/TRIAL_BALANCE_DESIGN.md.
     // Own distinct page/permission, same reasoning as General Ledger above.
     Route::get('trial-balance', [TrialBalanceController::class, 'summary'])->middleware('permission:accounting.trial_balance.view');
+
+    // Trial Balance smart import — one click, no mapping/preview wizard. Posts one combined,
+    // balanced Journal Entry (Trial Balance itself is read-only — see TrialBalanceImportService)
+    // rather than writing to any Trial Balance table directly.
+    Route::post('trial-balance/import', [TrialBalanceImportController::class, 'store'])->middleware('permission:accounting.trial_balance.import');
+    Route::get('trial-balance/import/{batch}', [TrialBalanceImportController::class, 'show'])->middleware('permission:accounting.trial_balance.import');
 
     // Profit & Loss (Sprint 17B): a presentation layer over GeneralLedgerService::listAccounts(),
     // classified via the separate report_account_mappings table — chart_of_accounts gains no new
