@@ -495,3 +495,49 @@ export interface TaxReportFilterValues {
   branch_id: string
   warehouse_id: string
 }
+
+/**
+ * Purchase Report's smart import (Purchase Orders tab) — one click, auto-detects Product Purchase
+ * Report vs. Purchase Order Tracking, no manual column mapping. See PurchaseHistoryImportService
+ * on the backend. A resolve step only appears when `needs_resolution` comes back non-empty.
+ */
+export type PurchaseHistoryImportBatchStatus = 'previewed' | 'queued' | 'processing' | 'completed' | 'failed'
+export type PurchaseHistoryResolutionCategory = 'supplier' | 'item' | 'duplicate'
+export type PurchaseHistoryResolutionAction = 'create' | 'map' | 'skip' | 'proceed'
+
+export interface PurchaseHistoryFkSuggestion {
+  id: string
+  value: string
+  score: number
+}
+
+export interface PurchaseHistoryResolutionEntry {
+  category: PurchaseHistoryResolutionCategory
+  value: string
+  status: string
+  suggestions: PurchaseHistoryFkSuggestion[]
+}
+
+export interface PurchaseHistoryImportOutcome {
+  document_number: string
+  status: 'success' | 'needs_review' | 'failed'
+  reason: string | null
+}
+
+export interface PurchaseHistoryImportPreviewSummary {
+  needs_resolution?: PurchaseHistoryResolutionEntry[]
+  warnings?: string[]
+  needs_review_rows?: number
+  vouchers?: PurchaseHistoryImportOutcome[]
+}
+
+export interface PurchaseHistoryImportBatch {
+  id: string
+  status: PurchaseHistoryImportBatchStatus
+  total_rows: number
+  processed_rows: number
+  success_rows: number
+  failed_rows: number
+  failure_reason: string | null
+  preview_summary: PurchaseHistoryImportPreviewSummary | null
+}

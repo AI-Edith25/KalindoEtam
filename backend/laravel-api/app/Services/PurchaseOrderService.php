@@ -58,6 +58,7 @@ class PurchaseOrderService
                 'tax_id' => $data['tax_id'] ?? null,
                 'tax_amount' => 0,
                 'grand_total' => $subtotal,
+                'source_document_number' => $data['source_document_number'] ?? null,
             ]);
 
             $taxAmount = $this->replaceItems($purchaseOrder, $data['items']);

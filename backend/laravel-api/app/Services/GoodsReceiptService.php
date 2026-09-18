@@ -65,6 +65,7 @@ class GoodsReceiptService
                 'receipt_date' => $data['receipt_date'],
                 'due_date' => $data['due_date'],
                 'remarks' => $data['remarks'] ?? null,
+                'source_document_number' => $data['source_document_number'] ?? null,
             ]);
 
             $confirmOverReceipt = (bool) ($data['confirm_over_receipt'] ?? false);
@@ -119,6 +120,7 @@ class GoodsReceiptService
             'receipt_date' => $data['receipt_date'],
             'due_date' => $data['due_date'],
             'remarks' => $data['remarks'] ?? null,
+            'source_document_number' => $data['source_document_number'] ?? null,
         ]);
 
         foreach ($data['items'] as $line) {

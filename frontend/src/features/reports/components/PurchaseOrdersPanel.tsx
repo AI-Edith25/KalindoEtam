@@ -11,6 +11,8 @@ import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { fetchPurchaseOrders } from '@/features/purchase/api/purchaseOrderApi'
 import type { PurchaseOrder } from '@/features/purchase/types'
+import { useHasPermission } from '@/shared/hooks/usePermission'
+import { PurchaseHistoryImportDialog } from './PurchaseHistoryImportDialog'
 import { PurchaseReportFiltersBar } from './PurchaseReportFiltersBar'
 import type { PurchaseReportFilterValues } from '../types'
 
@@ -24,8 +26,10 @@ interface PurchaseOrdersPanelProps {
 /** Purchase Report's Purchase Orders tab — today's original page content, unchanged in structure/columns. Reuses fetchPurchaseOrders() as-is, no dedicated backend report endpoint. */
 export function PurchaseOrdersPanel({ filters, onFiltersChange, page, onPageChange }: PurchaseOrdersPanelProps) {
   const navigate = useNavigate()
+  const canImport = useHasPermission('reports.purchase.import')
 
   const [search, setSearch] = useState('')
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
 
   const listQuery = useQuery({
     queryKey: ['purchase-report', page, search, filters.supplier_id, filters.status, filters.dateFrom, filters.dateTo],
@@ -70,10 +74,18 @@ export function PurchaseOrdersPanel({ filters, onFiltersChange, page, onPageChan
           actions={[
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
             { label: 'Export', icon: Download, disabled: true },
-            { label: 'Import', icon: Upload, disabled: true },
+            { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => setImportDialogOpen(true) },
           ]}
         />
       </div>
+
+      <PurchaseHistoryImportDialog
+        open={importDialogOpen}
+        onClose={() => {
+          setImportDialogOpen(false)
+          listQuery.refetch()
+        }}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <SummaryCard

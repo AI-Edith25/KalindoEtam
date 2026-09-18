@@ -29,6 +29,7 @@ class PurchaseOrder extends Model
         'tax_amount',
         'grand_total',
         'remarks',
+        'source_document_number',
     ];
 
     protected $casts = [

@@ -29,6 +29,7 @@ class GoodsReceipt extends Model
         'receipt_date',
         'due_date',
         'remarks',
+        'source_document_number',
     ];
 
     protected $casts = [

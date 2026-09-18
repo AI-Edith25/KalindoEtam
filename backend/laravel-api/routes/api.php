@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\V1\ProductSalesController;
 use App\Http\Controllers\Api\V1\ProfitLossController;
 use App\Http\Controllers\Api\V1\PurchaseByItemController;
 use App\Http\Controllers\Api\V1\PurchaseBySupplierController;
+use App\Http\Controllers\Api\V1\PurchaseHistoryImportController;
 use App\Http\Controllers\Api\V1\PurchaseInvoiceController;
 use App\Http\Controllers\Api\V1\PurchaseJournalController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
@@ -243,6 +244,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('reports/purchase/po-tracking', [PoTrackingController::class, 'index'])->middleware('permission:reports.purchase.view');
     Route::get('reports/purchase/po-tracking/export', [PoTrackingController::class, 'export'])->middleware('permission:reports.purchase.view');
     Route::get('reports/purchase/po-tracking/{purchaseOrderId}/items', [PoTrackingController::class, 'items'])->middleware('permission:reports.purchase.view');
+
+    // Purchase Report smart import — one click, no manual column-mapping wizard. Posts real
+    // Purchase Order/Goods Receipt documents (unlike every GL-report importer above, which posts
+    // a raw Journal Entry) since By Supplier/By Item/PO Tracking are computed straight from
+    // submitted PO+GRN. See PurchaseHistoryImportService.
+    Route::post('purchase-history/import', [PurchaseHistoryImportController::class, 'store'])->middleware('permission:reports.purchase.import');
+    Route::post('purchase-history/import/{batch}/resolve', [PurchaseHistoryImportController::class, 'resolve'])->middleware('permission:reports.purchase.import');
+    Route::get('purchase-history/import/{batch}', [PurchaseHistoryImportController::class, 'show'])->middleware('permission:reports.purchase.import');
 
     // Purchase Workflow (Sprint 4): Supplier -> PO -> Goods Receipt -> Stock Ledger(+) -> Accounts Payable.
     // Registered before apiResource('purchase-orders', ...) below — same GET/{id}-swallowing-order
