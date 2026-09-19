@@ -19,6 +19,7 @@ class ItemRepository extends BaseRepository
         ?string $mainWarehouseId = null,
         ?string $search = null,
         ?string $itemGroupId = null,
+        ?array $itemIds = null,
     ): LengthAwarePaginator {
         $query = $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax']);
 
@@ -33,6 +34,10 @@ class ItemRepository extends BaseRepository
 
         if ($itemGroupId) {
             $query->where('item_group_id', $itemGroupId);
+        }
+
+        if ($itemIds !== null) {
+            $query->whereIn('id', $itemIds);
         }
 
         return $query->orderBy('item_code')->paginate($perPage);

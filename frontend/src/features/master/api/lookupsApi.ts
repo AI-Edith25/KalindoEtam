@@ -1,4 +1,6 @@
+import { apiClient } from '@/shared/services/apiClient'
 import { fetchLookupList } from '@/shared/services/lookupApi'
+import type { ApiListResponse } from '@/shared/types/api'
 import type { Branch, ChartOfAccount, Company, Customer, Item, ItemGroup, MiscellaneousItem, SalesPerson, Supplier, Tax, TermsOfPayment, Uom, Warehouse } from '../types'
 
 export const fetchItemGroups = () => fetchLookupList<ItemGroup>('/item-groups', { per_page: '200' })
@@ -17,6 +19,19 @@ export const fetchItemsLookup = (warehouseId?: string) =>
 /** Server-side search for SearchableSelect's async mode — the Item master can run into the thousands. */
 export const searchItemsLookup = (search: string, warehouseId?: string) =>
   fetchLookupList<Item>('/items', { per_page: '30', search, ...(warehouseId ? { warehouse_id: warehouseId } : {}) })
+/**
+ * Re-fetches available_qty for a Sales Order's already-selected line items after the header
+ * Warehouse changes — reuses ItemService::list()'s own ItemStockResolver so this stays identical
+ * to whatever the item picker itself would show, rather than drifting via a separate calculation.
+ */
+export async function fetchItemsByIds(itemIds: string[], warehouseId: string): Promise<Item[]> {
+  if (itemIds.length === 0) return []
+
+  const { data } = await apiClient.get<ApiListResponse<Item>>('/items', {
+    params: { item_ids: itemIds, warehouse_id: warehouseId, per_page: itemIds.length },
+  })
+  return data.data
+}
 export const fetchSuppliersLookup = () => fetchLookupList<Supplier>('/suppliers')
 export const searchSuppliersLookup = (search: string) => fetchLookupList<Supplier>('/suppliers', { per_page: '30', search })
 export const fetchWarehousesLookup = () => fetchLookupList<Warehouse>('/warehouses', { per_page: '200' })

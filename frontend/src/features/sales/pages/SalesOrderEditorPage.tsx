@@ -102,9 +102,8 @@ export function SalesOrderEditorPage() {
         item_id: line.item_id,
         item_code: line.item_code ?? '',
         item_name: line.item_name ?? '',
-        // Not carried by the loaded order's own line — the stock badge/check for an
-        // untouched existing line only appears once the user re-picks its item (same
-        // "enriched at selection time" model as effective_rate).
+        // Not carried by the loaded order's own line — starts blank, then gets filled in
+        // immediately by SalesOrderLineItemTable's mount-time warehouse-change effect.
         available_qty: '',
         qty: String(line.qty),
         rate: String(line.rate),
@@ -227,9 +226,10 @@ export function SalesOrderEditorPage() {
   const creditBlockActive = creditBlocked && !(overrideChecked && overrideReasonFilled)
 
   // Stock availability block — see SalesOrderStockService on the backend. Pure client-side
-  // preview against each line's own already-fetched available_qty (see SalesOrderLineItemTable's
-  // handleItemChange), no extra network call — same "no extra request per keystroke" posture as
-  // the credit check above. The server independently re-checks and enforces on every save/approve.
+  // preview against each line's own available_qty, kept fresh by SalesOrderLineItemTable
+  // (populated on item pick, re-fetched on every header Warehouse change) — no extra network
+  // call from this computation itself, same "no extra request per keystroke" posture as the
+  // credit check above. The server independently re-checks and enforces on every save/approve.
   const stockCheck = evaluateStockBlock(watchedItems ?? [])
   const canOverrideStock = useHasPermission('sales.orders.override_stock_check')
   const stockOverrideChecked = form.watch('override_stock_block')

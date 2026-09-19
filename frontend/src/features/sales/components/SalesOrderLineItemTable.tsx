@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -12,7 +13,7 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/shar
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
-import { searchItemsLookup } from '@/features/master/api/lookupsApi'
+import { fetchItemsByIds, searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { Item, Tax } from '@/features/master/types'
 import type { SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
 
@@ -60,9 +61,37 @@ interface SalesOrderLineItemTableProps {
  * the server is always the authoritative check, this is a live preview.
  */
 export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: SalesOrderLineItemTableProps) {
-  const { control, setValue } = form
+  const { control, setValue, getValues } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
+
+  // Re-checks already-selected lines' stock the moment the header Warehouse changes, instead of
+  // only ever reflecting whatever warehouse was selected at the time each item was originally
+  // picked. Starts at undefined (not the initial warehouseId) so an edit-mode mount — where
+  // existing lines load with a blank available_qty — also gets refreshed once, not just later
+  // warehouse switches.
+  const previousWarehouseId = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (warehouseId === previousWarehouseId.current) return
+    previousWarehouseId.current = warehouseId
+    if (!warehouseId) return
+
+    const rows = getValues('items')
+    const targets = rows.map((row, index) => ({ index, itemId: row.item_id })).filter((row) => row.itemId)
+    if (targets.length === 0) return
+
+    fetchItemsByIds(
+      targets.map((row) => row.itemId),
+      warehouseId,
+    ).then((items) => {
+      const byId = new Map(items.map((item) => [item.id, item]))
+      targets.forEach(({ index, itemId }) => {
+        const match = byId.get(itemId)
+        setValue(`items.${index}.available_qty`, match?.available_qty != null ? String(match.available_qty) : '')
+      })
+    })
+  }, [warehouseId, getValues, setValue])
 
   const loadItemOptions = async (query: string) => {
     const items = await searchItemsLookup(query, warehouseId)

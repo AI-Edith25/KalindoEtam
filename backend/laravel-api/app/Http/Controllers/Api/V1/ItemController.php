@@ -19,7 +19,12 @@ class ItemController extends Controller
 
     public function __construct(protected ItemService $itemService) {}
 
-    /** `warehouse_id`/`search`/`item_group_id` are all optional — callers that omit them get today's response unchanged. */
+    /**
+     * `warehouse_id`/`search`/`item_group_id`/`item_ids` are all optional — callers that omit them
+     * get today's response unchanged. `item_ids` is Sales Order's own "re-fetch available_qty for
+     * my already-selected lines" call when the header Warehouse changes — see
+     * SalesOrderLineItemTable's warehouse-change effect.
+     */
     public function index(Request $request): JsonResponse
     {
         return $this->success(ItemResource::collection($this->itemService->list(
@@ -27,6 +32,7 @@ class ItemController extends Controller
             warehouseId: $request->query('warehouse_id'),
             search: $request->query('search'),
             itemGroupId: $request->query('item_group_id'),
+            itemIds: $request->query('item_ids'),
         )));
     }
 

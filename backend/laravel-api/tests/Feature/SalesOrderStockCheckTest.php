@@ -248,6 +248,29 @@ class SalesOrderStockCheckTest extends TestCase
         $this->assertEquals(11.0, $row->available_qty);
     }
 
+    /**
+     * The Sales Order Editor's "re-check stock the instant the header Warehouse changes" feature
+     * (SalesOrderLineItemTable's warehouse-change effect) fetches exactly this shape — a fixed set
+     * of already-selected item ids, re-scored against whichever warehouse is now selected.
+     */
+    public function test_item_lookup_can_be_scoped_to_a_specific_set_of_item_ids(): void
+    {
+        $this->seedStock($this->item->id, $this->warehouseA->id, 11);
+        $other = Item::query()->create([
+            'item_code' => 'ITM-2', 'item_name' => 'Gadget', 'item_group_id' => $this->item->item_group_id, 'uom_id' => $this->item->uom_id, 'standard_rate' => 5000,
+        ]);
+        $this->seedStock($other->id, $this->warehouseA->id, 4);
+        Item::query()->create([
+            'item_code' => 'ITM-3', 'item_name' => 'Not Requested', 'item_group_id' => $this->item->item_group_id, 'uom_id' => $this->item->uom_id, 'standard_rate' => 1,
+        ]);
+
+        $items = app(ItemService::class)->list(warehouseId: $this->warehouseA->id, itemIds: [$this->item->id, $other->id]);
+
+        $this->assertCount(2, $items);
+        $this->assertEquals(11.0, $items->firstWhere('id', $this->item->id)->available_qty);
+        $this->assertEquals(4.0, $items->firstWhere('id', $other->id)->available_qty);
+    }
+
     public function test_purchase_order_style_item_lookup_without_warehouse_never_exposes_or_enforces_stock(): void
     {
         $this->seedStock($this->item->id, $this->warehouseA->id, 3);

@@ -24,12 +24,13 @@ class ItemService
         ?string $warehouseId = null,
         ?string $search = null,
         ?string $itemGroupId = null,
+        ?array $itemIds = null,
     ): LengthAwarePaginator {
         $mainWarehouseId = $warehouseId !== null
             ? Warehouse::query()->where('warehouse_type', WarehouseType::MAIN)->value('id')
             : null;
 
-        $items = $this->itemRepository->paginate($perPage, $warehouseId, $mainWarehouseId, $search, $itemGroupId);
+        $items = $this->itemRepository->paginate($perPage, $warehouseId, $mainWarehouseId, $search, $itemGroupId, $itemIds);
         $this->itemPriceResolver->apply($items, $warehouseId, $mainWarehouseId);
         $this->itemStockResolver->apply($items, $warehouseId);
 
