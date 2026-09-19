@@ -2,6 +2,7 @@ import { apiClient } from '@/shared/services/apiClient'
 import type { ApiResponse } from '@/shared/types/api'
 import type {
   PurchaseHistoryImportBatch,
+  PurchaseHistoryImportType,
   PurchaseHistoryResolutionAction,
   PurchaseHistoryResolutionCategory,
 } from '../types'
@@ -13,12 +14,25 @@ export interface PurchaseHistoryResolutionInput {
   target_id?: string | null
 }
 
-/** Uploads the file — server auto-detects its type and returns either a queued batch (nothing to resolve) or a `previewed` one carrying `preview_summary.needs_resolution`. */
-export async function storePurchaseHistoryImport(file: File, warehouseId: string, placeholderItemId: string): Promise<PurchaseHistoryImportBatch> {
+/**
+ * Uploads the file for one Purchase Report tab's own Import button — `expectedType` is that
+ * button's promise; the server still auto-detects the file's real type (that's what makes the
+ * pre-import summary possible) but rejects a mismatch instead of silently processing it under the
+ * wrong button. warehouseId/placeholderItemId are only real input for the 2 types that fabricate a
+ * placeholder line (Supplier Purchase Listing / Purchase Order Tracking) — omit whichever the
+ * caller's type doesn't need.
+ */
+export async function storePurchaseHistoryImport(
+  file: File,
+  expectedType: PurchaseHistoryImportType,
+  warehouseId?: string,
+  placeholderItemId?: string,
+): Promise<PurchaseHistoryImportBatch> {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('warehouse_id', warehouseId)
-  formData.append('placeholder_item_id', placeholderItemId)
+  formData.append('expected_type', expectedType)
+  if (warehouseId) formData.append('warehouse_id', warehouseId)
+  if (placeholderItemId) formData.append('placeholder_item_id', placeholderItemId)
 
   const { data } = await apiClient.post<ApiResponse<PurchaseHistoryImportBatch>>('/purchase-history/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

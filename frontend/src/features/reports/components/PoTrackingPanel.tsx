@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Download, ListTree, RotateCw } from 'lucide-react'
+import { AlertTriangle, Download, ListTree, RotateCw, Upload } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
@@ -12,8 +12,10 @@ import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn, formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { useHasPermission } from '@/shared/hooks/usePermission'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { exportPoTracking, fetchPoTracking, fetchPoTrackingItems, type PoTrackingParams } from '../api/poTrackingApi'
+import { PurchaseHistoryImportDialog } from './PurchaseHistoryImportDialog'
 import { PurchaseReportFiltersBar } from './PurchaseReportFiltersBar'
 import { reportFileName } from '../lib/exportFileName'
 import type { PoImportSourceType, PoTrackingRow, PurchaseReportFilterValues, ReceivingStatus } from '../types'
@@ -62,11 +64,13 @@ const STATUS_STYLES: Record<ReceivingStatus, string> = {
 
 /** Purchase Report's PO Tracking tab — submitted Purchase Orders whose Goods Receipts haven't fully arrived yet. "Hanya yang belum lengkap" defaults ON — the tab's main purpose. */
 export function PoTrackingPanel({ filters, onFiltersChange, page, onPageChange }: PoTrackingPanelProps) {
+  const canImport = useHasPermission('reports.purchase.import')
   const [sort, setSort] = useState<DataTableSort>({ key: 'order_date', direction: 'asc' })
   const [receivingStatus, setReceivingStatus] = useState<ReceivingStatus | null>(null)
   const [incompleteOnly, setIncompleteOnly] = useState(true)
   const [isExporting, setIsExporting] = useState(false)
   const [itemsFor, setItemsFor] = useState<PoTrackingRow | null>(null)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
 
   const activeParams: Omit<PoTrackingParams, 'page'> = {
     sort: sort.key as PoTrackingParams['sort'],
@@ -187,9 +191,19 @@ export function PoTrackingPanel({ filters, onFiltersChange, page, onPageChange }
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },
             { label: 'Export CSV', icon: Download, onClick: () => exportReport('csv'), disabled: isExporting },
+            { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => setImportDialogOpen(true) },
           ]}
         />
       </div>
+
+      <PurchaseHistoryImportDialog
+        open={importDialogOpen}
+        expectedType="purchase_order_tracking"
+        onClose={() => {
+          setImportDialogOpen(false)
+          listQuery.refetch()
+        }}
+      />
 
       <PurchaseReportFiltersBar value={filters} onChange={(next) => { onFiltersChange(next); onPageChange(1) }} hide={['status']} />
 

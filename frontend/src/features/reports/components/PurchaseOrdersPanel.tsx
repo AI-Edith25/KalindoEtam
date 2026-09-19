@@ -81,6 +81,7 @@ export function PurchaseOrdersPanel({ filters, onFiltersChange, page, onPageChan
 
       <PurchaseHistoryImportDialog
         open={importDialogOpen}
+        expectedType="supplier_purchase_listing"
         onClose={() => {
           setImportDialogOpen(false)
           listQuery.refetch()

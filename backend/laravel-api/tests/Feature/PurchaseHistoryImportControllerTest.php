@@ -71,7 +71,7 @@ class PurchaseHistoryImportControllerTest extends TestCase
 
         $response = $this->postJson('/api/v1/purchase-history/import', [
             'file' => $csv,
-            'warehouse_id' => $this->warehouse->id,
+            'expected_type' => 'supplier_purchase_listing',
             'placeholder_item_id' => $this->placeholderItem->id,
         ])->assertCreated();
 
@@ -90,5 +90,50 @@ class PurchaseHistoryImportControllerTest extends TestCase
         $this->postJson("/api/v1/purchase-history/import/{$batch['id']}/resolve", ['resolutions' => []])
             ->assertCreated()
             ->assertJsonPath('data.status', 'queued');
+    }
+
+    /**
+     * Each Purchase Report tab now has its own Import button locked to one file type — uploading a
+     * Supplier Purchase Listing file (File A) through the PO Tracking tab's button
+     * (expected_type=purchase_order_tracking) must be rejected, not silently processed.
+     */
+    public function test_store_rejects_a_file_whose_detected_type_does_not_match_the_buttons_expected_type(): void
+    {
+        $csv = $this->csv([
+            ['SUPPLIER PURCHASE LISTING'],
+            ['', '', '', '19/08/2026 - 19/09/2026'],
+            ['PT KALINDO ETAM'],
+            ['', '', '', '', '', '', '', '', ''],
+            ['DATE', 'DOCUMENT #', 'REFERENCE #', 'REFERENCE 2 #', 'SUPPLIER CODE', 'SUPPLIER NAME', 'TYPE', 'AMOUNT (EXCLUDE TAX)', 'TAX', 'AMOUNT (INCLUDE TAX)'],
+            ['19/08/2026', 'BRM/041/038', '', '', 'S-0027', 'PT ABC', 'SupInv', 30857736, 0, 30857736],
+        ]);
+
+        $this->postJson('/api/v1/purchase-history/import', [
+            'file' => $csv,
+            'expected_type' => 'purchase_order_tracking',
+            'warehouse_id' => $this->warehouse->id,
+            'placeholder_item_id' => $this->placeholderItem->id,
+        ])
+            ->assertStatus(422)
+            ->assertJsonFragment(['message' => 'File yang diupload terdeteksi sebagai "Supplier Purchase Listing", bukan "Purchase Order Tracking" — periksa kembali file yang dipilih.']);
+    }
+
+    public function test_store_does_not_require_warehouse_or_placeholder_item_for_product_purchase_report(): void
+    {
+        $csv = $this->csv([
+            ['PRODUCT PURCHASE REPORT - SUMMARY'],
+            ['Date From', 'Date To', 'Include Tax Y/N'],
+            ['01/01/2026', '31/01/2026', 'Yes'],
+            ['PT KALINDO ETAM', '', '', '', '', '', '', '', ''],
+            ['ITEM #', 'DESCRIPTION', 'INV', 'DN', 'TOTAL', 'CN', 'NET AMT', 'QTY. PUR.', 'CN. QTY.', 'NET QTY.'],
+            ['BDR20', 'BENDRAT 20KG', 0, 0, 100000, 0, 100000, 10, 0, 10],
+        ]);
+
+        $this->postJson('/api/v1/purchase-history/import', [
+            'file' => $csv,
+            'expected_type' => 'product_purchase_report',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'previewed');
     }
 }

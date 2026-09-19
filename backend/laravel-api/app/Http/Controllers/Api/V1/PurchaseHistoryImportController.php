@@ -44,6 +44,17 @@ class PurchaseHistoryImportController extends Controller
             abort(422, $preflight['error']);
         }
 
+        // Each tab's Import button is now locked to one file type — auto-detect still runs (it's
+        // what makes the pre-import summary possible), but a mismatch is rejected here rather than
+        // silently processed under the "wrong" button.
+        $expectedType = $request->string('expected_type')->value();
+
+        if ($preflight['type'] !== $expectedType) {
+            Storage::disk('local')->delete($path);
+            $expectedLabel = PurchaseHistoryImportService::TYPE_LABELS[$expectedType] ?? $expectedType;
+            abort(422, "File yang diupload terdeteksi sebagai \"{$preflight['type_label']}\", bukan \"{$expectedLabel}\" — periksa kembali file yang dipilih.");
+        }
+
         $mapping = [
             'type' => $preflight['type'],
             'warehouse_id' => $request->string('warehouse_id')->value(),

@@ -47,7 +47,7 @@ class PurchaseHistoryImportService
 {
     private const SUPPLIER_MATCH_THRESHOLD = 70.0;
 
-    private const TYPE_LABELS = [
+    public const TYPE_LABELS = [
         'supplier_purchase_listing' => 'Supplier Purchase Listing',
         'product_purchase_report' => 'Product Purchase Report',
         'purchase_order_tracking' => 'Purchase Order Tracking',

@@ -3,25 +3,24 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { PurchaseOrdersPanel } from '../components/PurchaseOrdersPanel'
-import { PurchaseBySupplierPanel } from '../components/PurchaseBySupplierPanel'
-import { PurchaseByItemPanel } from '../components/PurchaseByItemPanel'
+import { ProductPurchasePanel } from '../components/ProductPurchasePanel'
 import { PoTrackingPanel } from '../components/PoTrackingPanel'
 import { currentMonthPurchaseReportFilters, emptyPurchaseReportFilters } from '../lib/reportFilters'
 import type { PurchaseReportFilterValues } from '../types'
 
-type PurchaseReportTab = 'orders' | 'by-supplier' | 'by-item' | 'po-tracking'
+type PurchaseReportTab = 'orders' | 'product-purchase' | 'po-tracking'
 
 const TABS: { value: PurchaseReportTab; label: string }[] = [
   { value: 'orders', label: 'Purchase Orders' },
-  { value: 'by-supplier', label: 'By Supplier' },
-  { value: 'by-item', label: 'By Item' },
+  { value: 'product-purchase', label: 'Product Purchase' },
   { value: 'po-tracking', label: 'PO Tracking' },
 ]
 
 /**
- * Purchase Report — 4 tabs, same URL-synced-state shape as SalesReportPage. Purchase Orders keeps
- * today's behavior (no default date range); By Supplier/By Item/PO Tracking default to "current
- * month" and are sourced from Goods Receipt, never Purchase Order — see each panel's own docblock.
+ * Purchase Report — 3 tabs, same URL-synced-state shape as SalesReportPage. Purchase Orders keeps
+ * today's behavior (no default date range); Product Purchase (a By Supplier/By Item view switch —
+ * see ProductPurchasePanel) and PO Tracking default to "current month" and are sourced from Goods
+ * Receipt, never Purchase Order — see each panel's own docblock.
  */
 export function PurchaseReportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -77,8 +76,7 @@ export function PurchaseReportPage() {
       </div>
 
       {tab === 'orders' && <PurchaseOrdersPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
-      {tab === 'by-supplier' && <PurchaseBySupplierPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
-      {tab === 'by-item' && <PurchaseByItemPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'product-purchase' && <ProductPurchasePanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
       {tab === 'po-tracking' && <PoTrackingPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
     </div>
   )

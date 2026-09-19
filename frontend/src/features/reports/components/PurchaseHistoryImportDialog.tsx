@@ -13,15 +13,51 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchWarehousesLookup, searchItemsLookup } from '@/features/master/api/lookupsApi'
 import { fetchPurchaseHistoryImportBatch, resolvePurchaseHistoryImport, storePurchaseHistoryImport } from '../api/purchaseHistoryImportApi'
-import type { PurchaseHistoryImportPreviewSummary, PurchaseHistoryResolutionAction } from '../types'
+import type { PurchaseHistoryImportPreviewSummary, PurchaseHistoryImportType, PurchaseHistoryResolutionAction } from '../types'
 import type { PurchaseHistoryResolutionInput } from '../api/purchaseHistoryImportApi'
 
 const TERMINAL_STATUSES = ['completed', 'failed']
-const REPORT_TABS = [
-  { value: 'by-supplier', label: 'By Supplier' },
-  { value: 'by-item', label: 'By Item' },
-  { value: 'po-tracking', label: 'PO Tracking' },
-]
+
+/**
+ * Each Purchase Report tab has its own Import button locked to one file type — this dialog only
+ * ever asks for the input that type actually needs, and only ever links to that type's own
+ * destination tab on completion. The server still auto-detects the file's real type (that's what
+ * makes the pre-import summary possible) and rejects a mismatch — see
+ * PurchaseHistoryImportController::store().
+ */
+const TYPE_CONFIG: Record<PurchaseHistoryImportType, {
+  label: string
+  needsWarehouse: boolean
+  needsPlaceholderItem: boolean
+  destinationTab: string | null
+  destinationLabel: string
+  processingDescription: string
+}> = {
+  supplier_purchase_listing: {
+    label: 'Supplier Purchase Listing',
+    needsWarehouse: false,
+    needsPlaceholderItem: true,
+    destinationTab: null,
+    destinationLabel: 'Purchase Orders',
+    processingDescription: 'Memproses file — membuat Purchase Order dari baris yang valid…',
+  },
+  product_purchase_report: {
+    label: 'Product Purchase Report',
+    needsWarehouse: false,
+    needsPlaceholderItem: false,
+    destinationTab: 'product-purchase',
+    destinationLabel: 'Product Purchase',
+    processingDescription: 'Memproses file — menghitung ringkasan per item…',
+  },
+  purchase_order_tracking: {
+    label: 'Purchase Order Tracking',
+    needsWarehouse: true,
+    needsPlaceholderItem: true,
+    destinationTab: 'po-tracking',
+    destinationLabel: 'PO Tracking',
+    processingDescription: 'Memproses file — membuat Purchase Order/Goods Receipt dari baris yang valid…',
+  },
+}
 
 type Step = 'setup' | 'summary' | 'progress'
 
@@ -34,18 +70,12 @@ const resolutionKey = (category: string, value: string) => `${category}:${value}
 interface PurchaseHistoryImportDialogProps {
   open: boolean
   onClose: () => void
+  expectedType: PurchaseHistoryImportType
 }
 
-/**
- * Purchase Orders tab's "Import" button — upload Supplier Purchase Listing, Product Purchase
- * Report, or Purchase Order Tracking (auto-detected server-side). A mandatory summary always
- * shows before anything is queued (type detected, valid/skipped counts, computed defaults,
- * warnings — including structural ones like "won't appear in By Supplier"), with an unmatched
- * supplier/item/duplicate resolution table folded into the same step when something needs a
- * human decision. See PurchaseHistoryImportService for what each file type creates.
- */
-export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryImportDialogProps) {
+export function PurchaseHistoryImportDialog({ open, onClose, expectedType }: PurchaseHistoryImportDialogProps) {
   const navigate = useNavigate()
+  const config = TYPE_CONFIG[expectedType]
 
   const [step, setStep] = useState<Step>('setup')
   const [file, setFile] = useState<File | null>(null)
@@ -55,7 +85,7 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
   const [resolutions, setResolutions] = useState<ResolutionState>({})
   const [batchId, setBatchId] = useState<string | null>(null)
 
-  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup, enabled: open })
+  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup, enabled: open && config.needsWarehouse })
 
   const reset = () => {
     setStep('setup')
@@ -76,7 +106,7 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
   // explicitly confirmed (via resolve(), below) before anything is queued, even when there's
   // nothing that needs a human decision.
   const uploadMutation = useMutation({
-    mutationFn: () => storePurchaseHistoryImport(file as File, warehouseId as string, placeholderItemId as string),
+    mutationFn: () => storePurchaseHistoryImport(file as File, expectedType, warehouseId, placeholderItemId),
     onSuccess: (batch) => {
       setBatchId(batch.id)
       setSummary(batch.preview_summary ?? null)
@@ -129,15 +159,17 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
   const warnings = batch?.preview_summary?.warnings ?? []
   const needsReviewCount = batch?.preview_summary?.needs_review_rows ?? 0
 
+  const canUpload = !!file && (!config.needsWarehouse || !!warehouseId) && (!config.needsPlaceholderItem || !!placeholderItemId)
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && handleClose()}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Import Purchase History</DialogTitle>
+          <DialogTitle>Import {config.label}</DialogTitle>
           <DialogDescription>
-            {step === 'setup' && 'Upload file Supplier Purchase Listing, Product Purchase Report, atau Purchase Order Tracking apa adanya — jenisnya dideteksi otomatis.'}
+            {step === 'setup' && `Upload file ${config.label} apa adanya. File yang terdeteksi bukan ${config.label} akan ditolak.`}
             {step === 'summary' && 'Ringkasan sebelum import — periksa dulu sebelum melanjutkan.'}
-            {step === 'progress' && !isDone && 'Memproses file — membuat Purchase Order/Goods Receipt dari baris yang valid…'}
+            {step === 'progress' && !isDone && config.processingDescription}
             {step === 'progress' && isDone && batch?.status === 'completed' && 'Import selesai. Berikut ringkasan hasilnya.'}
             {step === 'progress' && isDone && batch?.status === 'failed' && 'Import tidak bisa diproses.'}
           </DialogDescription>
@@ -155,29 +187,33 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Warehouse Penerima</label>
-              <SearchableSelect
-                options={(warehousesQuery.data ?? []).map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` }))}
-                value={warehouseId}
-                onChange={(value) => setWarehouseId(value)}
-                loading={warehousesQuery.isLoading}
-                placeholder="Pilih warehouse…"
-                clearable={false}
-              />
-            </div>
+            {config.needsWarehouse && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Warehouse Penerima</label>
+                <SearchableSelect
+                  options={(warehousesQuery.data ?? []).map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` }))}
+                  value={warehouseId}
+                  onChange={(value) => setWarehouseId(value)}
+                  loading={warehousesQuery.isLoading}
+                  placeholder="Pilih warehouse…"
+                  clearable={false}
+                />
+              </div>
+            )}
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Placeholder Item (Supplier Purchase Listing / Purchase Order Tracking)</label>
-              <p className="text-xs text-muted-foreground">Dipakai sebagai baris item untuk PO yang diimpor dari salah satu file itu — keduanya tidak punya rincian item per baris. Tidak dipakai untuk Product Purchase Report.</p>
-              <SearchableSelect
-                loadOptions={async (query) => (await searchItemsLookup(query)).map((item) => ({ value: item.id, label: `${item.item_code} — ${item.item_name}` }))}
-                value={placeholderItemId}
-                onChange={(value) => setPlaceholderItemId(value)}
-                placeholder="Cari item…"
-                clearable={false}
-              />
-            </div>
+            {config.needsPlaceholderItem && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Placeholder Item</label>
+                <p className="text-xs text-muted-foreground">Dipakai sebagai baris item untuk PO yang diimpor dari file ini — file itu tidak punya rincian item per baris.</p>
+                <SearchableSelect
+                  loadOptions={async (query) => (await searchItemsLookup(query)).map((item) => ({ value: item.id, label: `${item.item_code} — ${item.item_name}` }))}
+                  value={placeholderItemId}
+                  onChange={(value) => setPlaceholderItemId(value)}
+                  placeholder="Cari item…"
+                  clearable={false}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -327,20 +363,17 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
 
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-muted-foreground">Lihat hasilnya di:</span>
-                  {REPORT_TABS.map((reportTab) => (
-                    <Button
-                      key={reportTab.value}
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        handleClose()
-                        navigate(`/reports/purchase?tab=${reportTab.value}`)
-                      }}
-                    >
-                      {reportTab.label}
-                    </Button>
-                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      handleClose()
+                      navigate(config.destinationTab ? `/reports/purchase?tab=${config.destinationTab}` : '/reports/purchase')
+                    }}
+                  >
+                    {config.destinationLabel}
+                  </Button>
                 </div>
               </div>
             )}
@@ -349,11 +382,7 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
 
         <DialogFooter>
           {step === 'setup' && (
-            <Button
-              type="button"
-              onClick={() => uploadMutation.mutate()}
-              disabled={!file || !warehouseId || !placeholderItemId || uploadMutation.isPending}
-            >
+            <Button type="button" onClick={() => uploadMutation.mutate()} disabled={!canUpload || uploadMutation.isPending}>
               {uploadMutation.isPending && <Loader2 className="size-4 animate-spin" />}
               <Upload className="size-4" />
               Upload
