@@ -29,7 +29,15 @@ class ItemStockResolver
             return;
         }
 
-        $itemIds = collect($items)->pluck('id')->all();
+        // Not collect($items)->pluck('id') — $items is often a LengthAwarePaginator, and collect()
+        // on an Arrayable paginator calls its toArray(), which returns the pagination META array
+        // (current_page, data, total, ...) instead of the rows, silently plucking 'id' off 13
+        // unrelated keys and returning all-null. Plain iteration is what ItemPriceResolver already
+        // does for the same reason.
+        $itemIds = [];
+        foreach ($items as $item) {
+            $itemIds[] = $item->id;
+        }
 
         if ($itemIds === []) {
             return;

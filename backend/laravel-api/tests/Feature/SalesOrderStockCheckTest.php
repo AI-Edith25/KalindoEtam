@@ -220,6 +220,34 @@ class SalesOrderStockCheckTest extends TestCase
         $this->salesOrderService->create($this->newOrderPayload()); // orders against warehouseA, which has 0
     }
 
+    /**
+     * Regression: ItemStockResolver::apply() used to build its item-id list with
+     * collect($items)->pluck('id') — but $items here is a LengthAwarePaginator, and collect() on
+     * an Arrayable paginator calls its toArray(), which returns the pagination META array
+     * (current_page, data, total, ...) instead of the item rows. Every id came back null, so the
+     * stock lookups always matched nothing and every item's available_qty silently defaulted to 0 —
+     * exactly the live "stock habis" bug report, for every item, every request. A single-item list
+     * wouldn't have caught this (still just one wrong 0); padding with siblings is what would make a
+     * future regression visibly wrong instead of accidentally right.
+     */
+    public function test_item_lookup_reports_correct_stock_for_one_item_among_several_with_none(): void
+    {
+        $this->seedStock($this->item->id, $this->warehouseA->id, 11);
+
+        $itemGroup = ItemGroup::query()->create(['name' => 'General 2']);
+        $uom = UnitOfMeasurement::query()->create(['name' => 'Dus']);
+        for ($i = 0; $i < 5; $i++) {
+            Item::query()->create([
+                'item_code' => "PAD-{$i}", 'item_name' => "Padding Item {$i}", 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 10000,
+            ]);
+        }
+
+        $items = app(ItemService::class)->list(perPage: 20, warehouseId: $this->warehouseA->id);
+        $row = $items->firstWhere('id', $this->item->id);
+
+        $this->assertEquals(11.0, $row->available_qty);
+    }
+
     public function test_purchase_order_style_item_lookup_without_warehouse_never_exposes_or_enforces_stock(): void
     {
         $this->seedStock($this->item->id, $this->warehouseA->id, 3);
