@@ -90,6 +90,8 @@ export interface SalesOrderFormValues {
   items: { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
   override_credit_block?: boolean
   override_reason?: string | null
+  override_stock_block?: boolean
+  stock_override_reason?: string | null
 }
 
 /** Sales Order credit/overdue block — see CustomerCreditService on the backend. additional_amount is always 0 (the customer-select-time check); the "would this order's own value push it over" layer is computed client-side, see evaluateCreditBlock(). */
@@ -102,6 +104,21 @@ export interface CustomerCreditStatus {
   credit_limit: number | null
   available_credit: number | null
   message: string
+}
+
+/** Sales Order Detail page's own Approve button pre-check — see SalesOrderService::stockStatusFor(). No client-side recompute possible here (no live form/line items to denormalize available_qty onto), unlike the Editor page's evaluateStockBlock(). */
+export interface SalesOrderStockStatus {
+  is_blocked: boolean
+  message: string
+  lines: {
+    item_id: string
+    item_name: string
+    requested_qty: number
+    physical_qty: number
+    committed_qty: number
+    available_qty: number
+    is_insufficient: boolean
+  }[]
 }
 
 export interface DeliveryItem {

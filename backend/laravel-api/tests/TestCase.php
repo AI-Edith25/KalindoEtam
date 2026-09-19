@@ -104,4 +104,14 @@ abstract class TestCase extends BaseTestCase
 
         $this->actingAs($user);
     }
+
+    /** Same bypass shape as actingAsCreditOverride(), for the Sales Order stock-availability block (see SalesOrderStockService). Callers must still pass override_stock_block/stock_override_reason themselves. */
+    protected function actingAsStockOverride(): void
+    {
+        Permission::query()->firstOrCreate(['name' => 'sales.orders.override_stock_check', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->givePermissionTo('sales.orders.override_stock_check');
+
+        $this->actingAs($user);
+    }
 }

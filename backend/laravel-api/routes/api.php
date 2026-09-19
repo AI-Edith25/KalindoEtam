@@ -316,6 +316,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('customers/{customer}/credit-status', [CustomerController::class, 'creditStatus'])->middleware('permission:sales.orders.create');
     Route::post('sales-orders/{salesOrder}/approve', [SalesOrderController::class, 'approve'])->middleware('permission:sales.orders.approve');
     Route::post('sales-orders/{salesOrder}/cancel', [SalesOrderController::class, 'cancel'])->middleware('permission:sales.orders.update');
+    Route::get('sales-orders/{salesOrder}/stock-status', [SalesOrderController::class, 'stockStatus'])->middleware('permission:sales.orders.approve');
 
     Route::get('deliveries/export', [DeliveryController::class, 'export'])->middleware('permission:sales.deliveries.view|reports.deliveries.view');
     $withPagePermissions(Route::apiResource('deliveries', DeliveryController::class), 'sales.deliveries', 'reports.deliveries.view');

@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
-import type { CustomerCreditStatus, SalesOrder, SalesOrderFormValues } from '../types'
+import type { CustomerCreditStatus, SalesOrder, SalesOrderFormValues, SalesOrderStockStatus } from '../types'
 
 export interface SalesOrderListParams {
   page: number
@@ -43,7 +43,12 @@ export async function deleteSalesOrder(id: string): Promise<void> {
 
 export async function approveSalesOrder(
   id: string,
-  payload?: { override_credit_block?: boolean; override_reason?: string | null },
+  payload?: {
+    override_credit_block?: boolean
+    override_reason?: string | null
+    override_stock_block?: boolean
+    stock_override_reason?: string | null
+  },
 ): Promise<SalesOrder> {
   const { data } = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/approve`, payload)
   return data.data
@@ -52,6 +57,12 @@ export async function approveSalesOrder(
 /** Sales Order credit/overdue block's customer-select-time check — see CustomerCreditService on the backend. */
 export async function fetchCustomerCreditStatus(customerId: string): Promise<CustomerCreditStatus> {
   const { data } = await apiClient.get<ApiResponse<CustomerCreditStatus>>(`/customers/${customerId}/credit-status`)
+  return data.data
+}
+
+/** Sales Order Detail page's own Approve button pre-check — see SalesOrderService::stockStatusFor(). */
+export async function fetchSalesOrderStockStatus(salesOrderId: string): Promise<SalesOrderStockStatus> {
+  const { data } = await apiClient.get<ApiResponse<SalesOrderStockStatus>>(`/sales-orders/${salesOrderId}/stock-status`)
   return data.data
 }
 

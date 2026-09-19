@@ -16,7 +16,7 @@ import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayo
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { approveSalesOrder, cancelSalesOrder, deleteSalesOrder, fetchSalesOrder } from '../api/salesOrderApi'
+import { approveSalesOrder, cancelSalesOrder, deleteSalesOrder, fetchSalesOrder, fetchSalesOrderStockStatus } from '../api/salesOrderApi'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
 import { DeliveryProgress } from '../components/DeliveryProgress'
@@ -64,6 +64,8 @@ export function SalesOrderDetailPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [overrideCreditBlock, setOverrideCreditBlock] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
+  const [overrideStockBlock, setOverrideStockBlock] = useState(false)
+  const [stockOverrideReason, setStockOverrideReason] = useState('')
 
   const orderQuery = useQuery({
     queryKey: ['sales-orders', id],
@@ -82,6 +84,20 @@ export function SalesOrderDetailPage() {
   const canApprove = useHasPermission('sales.orders.approve')
   const creditBlockActive = creditBlocked && !(overrideCreditBlock && overrideReason.trim())
 
+  // Stock availability block — see SalesOrderStockService on the backend. Same "own independent
+  // Approve button needs the identical pre-check" reasoning as the credit block above; no live
+  // form here to recompute a preview from, so this is a real fetch (see stockStatusFor()), only
+  // once the order itself has loaded.
+  const stockStatusQuery = useQuery({
+    queryKey: ['sales-order-stock-status', id],
+    queryFn: () => fetchSalesOrderStockStatus(id!),
+    enabled: !!orderQuery.data && orderQuery.data.status === 'submitted' && canApprove,
+  })
+  const stockBlocked = stockStatusQuery.data?.is_blocked ?? false
+  const stockMessage = stockStatusQuery.data?.message ?? ''
+  const canOverrideStock = useHasPermission('sales.orders.override_stock_check')
+  const stockBlockActive = stockBlocked && !(overrideStockBlock && stockOverrideReason.trim())
+
   // Only an approved SO can ever have Deliveries against it (unapproved has none yet) — no point fetching otherwise.
   const relatedDeliveriesQuery = useQuery({
     queryKey: ['deliveries-for-sales-order', id],
@@ -94,7 +110,10 @@ export function SalesOrderDetailPage() {
 
   const approveMutation = useMutation({
     mutationFn: () =>
-      approveSalesOrder(id!, overrideCreditBlock ? { override_credit_block: true, override_reason: overrideReason || null } : undefined),
+      approveSalesOrder(id!, {
+        ...(overrideCreditBlock ? { override_credit_block: true, override_reason: overrideReason || null } : {}),
+        ...(overrideStockBlock ? { override_stock_block: true, stock_override_reason: stockOverrideReason || null } : {}),
+      }),
     onSuccess: () => {
       invalidate()
       toast.success('Sales Order approved.')
@@ -152,13 +171,15 @@ export function SalesOrderDetailPage() {
                 {canApprove && (
                   <Button
                     onClick={() => approveMutation.mutate()}
-                    disabled={approveMutation.isPending || blockedByApproval || creditBlockActive}
+                    disabled={approveMutation.isPending || blockedByApproval || creditBlockActive || stockBlockActive}
                     title={
                       creditBlockActive
                         ? creditMessage
-                        : blockedByApproval
-                          ? 'This order needs an approved request before it can be approved.'
-                          : undefined
+                        : stockBlockActive
+                          ? stockMessage
+                          : blockedByApproval
+                            ? 'This order needs an approved request before it can be approved.'
+                            : undefined
                     }
                   >
                     {approveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
@@ -199,6 +220,32 @@ export function SalesOrderDetailPage() {
                     placeholder="Required — explain the manual approval for this exception"
                     value={overrideReason}
                     onChange={(event) => setOverrideReason(event.target.value)}
+                  />
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {order.status === 'submitted' && stockBlocked && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="flex flex-col gap-3 py-4 text-sm">
+            <div className="flex items-start gap-2 text-destructive">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>{stockMessage}</span>
+            </div>
+            {canOverrideStock && (
+              <div className="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+                <div className="flex flex-row items-center justify-between">
+                  <span className="cursor-pointer">Override and continue anyway</span>
+                  <Switch checked={overrideStockBlock} onCheckedChange={setOverrideStockBlock} />
+                </div>
+                {overrideStockBlock && (
+                  <Textarea
+                    placeholder="Required — explain the manual approval for this exception"
+                    value={stockOverrideReason}
+                    onChange={(event) => setStockOverrideReason(event.target.value)}
                   />
                 )}
               </div>

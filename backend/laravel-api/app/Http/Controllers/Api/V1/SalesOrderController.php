@@ -75,6 +75,8 @@ class SalesOrderController extends Controller
             $salesOrder,
             $request->boolean('override_credit_block'),
             $request->input('override_reason'),
+            $request->boolean('override_stock_block'),
+            $request->input('stock_override_reason'),
         );
 
         return $this->success(new SalesOrderResource($salesOrder), 'Sales Order approved.');
@@ -85,6 +87,12 @@ class SalesOrderController extends Controller
         $salesOrder = $this->salesOrderService->cancel($salesOrder);
 
         return $this->success(new SalesOrderResource($salesOrder), 'Sales Order cancelled.');
+    }
+
+    /** Powers the Sales Order Detail page's own Approve button's pre-check — same stock block Editor's Save/Approve already show live, see SalesOrderStockService. */
+    public function stockStatus(SalesOrder $salesOrder): JsonResponse
+    {
+        return $this->success($this->salesOrderService->stockStatusFor($salesOrder));
     }
 
     /**

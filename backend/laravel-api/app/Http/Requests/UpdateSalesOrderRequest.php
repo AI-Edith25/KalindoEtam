@@ -27,6 +27,8 @@ class UpdateSalesOrderRequest extends FormRequest
             'reference' => ['nullable', 'string', 'max:255'],
             'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
             'tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
+            'override_stock_block' => ['sometimes', 'boolean'],
+            'stock_override_reason' => ['nullable', 'string', 'max:500'],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required_with:items', 'integer', 'min:1'],

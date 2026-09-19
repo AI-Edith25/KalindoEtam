@@ -29,6 +29,7 @@ import {
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { approveSalesOrder, createSalesOrder, fetchSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
 import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
+import { evaluateStockBlock } from '../lib/salesOrderStock'
 import { SalesOrderLineItemTable } from '../components/SalesOrderLineItemTable'
 import { emptySalesOrderEditorValues, salesOrderFormSchema, type SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
 import { ApprovalPanel } from '@/features/approval/components/ApprovalPanel'
@@ -101,6 +102,10 @@ export function SalesOrderEditorPage() {
         item_id: line.item_id,
         item_code: line.item_code ?? '',
         item_name: line.item_name ?? '',
+        // Not carried by the loaded order's own line — the stock badge/check for an
+        // untouched existing line only appears once the user re-picks its item (same
+        // "enriched at selection time" model as effective_rate).
+        available_qty: '',
         qty: String(line.qty),
         rate: String(line.rate),
         tax_id: line.tax_id ?? '',
@@ -164,6 +169,7 @@ export function SalesOrderEditorPage() {
       tax_id: line.tax_id || null,
     })),
     ...(values.override_credit_block ? { override_credit_block: true, override_reason: values.override_reason || null } : {}),
+    ...(values.override_stock_block ? { override_stock_block: true, stock_override_reason: values.stock_override_reason || null } : {}),
   })
 
   const saveMutation = useMutation({
@@ -183,10 +189,10 @@ export function SalesOrderEditorPage() {
 
   const approveMutation = useMutation({
     mutationFn: () =>
-      approveSalesOrder(
-        id!,
-        overrideChecked ? { override_credit_block: true, override_reason: form.getValues('override_reason') || null } : undefined,
-      ),
+      approveSalesOrder(id!, {
+        ...(overrideChecked ? { override_credit_block: true, override_reason: form.getValues('override_reason') || null } : {}),
+        ...(stockOverrideChecked ? { override_stock_block: true, stock_override_reason: form.getValues('stock_override_reason') || null } : {}),
+      }),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success('Sales Order approved.')
@@ -220,6 +226,16 @@ export function SalesOrderEditorPage() {
   const overrideReasonFilled = !!form.watch('override_reason')?.trim()
   const creditBlockActive = creditBlocked && !(overrideChecked && overrideReasonFilled)
 
+  // Stock availability block — see SalesOrderStockService on the backend. Pure client-side
+  // preview against each line's own already-fetched available_qty (see SalesOrderLineItemTable's
+  // handleItemChange), no extra network call — same "no extra request per keystroke" posture as
+  // the credit check above. The server independently re-checks and enforces on every save/approve.
+  const stockCheck = evaluateStockBlock(watchedItems ?? [])
+  const canOverrideStock = useHasPermission('sales.orders.override_stock_check')
+  const stockOverrideChecked = form.watch('override_stock_block')
+  const stockOverrideReasonFilled = !!form.watch('stock_override_reason')?.trim()
+  const stockBlockActive = stockCheck.blocked && !(stockOverrideChecked && stockOverrideReasonFilled)
+
   if (isEdit && orderQuery.isLoading) {
     return (
       <div className="flex min-h-64 items-center justify-center">
@@ -232,7 +248,7 @@ export function SalesOrderEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${orderQuery.data?.document_number ?? 'Sales Order'}` : 'New Sales Order'}
-        description="Record a customer order. Stock is not reduced until this order is delivered."
+        description="Record a customer order. Stock availability is checked per warehouse; physical stock is not actually reduced until this order is delivered."
       />
 
       <Form {...form}>
@@ -482,6 +498,46 @@ export function SalesOrderEditorPage() {
               {form.formState.errors.items?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
               )}
+
+              {stockCheck.blocked && (
+                <div className="mt-3 flex flex-col gap-3 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
+                  <div className="flex items-start gap-2 text-destructive">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    <span>{stockCheck.message}</span>
+                  </div>
+                  {canOverrideStock && (
+                    <div className="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+                      <FormField
+                        control={form.control}
+                        name="override_stock_block"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between">
+                            <FormLabel className="cursor-pointer font-normal">Override and continue anyway</FormLabel>
+                            <FormControl>
+                              <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      {stockOverrideChecked && (
+                        <FormField
+                          control={form.control}
+                          name="stock_override_reason"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Override Reason</FormLabel>
+                              <FormControl>
+                                <Textarea placeholder="Required — explain the manual approval for this exception" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -521,8 +577,8 @@ export function SalesOrderEditorPage() {
             <Button
               type="submit"
               variant="outline"
-              disabled={saveMutation.isPending || creditBlockActive}
-              title={creditBlockActive ? creditMessage : undefined}
+              disabled={saveMutation.isPending || creditBlockActive || stockBlockActive}
+              title={creditBlockActive ? creditMessage : stockBlockActive ? stockCheck.message : undefined}
             >
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Save
@@ -531,13 +587,15 @@ export function SalesOrderEditorPage() {
               <Button
                 type="button"
                 onClick={() => approveMutation.mutate()}
-                disabled={approveMutation.isPending || blockedByApproval || creditBlockActive}
+                disabled={approveMutation.isPending || blockedByApproval || creditBlockActive || stockBlockActive}
                 title={
                   creditBlockActive
                     ? creditMessage
-                    : blockedByApproval
-                      ? 'This order needs an approved request before it can be approved.'
-                      : undefined
+                    : stockBlockActive
+                      ? stockCheck.message
+                      : blockedByApproval
+                        ? 'This order needs an approved request before it can be approved.'
+                        : undefined
                 }
               >
                 {approveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}

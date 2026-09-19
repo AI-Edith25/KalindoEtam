@@ -24,6 +24,7 @@ class SalesOrderService
         protected SalesOrderItemRepository $salesOrderItemRepository,
         protected AuditLogService $auditLogService,
         protected CustomerCreditService $customerCreditService,
+        protected SalesOrderStockService $salesOrderStockService,
         protected TaxService $taxService,
         protected CompanyRepository $companyRepository,
     ) {}
@@ -103,6 +104,16 @@ class SalesOrderService
                 'creating Sales Order',
             );
 
+            if (! empty($data['warehouse_id'])) {
+                $this->enforceStockCheck(
+                    $data['items'],
+                    $data['warehouse_id'],
+                    $data['override_stock_block'] ?? false,
+                    $data['stock_override_reason'] ?? null,
+                    'creating Sales Order',
+                );
+            }
+
             $salesOrder = $this->salesOrderRepository->create([
                 'customer_id' => $data['customer_id'],
                 'sales_person_id' => $data['sales_person_id'] ?? null,
@@ -144,11 +155,28 @@ class SalesOrderService
         return DB::transaction(function () use ($salesOrder, $data) {
             $this->assertDraft($salesOrder, 'updated');
 
-            $headerData = collect($data)->except(['items', 'tax_id', 'tax_amount'])->all();
+            $headerData = collect($data)->except(['items', 'tax_id', 'tax_amount', 'override_stock_block', 'stock_override_reason'])->all();
 
             // Items changing means the per-line tax sum can change too — always recompute
             // together, never reuse a stale cached tax_amount against a new subtotal.
             if (isset($data['items'])) {
+                $warehouseId = $data['warehouse_id'] ?? $salesOrder->warehouse_id;
+
+                // Unlike the credit check (create/approve only), stock is re-checked on every
+                // edit that touches qty/items — an over-limit credit drift is fine to catch only
+                // at approve(), but a qty edit that now exceeds stock should surface immediately,
+                // not silently wait for approval.
+                if (! empty($warehouseId)) {
+                    $this->enforceStockCheck(
+                        $data['items'],
+                        $warehouseId,
+                        $data['override_stock_block'] ?? false,
+                        $data['stock_override_reason'] ?? null,
+                        "updating Sales Order \"{$salesOrder->document_number}\"",
+                        $salesOrder->id,
+                    );
+                }
+
                 $subtotal = $this->sumLines($data['items']);
                 $taxAmount = $this->replaceItems($salesOrder, $data['items']);
                 $headerData['total_amount'] = $subtotal;
@@ -187,11 +215,17 @@ class SalesOrderService
      * is false, so no ApprovalFlow record is needed here, unlike Purchase
      * Order/Journal Entry). Re-runs the credit check since a Draft-equivalent
      * (Submitted) order saved while under-limit can drift over-limit by the
-     * time it's approved.
+     * time it's approved. Same "can drift" reasoning applies to stock — see
+     * enforceStockCheck().
      */
-    public function approve(SalesOrder $salesOrder, bool $overrideCreditBlock = false, ?string $overrideReason = null): SalesOrder
-    {
-        return DB::transaction(function () use ($salesOrder, $overrideCreditBlock, $overrideReason) {
+    public function approve(
+        SalesOrder $salesOrder,
+        bool $overrideCreditBlock = false,
+        ?string $overrideReason = null,
+        bool $overrideStockBlock = false,
+        ?string $stockOverrideReason = null,
+    ): SalesOrder {
+        return DB::transaction(function () use ($salesOrder, $overrideCreditBlock, $overrideReason, $overrideStockBlock, $stockOverrideReason) {
             if ($salesOrder->items()->count() === 0) {
                 throw new BusinessException('Cannot approve a Sales Order without items.');
             }
@@ -204,11 +238,41 @@ class SalesOrderService
                 "approving Sales Order \"{$salesOrder->document_number}\"",
             );
 
+            if (! empty($salesOrder->warehouse_id)) {
+                $this->enforceStockCheck(
+                    $salesOrder->items->map(fn ($item) => ['item_id' => $item->item_id, 'qty' => $item->qty])->all(),
+                    $salesOrder->warehouse_id,
+                    $overrideStockBlock,
+                    $stockOverrideReason,
+                    "approving Sales Order \"{$salesOrder->document_number}\"",
+                    $salesOrder->id,
+                );
+            }
+
             $salesOrder->submit();
             $this->auditLogService->record('approved', 'sales_order', "Approved Sales Order \"{$salesOrder->document_number}\".");
 
             return $salesOrder;
         });
+    }
+
+    /**
+     * Sales Order Detail page's own Approve button has no live form to recompute a client-side
+     * preview against (unlike the Editor page, which denormalizes available_qty onto each line at
+     * pick time) — this is that page's equivalent read, same shape CustomerController::
+     * creditStatus() already provides for the credit block.
+     *
+     * @return array{is_blocked: bool, message: string, lines: array}
+     */
+    public function stockStatusFor(SalesOrder $salesOrder): array
+    {
+        if (empty($salesOrder->warehouse_id)) {
+            return ['is_blocked' => false, 'message' => '', 'lines' => []];
+        }
+
+        $items = $salesOrder->items->map(fn ($item) => ['item_id' => $item->item_id, 'qty' => $item->qty])->all();
+
+        return $this->salesOrderStockService->evaluate($items, $salesOrder->warehouse_id, $salesOrder->id);
     }
 
     public function cancel(SalesOrder $salesOrder): SalesOrder
@@ -251,6 +315,33 @@ class SalesOrderService
             'credit_block_overridden',
             'sales_order',
             "Overrode credit block while {$context}: {$credit['message']}".($overrideReason ? " Reason: {$overrideReason}" : ''),
+        );
+    }
+
+    /**
+     * Shared by create(), update() (only when items change), and approve() — see
+     * SalesOrderStockService for why this exists at all and how "available" is computed. A
+     * distinct override flag/reason/permission from the credit check, on purpose — so an audit
+     * log entry is unambiguous about which concern was overridden when both happen to co-occur.
+     *
+     * @param  array<int, array{item_id: string, qty: int|float}>  $items
+     */
+    protected function enforceStockCheck(array $items, string $warehouseId, bool $overridden, ?string $overrideReason, string $context, ?string $excludeSalesOrderId = null): void
+    {
+        $stock = $this->salesOrderStockService->evaluate($items, $warehouseId, $excludeSalesOrderId);
+
+        if (! $stock['is_blocked']) {
+            return;
+        }
+
+        if (! $overridden || ! Auth::user()->can('sales.orders.override_stock_check')) {
+            throw new BusinessException($stock['message'], 403);
+        }
+
+        $this->auditLogService->record(
+            'stock_block_overridden',
+            'sales_order',
+            "Overrode stock block while {$context}: {$stock['message']}".($overrideReason ? " Reason: {$overrideReason}" : ''),
         );
     }
 

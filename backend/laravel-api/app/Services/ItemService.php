@@ -16,6 +16,7 @@ class ItemService
         protected ItemRepository $itemRepository,
         protected AuditLogService $auditLogService,
         protected ItemPriceResolver $itemPriceResolver,
+        protected ItemStockResolver $itemStockResolver,
     ) {}
 
     public function list(
@@ -30,6 +31,7 @@ class ItemService
 
         $items = $this->itemRepository->paginate($perPage, $warehouseId, $mainWarehouseId, $search, $itemGroupId);
         $this->itemPriceResolver->apply($items, $warehouseId, $mainWarehouseId);
+        $this->itemStockResolver->apply($items, $warehouseId);
 
         return $items;
     }
@@ -52,7 +54,7 @@ class ItemService
             $this->auditLogService->record(
                 'sync_to_main_wh_changed',
                 'item',
-                ($value ? 'Enabled' : 'Disabled')." \"Sync to Main WH\" for ".count($items).' item(s).',
+                ($value ? 'Enabled' : 'Disabled').' "Sync to Main WH" for '.count($items).' item(s).',
                 ['item_ids' => $itemIds, 'value' => $value],
             );
         });

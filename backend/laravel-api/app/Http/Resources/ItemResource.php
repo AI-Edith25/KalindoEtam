@@ -22,6 +22,10 @@ class ItemResource extends JsonResource
             // Set by ItemPriceResolver when the request asked for a warehouse_id (see
             // ItemController::index); otherwise falls back to standard_rate.
             'effective_rate' => $this->effective_rate ?? $this->standard_rate,
+            // Set by ItemStockResolver only when the request asked for a warehouse_id (Sales
+            // Order's item lookup) — null for every other caller (Item Master, Purchase Order's
+            // lookup), never a fabricated number when there's no warehouse context.
+            'available_qty' => $this->available_qty ?? null,
             'current_stock' => $this->current_stock,
             'allow_over_receipt' => $this->allow_over_receipt,
             'qty_category' => $this->qty_category,

@@ -98,6 +98,8 @@ export interface Item {
   effective_rate: string | number
   /** "Samakan dengan Main WH" — when true, every non-Main-warehouse price for this item resolves live from the Main warehouse's own price. */
   sync_to_main_wh: boolean
+  /** Physical stock minus other active Sales Orders' committed qty, for the requested warehouse — set only when the /items request carried a warehouse_id (Sales Order's item lookup); null everywhere else (Item Master, Purchase Order's lookup), never a fabricated number with no warehouse context. */
+  available_qty: number | null
   created_at: string
   updated_at: string
 }

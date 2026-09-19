@@ -5,9 +5,9 @@ import { z } from 'zod'
  * building the API payload (see SalesOrderEditorPage's onSubmit) — same
  * string-then-convert pattern as Purchase Order, avoiding the
  * z.coerce.number() + zodResolver type mismatch documented in
- * docs/ERP_DESIGN_SYSTEM.md §6. No stock check here — Sales Order may
- * legitimately exceed current inventory; that validation belongs to
- * Delivery.
+ * docs/ERP_DESIGN_SYSTEM.md §6. Stock availability is checked (see
+ * evaluateStockBlock() / SalesOrderStockService) — physical stock is still
+ * only actually reduced at Delivery.
  */
 export const lineItemFormSchema = z.object({
   item_id: z.string().min(1, 'Item is required'),
@@ -15,6 +15,12 @@ export const lineItemFormSchema = z.object({
   // (or from the loaded order's line for edit mode), never sent in the payload.
   item_code: z.string().optional(),
   item_name: z.string().optional(),
+  // Denormalized from the picked item's available_qty at selection time — drives the row's
+  // insufficient-stock badge and evaluateStockBlock()'s client-side preview. Never sent in the
+  // payload; a stale value (warehouse changed after picking, or stock moved elsewhere) is fine —
+  // the server independently re-checks on every save, same "preview vs. authoritative" split the
+  // credit check already has.
+  available_qty: z.string().optional(),
   qty: z
     .string()
     .min(1, 'Qty is required')
@@ -45,6 +51,8 @@ export const salesOrderFormSchema = z.object({
   items: z.array(lineItemFormSchema).min(1, 'Add at least one line item'),
   override_credit_block: z.boolean().optional(),
   override_reason: z.string().optional().or(z.literal('')),
+  override_stock_block: z.boolean().optional(),
+  stock_override_reason: z.string().optional().or(z.literal('')),
 })
 
 export type SalesOrderEditorValues = z.infer<typeof salesOrderFormSchema>
@@ -66,4 +74,6 @@ export const emptySalesOrderEditorValues: SalesOrderEditorValues = {
   items: [],
   override_credit_block: false,
   override_reason: '',
+  override_stock_block: false,
+  stock_override_reason: '',
 }

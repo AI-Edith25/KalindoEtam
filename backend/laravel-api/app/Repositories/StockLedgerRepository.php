@@ -90,6 +90,37 @@ class StockLedgerRepository extends BaseRepository
     }
 
     /**
+     * Batched sibling of latestBalanceUnlocked() — one query for a whole list of items in one
+     * warehouse (e.g. Sales Order's item dropdown search results), instead of N+1 single-item
+     * lookups. Same unlocked, display-only posture; never use this to decide what to write to the
+     * ledger. Same ROW_NUMBER-latest-row-per-item shape currentBalances() already uses, tie-broken
+     * the same way latestBalanceUnlocked() is (posting_datetime then created_at, not id).
+     *
+     * @param  string[]  $itemIds
+     * @return array<string, float> balance_qty keyed by item_id — an item with no ledger rows yet
+     *                              simply doesn't appear (caller treats a missing key as 0).
+     */
+    public function latestBalancesForItems(array $itemIds, string $warehouseId): array
+    {
+        if ($itemIds === []) {
+            return [];
+        }
+
+        $ranked = $this->model->query()
+            ->select('item_id', 'balance_qty')
+            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY item_id ORDER BY posting_datetime DESC, created_at DESC) as rn')
+            ->where('warehouse_id', $warehouseId)
+            ->whereIn('item_id', $itemIds);
+
+        return DB::query()
+            ->fromSub($ranked, 'ranked')
+            ->where('rn', 1)
+            ->pluck('balance_qty', 'item_id')
+            ->map(fn ($qty) => (float) $qty)
+            ->all();
+    }
+
+    /**
      * Daily stock-in vs stock-out over a period — the Inventory Movement
      * chart's only data source (docs/DASHBOARD_DESIGN.md §5). qty_change is
      * already signed (positive = in, negative = out, per record()'s own

@@ -141,7 +141,7 @@ class StockLedgerService
         return $paginator;
     }
 
-    /** @param  \Illuminate\Support\Collection<int, string>  $itemWarehousePairs  "item_id|warehouse_id" keys */
+    /** @param  Collection<int, string>  $itemWarehousePairs  "item_id|warehouse_id" keys */
     private function currentAverageCostsFor($itemWarehousePairs): array
     {
         $itemIds = $itemWarehousePairs->map(fn ($pair) => explode('|', $pair)[0])->unique()->values()->all();
@@ -187,6 +187,18 @@ class StockLedgerService
     public function peekBalance(string $itemId, string $warehouseId): float
     {
         return $this->stockLedgerRepository->latestBalanceUnlocked($itemId, $warehouseId);
+    }
+
+    /**
+     * Batched sibling of peekBalance() for a whole list of items in one warehouse — see
+     * StockLedgerRepository::latestBalancesForItems() for why this avoids N+1 queries.
+     *
+     * @param  string[]  $itemIds
+     * @return array<string, float> keyed by item_id, missing key means 0
+     */
+    public function peekBalances(array $itemIds, string $warehouseId): array
+    {
+        return $this->stockLedgerRepository->latestBalancesForItems($itemIds, $warehouseId);
     }
 
     /** One row per (item, warehouse) pair with any ledger history, filtered — the Inventory module's Stock Balance report. */

@@ -59,6 +59,10 @@ class SalesOrderWarehousePricingTest extends TestCase
             'item_code' => 'ITM-1', 'item_name' => 'Widget',
             'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 10000,
         ]);
+
+        // Enough for every test below's qty=1 order — this file tests warehouse-based pricing,
+        // not stock availability (see SalesOrderStockCheckTest for that).
+        $this->seedStock($this->item->id, $this->main->id, 10);
     }
 
     public function test_creating_a_sales_order_without_warehouse_id_is_rejected(): void

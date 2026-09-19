@@ -1,5 +1,5 @@
 import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
-import { Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,8 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
-import { formatCurrency } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { Item, Tax } from '@/features/master/types'
@@ -17,8 +18,25 @@ import type { SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
 
 const NO_TAX = '__none__'
 
-function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
-  return `${item.item_code} — ${item.item_name}`
+function itemLabel(item: Pick<Item, 'item_code' | 'item_name'> & Partial<Pick<Item, 'available_qty' | 'uom'>>) {
+  const base = `${item.item_code} — ${item.item_name}`
+
+  if (item.available_qty === undefined || item.available_qty === null) return base
+
+  return `${base} (Stok: ${formatNumber(item.available_qty)}${item.uom?.name ? ` ${item.uom.name}` : ''})`
+}
+
+function InsufficientStockIcon() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger>
+          <AlertTriangle className="size-3.5 text-destructive" />
+        </TooltipTrigger>
+        <TooltipContent>Qty melebihi stok tersedia di warehouse ini</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 interface SalesOrderLineItemTableProps {
@@ -36,8 +54,10 @@ interface SalesOrderLineItemTableProps {
  * see fetchItemsLookup(warehouseId) in SalesOrderEditorPage)
  * and Tax from the Item's own sales_tax_id, live per-row Amount/Tax. Tax
  * and rate both stay editable per line afterward — the Item default is
- * only a starting point. No stock check on qty: Sales Order may exceed
- * current inventory (that validation belongs to Delivery, not here).
+ * only a starting point. Qty is checked against available_qty (physical
+ * stock minus other active Sales Orders' commitments, resolved for the
+ * order's Warehouse) — see evaluateStockBlock() and SalesOrderStockService;
+ * the server is always the authoritative check, this is a live preview.
  */
 export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: SalesOrderLineItemTableProps) {
   const { control, setValue } = form
@@ -55,6 +75,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
     const selected = option?.data
     setValue(`items.${index}.item_code`, selected?.item_code ?? '')
     setValue(`items.${index}.item_name`, selected?.item_name ?? '')
+    setValue(`items.${index}.available_qty`, selected?.available_qty != null ? String(selected.available_qty) : '')
     if (selected) {
       setValue(`items.${index}.rate`, String(selected.effective_rate), { shouldValidate: true })
       setValue(`items.${index}.tax_id`, selected.sales_tax_id ?? '', { shouldValidate: true })
@@ -88,6 +109,8 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                 const row = watchedItems?.[index]
                 const selectedOption: SearchableSelectOption<Item> | undefined =
                   row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
+                const isInsufficientStock =
+                  !!row?.available_qty && row.available_qty !== '' && Number(row.qty) > Number(row.available_qty)
 
                 return (
                 <TableRow key={field.id}>
@@ -117,7 +140,10 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                       name={`items.${index}.qty`}
                       render={({ field: qtyField }) => (
                         <FormItem className="gap-0">
-                          <Input type="number" min={1} step="1" disabled={disabled} {...qtyField} />
+                          <div className="flex items-center gap-1.5">
+                            <Input type="number" min={1} step="1" disabled={disabled} {...qtyField} />
+                            {isInsufficientStock && <InsufficientStockIcon />}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
