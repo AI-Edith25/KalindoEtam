@@ -22,13 +22,15 @@ final class PurchaseOrderTrackingParser
     private const DATA_START_ROW = 6;
 
     /**
-     * @return array{rows: array<int, array{po_no: string, po_date: string, supplier_name: string, amount: float, quote_no: ?string, request_by: ?string, requisition_no: ?string, has_grn: bool, grn_reference: ?string, grn_date: ?string}>, warnings: array<int, string>}
+     * @return array{rows: array<int, array{po_no: string, po_date: string, supplier_name: string, amount: float, quote_no: ?string, request_by: ?string, requisition_no: ?string, supplier_invoice_no: ?string, amount_billed: float, outstd_grn: float, outstd_po: float, has_grn: bool, grn_reference: ?string, grn_date: ?string}>, warnings: array<int, string>}
      */
     public function parse(array $rawRows): array
     {
         $dataRows = array_slice($rawRows, self::DATA_START_ROW - 1);
 
-        $decimalStyle = DataCleaner::detectDecimalStyle(array_column($dataRows, 3));
+        $decimalStyle = DataCleaner::detectDecimalStyle(array_merge(
+            array_column($dataRows, 3), array_column($dataRows, 11), array_column($dataRows, 12), array_column($dataRows, 13),
+        ));
 
         $rows = [];
         $warnings = [];
@@ -70,6 +72,10 @@ final class PurchaseOrderTrackingParser
                 'quote_no' => DataCleaner::normalizeText($this->toStringOrNull($row[4] ?? null)),
                 'request_by' => DataCleaner::normalizeText($this->toStringOrNull($row[5] ?? null)),
                 'requisition_no' => DataCleaner::normalizeText($this->toStringOrNull($row[10] ?? null)),
+                'supplier_invoice_no' => DataCleaner::normalizeText($this->toStringOrNull($row[7] ?? null)),
+                'amount_billed' => DataCleaner::normalizeNumber($row[11] ?? null, $decimalStyle) ?? 0.0,
+                'outstd_grn' => DataCleaner::normalizeNumber($row[12] ?? null, $decimalStyle) ?? 0.0,
+                'outstd_po' => DataCleaner::normalizeNumber($row[13] ?? null, $decimalStyle) ?? 0.0,
                 // Both Supplier DO No. and Sup. DO Date must be present to count as "received" —
                 // a date with no reference (or vice versa) is an incomplete/malformed source row,
                 // not treated as a receipt.

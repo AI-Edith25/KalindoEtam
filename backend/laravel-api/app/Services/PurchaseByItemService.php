@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\ImportBatchStatus;
 use App\Exports\Concerns\BuildsLegacyReportRows;
+use App\Models\ImportBatch;
 use App\Repositories\PurchaseByItemRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
@@ -13,6 +15,35 @@ class PurchaseByItemService
     use BuildsLegacyReportRows;
 
     public function __construct(protected PurchaseByItemRepository $purchaseByItemRepository) {}
+
+    /**
+     * Completed "Product Purchase Report" imports — a period-level per-item aggregate, kept
+     * deliberately separate from the live Goods-Receipt-based table above rather than summed into
+     * it: mixing a period aggregate into that table's precise per-transaction min/max/avg would
+     * misrepresent both (see the approved plan). Batch counts are small, so filtering in PHP after
+     * a plain Eloquent fetch is simpler than a JSON-path WHERE that would need to work identically
+     * on both MySQL (production) and SQLite (tests).
+     *
+     * @return array<int, array{batch_id: string, period_from: ?string, period_to: ?string, imported_at: ?string, items: array}>
+     */
+    public function importSnapshots(): array
+    {
+        return ImportBatch::query()
+            ->where('module', 'purchase-history')
+            ->where('status', ImportBatchStatus::COMPLETED)
+            ->latest('created_at')
+            ->get()
+            ->filter(fn (ImportBatch $batch) => ($batch->mapping['type'] ?? null) === 'product_purchase_report')
+            ->map(fn (ImportBatch $batch) => [
+                'batch_id' => $batch->id,
+                'period_from' => $batch->preview_summary['period_from'] ?? null,
+                'period_to' => $batch->preview_summary['period_to'] ?? null,
+                'imported_at' => optional($batch->created_at)->toIso8601String(),
+                'items' => $batch->preview_summary['item_snapshot'] ?? [],
+            ])
+            ->values()
+            ->all();
+    }
 
     public function list(array $filters, int $perPage = 25): LengthAwarePaginator
     {

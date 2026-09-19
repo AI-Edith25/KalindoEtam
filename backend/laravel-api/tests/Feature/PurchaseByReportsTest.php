@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ImportBatchStatus;
 use App\Enums\PurchaseReturnReason;
 use App\Enums\WarehouseType;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\GoodsReceipt;
+use App\Models\ImportBatch;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Permission;
@@ -214,6 +216,56 @@ class PurchaseByReportsTest extends TestCase
         $this->assertCount(2, $history);
         $this->assertEquals(12000, $history[0]['rate']); // newest first
         $this->assertEquals(10000, $history[1]['rate']);
+    }
+
+    public function test_a_purchase_history_import_po_never_leaks_into_by_supplier_or_by_item(): void
+    {
+        $purchaseOrder = $this->purchaseOrderService->create([
+            'supplier_id' => $this->supplier->id,
+            'order_date' => now()->toDateString(),
+            'source_document_number' => 'PO-IMPORT-1',
+            'items' => [['item_id' => $this->item->id, 'qty' => 1, 'rate' => 999999]],
+        ]);
+        $purchaseOrder->update(['import_source_type' => 'historical_invoice']);
+        $this->approveDocument($purchaseOrder);
+        $this->purchaseOrderService->submit($purchaseOrder);
+        Sanctum::actingAs($this->user); // approveDocument() above swapped the acting user to a throwaway approver
+
+        $bySupplier = $this->get('/api/v1/reports/purchase/by-supplier')->assertOk()->json('data');
+        $byItem = $this->get('/api/v1/reports/purchase/by-item')->assertOk()->json('data');
+
+        $this->assertCount(0, $bySupplier, 'both tabs are Goods-Receipt-only — an imported PO with no GR must never appear here');
+        $this->assertCount(0, $byItem);
+    }
+
+    public function test_by_item_import_snapshots_endpoint_surfaces_product_purchase_report_batches_separately(): void
+    {
+        ImportBatch::query()->create([
+            'module' => 'purchase-history',
+            'status' => ImportBatchStatus::COMPLETED,
+            'original_filename' => 'test.csv',
+            'disk' => 'local',
+            'file_path' => 'imports/whatever.csv',
+            'mapping' => ['type' => 'product_purchase_report'],
+            'preview_summary' => [
+                'item_snapshot' => [['item_code' => 'ITM-1', 'item_name' => 'Widget', 'qty' => 10.0, 'amount' => 100000.0, 'avg_price' => 10000.0]],
+                'period_from' => '2026-01-01',
+                'period_to' => '2026-01-31',
+            ],
+        ]);
+
+        // A real Direct Receipt exists too — the snapshot endpoint must never merge with it.
+        $this->submittedDirectReceipt(qty: 5, rate: 10000);
+
+        $snapshots = $this->get('/api/v1/reports/purchase/by-item/import-snapshots')->assertOk()->json('data');
+        $byItem = $this->get('/api/v1/reports/purchase/by-item')->assertOk()->json('data');
+
+        $this->assertCount(1, $snapshots);
+        $this->assertSame('2026-01-01', $snapshots[0]['period_from']);
+        $this->assertSame('ITM-1', $snapshots[0]['items'][0]['item_code']);
+
+        $this->assertCount(1, $byItem, 'the live table stays Goods-Receipt-only, unaffected by the snapshot');
+        $this->assertEquals(50000, $byItem[0]['amount'], 'never summed with the snapshot');
     }
 
     public function test_draft_goods_receipt_is_excluded(): void

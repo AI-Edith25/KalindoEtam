@@ -6,7 +6,6 @@ use App\Exports\Concerns\BuildsLegacyReportRows;
 use App\Repositories\PoTrackingRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class PoTrackingService
@@ -22,14 +21,30 @@ class PoTrackingService
         return $this->poTrackingRepository->paginate($filters, $filters['sort'] ?? 'order_date', $filters['sort_dir'] ?? 'asc', $perPage);
     }
 
-    public function items(string $purchaseOrderId): Collection
+    /**
+     * @return array{is_import: bool, import_source_type: ?string, extra: ?array, items: array}
+     */
+    public function items(string $purchaseOrderId): array
     {
-        return $this->poTrackingRepository->items($purchaseOrderId)->map(fn ($row) => [
+        $importMeta = $this->poTrackingRepository->importMeta($purchaseOrderId);
+
+        if ($importMeta !== null) {
+            return [
+                'is_import' => true,
+                'import_source_type' => $importMeta->import_source_type,
+                'extra' => json_decode((string) $importMeta->import_extra, true) ?? [],
+                'items' => [],
+            ];
+        }
+
+        $items = $this->poTrackingRepository->items($purchaseOrderId)->map(fn ($row) => [
             'item_name' => $row->item_name,
             'ordered_qty' => (float) $row->ordered_qty,
             'received_qty' => (float) $row->received_qty,
             'remaining_qty' => (float) $row->remaining_qty,
-        ]);
+        ])->all();
+
+        return ['is_import' => false, 'import_source_type' => null, 'extra' => null, 'items' => $items];
     }
 
     /** @return array{rows: array<int, array<int, mixed>>, meta: array<string, mixed>} */

@@ -15,7 +15,12 @@ class ResolvePurchaseHistoryImportRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'resolutions' => ['required', 'array'],
+            // 'present', not 'required' — this endpoint is now the universal "confirm and queue"
+            // step (see PurchaseHistoryImportController::store()), called even when preflight()
+            // found nothing to resolve, in which case the frontend legitimately sends an empty
+            // array. 'required' rejects an empty array outright (count() < 1), which would 422 the
+            // no-resolution-needed path.
+            'resolutions' => ['present', 'array'],
             'resolutions.*.category' => ['required', Rule::in(['supplier', 'item', 'duplicate'])],
             'resolutions.*.value' => ['required', 'string'],
             'resolutions.*.action' => ['required', Rule::in(['create', 'map', 'skip', 'proceed'])],

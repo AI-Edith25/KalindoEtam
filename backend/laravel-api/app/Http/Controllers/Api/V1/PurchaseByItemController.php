@@ -33,6 +33,12 @@ class PurchaseByItemController extends Controller
         return $this->success($this->purchaseByItemService->history($itemId, $request->validated()));
     }
 
+    /** "Data Import Historis" section — completed Product Purchase Report imports, kept separate from the live table above. */
+    public function importSnapshots(): JsonResponse
+    {
+        return $this->success($this->purchaseByItemService->importSnapshots());
+    }
+
     public function export(IndexPurchaseByItemRequest $request): BinaryFileResponse
     {
         $filters = $request->validated();

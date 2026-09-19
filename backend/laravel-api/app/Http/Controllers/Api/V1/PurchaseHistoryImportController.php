@@ -16,12 +16,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * One-click Purchase Report import — auto-detects Product Purchase Report vs. Purchase Order
- * Tracking (see PurchaseHistoryImportService), no manual column-mapping step. A resolve step only
- * ever appears when something genuinely needs a human decision (unmatched supplier/item, a
- * duplicate document/PO number) — store() runs the full parse synchronously (both source files
- * are small) and either dispatches the real job immediately (nothing to resolve) or holds the
- * batch and returns the resolve list (something does).
+ * One-click Purchase Report import — auto-detects Supplier Purchase Listing / Product Purchase
+ * Report / Purchase Order Tracking (see PurchaseHistoryImportService), no manual column-mapping
+ * step. store() runs the full parse synchronously (all 3 source files are small) and always
+ * leaves the batch PREVIEWED with the mandatory pre-import summary (detected type, valid/skipped
+ * counts, computed defaults, warnings, and — only when something needs a human decision — the
+ * resolve list). resolve() is the single confirm-and-queue step, called whether or not there was
+ * anything to resolve — the summary must be seen before anything is queued either way.
  */
 class PurchaseHistoryImportController extends Controller
 {
@@ -49,26 +50,29 @@ class PurchaseHistoryImportController extends Controller
             'placeholder_item_id' => $request->string('placeholder_item_id')->value(),
         ];
 
-        $needsResolution = $preflight['needs_resolution'];
-
+        // Always PREVIEWED, never auto-dispatched — the pre-import summary must be shown and
+        // explicitly confirmed (via resolve()) before anything is queued, even when nothing needs
+        // a human decision.
         $batch = ImportBatch::query()->create([
             'module' => 'purchase-history',
-            'status' => $needsResolution === [] ? ImportBatchStatus::QUEUED : ImportBatchStatus::PREVIEWED,
+            'status' => ImportBatchStatus::PREVIEWED,
             'original_filename' => $file->getClientOriginalName(),
             'disk' => 'local',
             'file_path' => $path,
             'mapping' => $mapping,
             'total_rows' => $preflight['total_rows'],
-            'preview_summary' => $needsResolution !== [] ? ['needs_resolution' => $needsResolution, 'warnings' => $preflight['warnings']] : null,
-            'queued_at' => $needsResolution === [] ? now() : null,
+            'preview_summary' => [
+                'type_label' => $preflight['type_label'],
+                'valid_count' => $preflight['valid_count'],
+                'skipped_count' => $preflight['skipped_count'],
+                'computed_defaults' => $preflight['computed_defaults'],
+                'warnings' => $preflight['warnings'],
+                'needs_resolution' => $preflight['needs_resolution'],
+            ],
             'created_by' => Auth::id(),
         ]);
 
-        if ($needsResolution === []) {
-            ProcessPurchaseHistoryImportJob::dispatch($batch->id);
-        }
-
-        return $this->success(new ImportBatchResource($batch), $needsResolution === [] ? 'Import queued.' : 'Resolution needed.', 201);
+        return $this->success(new ImportBatchResource($batch), 'Menunggu konfirmasi import.', 201);
     }
 
     public function resolve(ResolvePurchaseHistoryImportRequest $request, ImportBatch $batch): JsonResponse

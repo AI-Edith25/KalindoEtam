@@ -24,6 +24,12 @@ class PurchaseOrderResource extends JsonResource
             'tax_amount' => $this->tax_amount,
             'grand_total' => $this->grand_total,
             'remarks' => $this->remarks,
+            // Set only for a PO fabricated by the Purchase History import (a single placeholder
+            // line item) — the detail page swaps its item table for a "not available" message
+            // instead of showing that fabricated line as if it were real. See
+            // PurchaseHistoryImportService.
+            'import_source_type' => $this->import_source_type,
+            'import_extra' => $this->import_extra,
             'items' => PurchaseOrderItemResource::collection($this->whenLoaded('items')),
             'is_fully_received' => $this->whenLoaded('items', fn () => $this->items->every(fn ($item) => $item->received_qty >= $item->qty)),
             'submitted_at' => $this->submitted_at,

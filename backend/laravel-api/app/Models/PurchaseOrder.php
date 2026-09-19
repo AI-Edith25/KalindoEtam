@@ -30,6 +30,11 @@ class PurchaseOrder extends Model
         'grand_total',
         'remarks',
         'source_document_number',
+        'import_source_type',
+        'import_extra',
+        'amount_billed',
+        'outstanding_grn_value',
+        'outstanding_po_value',
     ];
 
     protected $casts = [
@@ -41,6 +46,10 @@ class PurchaseOrder extends Model
         'grand_total' => 'decimal:2',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'import_extra' => 'array',
+        'amount_billed' => 'decimal:2',
+        'outstanding_grn_value' => 'decimal:2',
+        'outstanding_po_value' => 'decimal:2',
     ];
 
     public function documentType(): string

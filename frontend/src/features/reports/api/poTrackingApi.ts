@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse, PaginationMeta } from '@/shared/types/api'
-import type { PoTrackingItemRow, PoTrackingRow, ReceivingStatus } from '../types'
+import type { PoTrackingItemsResponse, PoTrackingRow, ReceivingStatus } from '../types'
 
 export interface PoTrackingParams {
   page: number
@@ -23,8 +23,8 @@ export async function fetchPoTracking(params: PoTrackingParams): Promise<PoTrack
   return data
 }
 
-export async function fetchPoTrackingItems(purchaseOrderId: string): Promise<PoTrackingItemRow[]> {
-  const { data } = await apiClient.get<ApiResponse<PoTrackingItemRow[]>>(`/reports/purchase/po-tracking/${purchaseOrderId}/items`)
+export async function fetchPoTrackingItems(purchaseOrderId: string): Promise<PoTrackingItemsResponse> {
+  const { data } = await apiClient.get<ApiResponse<PoTrackingItemsResponse>>(`/reports/purchase/po-tracking/${purchaseOrderId}/items`)
   return data.data
 }
 

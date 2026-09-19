@@ -223,11 +223,75 @@ class PoTrackingTest extends TestCase
         $purchaseOrder = $this->submittedPurchaseOrder(qty: 10, rate: 10000);
         $this->receiveAgainst($purchaseOrder, 4);
 
-        $items = $this->get("/api/v1/reports/purchase/po-tracking/{$purchaseOrder->id}/items")->assertOk()->json('data');
+        $data = $this->get("/api/v1/reports/purchase/po-tracking/{$purchaseOrder->id}/items")->assertOk()->json('data');
 
-        $this->assertCount(1, $items);
-        $this->assertEquals(10, $items[0]['ordered_qty']);
-        $this->assertEquals(4, $items[0]['received_qty']);
-        $this->assertEquals(6, $items[0]['remaining_qty']);
+        $this->assertFalse($data['is_import']);
+        $this->assertCount(1, $data['items']);
+        $this->assertEquals(10, $data['items'][0]['ordered_qty']);
+        $this->assertEquals(4, $data['items'][0]['received_qty']);
+        $this->assertEquals(6, $data['items'][0]['remaining_qty']);
+    }
+
+    protected function importedPurchaseOrder(string $sourceDocumentNumber, array $importAttributes): PurchaseOrder
+    {
+        $purchaseOrder = $this->purchaseOrderService->create([
+            'supplier_id' => $this->supplier->id,
+            'order_date' => now()->toDateString(),
+            'source_document_number' => $sourceDocumentNumber,
+            'items' => [['item_id' => $this->item->id, 'qty' => 1, 'rate' => 500000]],
+        ]);
+        $purchaseOrder->update($importAttributes);
+        $this->approveDocument($purchaseOrder);
+        $purchaseOrder = $this->purchaseOrderService->submit($purchaseOrder);
+        Sanctum::actingAs($this->user); // approveDocument() above swapped the acting user to a throwaway approver
+
+        return $purchaseOrder;
+    }
+
+    public function test_items_drilldown_for_an_imported_po_returns_extra_fields_instead_of_a_fabricated_item(): void
+    {
+        $purchaseOrder = $this->importedPurchaseOrder('PO-IMPORT-1', [
+            'import_source_type' => 'po_tracking_amount',
+            'import_extra' => ['quote_no' => 'Q-1', 'request_by' => 'Budi'],
+        ]);
+
+        $data = $this->get("/api/v1/reports/purchase/po-tracking/{$purchaseOrder->id}/items")->assertOk()->json('data');
+
+        $this->assertTrue($data['is_import']);
+        $this->assertSame('po_tracking_amount', $data['import_source_type']);
+        $this->assertSame('Q-1', $data['extra']['quote_no']);
+        $this->assertSame([], $data['items'], 'never show the fabricated placeholder line as if it were a real item');
+    }
+
+    public function test_imported_row_shows_dash_worthy_nulls_and_never_a_fabricated_qty(): void
+    {
+        $purchaseOrder = $this->importedPurchaseOrder('PO-IMPORT-2', [
+            'import_source_type' => 'po_tracking_amount',
+            'amount_billed' => 250000,
+        ]);
+
+        $row = collect($this->get('/api/v1/reports/purchase/po-tracking?incomplete_only=0')->assertOk()->json('data'))
+            ->firstWhere('id', $purchaseOrder->id);
+
+        $this->assertNotNull($row);
+        $this->assertNull($row['ordered_qty'], 'the placeholder line qty=1 must never be shown as a real ordered qty');
+        $this->assertNull($row['received_qty']);
+        $this->assertNull($row['remaining_qty']);
+        $this->assertNull($row['fulfillment_pct']);
+        $this->assertSame('po_tracking_amount', $row['import_source_type']);
+        $this->assertEquals(50.0, $row['fulfillment_pct_value'], '250000 billed / 500000 total');
+    }
+
+    public function test_historical_invoice_row_has_no_value_based_fulfillment_either(): void
+    {
+        $purchaseOrder = $this->importedPurchaseOrder('BRM/IMPORT-1', ['import_source_type' => 'historical_invoice']);
+
+        $row = collect($this->get('/api/v1/reports/purchase/po-tracking?incomplete_only=0')->assertOk()->json('data'))
+            ->firstWhere('id', $purchaseOrder->id);
+
+        $this->assertNotNull($row);
+        $this->assertNull($row['ordered_qty']);
+        $this->assertNull($row['fulfillment_pct_value'], 'File A has no AMOUNT BILLED equivalent — must stay null, never fabricated');
+        $this->assertSame('historical_invoice', $row['import_source_type']);
     }
 }

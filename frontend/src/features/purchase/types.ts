@@ -38,6 +38,9 @@ export interface PurchaseOrder {
   tax_amount: string | number
   grand_total: string | number
   remarks: string | null
+  /** Set only for a PO fabricated by the Purchase History import — see PurchaseOrderDetailPage for the item-table swap this drives. */
+  import_source_type: 'historical_invoice' | 'po_tracking_amount' | null
+  import_extra: Record<string, string | null> | null
   items: PurchaseOrderItem[]
   is_fully_received: boolean | null
   submitted_at: string | null

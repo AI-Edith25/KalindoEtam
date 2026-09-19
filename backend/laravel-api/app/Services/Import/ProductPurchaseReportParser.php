@@ -3,24 +3,22 @@
 namespace App\Services\Import;
 
 /**
- * Parses the legacy "Product Purchase Report" export (Reports > Purchase > Purchase Orders'
- * Import) into document-number groups, each destined to become one Direct Goods Receipt —
- * see PurchaseHistoryImportService for why (this file has no PO number at all, only an
- * invoice/DO-style DOCUMENT #).
+ * Parses the legacy "Product Purchase Report" export — a per-item, per-category AGGREGATE for one
+ * date range, never a per-document transaction list (confirmed against the real file: no Document
+ * No/Date/Supplier/UOM/Unit Price/Discount column exists anywhere in it). See
+ * PurchaseHistoryImportService for why this can never create a Goods Receipt or Purchase Order —
+ * there's no document identity to attach one to, only a period-level total per item.
  *
- * Rows 1-4 are report preamble, row 5 is the real column header (DATE, DOCUMENT #, SUPPLIER NAME,
- * INV, DN, TOTAL, CN, NET AMT, QTY. PUR., CN. QTY., NET QTY.), data starts row 6. Row detection is
- * rule-based (never by fixed position — confirmed necessary against the real file: a document
- * number's line items are scattered across the WHOLE file, not contiguous, since rows are grouped
- * by item/category first, transaction second):
- *
- * - Category row (e.g. "KAWAT"): column A has text, column B blank, no " - " in column A.
- * - Item row (e.g. "BENDRAT TOKKA @ 20 KG - KAWAT BENDRAT TOKKA @ 20 KG"): column A has text
- *   containing " - ", column B blank — the segment before the first " - " is the item code.
- * - Transaction row: column A parses as a real date AND column B (DOCUMENT #) is non-blank.
- * - Everything else (an item's own unlabeled subtotal row, a "Sub-Total [X]" row, the file's
- *   trailing "Printed By :" grand total) has no date in column A and no " - " in column A — never
- *   posted, never even reported, pure structural noise.
+ * Rows 1-4 are report preamble (row 3 carries "Date From"/"Date To" under row 2's matching
+ * headers), row 5 is the real column header (ITEM #, DESCRIPTION, INV, DN, TOTAL, CN, NET AMT,
+ * QTY. PUR., CN. QTY., NET QTY.), data starts row 6. Row shape is structural, not by fixed
+ * position:
+ * - Category row (e.g. "SEMEN"): ITEM # has text, DESCRIPTION blank — purely a section label,
+ *   nothing to capture.
+ * - Item row: ITEM # has the item code, DESCRIPTION has the full item name and is never blank.
+ * - Sub-total row: ITEM # blank, DESCRIPTION starts with "Sub-Total [" — the category's own
+ *   running total, would double-count every item in it if not skipped.
+ * - The file's own trailing "Printed By :" row is the grand total, likewise skipped.
  */
 final class ProductPurchaseReportParser
 {
@@ -31,107 +29,75 @@ final class ProductPurchaseReportParser
     private const DATA_START_ROW = 6;
 
     /**
-     * @return array{groups: array<int, array{document_number: string, date: string, supplier_name: string, items: array<int, array{item_code: string, item_name: string, qty: float, rate: float}>}>, warnings: array<int, string>}
+     * @return array{items: array<int, array{item_code: string, item_name: string, qty: float, amount: float, avg_price: float}>, period_from: ?string, period_to: ?string, warnings: array<int, string>}
      */
     public function parse(array $rawRows): array
     {
+        $periodFrom = DataCleaner::normalizeDate($this->toStringOrNull($rawRows[2][0] ?? null));
+        $periodTo = DataCleaner::normalizeDate($this->toStringOrNull($rawRows[2][1] ?? null));
+
         $dataRows = array_slice($rawRows, self::DATA_START_ROW - 1);
 
         $decimalStyle = DataCleaner::detectDecimalStyle(array_merge(
-            array_column($dataRows, 5), array_column($dataRows, 6), array_column($dataRows, 7),
-            array_column($dataRows, 8), array_column($dataRows, 9), array_column($dataRows, 10),
+            array_column($dataRows, 6), array_column($dataRows, 9),
         ));
 
-        $flatRows = [];
+        $flatItems = [];
         $warnings = [];
-        $currentItem = null;
 
-        foreach ($dataRows as $rowIndex => $row) {
-            $colA = DataCleaner::normalizeText($this->toStringOrNull($row[0] ?? null));
-            $colB = DataCleaner::normalizeText($this->toStringOrNull($row[1] ?? null));
-            $colC = DataCleaner::normalizeText($this->toStringOrNull($row[2] ?? null));
+        foreach ($dataRows as $row) {
+            $itemCode = DataCleaner::normalizeText($this->toStringOrNull($row[0] ?? null));
+            $description = DataCleaner::normalizeText($this->toStringOrNull($row[1] ?? null));
 
-            if ($colA === null && $colB === null && $colC === null && $this->allBlank($row, [5, 6, 7, 8, 9, 10])) {
+            if ($itemCode === null && $description === null && $this->allBlank($row, [2, 3, 4, 5, 6, 7, 8, 9])) {
                 continue; // blank separator row
             }
 
-            if ($colA !== null && stripos($colA, 'Printed By') === 0) {
+            if ($itemCode !== null && stripos($itemCode, 'Printed By') === 0) {
                 continue; // the file's own trailing grand total
             }
 
-            if ($colC !== null && stripos($colC, 'Sub-Total') === 0) {
-                continue; // "Sub-Total [KATEGORI]" row
+            if ($description !== null && stripos($description, 'Sub-Total') === 0) {
+                continue; // "Sub-Total [KATEGORI]" row — already counted per item above it
             }
 
-            if ($colA === null && $colB === null && $colC === null) {
-                continue; // an item's own unlabeled subtotal row (blank A-C, numbers in D-K)
+            if ($description === null) {
+                continue; // category row (e.g. "SEMEN") — a pure section label, nothing to capture
             }
 
-            if ($colB === null) {
-                // Category or item row — column A has text, everything else on the row is blank.
-                if (str_contains($colA ?? '', ' - ')) {
-                    [$code, $name] = array_map('trim', explode(' - ', $colA, 2));
-                    $currentItem = ['code' => $code, 'name' => $name];
-                }
-                // A category row (no " - ") just resets nothing — it's purely informational,
-                // never needed to build a group, so there's nothing to capture from it.
+            if ($itemCode === null) {
+                $warnings[] = "Baris item \"{$description}\" tidak punya kode item (ITEM #) — dilewati.";
 
                 continue;
             }
 
-            $date = $this->parseDate($colA);
+            $netAmt = DataCleaner::normalizeNumber($row[6] ?? null, $decimalStyle) ?? 0.0;
+            $netQty = DataCleaner::normalizeNumber($row[9] ?? null, $decimalStyle) ?? 0.0;
 
-            if ($date === null) {
-                $warnings[] = "Baris tidak dikenali (kolom A=\"{$colA}\", kolom B=\"{$colB}\") — dilewati.";
-
-                continue;
-            }
-
-            if ($currentItem === null) {
-                $warnings[] = "Baris transaksi \"{$colB}\" ditemukan sebelum ada baris item — dilewati.";
-
-                continue;
-            }
-
-            $get = fn (int $i) => DataCleaner::normalizeNumber($row[$i] ?? null, $decimalStyle) ?? 0.0;
-            $total = $get(5);
-            $cn = $get(6);
-            $netAmt = $get(7);
-            $netQty = $get(10);
-
-            if (abs(($total - $cn) - $netAmt) > self::AMOUNT_EPSILON) {
-                $warnings[] = sprintf(
-                    '%s (%s): NET AMT (Rp %s) tidak sama dengan TOTAL - CN (Rp %s) — data tetap diproses.',
-                    $colB, $currentItem['name'], number_format($netAmt, 0, ',', '.'), number_format($total - $cn, 0, ',', '.'),
-                );
-            }
-
-            $flatRows[] = [
-                'document_number' => $colB,
-                'date' => $date,
-                'supplier_name' => $colC,
-                'item_code' => $currentItem['code'],
-                'item_name' => $currentItem['name'],
-                'qty' => $netQty,
-                // NET QTY of 0 with a real NET AMT would be a data anomaly (not observed in the
-                // real file) — treated as rate 0 rather than a division error, same posture as a
-                // genuine 0-qty/0-amount "DO-...BONUS" line (real, valid, zero-value goods).
-                'rate' => $netQty > self::AMOUNT_EPSILON ? round($netAmt / $netQty, 2) : 0.0,
-            ];
+            $flatItems[] = ['item_code' => $itemCode, 'item_name' => $description, 'qty' => $netQty, 'amount' => $netAmt];
         }
 
-        $groups = [];
-        foreach ($flatRows as $row) {
-            $key = $row['document_number'];
+        $grouped = [];
+        foreach ($flatItems as $item) {
+            $key = $item['item_code'];
 
-            if (! isset($groups[$key])) {
-                $groups[$key] = ['document_number' => $key, 'date' => $row['date'], 'supplier_name' => $row['supplier_name'], 'items' => []];
+            if (! isset($grouped[$key])) {
+                $grouped[$key] = $item;
+            } else {
+                $grouped[$key]['qty'] += $item['qty'];
+                $grouped[$key]['amount'] += $item['amount'];
             }
-
-            $groups[$key]['items'][] = ['item_code' => $row['item_code'], 'item_name' => $row['item_name'], 'qty' => $row['qty'], 'rate' => $row['rate']];
         }
 
-        return ['groups' => array_values($groups), 'warnings' => $warnings];
+        $items = array_map(function ($item) {
+            // A real 0-qty/0-amount line (e.g. a bonus/free-goods item) is valid data, not a
+            // division error — same posture the old parser already took for this exact case.
+            $item['avg_price'] = $item['qty'] > self::AMOUNT_EPSILON ? round($item['amount'] / $item['qty'], 2) : 0.0;
+
+            return $item;
+        }, array_values($grouped));
+
+        return ['items' => $items, 'period_from' => $periodFrom, 'period_to' => $periodTo, 'warnings' => $warnings];
     }
 
     private function allBlank(array $row, array $indexes): bool
@@ -143,11 +109,6 @@ final class ProductPurchaseReportParser
         }
 
         return true;
-    }
-
-    private function parseDate(?string $value): ?string
-    {
-        return $value === null ? null : DataCleaner::normalizeDate($value);
     }
 
     private function toStringOrNull(mixed $value): ?string

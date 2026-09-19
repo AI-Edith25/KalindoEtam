@@ -23,7 +23,7 @@ const REPORT_TABS = [
   { value: 'po-tracking', label: 'PO Tracking' },
 ]
 
-type Step = 'setup' | 'resolve' | 'progress'
+type Step = 'setup' | 'summary' | 'progress'
 
 interface ResolutionState {
   [key: string]: { action: PurchaseHistoryResolutionAction; target_id: string | null }
@@ -37,10 +37,12 @@ interface PurchaseHistoryImportDialogProps {
 }
 
 /**
- * Purchase Orders tab's "Import" button — upload Product Purchase Report or Purchase Order
- * Tracking (auto-detected server-side), resolve unmatched suppliers/items/duplicates only if
- * any come back, then watch the real Purchase Order/Goods Receipt documents get created. See
- * PurchaseHistoryImportService for why this posts real documents instead of a report row.
+ * Purchase Orders tab's "Import" button — upload Supplier Purchase Listing, Product Purchase
+ * Report, or Purchase Order Tracking (auto-detected server-side). A mandatory summary always
+ * shows before anything is queued (type detected, valid/skipped counts, computed defaults,
+ * warnings — including structural ones like "won't appear in By Supplier"), with an unmatched
+ * supplier/item/duplicate resolution table folded into the same step when something needs a
+ * human decision. See PurchaseHistoryImportService for what each file type creates.
  */
 export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryImportDialogProps) {
   const navigate = useNavigate()
@@ -49,7 +51,7 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
   const [file, setFile] = useState<File | null>(null)
   const [warehouseId, setWarehouseId] = useState<string>()
   const [placeholderItemId, setPlaceholderItemId] = useState<string>()
-  const [needsResolution, setNeedsResolution] = useState<PurchaseHistoryImportPreviewSummary['needs_resolution']>([])
+  const [summary, setSummary] = useState<PurchaseHistoryImportPreviewSummary | null>(null)
   const [resolutions, setResolutions] = useState<ResolutionState>({})
   const [batchId, setBatchId] = useState<string | null>(null)
 
@@ -60,7 +62,7 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
     setFile(null)
     setWarehouseId(undefined)
     setPlaceholderItemId(undefined)
-    setNeedsResolution([])
+    setSummary(null)
     setResolutions({})
     setBatchId(null)
   }
@@ -70,16 +72,20 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
     onClose()
   }
 
+  // store() always leaves the batch `previewed` now — the pre-import summary must be seen and
+  // explicitly confirmed (via resolve(), below) before anything is queued, even when there's
+  // nothing that needs a human decision.
   const uploadMutation = useMutation({
     mutationFn: () => storePurchaseHistoryImport(file as File, warehouseId as string, placeholderItemId as string),
     onSuccess: (batch) => {
       setBatchId(batch.id)
-      const entries = batch.preview_summary?.needs_resolution ?? []
-      setNeedsResolution(entries)
-      setStep(entries.length > 0 ? 'resolve' : 'progress')
+      setSummary(batch.preview_summary ?? null)
+      setStep('summary')
     },
     onError: (error) => toastApiError(error),
   })
+
+  const needsResolution = summary?.needs_resolution ?? []
 
   const resolveMutation = useMutation({
     mutationFn: () => {
@@ -129,8 +135,8 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
         <DialogHeader>
           <DialogTitle>Import Purchase History</DialogTitle>
           <DialogDescription>
-            {step === 'setup' && 'Upload file Product Purchase Report atau Purchase Order Tracking apa adanya — jenisnya dideteksi otomatis.'}
-            {step === 'resolve' && 'Beberapa nilai di file tidak cocok dengan data master — putuskan cara menanganinya sebelum lanjut.'}
+            {step === 'setup' && 'Upload file Supplier Purchase Listing, Product Purchase Report, atau Purchase Order Tracking apa adanya — jenisnya dideteksi otomatis.'}
+            {step === 'summary' && 'Ringkasan sebelum import — periksa dulu sebelum melanjutkan.'}
             {step === 'progress' && !isDone && 'Memproses file — membuat Purchase Order/Goods Receipt dari baris yang valid…'}
             {step === 'progress' && isDone && batch?.status === 'completed' && 'Import selesai. Berikut ringkasan hasilnya.'}
             {step === 'progress' && isDone && batch?.status === 'failed' && 'Import tidak bisa diproses.'}
@@ -162,8 +168,8 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Placeholder Item (Purchase Order Tracking)</label>
-              <p className="text-xs text-muted-foreground">Dipakai sebagai baris item untuk PO yang diimpor dari Purchase Order Tracking — file itu tidak punya rincian item per baris.</p>
+              <label className="text-sm font-medium">Placeholder Item (Supplier Purchase Listing / Purchase Order Tracking)</label>
+              <p className="text-xs text-muted-foreground">Dipakai sebagai baris item untuk PO yang diimpor dari salah satu file itu — keduanya tidak punya rincian item per baris. Tidak dipakai untuk Product Purchase Report.</p>
               <SearchableSelect
                 loadOptions={async (query) => (await searchItemsLookup(query)).map((item) => ({ value: item.id, label: `${item.item_code} — ${item.item_name}` }))}
                 value={placeholderItemId}
@@ -175,8 +181,34 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
           </div>
         )}
 
-        {step === 'resolve' && (
-          <div className="flex max-h-96 flex-col gap-4 overflow-y-auto">
+        {step === 'summary' && (
+          <div className="flex max-h-[28rem] flex-col gap-4 overflow-y-auto">
+            <div className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">Jenis file terdeteksi</span>
+                <Badge variant="secondary">{summary?.type_label ?? '—'}</Badge>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-muted-foreground">
+                <span>Baris valid vs dilewati</span>
+                <span>{summary?.valid_count ?? 0} valid, {summary?.skipped_count ?? 0} dilewati</span>
+              </div>
+              {!!summary?.computed_defaults?.length && (
+                <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                  {summary.computed_defaults.map((line, index) => <li key={index}>{line}</li>)}
+                </ul>
+              )}
+            </div>
+
+            {!!summary?.warnings?.length && (
+              <Alert>
+                <AlertTitle>Peringatan</AlertTitle>
+                <AlertDescription>
+                  {summary.warnings.map((warning, index) => <p key={index}>{warning}</p>)}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {needsResolution.length > 0 && (
             <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
@@ -188,7 +220,7 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(needsResolution ?? []).map((entry) => {
+                  {needsResolution.map((entry) => {
                     const key = resolutionKey(entry.category, entry.value)
                     const resolution = resolutions[key]
 
@@ -233,6 +265,7 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
                 </TableBody>
               </Table>
             </div>
+            )}
           </div>
         )}
 
@@ -326,10 +359,10 @@ export function PurchaseHistoryImportDialog({ open, onClose }: PurchaseHistoryIm
               Upload
             </Button>
           )}
-          {step === 'resolve' && (
+          {step === 'summary' && (
             <Button type="button" onClick={() => resolveMutation.mutate()} disabled={!allResolved || resolveMutation.isPending}>
               {resolveMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-              Proses Import
+              Lanjutkan Import
             </Button>
           )}
           {step === 'progress' && (

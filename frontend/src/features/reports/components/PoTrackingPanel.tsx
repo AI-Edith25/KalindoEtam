@@ -16,7 +16,34 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { exportPoTracking, fetchPoTracking, fetchPoTrackingItems, type PoTrackingParams } from '../api/poTrackingApi'
 import { PurchaseReportFiltersBar } from './PurchaseReportFiltersBar'
 import { reportFileName } from '../lib/exportFileName'
-import type { PoTrackingRow, PurchaseReportFilterValues, ReceivingStatus } from '../types'
+import type { PoImportSourceType, PoTrackingRow, PurchaseReportFilterValues, ReceivingStatus } from '../types'
+
+const DASH = '-'
+const numOrDash = (value: number | null) => (value !== null ? formatNumber(value) : DASH)
+const pctOrDash = (value: number | null) => (value !== null ? `${value.toFixed(2)}%` : DASH)
+const currencyOrDash = (value: number | null) => (value !== null ? formatCurrency(value) : DASH)
+
+const SOURCE_LABELS: Record<'internal' | PoImportSourceType, string> = {
+  internal: 'Internal',
+  historical_invoice: 'Import (Faktur Historis)',
+  po_tracking_amount: 'Import (Nilai PO)',
+}
+const SOURCE_STYLES: Record<'internal' | PoImportSourceType, string> = {
+  internal: 'bg-muted text-muted-foreground border-transparent',
+  historical_invoice: 'bg-blue-100 text-blue-700 border-transparent dark:bg-blue-950 dark:text-blue-300',
+  po_tracking_amount: 'bg-purple-100 text-purple-700 border-transparent dark:bg-purple-950 dark:text-purple-300',
+}
+
+const EXTRA_FIELD_LABELS: Record<string, string> = {
+  reference_no: 'Reference #',
+  reference_no_2: 'Reference 2 #',
+  supplier_code: 'Supplier Code',
+  quote_no: 'Quote No',
+  request_by: 'Request By',
+  requisition_no: 'Requisition #',
+  supplier_invoice_no: 'Supplier Invoice No',
+  supplier_do_no: 'Supplier DO No',
+}
 
 interface PoTrackingPanelProps {
   filters: PurchaseReportFilterValues
@@ -91,12 +118,26 @@ export function PoTrackingPanel({ filters, onFiltersChange, page, onPageChange }
       sortKey: 'document_number',
     },
     { header: 'Supplier', accessor: (row) => row.supplier_name },
+    {
+      header: 'Sumber',
+      accessor: (row) => {
+        const source = row.import_source_type ?? 'internal'
+        return <Badge className={SOURCE_STYLES[source]}>{SOURCE_LABELS[source]}</Badge>
+      },
+    },
     { header: 'Nilai PO', accessor: (row) => formatCurrency(row.total_amount), className: 'text-right', sortKey: 'total_amount' },
-    { header: 'Qty Dipesan', accessor: (row) => formatNumber(row.ordered_qty), className: 'text-right', sortKey: 'ordered_qty' },
-    { header: 'Qty Diterima', accessor: (row) => formatNumber(row.received_qty), className: 'text-right', sortKey: 'received_qty' },
-    { header: 'Sisa', accessor: (row) => formatNumber(row.remaining_qty), className: 'text-right', sortKey: 'remaining_qty' },
-    { header: '% Terpenuhi', accessor: (row) => `${row.fulfillment_pct.toFixed(2)}%`, className: 'text-right', sortKey: 'fulfillment_pct' },
-    { header: 'Status Penerimaan', accessor: (row) => <Badge className={STATUS_STYLES[row.receiving_status]}>{STATUS_LABELS[row.receiving_status]}</Badge> },
+    { header: 'Qty Dipesan', accessor: (row) => numOrDash(row.ordered_qty), className: 'text-right', sortKey: 'ordered_qty' },
+    { header: 'Qty Diterima', accessor: (row) => numOrDash(row.received_qty), className: 'text-right', sortKey: 'received_qty' },
+    { header: 'Sisa', accessor: (row) => numOrDash(row.remaining_qty), className: 'text-right', sortKey: 'remaining_qty' },
+    { header: '% Terpenuhi', accessor: (row) => pctOrDash(row.fulfillment_pct), className: 'text-right', sortKey: 'fulfillment_pct' },
+    { header: 'Sudah Ditagih', accessor: (row) => currencyOrDash(row.amount_billed), className: 'text-right' },
+    { header: 'Sisa PO (nilai)', accessor: (row) => currencyOrDash(row.outstanding_po_value), className: 'text-right' },
+    { header: 'Sisa Barang (nilai)', accessor: (row) => currencyOrDash(row.outstanding_grn_value), className: 'text-right' },
+    { header: '% Terpenuhi (nilai)', accessor: (row) => pctOrDash(row.fulfillment_pct_value), className: 'text-right' },
+    {
+      header: 'Status Penerimaan',
+      accessor: (row) => (row.receiving_status ? <Badge className={STATUS_STYLES[row.receiving_status]}>{STATUS_LABELS[row.receiving_status]}</Badge> : DASH),
+    },
     {
       header: '',
       id: 'actions',
@@ -171,36 +212,56 @@ export function PoTrackingPanel({ filters, onFiltersChange, page, onPageChange }
           <DialogHeader>
             <DialogTitle>Rincian Item — {itemsFor?.document_number}</DialogTitle>
           </DialogHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item</TableHead>
-                <TableHead className="text-right">Qty Dipesan</TableHead>
-                <TableHead className="text-right">Qty Diterima</TableHead>
-                <TableHead className="text-right">Sisa</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {itemsQuery.isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">Loading…</TableCell>
-                </TableRow>
-              ) : itemsQuery.data?.length ? (
-                itemsQuery.data.map((row, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{row.item_name}</TableCell>
-                    <TableCell className="text-right">{formatNumber(row.ordered_qty)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(row.received_qty)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(row.remaining_qty)}</TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">No items found.</TableCell>
-                </TableRow>
+          {itemsQuery.isLoading ? (
+            <p className="text-center text-sm text-muted-foreground">Loading…</p>
+          ) : itemsQuery.data?.is_import ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                Detail item tidak tersedia dari sumber ini — {SOURCE_LABELS[itemsQuery.data.import_source_type ?? 'internal']}.
+              </p>
+              {Object.entries(itemsQuery.data.extra ?? {}).some(([, v]) => v) && (
+                <Table>
+                  <TableBody>
+                    {Object.entries(itemsQuery.data.extra ?? {})
+                      .filter(([, value]) => value)
+                      .map(([key, value]) => (
+                        <TableRow key={key}>
+                          <TableCell className="font-medium">{EXTRA_FIELD_LABELS[key] ?? key}</TableCell>
+                          <TableCell>{value}</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
               )}
-            </TableBody>
-          </Table>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item</TableHead>
+                  <TableHead className="text-right">Qty Dipesan</TableHead>
+                  <TableHead className="text-right">Qty Diterima</TableHead>
+                  <TableHead className="text-right">Sisa</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {itemsQuery.data?.items.length ? (
+                  itemsQuery.data.items.map((row, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{row.item_name}</TableCell>
+                      <TableCell className="text-right">{formatNumber(row.ordered_qty)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(row.received_qty)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(row.remaining_qty)}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">No items found.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </DialogContent>
       </Dialog>
     </div>

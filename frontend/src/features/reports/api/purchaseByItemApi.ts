@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse, PaginationMeta } from '@/shared/types/api'
-import type { PurchaseByItemHistoryRow, PurchaseByItemRow } from '../types'
+import type { PurchaseByItemHistoryRow, PurchaseByItemRow, PurchaseHistoryImportSnapshotBatch } from '../types'
 
 export interface PurchaseByItemParams {
   page: number
@@ -28,4 +28,10 @@ export async function fetchPurchaseByItemHistory(itemId: string, params: Omit<Pu
 export async function exportPurchaseByItem(params: Omit<PurchaseByItemParams, 'page' | 'per_page'>, format: 'xlsx' | 'csv'): Promise<Blob> {
   const { data } = await apiClient.get('/reports/purchase/by-item/export', { params: { ...params, format }, responseType: 'blob' })
   return data as Blob
+}
+
+/** "Data Import Historis" section — completed Product Purchase Report imports, kept separate from the live table above. */
+export async function fetchPurchaseByItemImportSnapshots(): Promise<PurchaseHistoryImportSnapshotBatch[]> {
+  const { data } = await apiClient.get<ApiResponse<PurchaseHistoryImportSnapshotBatch[]>>('/reports/purchase/by-item/import-snapshots')
+  return data.data
 }

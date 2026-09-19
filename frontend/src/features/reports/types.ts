@@ -62,19 +62,33 @@ export interface PurchaseByItemHistoryRow {
 
 export type ReceivingStatus = 'not_received' | 'partial' | 'complete'
 
-/** PO Tracking tab — submitted Purchase Orders whose Goods Receipts haven't fully arrived yet. */
+/** Distinguishes a real, manually-created PO from one fabricated by the Purchase History import — the two import origins are never conflated even though both are "PurchaseOrder-with-placeholder-item". */
+export type PoImportSourceType = 'historical_invoice' | 'po_tracking_amount'
+
+/**
+ * PO Tracking tab — submitted Purchase Orders whose Goods Receipts haven't fully arrived yet.
+ * Every qty-based field is null for a row with import_source_type set — its qty came from a
+ * fabricated placeholder line, never a real "ordered N" fact, so the UI renders "-" instead of a
+ * misleading 0/1. fulfillment_pct_value is only ever non-null for 'po_tracking_amount' rows
+ * (straight from the source file's own AMOUNT BILLED / AMOUNT, no qty involved at all).
+ */
 export interface PoTrackingRow {
   id: string
   order_date: string
   document_number: string | null
   supplier_name: string
   total_amount: number
-  ordered_qty: number
-  received_qty: number
-  remaining_qty: number
-  fulfillment_pct: number
-  receiving_status: ReceivingStatus
+  ordered_qty: number | null
+  received_qty: number | null
+  remaining_qty: number | null
+  fulfillment_pct: number | null
+  receiving_status: ReceivingStatus | null
   is_overdue: boolean
+  import_source_type: PoImportSourceType | null
+  amount_billed: number | null
+  outstanding_grn_value: number | null
+  outstanding_po_value: number | null
+  fulfillment_pct_value: number | null
 }
 
 export interface PoTrackingItemRow {
@@ -82,6 +96,14 @@ export interface PoTrackingItemRow {
   ordered_qty: number
   received_qty: number
   remaining_qty: number
+}
+
+/** PO Tracking's per-row drill-down — a real PO's item breakdown, or (for an imported row) the optional legacy fields instead, never the fabricated placeholder line. */
+export interface PoTrackingItemsResponse {
+  is_import: boolean
+  import_source_type: PoImportSourceType | null
+  extra: Record<string, string | null> | null
+  items: PoTrackingItemRow[]
 }
 
 export interface GoodsReceiptReportFilterValues {
@@ -497,11 +519,15 @@ export interface TaxReportFilterValues {
 }
 
 /**
- * Purchase Report's smart import (Purchase Orders tab) — one click, auto-detects Product Purchase
- * Report vs. Purchase Order Tracking, no manual column mapping. See PurchaseHistoryImportService
- * on the backend. A resolve step only appears when `needs_resolution` comes back non-empty.
+ * Purchase Report's smart import (Purchase Orders tab) — one click, auto-detects Supplier Purchase
+ * Listing / Product Purchase Report / Purchase Order Tracking, no manual column mapping. See
+ * PurchaseHistoryImportService on the backend. store() always leaves the batch `previewed` with
+ * the mandatory pre-import summary (shown before anything is queued, ticket requirement) —
+ * resolve() is the universal confirm-and-queue step, called whether or not `needs_resolution`
+ * came back non-empty.
  */
 export type PurchaseHistoryImportBatchStatus = 'previewed' | 'queued' | 'processing' | 'completed' | 'failed'
+export type PurchaseHistoryImportType = 'supplier_purchase_listing' | 'product_purchase_report' | 'purchase_order_tracking'
 export type PurchaseHistoryResolutionCategory = 'supplier' | 'item' | 'duplicate'
 export type PurchaseHistoryResolutionAction = 'create' | 'map' | 'skip' | 'proceed'
 
@@ -525,10 +551,17 @@ export interface PurchaseHistoryImportOutcome {
 }
 
 export interface PurchaseHistoryImportPreviewSummary {
+  type_label?: string
+  valid_count?: number
+  skipped_count?: number
+  computed_defaults?: string[]
   needs_resolution?: PurchaseHistoryResolutionEntry[]
   warnings?: string[]
   needs_review_rows?: number
   vouchers?: PurchaseHistoryImportOutcome[]
+  item_snapshot?: PurchaseHistoryItemSnapshotRow[]
+  period_from?: string | null
+  period_to?: string | null
 }
 
 export interface PurchaseHistoryImportBatch {
@@ -540,4 +573,24 @@ export interface PurchaseHistoryImportBatch {
   failed_rows: number
   failure_reason: string | null
   preview_summary: PurchaseHistoryImportPreviewSummary | null
+}
+
+/** By Item tab's separate "Data Import Historis" section — a period-level aggregate from a Product Purchase Report import, never merged into the live Goods-Receipt-based table above. */
+export interface PurchaseHistoryItemSnapshotRow {
+  item_code: string
+  item_name: string
+  qty: number
+  amount: number
+  avg_price: number
+  item_id: string | null
+  uom: string | null
+  resolved: boolean
+}
+
+export interface PurchaseHistoryImportSnapshotBatch {
+  batch_id: string
+  period_from: string | null
+  period_to: string | null
+  imported_at: string | null
+  items: PurchaseHistoryItemSnapshotRow[]
 }

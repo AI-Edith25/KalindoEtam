@@ -190,7 +190,28 @@ export function PurchaseOrderDetailPage() {
           <CardTitle>Line Items</CardTitle>
         </CardHeader>
         <CardContent>
-          <DataTable columns={lineColumns} data={order.items} rowKey={(row) => row.id} emptyMessage="No line items." />
+          {order.import_source_type ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                Detail item tidak tersedia dari sumber ini — dokumen ini diimpor dari{' '}
+                {order.import_source_type === 'historical_invoice' ? 'Supplier Purchase Listing' : 'Purchase Order Tracking'}, yang tidak membawa rincian item.
+              </p>
+              {Object.entries(order.import_extra ?? {}).some(([, v]) => v) && (
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:max-w-md">
+                  {Object.entries(order.import_extra ?? {})
+                    .filter(([, value]) => value)
+                    .map(([key, value]) => (
+                      <div key={key} className="contents">
+                        <dt className="text-muted-foreground">{key.replace(/_/g, ' ')}</dt>
+                        <dd>{value}</dd>
+                      </div>
+                    ))}
+                </dl>
+              )}
+            </div>
+          ) : (
+            <DataTable columns={lineColumns} data={order.items} rowKey={(row) => row.id} emptyMessage="No line items." />
+          )}
         </CardContent>
       </Card>
 
