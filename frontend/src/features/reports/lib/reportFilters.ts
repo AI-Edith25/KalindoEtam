@@ -55,6 +55,13 @@ export function emptySalesReportFilters(): SalesReportFilterValues {
   }
 }
 
+/** Gross Profit's own default range is "current month" (was Margin tab's currentMonthRange()), unlike Sales Report's other tabs' last-30-days default. */
+export function currentMonthGrossProfitFilters(): SalesReportFilterValues {
+  const { date_from, date_to } = dateRangeForPreset('this_month')
+
+  return { ...emptySalesReportFilters(), dateFrom: date_from, dateTo: date_to }
+}
+
 export function hasActiveSalesReportFilters(filters: SalesReportFilterValues): boolean {
   return (
     filters.customer_id !== '' ||

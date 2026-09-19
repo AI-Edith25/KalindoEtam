@@ -6,14 +6,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * One Margin row — shape depends on which of MarginRepository's 3 grouped queries produced it
- * (item/customer/invoice), detected the same way ProductSalesRowResource branches on presence of
- * group_id. `hpp_missing` flags an aggregated row whose summed cost_amount is exactly 0 (e.g. a
- * Transportation line, or a Goods line the FIFO backfill couldn't resolve) — the frontend renders
- * a warning icon for it; it's already excluded from the page-level Margin Rata-rata KPI (computed
- * at the raw-line grain in MarginRepository::kpis(), not from these aggregated rows).
+ * One Gross Profit row — shape depends on which of GrossProfitRepository's 3 grouped queries
+ * produced it (item/customer/invoice), detected the same way ProductSalesRowResource branches on
+ * presence of group_id. `hpp_missing` flags an aggregated row whose summed cost_amount is exactly 0
+ * (e.g. a Transportation line, or a Goods line the FIFO backfill couldn't resolve) — the frontend
+ * renders a warning icon for it; it's already excluded from the page-level Margin Rata-rata KPI
+ * (computed at the raw-line grain in GrossProfitRepository::kpis(), not from these aggregated rows).
  */
-class MarginRowResource extends JsonResource
+class GrossProfitRowResource extends JsonResource
 {
     public function toArray(Request $request): array
     {

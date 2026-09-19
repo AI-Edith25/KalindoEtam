@@ -5,8 +5,8 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/** Margin tab (Sales Report) — profit/margin over validated Sales Invoice lines net of Credit Notes, grouped by item/customer/invoice. */
-class IndexMarginRequest extends FormRequest
+/** Gross Profit report (split out of Sales Report's old Margin tab) — profit/margin over validated Sales Invoice lines net of Credit Notes, grouped by item/customer/invoice. */
+class IndexGrossProfitRequest extends FormRequest
 {
     public function authorize(): bool
     {

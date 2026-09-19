@@ -12,22 +12,22 @@ import { cn, formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { exportMargin, fetchMargin, type MarginParams } from '../api/marginApi'
+import { exportGrossProfit, fetchGrossProfit, type GrossProfitParams } from '../api/grossProfitApi'
 import { SalesReportFiltersBar } from './SalesReportFiltersBar'
 import { reportFileName } from '../lib/exportFileName'
-import type { MarginGroupBy, MarginRow, SalesReportFilterValues } from '../types'
+import type { GrossProfitGroupBy, GrossProfitRow, SalesReportFilterValues } from '../types'
 
-interface MarginPanelProps {
+interface GrossProfitPanelProps {
   filters: SalesReportFilterValues
   onFiltersChange: (filters: SalesReportFilterValues) => void
   page: number
   onPageChange: (page: number) => void
 }
 
-const GROUPS: { value: MarginGroupBy; label: string }[] = [
-  { value: 'item', label: 'Per Item' },
-  { value: 'customer', label: 'Per Customer' },
-  { value: 'invoice', label: 'Per Invoice' },
+const GROUPS: { value: GrossProfitGroupBy; label: string }[] = [
+  { value: 'item', label: 'By Item' },
+  { value: 'invoice', label: 'By Invoice' },
+  { value: 'customer', label: 'By Customer' },
 ]
 
 function formatMargin(value: number): string {
@@ -48,19 +48,21 @@ function HppMissingIcon() {
 }
 
 /**
- * Margin tab — Profit = Penjualan (excl. tax) - HPP. Rules (HPP source, tax exclusion, margin
- * formula) are backend-fixed, not user-selectable, so this panel never offers a HPP-method or
- * include/exclude-tax control — see the ticket. hpp_missing rows are still shown in the table
- * (with a warning icon) but are already excluded from meta.kpis.avg_margin_pct server-side.
+ * Gross Profit report — Profit = Penjualan (excl. tax) - HPP. Split out of Sales Report's old
+ * Margin tab (2026-09-19) into its own top-level report, same query/formula/component, just
+ * relabeled and relocated. Rules (HPP source, tax exclusion, margin formula) are backend-fixed, not
+ * user-selectable, so this panel never offers a HPP-method or include/exclude-tax control.
+ * hpp_missing rows are still shown in the table (with a warning icon) but are already excluded
+ * from meta.kpis.avg_margin_pct server-side.
  */
-export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: MarginPanelProps) {
-  const [group, setGroup] = useState<MarginGroupBy>('item')
+export function GrossProfitPanel({ filters, onFiltersChange, page, onPageChange }: GrossProfitPanelProps) {
+  const [group, setGroup] = useState<GrossProfitGroupBy>('item')
   const [sort, setSort] = useState<DataTableSort>({ key: 'profit', direction: 'desc' })
   const [isExporting, setIsExporting] = useState(false)
 
-  const activeParams: Omit<MarginParams, 'page'> = {
+  const activeParams: Omit<GrossProfitParams, 'page'> = {
     group,
-    sort: sort.key as MarginParams['sort'],
+    sort: sort.key as GrossProfitParams['sort'],
     sort_dir: sort.direction,
     ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
     ...(filters.item_id ? { item_id: filters.item_id } : {}),
@@ -71,15 +73,15 @@ export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: Ma
   }
 
   const listQuery = useQuery({
-    queryKey: ['margin', page, group, sort.key, sort.direction, filters],
-    queryFn: () => fetchMargin({ ...activeParams, page }),
+    queryKey: ['gross-profit', page, group, sort.key, sort.direction, filters],
+    queryFn: () => fetchGrossProfit({ ...activeParams, page }),
     placeholderData: (previous) => previous,
   })
 
   const rows = listQuery.data?.data ?? []
   const kpis = listQuery.data?.meta.kpis
 
-  const setGroupAndReset = (next: MarginGroupBy) => {
+  const setGroupAndReset = (next: GrossProfitGroupBy) => {
     setGroup(next)
     setSort({ key: 'profit', direction: 'desc' })
     onPageChange(1)
@@ -88,8 +90,8 @@ export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: Ma
   const exportReport = async (format: 'xlsx' | 'csv') => {
     setIsExporting(true)
     try {
-      const blob = await exportMargin(activeParams, format)
-      downloadBlob(reportFileName('MarginReport', filters.dateFrom, filters.dateTo, format), blob)
+      const blob = await exportGrossProfit(activeParams, format)
+      downloadBlob(reportFileName('GrossProfitReport', filters.dateFrom, filters.dateTo, format), blob)
     } catch (error) {
       toastApiError(error)
     } finally {
@@ -99,7 +101,7 @@ export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: Ma
 
   const profitClass = (value: number) => cn('text-right', value < 0 && 'text-destructive')
 
-  const itemColumns: DataTableColumn<MarginRow>[] = [
+  const itemColumns: DataTableColumn<GrossProfitRow>[] = [
     { header: 'Kode Item', accessor: (row) => row.item_code ?? '—' },
     {
       header: 'Nama Item',
@@ -118,7 +120,7 @@ export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: Ma
     { header: 'Margin %', accessor: (row) => <span className={cn(row.margin_pct < 0 && 'text-destructive')}>{formatMargin(row.margin_pct)}</span>, className: 'text-right', sortKey: 'margin_pct' },
   ]
 
-  const customerColumns: DataTableColumn<MarginRow>[] = [
+  const customerColumns: DataTableColumn<GrossProfitRow>[] = [
     { header: 'Kode Cust', accessor: (row) => row.customer_code ?? '—' },
     {
       header: 'Nama Customer',
@@ -137,7 +139,7 @@ export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: Ma
     { header: 'Margin %', accessor: (row) => <span className={cn(row.margin_pct < 0 && 'text-destructive')}>{formatMargin(row.margin_pct)}</span>, className: 'text-right', sortKey: 'margin_pct' },
   ]
 
-  const invoiceColumns: DataTableColumn<MarginRow>[] = [
+  const invoiceColumns: DataTableColumn<GrossProfitRow>[] = [
     { header: 'Tanggal', accessor: (row) => formatDate(row.date), sortKey: 'date' },
     {
       header: 'No Invoice',
@@ -219,7 +221,6 @@ export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: Ma
               icon: Printer,
               onClick: () => {
                 const params = new URLSearchParams({
-                  tab: 'margin',
                   group,
                   ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
                   ...(filters.item_id ? { item_id: filters.item_id } : {}),
@@ -228,7 +229,7 @@ export function MarginPanel({ filters, onFiltersChange, page, onPageChange }: Ma
                   ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                   ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
                 })
-                openPrintWindow(`/reports/sales/print?${params.toString()}`)
+                openPrintWindow(`/reports/gross-profit/print?${params.toString()}`)
               },
             },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },

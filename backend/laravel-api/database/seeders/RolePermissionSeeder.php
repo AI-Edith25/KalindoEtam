@@ -86,6 +86,9 @@ class RolePermissionSeeder extends Seeder
         'reports.purchase' => ['view', 'import'],
         'reports.goods_receipts' => ['view'],
         'reports.sales' => ['view'],
+        // Gross Profit split out of Sales Report's Margin tab (2026-09-19) — see the backfill
+        // block in run() that keeps any role already holding reports.sales.view able to reach it.
+        'reports.gross_profit' => ['view'],
         'reports.deliveries' => ['view'],
         'reports.inventory_movement' => ['view'],
         'reports.inventory_balance' => ['view'],
@@ -180,6 +183,15 @@ class RolePermissionSeeder extends Seeder
 
             if ($hasPredecessorAccess && ! $role->hasPermissionTo('reports.inventory_stock.view')) {
                 $role->givePermissionTo('reports.inventory_stock.view');
+            }
+        });
+
+        // Gross Profit is Sales Report's old Margin tab, split into its own top-level Reports
+        // entry — any role that could already reach reports.sales.view (and therefore Margin)
+        // keeps that access, additive only, same precedent as the 2 backfills above.
+        Role::query()->where('name', '!=', 'Admin')->with('permissions')->each(function (Role $role) {
+            if ($role->hasPermissionTo('reports.sales.view') && ! $role->hasPermissionTo('reports.gross_profit.view')) {
+                $role->givePermissionTo('reports.gross_profit.view');
             }
         });
     }

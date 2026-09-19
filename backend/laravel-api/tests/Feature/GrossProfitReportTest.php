@@ -25,8 +25,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
-/** Margin tab — Profit = Penjualan (excl. tax) - HPP, sourced from validated Sales Invoice lines net of Credit Notes. */
-class MarginReportTest extends TestCase
+/** Gross Profit report (split out of Sales Report's old Margin tab) — Profit = Penjualan (excl. tax) - HPP, sourced from validated Sales Invoice lines net of Credit Notes. */
+class GrossProfitReportTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -75,9 +75,12 @@ class MarginReportTest extends TestCase
         // aren't trivially zero.
         $this->seedStock($this->item->id, $this->warehouse->id, 1000, unitCost: 6000);
 
+        Permission::query()->firstOrCreate(['name' => 'reports.gross_profit.view', 'guard_name' => 'web']);
         Permission::query()->firstOrCreate(['name' => 'reports.sales.view', 'guard_name' => 'web']);
         $user = User::factory()->create();
-        $user->givePermissionTo('reports.sales.view');
+        // Both permissions: one test cross-checks against reports/sales/listing, which stays on
+        // reports.sales.view.
+        $user->givePermissionTo(['reports.gross_profit.view', 'reports.sales.view']);
         Sanctum::actingAs($user);
     }
 
@@ -124,7 +127,7 @@ class MarginReportTest extends TestCase
         $this->submittedInvoice(qty: 10, rate: 10000); // 100000
         $this->submittedInvoice(qty: 5, rate: 20000); // 100000
 
-        $margin = $this->get('/api/v1/reports/sales/margin')->assertOk()->json('meta.kpis');
+        $margin = $this->get('/api/v1/reports/gross-profit')->assertOk()->json('meta.kpis');
         $listing = $this->get('/api/v1/reports/sales/listing')->assertOk()->json('meta.kpis');
 
         $this->assertEquals($listing['net_sales'], $margin['total_sales']);
@@ -137,9 +140,9 @@ class MarginReportTest extends TestCase
         $this->submittedInvoice(qty: 10, rate: 10000);
         $this->submittedInvoice(qty: 5, rate: 20000);
 
-        $byItem = $this->get('/api/v1/reports/sales/margin?group=item')->assertOk()->json('data');
-        $byCustomer = $this->get('/api/v1/reports/sales/margin?group=customer')->assertOk()->json('data');
-        $byInvoice = $this->get('/api/v1/reports/sales/margin?group=invoice')->assertOk()->json('data');
+        $byItem = $this->get('/api/v1/reports/gross-profit?group=item')->assertOk()->json('data');
+        $byCustomer = $this->get('/api/v1/reports/gross-profit?group=customer')->assertOk()->json('data');
+        $byInvoice = $this->get('/api/v1/reports/gross-profit?group=invoice')->assertOk()->json('data');
 
         $sum = fn (array $rows) => array_sum(array_column($rows, 'profit'));
 
@@ -153,7 +156,7 @@ class MarginReportTest extends TestCase
         $invoice = $this->submittedInvoice(qty: 10, rate: 10000); // amount 100000, cost 60000, profit 40000
         $invoiceItem = $invoice->items->first();
 
-        $before = $this->get('/api/v1/reports/sales/margin')->assertOk()->json('meta.kpis');
+        $before = $this->get('/api/v1/reports/gross-profit')->assertOk()->json('meta.kpis');
         $this->assertEquals(100000, $before['total_sales']);
         $this->assertEquals(40000, $before['total_profit']);
 
@@ -167,7 +170,7 @@ class MarginReportTest extends TestCase
         ]);
         $this->creditNoteService->submit($creditNote);
 
-        $after = $this->get('/api/v1/reports/sales/margin')->assertOk()->json('meta.kpis');
+        $after = $this->get('/api/v1/reports/gross-profit')->assertOk()->json('meta.kpis');
 
         // Credited 3 of 10 units: -30000 sales, -18000 cost (3 * 6000 unit_cost snapshot), so
         // profit drops by exactly 12000 (30000 - 18000).
@@ -188,7 +191,7 @@ class MarginReportTest extends TestCase
         ]);
         $this->invoiceService->submit($transportation);
 
-        $kpis = $this->get('/api/v1/reports/sales/margin')->assertOk()->json('meta.kpis');
+        $kpis = $this->get('/api/v1/reports/gross-profit')->assertOk()->json('meta.kpis');
 
         // Totals include the Transportation line's full amount as profit (cost 0)...
         $this->assertEquals(150000, $kpis['total_sales']);
@@ -197,7 +200,7 @@ class MarginReportTest extends TestCase
         // toward 100% by the Transportation line's cost-free amount.
         $this->assertEquals(40.0, $kpis['avg_margin_pct']);
 
-        $rows = $this->get('/api/v1/reports/sales/margin?group=item')->assertOk()->json('data');
+        $rows = $this->get('/api/v1/reports/gross-profit?group=item')->assertOk()->json('data');
         $flagged = collect($rows)->firstWhere('hpp_missing', true);
         $this->assertNotNull($flagged);
         $this->assertEquals(50000, $flagged['amount']);

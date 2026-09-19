@@ -8,8 +8,8 @@ use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 
-/** Margin export. $rows/$meta come from MarginService::exportRows() — see ProductSalesExport for the shared banner/styling shape every Sales Report tab's export uses. */
-class MarginExport implements FromArray, WithCustomCsvSettings, WithEvents, WithStrictNullComparison
+/** Gross Profit export. $rows/$meta come from GrossProfitService::exportRows() — see ProductSalesExport for the shared banner/styling shape every Sales/Reports export uses. */
+class GrossProfitExport implements FromArray, WithCustomCsvSettings, WithEvents, WithStrictNullComparison
 {
     use StylesLegacyReportSheet;
 

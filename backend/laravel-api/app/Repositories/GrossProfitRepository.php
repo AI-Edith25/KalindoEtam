@@ -10,14 +10,16 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Margin tab — Profit = Penjualan (excl. tax) - HPP, sourced only from validated Sales Invoice
- * lines net of Credit Note lines (never Sales Order/Delivery — see the ticket). Built the same way
- * SalesListingRepository nets Credit Notes into one Sales Listing total: a UNION ALL of signed
- * invoice-item and credit-note-item rows, filtered identically to SalesListingRepository (invoice
- * lines by invoice_date, credit note lines by their own credit_note_date) so Margin's Total
- * Penjualan ties out to Sales Listing's net_sales for the same filters. Grouped 3 ways on top of
- * that same union — same "one query, several aggregation modes" shape as ProductSalesRepository's
- * item/item_group toggle — so Per Item/Customer/Invoice profit sums are always identical.
+ * Gross Profit report — Profit = Penjualan (excl. tax) - HPP, sourced only from validated Sales
+ * Invoice lines net of Credit Note lines (never Sales Order/Delivery — see the ticket). Split out
+ * of Sales Report's old Margin tab (2026-09-19) into its own top-level report — same query/formula
+ * logic, unchanged. Built the same way SalesListingRepository nets Credit Notes into one Sales
+ * Listing total: a UNION ALL of signed invoice-item and credit-note-item rows, filtered identically
+ * to SalesListingRepository (invoice lines by invoice_date, credit note lines by their own
+ * credit_note_date) so Total Penjualan ties out to Sales Listing's net_sales for the same filters.
+ * Grouped 3 ways on top of that same union — same "one query, several aggregation modes" shape as
+ * ProductSalesRepository's item/item_group toggle — so Per Item/Customer/Invoice profit sums are
+ * always identical.
  *
  * HPP (cost_amount) is InvoiceItem's own immutable snapshot (see InvoiceService::createGoods()) —
  * never recomputed here from a live Item cost. A Credit Note line has no cost column of its own;
@@ -27,7 +29,7 @@ use Illuminate\Support\Facades\DB;
  * their own invoice_items.id in Per Item mode rather than merging into one fake "item" bucket, so
  * cross-mode profit totals never diverge because of them.
  */
-class MarginRepository
+class GrossProfitRepository
 {
     public function paginate(array $filters, string $group, string $sort, string $sortDir, int $perPage): LengthAwarePaginator
     {

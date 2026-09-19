@@ -3,13 +3,14 @@
 namespace App\Services;
 
 use App\Exports\Concerns\BuildsLegacyReportRows;
-use App\Repositories\MarginRepository;
+use App\Repositories\GrossProfitRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
-class MarginService
+/** Split out of Sales Report's old Margin tab (2026-09-19) into its own top-level report — same query/formula logic, unchanged. */
+class GrossProfitService
 {
     use BuildsLegacyReportRows;
 
@@ -19,11 +20,11 @@ class MarginService
         'invoice' => ['TANGGAL', 'NO INVOICE', 'CUSTOMER', 'SALES PERSON', 'PENJUALAN', 'HPP', 'PROFIT', 'MARGIN %'],
     ];
 
-    public function __construct(protected MarginRepository $marginRepository) {}
+    public function __construct(protected GrossProfitRepository $grossProfitRepository) {}
 
     public function list(array $filters, int $perPage = 25): LengthAwarePaginator
     {
-        return $this->marginRepository->paginate(
+        return $this->grossProfitRepository->paginate(
             $filters,
             $filters['group'] ?? 'item',
             $filters['sort'] ?? 'profit',
@@ -35,14 +36,14 @@ class MarginService
     /** @return array{total_sales: float, total_cost: float, total_profit: float, avg_margin_pct: float} */
     public function kpis(array $filters): array
     {
-        return $this->marginRepository->kpis($filters);
+        return $this->grossProfitRepository->kpis($filters);
     }
 
     /** @return array{rows: array<int, array<int, mixed>>, meta: array<string, mixed>} */
     public function exportRows(array $filters, string $format): array
     {
         $group = $filters['group'] ?? 'item';
-        $rows = $this->marginRepository->allGrouped($filters, $group, $filters['sort'] ?? 'profit', $filters['sort_dir'] ?? 'desc');
+        $rows = $this->grossProfitRepository->allGrouped($filters, $group, $filters['sort'] ?? 'profit', $filters['sort_dir'] ?? 'desc');
         $kpis = $this->kpis($filters);
         $headingRow = self::HEADINGS[$group];
         $bodyRows = $this->bodyRows($group, $rows);
@@ -55,7 +56,7 @@ class MarginService
         }
 
         return $this->buildXlsxRows(
-            title: 'MARGIN REPORT',
+            title: 'GROSS PROFIT REPORT',
             periodLabel: $this->periodLabel($filters),
             headingRow: $headingRow,
             bodyRows: $bodyRows,
@@ -69,7 +70,7 @@ class MarginService
 
     public function fileName(array $filters, string $format): string
     {
-        return $this->buildFileName('MarginReport', $filters['date_from'] ?? null, $filters['date_to'] ?? null, $format);
+        return $this->buildFileName('GrossProfitReport', $filters['date_from'] ?? null, $filters['date_to'] ?? null, $format);
     }
 
     /** @return array<int, array<int, mixed>> */

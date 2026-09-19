@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\FifoValuationController;
 use App\Http\Controllers\Api\V1\GeneralLedgerController;
 use App\Http\Controllers\Api\V1\GeneralLedgerImportController;
 use App\Http\Controllers\Api\V1\GoodsReceiptController;
+use App\Http\Controllers\Api\V1\GrossProfitController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\ImportMappingPresetController;
 use App\Http\Controllers\Api\V1\IncomeStatementImportController;
@@ -38,7 +39,6 @@ use App\Http\Controllers\Api\V1\ItemGroupController;
 use App\Http\Controllers\Api\V1\ItemWarehousePriceController;
 use App\Http\Controllers\Api\V1\JournalEntryController;
 use App\Http\Controllers\Api\V1\JournalListController;
-use App\Http\Controllers\Api\V1\MarginController;
 use App\Http\Controllers\Api\V1\MiscellaneousItemController;
 use App\Http\Controllers\Api\V1\NamingSeriesController;
 use App\Http\Controllers\Api\V1\OfficialReceiptImportController;
@@ -334,8 +334,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('reports/sales/open-orders/export', [OpenOrdersController::class, 'export'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/listing', [SalesListingController::class, 'index'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/listing/export', [SalesListingController::class, 'export'])->middleware('permission:reports.sales.view');
-    Route::get('reports/sales/margin', [MarginController::class, 'index'])->middleware('permission:reports.sales.view');
-    Route::get('reports/sales/margin/export', [MarginController::class, 'export'])->middleware('permission:reports.sales.view');
+
+    // Gross Profit — split out of Sales Report's old Margin tab into its own top-level Reports
+    // entry (2026-09-19), own reports.gross_profit.view permission. Same query/formula, just moved.
+    Route::get('reports/gross-profit', [GrossProfitController::class, 'index'])->middleware('permission:reports.gross_profit.view');
+    Route::get('reports/gross-profit/export', [GrossProfitController::class, 'export'])->middleware('permission:reports.gross_profit.view');
 
     // Invoice Workflow (Sprint 10): Delivery -> Invoice -> Accounts Receivable -> Receipt Entry.
     // Registered before apiResource('invoices', ...) below — its GET invoices/{invoice} (show)

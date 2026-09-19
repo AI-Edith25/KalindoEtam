@@ -76,6 +76,8 @@ import { PurchaseReportPage } from '@/features/reports/pages/PurchaseReportPage'
 import { GoodsReceiptReportPage } from '@/features/reports/pages/GoodsReceiptReportPage'
 import { SalesReportPage } from '@/features/reports/pages/SalesReportPage'
 import { SalesReportPrintPage } from '@/features/reports/pages/SalesReportPrintPage'
+import { GrossProfitReportPage } from '@/features/reports/pages/GrossProfitReportPage'
+import { GrossProfitReportPrintPage } from '@/features/reports/pages/GrossProfitReportPrintPage'
 import { DeliveryReportPage } from '@/features/reports/pages/DeliveryReportPage'
 import { DeliveryReportPrintPage } from '@/features/reports/pages/DeliveryReportPrintPage'
 import { InventoryStockReportPage } from '@/features/reports/pages/InventoryStockReportPage'
@@ -386,6 +388,7 @@ export function AppRouter() {
         <Route path="/reports/purchase" element={<ProtectedRoute permission="reports.purchase.view"><PurchaseReportPage /></ProtectedRoute>} />
         <Route path="/reports/goods-receipts" element={<ProtectedRoute permission="reports.goods_receipts.view"><GoodsReceiptReportPage /></ProtectedRoute>} />
         <Route path="/reports/sales" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPage /></ProtectedRoute>} />
+        <Route path="/reports/gross-profit" element={<ProtectedRoute permission="reports.gross_profit.view"><GrossProfitReportPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPage /></ProtectedRoute>} />
         <Route path="/reports/inventory-stock" element={<ProtectedRoute permission="reports.inventory_stock.view"><InventoryStockReportPage /></ProtectedRoute>} />
         {/* Inventory Movement (duplicate of Stock Ledger) and Inventory Balance (duplicate of the Balance tab) were both deleted in favor of this one page. */}
@@ -492,6 +495,7 @@ export function AppRouter() {
         <Route path="/sales/credit-notes/print-list" element={<ProtectedRoute permission="sales.credit_notes.view"><CreditNoteListPrintPage /></ProtectedRoute>} />
         <Route path="/sales/debit-notes/print-list" element={<ProtectedRoute permission="sales.debit_notes.view"><DebitNoteListPrintPage /></ProtectedRoute>} />
         <Route path="/reports/sales/print" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/gross-profit/print" element={<ProtectedRoute permission="reports.gross_profit.view"><GrossProfitReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries/print" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail/statement-print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableStatementPrintPage /></ProtectedRoute>} />

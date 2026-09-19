@@ -290,16 +290,18 @@ export interface SalesListingKpis {
 }
 
 /**
- * Margin tab — Profit = Penjualan (excl. tax) - HPP, sourced from validated Sales Invoice lines
- * net of Credit Notes. One shared row shape covers all 3 grouping modes (fields the active mode
- * doesn't use come back null from MarginRowResource) — same approach ProductSalesRow already uses
- * for its item/item_group toggle. `hpp_missing` (cost_amount summed to exactly 0 — e.g. a
- * Transportation line, or a Goods line the FIFO backfill couldn't resolve) drives the "HPP belum
- * tercatat" warning icon; it's already excluded from `avg_margin_pct` server-side.
+ * Gross Profit report — Profit = Penjualan (excl. tax) - HPP, sourced from validated Sales Invoice
+ * lines net of Credit Notes. Split out of Sales Report's old Margin tab (2026-09-19) into its own
+ * top-level report — same shapes, unchanged. One shared row shape covers all 3 grouping modes
+ * (fields the active mode doesn't use come back null from GrossProfitRowResource) — same approach
+ * ProductSalesRow already uses for its item/item_group toggle. `hpp_missing` (cost_amount summed to
+ * exactly 0 — e.g. a Transportation line, or a Goods line the FIFO backfill couldn't resolve)
+ * drives the "HPP belum tercatat" warning icon; it's already excluded from `avg_margin_pct`
+ * server-side.
  */
-export type MarginGroupBy = 'item' | 'customer' | 'invoice'
+export type GrossProfitGroupBy = 'item' | 'customer' | 'invoice'
 
-export interface MarginRow {
+export interface GrossProfitRow {
   id: string
   item_code: string | null
   item_name: string | null
@@ -317,7 +319,7 @@ export interface MarginRow {
   hpp_missing: boolean
 }
 
-export interface MarginKpis {
+export interface GrossProfitKpis {
   total_sales: number
   total_cost: number
   total_profit: number

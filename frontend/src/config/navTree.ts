@@ -135,6 +135,10 @@ export const navTree: NavGroup[] = [
       { key: 'purchase', label: 'Purchase', path: '/reports/purchase', actions: ['view'] },
       { key: 'goods_receipts', label: 'Goods Receipt', path: '/reports/goods-receipts', actions: ['view'] },
       { key: 'sales', label: 'Sales', path: '/reports/sales', actions: ['view'] },
+      // Split out of Sales Report's old Margin tab (2026-09-19) — its own reports.gross_profit.view
+      // permission (Margin never had one of its own; it rode on reports.sales.view). See
+      // RolePermissionSeeder's backfill block for how existing roles keep access.
+      { key: 'gross_profit', label: 'Gross Profit', path: '/reports/gross-profit', actions: ['view'] },
       { key: 'deliveries', label: 'Delivery', path: '/reports/deliveries', actions: ['view'] },
       { key: 'inventory_stock', label: 'Inventory Stock', path: '/reports/inventory-stock', actions: ['view'] },
       { key: 'ar_detail', label: 'AR Detail', path: '/reports/ar-detail', actions: ['view'] },
