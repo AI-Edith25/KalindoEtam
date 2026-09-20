@@ -20,7 +20,8 @@ class ShowCustomerOutstandingArchiveRequest extends FormRequest
             'invoice_date_to' => ['nullable', 'date'],
             'due_date_from' => ['nullable', 'date'],
             'due_date_to' => ['nullable', 'date'],
-            'status' => ['nullable', Rule::in(['outstanding', 'overdue', 'lunas'])],
+            // No 'lunas' option -- this file only ever contains unpaid invoices.
+            'status' => ['nullable', Rule::in(['outstanding', 'overdue'])],
         ];
     }
 }

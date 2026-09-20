@@ -37,7 +37,6 @@ export function CustomerOutstandingArchiveFiltersBar({ value, onChange }: Custom
             <SelectItem value={ALL}>All statuses</SelectItem>
             <SelectItem value="outstanding">Outstanding</SelectItem>
             <SelectItem value="overdue">Overdue</SelectItem>
-            <SelectItem value="lunas">Lunas</SelectItem>
           </SelectContent>
         </Select>
       </div>

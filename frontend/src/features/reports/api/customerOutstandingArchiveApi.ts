@@ -1,6 +1,11 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiResponse } from '@/shared/types/api'
-import type { CustomerOutstandingArchiveDetail, CustomerOutstandingArchiveFilterValues, CustomerOutstandingSnapshot } from '../types'
+import type {
+  CustomerOutstandingArchiveDetail,
+  CustomerOutstandingArchiveFilterValues,
+  CustomerOutstandingArchiveImportBatch,
+  CustomerOutstandingSnapshot,
+} from '../types'
 
 function filterParams(filters: Partial<CustomerOutstandingArchiveFilterValues>) {
   return {
@@ -18,13 +23,20 @@ export async function fetchCustomerOutstandingSnapshots(): Promise<CustomerOutst
   return data.data
 }
 
-export async function storeCustomerOutstandingSnapshot(file: File): Promise<CustomerOutstandingSnapshot> {
+/** Preflight only -- parses and validates, returns a batch awaiting confirmation. Nothing is committed yet. */
+export async function storeCustomerOutstandingSnapshot(file: File): Promise<CustomerOutstandingArchiveImportBatch> {
   const formData = new FormData()
   formData.append('file', file)
 
-  const { data } = await apiClient.post<ApiResponse<CustomerOutstandingSnapshot>>('/customer-outstanding-archive/snapshots', formData, {
+  const { data } = await apiClient.post<ApiResponse<CustomerOutstandingArchiveImportBatch>>('/customer-outstanding-archive/snapshots', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+  return data.data
+}
+
+/** Commits the previously previewed batch -- runs synchronously and returns the finished snapshot immediately. */
+export async function resolveCustomerOutstandingImport(batchId: string): Promise<CustomerOutstandingSnapshot> {
+  const { data } = await apiClient.post<ApiResponse<CustomerOutstandingSnapshot>>(`/customer-outstanding-archive/batches/${batchId}/resolve`)
   return data.data
 }
 

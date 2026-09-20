@@ -4,15 +4,18 @@ namespace App\Exports;
 
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
+use Maatwebsite\Excel\Events\AfterSheet;
 
 /**
  * Flat export of the currently filtered/displayed archive rows -- one physical row per invoice
  * line (Customer Code/Name denormalized onto every row, since CSV/XLSX can't reproduce the
- * source file's grouped-with-blank-cells layout), plus a trailing Grand Total row.
+ * source file's grouped-with-blank-cells layout), plus a trailing Grand Total row. The snapshot's
+ * own "as of" date is stamped above the heading row -- this is imported, not live, data.
  */
-class CustomerOutstandingArchiveExport implements FromArray, WithCustomCsvSettings, WithHeadings, WithStrictNullComparison
+class CustomerOutstandingArchiveExport implements FromArray, WithCustomCsvSettings, WithEvents, WithHeadings, WithStrictNullComparison
 {
     protected const HEADINGS = [
         'Customer Code', 'Customer Name', 'Date', 'Ref. No', 'Invoice Amt', 'Paid Amount',
@@ -20,7 +23,12 @@ class CustomerOutstandingArchiveExport implements FromArray, WithCustomCsvSettin
     ];
 
     /** @param array<int, array{customer_code: string, customer_name: string, rows: array}> $customers */
-    public function __construct(protected array $customers, protected float $grandTotalUnpaid, protected float $grandTotalOverdue) {}
+    public function __construct(
+        protected array $customers,
+        protected float $grandTotalUnpaid,
+        protected float $grandTotalOverdue,
+        protected string $snapshotAsOfDate,
+    ) {}
 
     public function headings(): array
     {
@@ -54,6 +62,17 @@ class CustomerOutstandingArchiveExport implements FromArray, WithCustomCsvSettin
         $rows[] = ['Grand Total', '', '', '', '', '', $this->grandTotalUnpaid, '', '', $this->grandTotalOverdue, '', ''];
 
         return $rows;
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+                $sheet->insertNewRowBefore(1, 1);
+                $sheet->setCellValue('A1', "Sumber: import manual per {$this->snapshotAsOfDate} -- bukan data live.");
+            },
+        ];
     }
 
     public function getCsvSettings(): array

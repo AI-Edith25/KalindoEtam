@@ -41,13 +41,13 @@ class CustomerOutstandingSnapshotLine extends Model
         return $this->belongsTo(CustomerOutstandingSnapshot::class, 'snapshot_id');
     }
 
-    /** Computed from the snapshot's own stored figures, never recalculated from today's date -- see the class-level ticket constraint. */
+    /**
+     * Computed from the snapshot's own stored figures, never recalculated from today's date.
+     * No "lunas" branch -- this file only ever contains unpaid invoices, a settled one is never
+     * in it at all, so unpaid_amount is never legitimately <= 0 for a real row.
+     */
     public function status(): string
     {
-        if ((float) $this->unpaid_amount <= 0) {
-            return 'lunas';
-        }
-
         return (float) $this->overdue_amount > 0 ? 'overdue' : 'outstanding';
     }
 }

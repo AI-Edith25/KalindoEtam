@@ -600,7 +600,9 @@ export interface PurchaseHistoryImportSnapshotBatch {
 // "Piutang Customer (Arsip Import)" -- standalone archive of imported legacy AR export
 // snapshots, not connected to the live Sales/Invoice/Customer/AR module. See
 // CustomerOutstandingArchiveImportService on the backend.
-export type CustomerOutstandingArchiveStatus = 'outstanding' | 'overdue' | 'lunas'
+// 'lunas' deliberately excluded -- this file only ever contains unpaid invoices, so no line can
+// ever actually be settled; see CustomerOutstandingSnapshotLine::status() on the backend.
+export type CustomerOutstandingArchiveStatus = 'outstanding' | 'overdue'
 
 export interface CustomerOutstandingSnapshot {
   id: string
@@ -637,11 +639,59 @@ export interface CustomerOutstandingArchiveCustomerGroup {
   subtotal_overdue: number
 }
 
+export interface CustomerOutstandingArchiveSummary {
+  total_unpaid: number
+  due_this_week: number
+  overdue: number
+}
+
 export interface CustomerOutstandingArchiveDetail {
   snapshot: CustomerOutstandingSnapshot
+  summary: CustomerOutstandingArchiveSummary
   customers: CustomerOutstandingArchiveCustomerGroup[]
   grand_total_unpaid: number
   grand_total_overdue: number
+}
+
+export interface CustomerOutstandingArchiveFailedRow {
+  row: number
+  reason: string
+}
+
+export interface CustomerOutstandingArchiveSubtotalMismatch {
+  customer_code: string
+  customer_name: string
+  row: number
+  file_unpaid: number | null
+  file_overdue: number | null
+  computed_unpaid: number
+  computed_overdue: number
+}
+
+export interface CustomerOutstandingArchiveGrandTotalMismatch {
+  file_unpaid: number
+  file_overdue: number
+  computed_unpaid: number
+  computed_overdue: number
+}
+
+/** ImportBatch.preview_summary shape while status='previewed' -- from CustomerOutstandingArchiveImportService::preflight(). */
+export interface CustomerOutstandingArchivePreflight {
+  company_name: string | null
+  snapshot_as_of_date: string
+  total_rows: number
+  total_customers: number
+  total_unpaid: number
+  total_overdue: number
+  failed_rows: CustomerOutstandingArchiveFailedRow[]
+  subtotal_mismatches: CustomerOutstandingArchiveSubtotalMismatch[]
+  grand_total_mismatch: CustomerOutstandingArchiveGrandTotalMismatch | null
+}
+
+export interface CustomerOutstandingArchiveImportBatch {
+  id: string
+  status: 'previewed' | 'completed' | 'failed'
+  preview_summary: CustomerOutstandingArchivePreflight | null
 }
 
 export interface CustomerOutstandingArchiveFilterValues {

@@ -407,6 +407,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // App\Services\Import\CustomerOutstandingArchiveImportService.
     Route::get('customer-outstanding-archive/snapshots', [CustomerOutstandingArchiveController::class, 'snapshots'])->middleware('permission:reports.ar_archive.view');
     Route::post('customer-outstanding-archive/snapshots', [CustomerOutstandingArchiveController::class, 'store'])->middleware('permission:reports.ar_archive.import');
+    Route::post('customer-outstanding-archive/batches/{batch}/resolve', [CustomerOutstandingArchiveController::class, 'resolve'])->middleware('permission:reports.ar_archive.import');
     Route::get('customer-outstanding-archive/snapshots/{snapshot}', [CustomerOutstandingArchiveController::class, 'show'])->middleware('permission:reports.ar_archive.view');
     Route::get('customer-outstanding-archive/snapshots/{snapshot}/export', [CustomerOutstandingArchiveController::class, 'export'])->middleware('permission:reports.ar_archive.view');
 
