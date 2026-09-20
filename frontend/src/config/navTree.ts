@@ -142,6 +142,9 @@ export const navTree: NavGroup[] = [
       { key: 'deliveries', label: 'Delivery', path: '/reports/deliveries', actions: ['view'] },
       { key: 'inventory_stock', label: 'Inventory Stock', path: '/reports/inventory-stock', actions: ['view'] },
       { key: 'ar_detail', label: 'AR Detail', path: '/reports/ar-detail', actions: ['view'] },
+      // Standalone archive of imported legacy AR export snapshots -- not connected to the live
+      // ar_detail report above. See CustomerOutstandingArchiveImportService.
+      { key: 'ar_archive', label: 'Piutang Customer (Arsip)', path: '/reports/ar-archive', actions: ['view'] },
       { key: 'ap_detail', label: 'AP Detail', path: '/reports/ap-detail', actions: ['view'] },
       // permissionGroup keeps this tab gated on the same accounting.general_ledger.view that
       // already governs the content it leads to — see the `accounting` group below.

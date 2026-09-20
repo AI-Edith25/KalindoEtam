@@ -2,6 +2,7 @@ import { dateRangeForPreset } from '@/shared/lib/dateRangePresets'
 import type {
   ApDetailReportFilterValues,
   ArDetailReportFilterValues,
+  CustomerOutstandingArchiveFilterValues,
   DeliveryReportFilterValues,
   GoodsReceiptReportFilterValues,
   PurchaseReportFilterValues,
@@ -114,6 +115,26 @@ export function hasActiveArDetailReportFilters(filters: ArDetailReportFilterValu
     filters.invoiceDateTo !== '' ||
     filters.branch_id !== '' ||
     filters.sales_person_id !== ''
+  )
+}
+
+export const emptyCustomerOutstandingArchiveFilters: CustomerOutstandingArchiveFilterValues = {
+  customer: '',
+  invoiceDateFrom: '',
+  invoiceDateTo: '',
+  dueDateFrom: '',
+  dueDateTo: '',
+  status: null,
+}
+
+export function hasActiveCustomerOutstandingArchiveFilters(filters: CustomerOutstandingArchiveFilterValues): boolean {
+  return (
+    filters.customer !== '' ||
+    filters.invoiceDateFrom !== '' ||
+    filters.invoiceDateTo !== '' ||
+    filters.dueDateFrom !== '' ||
+    filters.dueDateTo !== '' ||
+    filters.status !== null
   )
 }
 

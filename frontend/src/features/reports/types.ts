@@ -596,3 +596,59 @@ export interface PurchaseHistoryImportSnapshotBatch {
   imported_at: string | null
   items: PurchaseHistoryItemSnapshotRow[]
 }
+
+// "Piutang Customer (Arsip Import)" -- standalone archive of imported legacy AR export
+// snapshots, not connected to the live Sales/Invoice/Customer/AR module. See
+// CustomerOutstandingArchiveImportService on the backend.
+export type CustomerOutstandingArchiveStatus = 'outstanding' | 'overdue' | 'lunas'
+
+export interface CustomerOutstandingSnapshot {
+  id: string
+  source_filename: string
+  company_name: string | null
+  snapshot_as_of_date: string
+  total_rows: number
+  total_customers: number
+  grand_total_unpaid: string
+  grand_total_overdue: string
+  importer: { id: string; name: string } | null
+  created_at: string
+}
+
+export interface CustomerOutstandingArchiveLine {
+  id: string
+  txn_date: string
+  ref_no: string
+  invoice_amount: number
+  paid_amount: number
+  unpaid_amount: number
+  terms_days: number | null
+  due_date: string
+  overdue_amount: number
+  overdue_days: number
+  status: CustomerOutstandingArchiveStatus
+}
+
+export interface CustomerOutstandingArchiveCustomerGroup {
+  customer_code: string
+  customer_name: string
+  rows: CustomerOutstandingArchiveLine[]
+  subtotal_unpaid: number
+  subtotal_overdue: number
+}
+
+export interface CustomerOutstandingArchiveDetail {
+  snapshot: CustomerOutstandingSnapshot
+  customers: CustomerOutstandingArchiveCustomerGroup[]
+  grand_total_unpaid: number
+  grand_total_overdue: number
+}
+
+export interface CustomerOutstandingArchiveFilterValues {
+  customer: string
+  invoiceDateFrom: string
+  invoiceDateTo: string
+  dueDateFrom: string
+  dueDateTo: string
+  status: CustomerOutstandingArchiveStatus | null
+}

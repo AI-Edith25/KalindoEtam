@@ -84,6 +84,7 @@ import { InventoryStockReportPage } from '@/features/reports/pages/InventoryStoc
 import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/AccountsReceivableDetailReportPage'
 import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/pages/AccountsReceivableDetailReportPrintPage'
 import { AccountsReceivableStatementPrintPage } from '@/features/reports/pages/AccountsReceivableStatementPrintPage'
+import { CustomerOutstandingArchivePage } from '@/features/reports/pages/CustomerOutstandingArchivePage'
 import { AccountsPayableDetailReportPage } from '@/features/reports/pages/AccountsPayableDetailReportPage'
 import { AccountsPayableDetailReportPrintPage } from '@/features/reports/pages/AccountsPayableDetailReportPrintPage'
 import { TaxReportPage } from '@/features/reports/pages/TaxReportPage'
@@ -395,6 +396,7 @@ export function AppRouter() {
         <Route path="/reports/inventory-movement" element={<RedirectPreservingQuery to="/reports/inventory-stock?tab=ledger" />} />
         <Route path="/reports/inventory-balance" element={<Navigate to="/reports/inventory-stock?tab=balance" replace />} />
         <Route path="/reports/ar-detail" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPage /></ProtectedRoute>} />
+        <Route path="/reports/ar-archive" element={<ProtectedRoute permission="reports.ar_archive.view"><CustomerOutstandingArchivePage /></ProtectedRoute>} />
         <Route path="/reports/ap-detail" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPage /></ProtectedRoute>} />
         <Route path="/reports/tax" element={<ProtectedRoute permission="reports.tax.view"><TaxReportPage /></ProtectedRoute>} />
         <Route path="/reports/general-ledger" element={<ProtectedRoute permission="accounting.general_ledger.view"><GeneralLedgerListPage /></ProtectedRoute>} />

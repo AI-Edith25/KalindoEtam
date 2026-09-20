@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\CompanyController;
 use App\Http\Controllers\Api\V1\CreditNoteController;
 use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\CustomerOutstandingArchiveController;
 use App\Http\Controllers\Api\V1\CustomerSalesController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DebitNoteController;
@@ -400,6 +401,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('accounts-receivables/ledger/print', [AccountsReceivableController::class, 'ledgerPrint'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/ledger/export', [AccountsReceivableController::class, 'ledgerExport'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/{accountsReceivable}', [AccountsReceivableController::class, 'show'])->middleware('permission:finance.accounts_receivable.view');
+
+    // "Piutang Customer (Arsip Import)" -- standalone archive of imported legacy AR export
+    // snapshots, no connection to accounts-receivables above. See
+    // App\Services\Import\CustomerOutstandingArchiveImportService.
+    Route::get('customer-outstanding-archive/snapshots', [CustomerOutstandingArchiveController::class, 'snapshots'])->middleware('permission:reports.ar_archive.view');
+    Route::post('customer-outstanding-archive/snapshots', [CustomerOutstandingArchiveController::class, 'store'])->middleware('permission:reports.ar_archive.import');
+    Route::get('customer-outstanding-archive/snapshots/{snapshot}', [CustomerOutstandingArchiveController::class, 'show'])->middleware('permission:reports.ar_archive.view');
+    Route::get('customer-outstanding-archive/snapshots/{snapshot}/export', [CustomerOutstandingArchiveController::class, 'export'])->middleware('permission:reports.ar_archive.view');
 
     // Inventory Module (Phase 2G): physical count reconciliation -> Stock Ledger(+/-). No cancel route,
     // deliberately — see StockAdjustment::cancel(). No Report counterpart exists, no OR needed.

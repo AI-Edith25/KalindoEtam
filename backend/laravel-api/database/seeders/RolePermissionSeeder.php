@@ -98,6 +98,9 @@ class RolePermissionSeeder extends Seeder
         // permissions) able to reach the new page, additive only.
         'reports.inventory_stock' => ['view'],
         'reports.ar_detail' => ['view'],
+        // Standalone archive of imported legacy-export snapshots, not connected to the live AR
+        // module -- 'import' is the exception to "reports.* is read-only", same as reports.purchase.
+        'reports.ar_archive' => ['view', 'import'],
         'reports.ap_detail' => ['view'],
         'reports.tax' => ['view'],
         'reports.tanda_terima_invoice' => ['view'],

@@ -46,6 +46,9 @@ const STATUS_STYLES: Record<string, string> = {
   mixed: SUCCESS,
   // Outstanding view (Sales Order / Delivery inline badges) — self-describing rows on the "Semua" view.
   outstanding: WARNING,
+  // Piutang Customer (Arsip Import) — per-line status derived from the snapshot's own stored figures.
+  overdue: ERROR,
+  lunas: SUCCESS,
   fully_delivered: SUCCESS,
   not_invoiced: WARNING,
   invoiced: SUCCESS,
