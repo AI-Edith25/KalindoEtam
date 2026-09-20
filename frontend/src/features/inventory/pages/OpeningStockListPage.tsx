@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, Eye, Pencil, Plus, RotateCw, Send, Sparkles, Trash2, Upload, X, XCircle } from 'lucide-react'
+import { Download, Eye, Pencil, Plus, RotateCw, Send, Trash2, Upload, X, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -215,8 +215,7 @@ export function OpeningStockListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: !canCreate, onClick: () => navigate('/inventory/opening-stock/quick-import') },
-              { label: 'Smart Import', icon: Sparkles, disabled: !canCreate, onClick: () => setSmartImportOpen(true) },
+              { label: 'Import', icon: Upload, disabled: !canCreate, onClick: () => setSmartImportOpen(true) },
             ]}
             primary={canCreate ? { label: 'New Opening Stock', icon: Plus, onClick: () => navigate('/inventory/opening-stock/new') } : undefined}
           />
