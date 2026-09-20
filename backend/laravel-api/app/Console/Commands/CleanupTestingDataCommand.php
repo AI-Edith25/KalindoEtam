@@ -46,24 +46,30 @@ class CleanupTestingDataCommand extends Command
 
     /**
      * Transactional tables, child-to-parent. Order matters: every cross-reference
-     * here is restrictOnDelete in the schema, so deleting out of order throws a
-     * FK violation immediately (transaction rolls back, no partial damage) rather
-     * than silently leaving orphans.
+     * here is restrictOnDelete in the schema (verified against every
+     * Schema::create AND Schema::table migration, not just creates — two FKs
+     * bolted on later by alter migrations, accounts_receivables.invoice_id and
+     * accounts_payables.invoice_id, were missed on the first pass and caused a
+     * production failure), so deleting out of order throws a FK violation
+     * immediately (transaction rolls back, no partial damage) rather than
+     * silently leaving orphans.
      */
     private const DELETE_ORDER = [
         'document_attachments', 'document_timelines', 'approval_flows', 'import_batches',
         'payment_allocations', 'receipt_entries',
         'payment_entry_allocations', 'payment_entry_expense_lines', 'payment_entries',
+        // AR/AP must come before invoices/purchase_invoices/deliveries/sales_orders/
+        // goods_receipts/purchase_orders — each restricts on one of these.
+        'accounts_receivables',
+        'accounts_payables',
         'invoice_change_requests',
         'credit_note_items', 'credit_notes',
         'debit_note_items', 'debit_notes',
         'invoice_deliveries', 'invoice_sales_orders', 'invoice_items', 'invoices',
-        'accounts_receivables',
         'delivery_items', 'deliveries',
         'sales_order_items', 'sales_orders',
         'purchase_return_items', 'purchase_returns',
         'purchase_invoice_goods_receipts', 'purchase_invoice_purchase_orders', 'purchase_invoice_items', 'purchase_invoices',
-        'accounts_payables',
         'goods_receipt_items', 'goods_receipts',
         'purchase_order_items', 'purchase_orders',
         'journal_entry_lines', 'journal_entries',
@@ -243,6 +249,12 @@ class CleanupTestingDataCommand extends Command
         DB::beginTransaction();
 
         try {
+            // journal_entries.reverses_id/reversed_by_id are both restrictOnDelete
+            // and self-referencing — a bulk delete of the table can fail against
+            // itself (row A still points at row B when B's turn comes) unless the
+            // links are broken first.
+            DB::table('journal_entries')->update(['reverses_id' => null, 'reversed_by_id' => null]);
+
             foreach (self::DELETE_ORDER as $table) {
                 $deleted[$table] = DB::table($table)->delete();
             }
