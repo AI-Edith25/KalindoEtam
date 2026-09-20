@@ -136,11 +136,11 @@ class CleanupImportTestDataCommand extends Command
 
         $this->line('');
         $this->warn('stock_ledgers breakdown by voucher_type -- REVIEW THIS before proceeding:');
-        $byType = DB::table('stock_ledgers')->selectRaw('voucher_type, COUNT(*) as rows')->groupBy('voucher_type')->get();
+        $byType = DB::table('stock_ledgers')->selectRaw('voucher_type, COUNT(*) as row_count')->groupBy('voucher_type')->get();
         if ($byType->isEmpty()) {
             $this->line('  (empty)');
         } else {
-            $this->table(['Voucher Type', 'Rows'], $byType->map(fn ($r) => [$r->voucher_type, $r->rows])->all());
+            $this->table(['Voucher Type', 'Rows'], $byType->map(fn ($r) => [$r->voucher_type, $r->row_count])->all());
             $nonTest = $byType->filter(fn ($r) => in_array($r->voucher_type, self::NON_TEST_VOUCHER_TYPES, true));
             if ($nonTest->isNotEmpty()) {
                 $this->error('WARNING: rows exist with a voucher_type that is normally a REAL transaction (goods_receipt/delivery/purchase_return/credit_note/stock_in/stock_adjustment/stock_transfer), not opening/issue/receipt-stock testing.');
