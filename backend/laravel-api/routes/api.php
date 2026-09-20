@@ -71,6 +71,7 @@ use App\Http\Controllers\Api\V1\SalesPersonController;
 use App\Http\Controllers\Api\V1\SalesPurchaseJournalImportController;
 use App\Http\Controllers\Api\V1\SalesReportController;
 use App\Http\Controllers\Api\V1\SalesTargetController;
+use App\Http\Controllers\Api\V1\SmartOpeningStockImportController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockInController;
 use App\Http\Controllers\Api\V1\StockLedgerController;
@@ -253,6 +254,15 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('purchase-history/import', [PurchaseHistoryImportController::class, 'store'])->middleware('permission:reports.purchase.import');
     Route::post('purchase-history/import/{batch}/resolve', [PurchaseHistoryImportController::class, 'resolve'])->middleware('permission:reports.purchase.import');
     Route::get('purchase-history/import/{batch}', [PurchaseHistoryImportController::class, 'show'])->middleware('permission:reports.purchase.import');
+
+    // Opening Stock smart import — accepts raw, un-cleaned legacy exports (dynamic header row,
+    // column aliases, footer-row skip, multi-warehouse grouping, duplicate summing). A separate
+    // pipeline from the strict-template Quick Import above (opening-stock module in the generic
+    // import/{module} group) — see SmartOpeningStockImportService. Reuses that flow's own
+    // permission since both ultimately create the same kind of document.
+    Route::post('opening-stock/smart-import', [SmartOpeningStockImportController::class, 'store'])->middleware('permission:inventory.opening_stock.import');
+    Route::post('opening-stock/smart-import/{batch}/resolve', [SmartOpeningStockImportController::class, 'resolve'])->middleware('permission:inventory.opening_stock.import');
+    Route::get('opening-stock/smart-import/{batch}', [SmartOpeningStockImportController::class, 'show'])->middleware('permission:inventory.opening_stock.import');
 
     // Purchase Workflow (Sprint 4): Supplier -> PO -> Goods Receipt -> Stock Ledger(+) -> Accounts Payable.
     // Registered before apiResource('purchase-orders', ...) below — same GET/{id}-swallowing-order

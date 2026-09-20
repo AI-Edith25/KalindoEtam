@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, Eye, Pencil, Plus, RotateCw, Send, Trash2, Upload, X, XCircle } from 'lucide-react'
+import { Download, Eye, Pencil, Plus, RotateCw, Send, Sparkles, Trash2, Upload, X, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -26,6 +26,7 @@ import {
   submitOpeningStockBatch,
 } from '../api/openingStockApi'
 import { OpeningStockFiltersBar } from '../components/OpeningStockFiltersBar'
+import { SmartOpeningStockImportDialog } from '../components/SmartOpeningStockImportDialog'
 import { emptyOpeningStockFilters } from '../lib/openingStockFilters'
 import type { OpeningStock, OpeningStockFilterValues } from '../types'
 
@@ -46,6 +47,7 @@ export function OpeningStockListPage() {
   const [filters, setFilters] = useState<OpeningStockFilterValues>(emptyOpeningStockFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingOpeningStock, setDeletingOpeningStock] = useState<OpeningStock | null>(null)
+  const [smartImportOpen, setSmartImportOpen] = useState(false)
 
   const listQuery = useQuery({
     queryKey: [
@@ -214,6 +216,7 @@ export function OpeningStockListPage() {
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: !canCreate, onClick: () => navigate('/inventory/opening-stock/quick-import') },
+              { label: 'Smart Import', icon: Sparkles, disabled: !canCreate, onClick: () => setSmartImportOpen(true) },
             ]}
             primary={canCreate ? { label: 'New Opening Stock', icon: Plus, onClick: () => navigate('/inventory/opening-stock/new') } : undefined}
           />
@@ -302,6 +305,8 @@ export function OpeningStockListPage() {
           if (deletingOpeningStock) deleteMutation.mutate(deletingOpeningStock.id)
         }}
       />
+
+      <SmartOpeningStockImportDialog open={smartImportOpen} onClose={() => setSmartImportOpen(false)} />
     </div>
   )
 }

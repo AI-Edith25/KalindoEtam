@@ -353,3 +353,78 @@ export interface FifoValuationFilterValues {
   dateTo: string
   hideExhausted: boolean
 }
+
+// Smart Opening Stock import — raw legacy exports (dynamic header row, column aliases,
+// multi-warehouse grouping, duplicate summing), a separate pipeline from the strict-template
+// Quick Import above. See SmartOpeningStockImportService on the backend.
+export type SmartOpeningStockImportBatchStatus = 'previewed' | 'completed' | 'failed'
+
+export interface SmartOpeningStockSkippedRow {
+  row: number
+  reason: string
+}
+
+export interface SmartOpeningStockUnmatchedItem {
+  item_code: string
+  rows: number[]
+  suggestions: Array<{ id: string; value: string; score: number }>
+}
+
+export interface SmartOpeningStockUnmatchedWarehouse {
+  warehouse_code: string
+  rows: number[]
+}
+
+export interface SmartOpeningStockPriceConflict {
+  item_code: string
+  warehouse_code: string
+  rows: number[]
+  prices: number[]
+}
+
+export interface SmartOpeningStockGroupLine {
+  item_id: string
+  item_code: string
+  item_name: string
+  uom: string | null
+  qty: number
+  unit_cost: number
+}
+
+export interface SmartOpeningStockGroup {
+  warehouse_code: string
+  warehouse_id: string
+  cutoff_date: string
+  lines: SmartOpeningStockGroupLine[]
+  total_qty: number
+  total_value: number
+}
+
+/** Shape while status='previewed' -- from SmartOpeningStockImportService::preflight(). */
+export interface SmartOpeningStockPreviewSummary {
+  total_rows: number
+  valid_row_count: number
+  skipped_rows: SmartOpeningStockSkippedRow[]
+  warehouses_detected: Record<string, number>
+  groups: SmartOpeningStockGroup[]
+  unmatched_items: SmartOpeningStockUnmatchedItem[]
+  unmatched_warehouses: SmartOpeningStockUnmatchedWarehouse[]
+  price_conflicts: SmartOpeningStockPriceConflict[]
+}
+
+/** Shape after resolve(), replacing preview_summary once status is 'completed'/'failed' -- from SmartOpeningStockImportService::commit(). */
+export interface SmartOpeningStockCommitResult {
+  documents_created: number
+  warehouses: string[]
+  total_qty: number
+  failures: Array<{ warehouse_code: string; cutoff_date: string; reason: string }>
+}
+
+export interface SmartOpeningStockImportBatch {
+  id: string
+  status: SmartOpeningStockImportBatchStatus
+  total_rows: number
+  success_rows: number
+  failed_rows: number
+  preview_summary: SmartOpeningStockPreviewSummary | SmartOpeningStockCommitResult | null
+}
