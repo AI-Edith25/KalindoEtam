@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Download, Printer, RotateCw, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Printer, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -13,8 +13,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
+import { useHasPermission } from '@/shared/hooks/usePermission'
 import { exportAccountsReceivables, fetchAccountsReceivables } from '@/features/payment/api/accountsReceivableApi'
 import { fetchAccountsReceivablesAll } from '../api/accountsReceivableCustomerReportsApi'
 import type { AccountsReceivable } from '@/features/payment/types'
@@ -22,13 +24,20 @@ import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { AccountsReceivableDetailReportFiltersBar } from '../components/AccountsReceivableDetailReportFiltersBar'
+import { CustomerOutstandingArchiveFiltersBar } from '../components/CustomerOutstandingArchiveFiltersBar'
+import { CustomerOutstandingArchiveImportDialog } from '../components/CustomerOutstandingArchiveImportDialog'
 import { fetchAccountsReceivableGroupedDetail } from '../api/accountsReceivableGroupedDetailApi'
 import { exportAccountsReceivableLedger, fetchAccountsReceivableLedger } from '../api/accountsReceivableLedgerApi'
+import {
+  exportCustomerOutstandingArchive,
+  fetchCustomerOutstandingArchiveDetail,
+  fetchCustomerOutstandingSnapshots,
+} from '../api/customerOutstandingArchiveApi'
 import { resolveJournalReferenceLink } from '@/features/accounting/lib/journalReferenceLink'
-import { emptyArDetailReportFilters } from '../lib/reportFilters'
-import type { ArDetailReportFilterValues } from '../types'
+import { emptyArDetailReportFilters, emptyCustomerOutstandingArchiveFilters } from '../lib/reportFilters'
+import type { ArDetailReportFilterValues, CustomerOutstandingArchiveFilterValues } from '../types'
 
-type ViewMode = 'aging' | 'grouped' | 'ledger'
+type ViewMode = 'aging' | 'grouped' | 'ledger' | 'archive'
 
 /** Read-only report over Accounts Receivable — reuses fetchAccountsReceivables() as-is, no new endpoint. */
 export function AccountsReceivableDetailReportPage() {
@@ -265,6 +274,51 @@ export function AccountsReceivableDetailReportPage() {
     }
   }
 
+  // Customer Outstanding Bills — a standalone archive of imported legacy AR export snapshots,
+  // never joined to the accounts-receivables data this page otherwise shows. See
+  // CustomerOutstandingArchiveImportService's own docblock for why it's kept separate on the
+  // backend despite living as a tab here.
+  const canViewArchive = useHasPermission('reports.ar_archive.view')
+  const canImportArchive = useHasPermission('reports.ar_archive.import')
+  const [archiveImportOpen, setArchiveImportOpen] = useState(false)
+  const [archiveHistoryOpen, setArchiveHistoryOpen] = useState(false)
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null)
+  const [archiveFilters, setArchiveFilters] = useState<CustomerOutstandingArchiveFilterValues>(emptyCustomerOutstandingArchiveFilters)
+
+  const snapshotsQuery = useQuery({
+    queryKey: ['customer-outstanding-snapshots'],
+    queryFn: fetchCustomerOutstandingSnapshots,
+    enabled: canViewArchive,
+  })
+
+  useEffect(() => {
+    if (selectedSnapshotId === null && snapshotsQuery.data && snapshotsQuery.data.length > 0) {
+      setSelectedSnapshotId(snapshotsQuery.data[0].id)
+    }
+  }, [snapshotsQuery.data, selectedSnapshotId])
+
+  const archiveDetailQuery = useQuery({
+    queryKey: ['customer-outstanding-archive-detail', selectedSnapshotId, archiveFilters],
+    queryFn: () => fetchCustomerOutstandingArchiveDetail(selectedSnapshotId as string, archiveFilters),
+    enabled: viewMode === 'archive' && !!selectedSnapshotId,
+    placeholderData: (previous) => previous,
+  })
+
+  const selectedSnapshot = snapshotsQuery.data?.find((s) => s.id === selectedSnapshotId) ?? archiveDetailQuery.data?.snapshot
+
+  const exportArchive = async (format: 'xlsx' | 'csv') => {
+    if (!selectedSnapshotId) return
+    setIsExporting(true)
+    try {
+      const blob = await exportCustomerOutstandingArchive(selectedSnapshotId, archiveFilters, format)
+      downloadBlob(`PiutangCustomerArsip.${format}`, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
@@ -272,7 +326,15 @@ export function AccountsReceivableDetailReportPage() {
       <PageHeader
         title="AR Detail"
         description="Every outstanding and settled receivable, by customer and invoice."
-        count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} receivables` : undefined}
+        count={
+          viewMode === 'archive'
+            ? archiveDetailQuery.data
+              ? `${formatNumber(archiveDetailQuery.data.customers.length)} customer`
+              : undefined
+            : listQuery.data?.meta
+              ? `${formatNumber(listQuery.data.meta.total)} receivables`
+              : undefined
+        }
         actions={
           viewMode === 'ledger' ? (
             <>
@@ -301,6 +363,21 @@ export function AccountsReceivableDetailReportPage() {
                       ),
                   },
                 ]}
+              />
+            </>
+          ) : viewMode === 'archive' ? (
+            <>
+              <Button variant="outline" disabled={isExporting || !selectedSnapshotId} onClick={() => exportArchive('csv')}>
+                <Download className="size-4" />
+                Export CSV
+              </Button>
+              <Button variant="outline" disabled={isExporting || !selectedSnapshotId} onClick={() => exportArchive('xlsx')}>
+                <Download className="size-4" />
+                Export XLSX
+              </Button>
+              <ActionBar
+                actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => archiveDetailQuery.refetch(), disabled: archiveDetailQuery.isFetching }]}
+                primary={{ label: 'Import Data', icon: Upload, disabled: !canImportArchive, onClick: () => setArchiveImportOpen(true) }}
               />
             </>
           ) : (
@@ -356,23 +433,98 @@ export function AccountsReceivableDetailReportPage() {
           <Button size="sm" variant={viewMode === 'ledger' ? 'default' : 'ghost'} onClick={() => setViewMode('ledger')}>
             Kartu Piutang
           </Button>
+          {canViewArchive && (
+            <Button size="sm" variant={viewMode === 'archive' ? 'default' : 'ghost'} onClick={() => setViewMode('archive')}>
+              Customer Outstanding Bills
+            </Button>
+          )}
         </div>
-        <SearchBox
-          value={search}
-          onChange={(value) => {
-            setSearch(value)
-            setPage(1)
-          }}
-          placeholder="Search invoice number or customer…"
-        />
-        <AccountsReceivableDetailReportFiltersBar
-          value={filters}
-          onChange={(value) => {
-            setFilters(value)
-            setPage(1)
-          }}
-        />
+        {viewMode === 'archive' ? (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">Snapshot / As Of Date</span>
+              <Select value={selectedSnapshotId ?? undefined} onValueChange={setSelectedSnapshotId}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder={snapshotsQuery.isLoading ? 'Memuat…' : 'Pilih snapshot…'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(snapshotsQuery.data ?? []).map((snapshot) => (
+                    <SelectItem key={snapshot.id} value={snapshot.id}>
+                      {formatDate(snapshot.snapshot_as_of_date)} — {snapshot.source_filename}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <CustomerOutstandingArchiveFiltersBar value={archiveFilters} onChange={setArchiveFilters} />
+          </>
+        ) : (
+          <>
+            <SearchBox
+              value={search}
+              onChange={(value) => {
+                setSearch(value)
+                setPage(1)
+              }}
+              placeholder="Search invoice number or customer…"
+            />
+            <AccountsReceivableDetailReportFiltersBar
+              value={filters}
+              onChange={(value) => {
+                setFilters(value)
+                setPage(1)
+              }}
+            />
+          </>
+        )}
       </div>
+
+      {viewMode === 'archive' && (
+        <>
+          <Card>
+            <CardContent className="py-3 text-sm text-muted-foreground">
+              Data import manual — bukan data live. Snapshot per {selectedSnapshot ? formatDate(selectedSnapshot.snapshot_as_of_date) : '—'}.
+            </CardContent>
+          </Card>
+
+          <Card>
+            <button
+              type="button"
+              onClick={() => setArchiveHistoryOpen((v) => !v)}
+              className="flex w-full items-center gap-2 p-3 text-left text-sm font-medium"
+            >
+              {archiveHistoryOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+              Riwayat Import
+            </button>
+            {archiveHistoryOpen && (
+              <CardContent className="pt-0">
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableBody>
+                      <TableRow className="bg-muted/50 font-medium">
+                        <TableCell>File</TableCell>
+                        <TableCell>Waktu Import</TableCell>
+                        <TableCell className="text-right">Baris</TableCell>
+                        <TableCell className="text-right">Customer</TableCell>
+                        <TableCell>Diimpor Oleh</TableCell>
+                      </TableRow>
+                      {(snapshotsQuery.data ?? []).map((snapshot) => (
+                        <TableRow key={snapshot.id}>
+                          <TableCell>{snapshot.source_filename}</TableCell>
+                          <TableCell>{formatDate(snapshot.created_at)}</TableCell>
+                          <TableCell className="text-right">{formatNumber(snapshot.total_rows)}</TableCell>
+                          <TableCell className="text-right">{formatNumber(snapshot.total_customers)}</TableCell>
+                          <TableCell>{snapshot.importer?.name ?? '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        </>
+      )}
 
       {viewMode === 'aging' ? (
         <>
@@ -539,6 +691,82 @@ export function AccountsReceivableDetailReportPage() {
             </Card>
           </>
         )
+      ) : viewMode === 'archive' ? (
+        !selectedSnapshotId ? (
+          <Card>
+            <CardContent className="py-10 text-center text-muted-foreground">Belum ada snapshot — import file untuk memulai.</CardContent>
+          </Card>
+        ) : !archiveDetailQuery.data || archiveDetailQuery.data.customers.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-muted-foreground">
+              {archiveDetailQuery.isLoading ? 'Loading…' : 'Tidak ada data yang cocok dengan filter.'}
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableBody>
+                  {archiveDetailQuery.data.customers.map((customer) => (
+                    <Fragment key={customer.customer_code}>
+                      <TableRow className="bg-muted/20">
+                        <TableCell colSpan={8} className="font-medium">
+                          {customer.customer_code} — {customer.customer_name}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="bg-muted/50 text-xs">
+                        <TableCell>Date</TableCell>
+                        <TableCell>Ref. No</TableCell>
+                        <TableCell className="text-right">Invoice Amt</TableCell>
+                        <TableCell className="text-right">Paid</TableCell>
+                        <TableCell className="text-right">Unpaid</TableCell>
+                        <TableCell>Due Date</TableCell>
+                        <TableCell className="text-right">Overdue Amt</TableCell>
+                        <TableCell>Status</TableCell>
+                      </TableRow>
+                      {customer.rows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>{formatDate(row.txn_date)}</TableCell>
+                          <TableCell>{row.ref_no}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(row.invoice_amount)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(row.paid_amount)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(row.unpaid_amount)}</TableCell>
+                          <TableCell>{formatDate(row.due_date)}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(row.overdue_amount)}
+                            {row.overdue_days > 0 && <span className="ml-1 text-xs text-muted-foreground">({row.overdue_days}d)</span>}
+                          </TableCell>
+                          <TableCell><StatusBadge status={row.status} /></TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-right font-medium">
+                          Subtotal — {customer.customer_name}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(customer.subtotal_unpaid)}</TableCell>
+                        <TableCell colSpan={2} />
+                        <TableCell className="text-right font-medium">{formatCurrency(customer.subtotal_overdue)}</TableCell>
+                      </TableRow>
+                    </Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <Card>
+              <CardContent className="flex flex-wrap items-center justify-end gap-6 py-4 text-base">
+                <span className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Grand Total Unpaid</span>
+                  <span className="font-semibold">{formatCurrency(archiveDetailQuery.data.grand_total_unpaid)}</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Grand Total Overdue</span>
+                  <span className="font-semibold">{formatCurrency(archiveDetailQuery.data.grand_total_overdue)}</span>
+                </span>
+              </CardContent>
+            </Card>
+          </>
+        )
       ) : !groupedQuery.data || groupedQuery.data.groups.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
@@ -632,6 +860,12 @@ export function AccountsReceivableDetailReportPage() {
           </Card>
         </>
       )}
+
+      <CustomerOutstandingArchiveImportDialog
+        open={archiveImportOpen}
+        onClose={() => setArchiveImportOpen(false)}
+        onImported={(snapshot) => setSelectedSnapshotId(snapshot.id)}
+      />
     </div>
   )
 }
