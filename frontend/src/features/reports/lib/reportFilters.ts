@@ -7,6 +7,7 @@ import type {
   GoodsReceiptReportFilterValues,
   PurchaseReportFilterValues,
   SalesReportFilterValues,
+  SupplierOutstandingArchiveFilterValues,
   TaxReportFilterValues,
 } from '../types'
 
@@ -130,6 +131,26 @@ export const emptyCustomerOutstandingArchiveFilters: CustomerOutstandingArchiveF
 export function hasActiveCustomerOutstandingArchiveFilters(filters: CustomerOutstandingArchiveFilterValues): boolean {
   return (
     filters.customer !== '' ||
+    filters.invoiceDateFrom !== '' ||
+    filters.invoiceDateTo !== '' ||
+    filters.dueDateFrom !== '' ||
+    filters.dueDateTo !== '' ||
+    filters.status !== null
+  )
+}
+
+export const emptySupplierOutstandingArchiveFilters: SupplierOutstandingArchiveFilterValues = {
+  supplier: '',
+  invoiceDateFrom: '',
+  invoiceDateTo: '',
+  dueDateFrom: '',
+  dueDateTo: '',
+  status: null,
+}
+
+export function hasActiveSupplierOutstandingArchiveFilters(filters: SupplierOutstandingArchiveFilterValues): boolean {
+  return (
+    filters.supplier !== '' ||
     filters.invoiceDateFrom !== '' ||
     filters.invoiceDateTo !== '' ||
     filters.dueDateFrom !== '' ||

@@ -102,6 +102,8 @@ class RolePermissionSeeder extends Seeder
         // module -- 'import' is the exception to "reports.* is read-only", same as reports.purchase.
         'reports.ar_archive' => ['view', 'import'],
         'reports.ap_detail' => ['view'],
+        // Standalone archive of imported legacy Supplier Outstanding Bills snapshots -- mirror of reports.ar_archive.
+        'reports.ap_archive' => ['view', 'import'],
         'reports.tax' => ['view'],
         'reports.tanda_terima_invoice' => ['view'],
         'reports.penagihan_harian' => ['view'],

@@ -702,3 +702,105 @@ export interface CustomerOutstandingArchiveFilterValues {
   dueDateTo: string
   status: CustomerOutstandingArchiveStatus | null
 }
+
+// "Supplier Outstanding Bills" -- AP mirror of the Customer Outstanding Bills archive above. See
+// SupplierOutstandingArchiveImportService on the backend.
+export type SupplierOutstandingArchiveStatus = 'outstanding' | 'overdue'
+
+export interface SupplierOutstandingSnapshot {
+  id: string
+  source_filename: string
+  company_name: string | null
+  snapshot_as_of_date: string
+  total_rows: number
+  total_suppliers: number
+  grand_total_unpaid: string
+  grand_total_overdue: string
+  importer: { id: string; name: string } | null
+  created_at: string
+}
+
+export interface SupplierOutstandingArchiveLine {
+  id: string
+  txn_date: string
+  ref_no: string
+  invoice_amount: number
+  paid_amount: number
+  unpaid_amount: number
+  terms_days: number | null
+  due_date: string
+  overdue_amount: number
+  overdue_days: number
+  status: SupplierOutstandingArchiveStatus
+}
+
+export interface SupplierOutstandingArchiveSupplierGroup {
+  supplier_code: string
+  supplier_name: string
+  rows: SupplierOutstandingArchiveLine[]
+  subtotal_unpaid: number
+  subtotal_overdue: number
+}
+
+export interface SupplierOutstandingArchiveSummary {
+  total_unpaid: number
+  due_this_week: number
+  overdue: number
+}
+
+export interface SupplierOutstandingArchiveDetail {
+  snapshot: SupplierOutstandingSnapshot
+  summary: SupplierOutstandingArchiveSummary
+  suppliers: SupplierOutstandingArchiveSupplierGroup[]
+  grand_total_unpaid: number
+  grand_total_overdue: number
+}
+
+export interface SupplierOutstandingArchiveFailedRow {
+  row: number
+  reason: string
+}
+
+export interface SupplierOutstandingArchiveSubtotalMismatch {
+  supplier_code: string
+  supplier_name: string
+  row: number
+  file_unpaid: number | null
+  file_overdue: number | null
+  computed_unpaid: number
+  computed_overdue: number
+}
+
+export interface SupplierOutstandingArchiveGrandTotalMismatch {
+  file_unpaid: number
+  file_overdue: number
+  computed_unpaid: number
+  computed_overdue: number
+}
+
+export interface SupplierOutstandingArchivePreflight {
+  company_name: string | null
+  snapshot_as_of_date: string
+  total_rows: number
+  total_suppliers: number
+  total_unpaid: number
+  total_overdue: number
+  failed_rows: SupplierOutstandingArchiveFailedRow[]
+  subtotal_mismatches: SupplierOutstandingArchiveSubtotalMismatch[]
+  grand_total_mismatch: SupplierOutstandingArchiveGrandTotalMismatch | null
+}
+
+export interface SupplierOutstandingArchiveImportBatch {
+  id: string
+  status: 'previewed' | 'completed' | 'failed'
+  preview_summary: SupplierOutstandingArchivePreflight | null
+}
+
+export interface SupplierOutstandingArchiveFilterValues {
+  supplier: string
+  invoiceDateFrom: string
+  invoiceDateTo: string
+  dueDateFrom: string
+  dueDateTo: string
+  status: SupplierOutstandingArchiveStatus | null
+}

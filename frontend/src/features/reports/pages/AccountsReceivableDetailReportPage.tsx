@@ -37,7 +37,7 @@ import {
 } from '../api/customerOutstandingArchiveApi'
 import { resolveJournalReferenceLink } from '@/features/accounting/lib/journalReferenceLink'
 import { emptyArDetailReportFilters, emptyCustomerOutstandingArchiveFilters } from '../lib/reportFilters'
-import { flattenToAgingRows, groupByAgingBucket } from '../lib/customerOutstandingArchiveAging'
+import { groupByAgingBucket } from '../lib/outstandingArchiveAging'
 import type { ArDetailReportFilterValues, CustomerOutstandingArchiveFilterValues } from '../types'
 
 type ViewMode = 'aging' | 'grouped' | 'ledger' | 'archive'
@@ -332,7 +332,13 @@ export function AccountsReceivableDetailReportPage() {
     }
   }
 
-  const agingRows = useMemo(() => (archiveDetailQuery.data ? flattenToAgingRows(archiveDetailQuery.data.customers) : []), [archiveDetailQuery.data])
+  const agingRows = useMemo(
+    () =>
+      (archiveDetailQuery.data?.customers ?? []).flatMap((customer) =>
+        customer.rows.map((row) => ({ ...row, customer_code: customer.customer_code, customer_name: customer.customer_name })),
+      ),
+    [archiveDetailQuery.data],
+  )
   const agingBuckets = useMemo(() => groupByAgingBucket(agingRows), [agingRows])
   const agingGrandTotal = agingRows.reduce((sum, row) => sum + row.unpaid_amount, 0)
 

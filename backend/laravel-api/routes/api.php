@@ -78,6 +78,7 @@ use App\Http\Controllers\Api\V1\StockInController;
 use App\Http\Controllers\Api\V1\StockLedgerController;
 use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\SupplierController;
+use App\Http\Controllers\Api\V1\SupplierOutstandingArchiveController;
 use App\Http\Controllers\Api\V1\TaxController;
 use App\Http\Controllers\Api\V1\TaxReportController;
 use App\Http\Controllers\Api\V1\TermsOfPaymentController;
@@ -307,6 +308,15 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // accounts-payables/{id} doesn't swallow the literal paths above as an id —
     // same ordering trick as accounts-receivables/export.
     Route::get('accounts-payables/{accountsPayable}', [AccountsPayableController::class, 'show'])->middleware('permission:finance.accounts_payable.view');
+
+    // "Supplier Outstanding Bills" -- standalone archive of imported legacy Supplier Outstanding
+    // Bills snapshots, mirror of customer-outstanding-archive above. See
+    // App\Services\Import\SupplierOutstandingArchiveImportService.
+    Route::get('supplier-outstanding-archive/snapshots', [SupplierOutstandingArchiveController::class, 'snapshots'])->middleware('permission:reports.ap_archive.view');
+    Route::post('supplier-outstanding-archive/snapshots', [SupplierOutstandingArchiveController::class, 'store'])->middleware('permission:reports.ap_archive.import');
+    Route::post('supplier-outstanding-archive/batches/{batch}/resolve', [SupplierOutstandingArchiveController::class, 'resolve'])->middleware('permission:reports.ap_archive.import');
+    Route::get('supplier-outstanding-archive/snapshots/{snapshot}', [SupplierOutstandingArchiveController::class, 'show'])->middleware('permission:reports.ap_archive.view');
+    Route::get('supplier-outstanding-archive/snapshots/{snapshot}/export', [SupplierOutstandingArchiveController::class, 'export'])->middleware('permission:reports.ap_archive.view');
 
     // Tax report (PPN Keluaran/Masukan) — read-only, synthesized from Sales/Purchase Invoice +
     // Credit Note/Purchase Return, no store/update/destroy, so no {id} show route needed.
