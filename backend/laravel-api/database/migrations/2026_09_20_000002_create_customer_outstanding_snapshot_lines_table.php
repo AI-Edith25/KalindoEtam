@@ -34,8 +34,10 @@ return new class extends Migration
             $table->integer('overdue_days');
             $table->timestamps();
 
-            $table->index(['snapshot_id', 'customer_code']);
-            $table->index(['snapshot_id', 'due_date']);
+            // Explicit short names -- the auto-generated ones (table name + both columns +
+            // "_index") exceed MySQL's 64-char identifier limit.
+            $table->index(['snapshot_id', 'customer_code'], 'cosl_snapshot_customer_idx');
+            $table->index(['snapshot_id', 'due_date'], 'cosl_snapshot_due_date_idx');
         });
     }
 
