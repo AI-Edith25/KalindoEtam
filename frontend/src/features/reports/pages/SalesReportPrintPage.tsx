@@ -172,7 +172,7 @@ export function SalesReportPrintPage() {
                   <td className="border-r-2 border-foreground/80 p-2">{row.customer_code}</td>
                   <td className="border-r-2 border-foreground/80 p-2">{row.customer_name}</td>
                   <td className="border-r-2 border-foreground/80 p-2 text-right">{row.transaction_count}</td>
-                  <td className="border-r-2 border-foreground/80 p-2 text-right">{formatQty(row.qty, printOptions.qtyDecimals)}</td>
+                  <td className="border-r-2 border-foreground/80 p-2 text-right">{row.qty === null ? '—' : formatQty(row.qty, printOptions.qtyDecimals)}</td>
                   <td className="border-r-2 border-foreground/80 p-2 text-right">{formatMoney(row.amount, printOptions.amountDecimals)}</td>
                   <td className="p-2 text-right">{formatMoney(row.amount_incl_tax, printOptions.amountDecimals)}</td>
                 </tr>

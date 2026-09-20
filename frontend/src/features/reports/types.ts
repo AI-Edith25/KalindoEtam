@@ -174,7 +174,8 @@ export interface CustomerSalesRow {
   branch_name: string | null
   sales_person_name: string | null
   transaction_count: number
-  qty: number
+  // null in Sales Archive mode -- Qty isn't a column in the "01 Sales Listing" export.
+  qty: number | null
   amount: number
   tax_amount: number
   amount_incl_tax: number
@@ -258,7 +259,10 @@ export interface OpenOrdersKpis {
  * discount/tax/amount_incl_tax are already negative (see SalesListingRowResource on the backend),
  * so a plain sum nets correctly. payment_status/outstanding_ar are null for Credit Note rows.
  */
-export type SalesListingType = 'invoice' | 'credit_note'
+// Archive mode can surface a raw, unrecognized Skybiz type code verbatim (see
+// SalesListingArchiveService::mapTypeLabel) rather than force it into the 2 known values --
+// `(string & {})` keeps autocomplete for the 2 literals while still accepting any string.
+export type SalesListingType = 'invoice' | 'credit_note' | (string & {})
 export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid'
 
 export interface SalesListingRow {
@@ -803,4 +807,84 @@ export interface SupplierOutstandingArchiveFilterValues {
   dueDateFrom: string
   dueDateTo: string
   status: SupplierOutstandingArchiveStatus | null
+}
+
+/**
+ * Sales Report's import archive -- 2 file types, never merged, feeding Sales Listing/Customer
+ * Sales (File A, "01 Sales Listing") and Product Sales (File B, "13 Product Sales Report -
+ * Detail"). Unlike the AR/AP archives above, snapshots stack per period rather than "latest
+ * wins" -- see SalesArchiveMeta. Row shapes for the 3 read endpoints deliberately reuse the
+ * existing live SalesListingRow/CustomerSalesRow/ProductSalesRow/ProductSalesKpis/etc. types
+ * above, since the backend shapes archive rows to match them exactly.
+ */
+export type SalesArchiveFileType = 'sales_listing' | 'product_sales_detail'
+
+export interface SalesArchiveFileTypeMeta {
+  has_snapshot: boolean
+  period_start: string | null
+  period_end: string | null
+}
+
+export interface SalesArchiveMeta {
+  sales_listing: SalesArchiveFileTypeMeta
+  product_sales_detail: SalesArchiveFileTypeMeta
+}
+
+export interface SalesArchiveHistoryEntry {
+  id: string
+  file_type: SalesArchiveFileType
+  period_start: string
+  period_end: string
+  source_filename: string
+  total_rows: number
+  total_value: number
+  created_at: string
+}
+
+export interface SalesArchiveFailedRow {
+  row: number
+  reason: string
+}
+
+export interface SalesArchiveSubtotalMismatch {
+  item_code: string
+  item_description: string
+  row: number
+  file_qty: number
+  file_amount: number
+  computed_qty: number
+  computed_amount: number
+}
+
+// Shape differs by file type: Product Sales Detail mismatches on a single amount (file_amount vs
+// computed_amount); Sales Listing's trailing "TOTAL" row carries both excl./incl. tax columns.
+export interface SalesArchiveGrandTotalMismatch {
+  file_amount?: number
+  computed_amount?: number
+  file_amount_excl_tax?: number
+  file_amount_incl_tax?: number
+  computed_amount_excl_tax?: number
+  computed_amount_incl_tax?: number
+}
+
+export interface SalesArchivePreflight {
+  file_type: SalesArchiveFileType
+  period_start: string
+  period_end: string
+  company_name: string | null
+  total_rows: number
+  total_documents?: number
+  total_items?: number
+  grand_total_amount_excl_tax: number
+  grand_total_amount_incl_tax?: number
+  grand_total_qty?: number
+  failed_rows: SalesArchiveFailedRow[]
+  subtotal_mismatches?: SalesArchiveSubtotalMismatch[]
+  grand_total_mismatch?: SalesArchiveGrandTotalMismatch | null
+}
+
+export interface SalesArchiveImportBatch {
+  id: string
+  status: 'previewed' | 'completed' | 'failed'
+  preview_summary: SalesArchivePreflight | null
 }

@@ -86,6 +86,9 @@ class RolePermissionSeeder extends Seeder
         'reports.purchase' => ['view', 'import'],
         'reports.goods_receipts' => ['view'],
         'reports.sales' => ['view'],
+        // Standalone archive of imported legacy "01 Sales Listing"/"13 Product Sales Report"
+        // snapshots, not connected to the live Sales module -- mirror of reports.ar_archive.
+        'reports.sales_archive' => ['view', 'import'],
         // Gross Profit split out of Sales Report's Margin tab (2026-09-19) — see the backfill
         // block in run() that keeps any role already holding reports.sales.view able to reach it.
         'reports.gross_profit' => ['view'],

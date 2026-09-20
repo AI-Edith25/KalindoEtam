@@ -123,19 +123,23 @@ export function OpenOrdersPanel({ filters, onFiltersChange, page, onPageChange }
     overdueOnly
   )
 
+  // No import can ever produce open-order data (see the ticket) -- an empty, unfiltered result is
+  // permanent, not "not loaded yet", so the KPIs read "—" instead of a misleading Rp 0 / 0.
+  const isEmptyNoFilters = !listQuery.isLoading && (listQuery.data?.meta.total ?? 0) === 0 && !hasFilters
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard title="Total Open Order Value" value={formatCurrency(kpis?.total_outstanding_value ?? 0)} icon={Wallet} isLoading={listQuery.isLoading} />
-        <SummaryCard title="Open Sales Orders" value={formatNumber(kpis?.open_so_count ?? 0)} icon={Hash} isLoading={listQuery.isLoading} />
+        <SummaryCard title="Total Open Order Value" value={isEmptyNoFilters ? '—' : formatCurrency(kpis?.total_outstanding_value ?? 0)} icon={Wallet} isLoading={listQuery.isLoading} />
+        <SummaryCard title="Open Sales Orders" value={isEmptyNoFilters ? '—' : formatNumber(kpis?.open_so_count ?? 0)} icon={Hash} isLoading={listQuery.isLoading} />
         <SummaryCard
           title="Overdue Value"
-          value={formatCurrency(kpis?.overdue_value ?? 0)}
+          value={isEmptyNoFilters ? '—' : formatCurrency(kpis?.overdue_value ?? 0)}
           icon={AlertTriangle}
           tone={kpis && kpis.overdue_value > 0 ? 'danger' : 'default'}
           isLoading={listQuery.isLoading}
         />
-        <SummaryCard title="Avg Order Age" value={`${kpis?.avg_age_days ?? 0} days`} icon={Clock} isLoading={listQuery.isLoading} />
+        <SummaryCard title="Avg Order Age" value={isEmptyNoFilters ? '—' : `${kpis?.avg_age_days ?? 0} days`} icon={Clock} isLoading={listQuery.isLoading} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -205,7 +209,7 @@ export function OpenOrdersPanel({ filters, onFiltersChange, page, onPageChange }
         isLoading={listQuery.isLoading}
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
-        emptyMessage={hasFilters ? 'Tidak ada data untuk filter ini.' : 'No open orders right now.'}
+        emptyMessage={hasFilters ? 'Tidak ada data untuk filter ini.' : 'Data open order tidak tersedia pada data import. Sumbernya adalah Sales Order Report di Skybiz.'}
         sort={sort}
         onSortChange={(key) => setSort((prev) => (prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'desc' }))}
       />

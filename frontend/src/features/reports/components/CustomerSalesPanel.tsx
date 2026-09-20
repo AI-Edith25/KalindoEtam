@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download, FileText, Printer, RotateCw, TrendingUp, Trophy, Users } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
+import { Alert, AlertTitle } from '@/components/ui/alert'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +13,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { exportArchiveCustomerSales, fetchArchiveCustomerSales } from '../api/salesArchiveApi'
 import {
   exportCustomerSales,
   fetchCustomerSales,
@@ -21,19 +23,28 @@ import {
 } from '../api/customerSalesApi'
 import { SalesReportFiltersBar } from './SalesReportFiltersBar'
 import { reportFileName } from '../lib/exportFileName'
-import type { CustomerSalesRow, SalesReportFilterValues } from '../types'
+import type { CustomerSalesRow, SalesArchiveMeta, SalesReportFilterValues } from '../types'
 
 interface CustomerSalesPanelProps {
   filters: SalesReportFilterValues
   onFiltersChange: (filters: SalesReportFilterValues) => void
   page: number
   onPageChange: (page: number) => void
+  archiveMeta?: SalesArchiveMeta
 }
 
-export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChange }: CustomerSalesPanelProps) {
+export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChange, archiveMeta }: CustomerSalesPanelProps) {
   const [sort, setSort] = useState<DataTableSort>({ key: 'amount', direction: 'desc' })
   const [isExporting, setIsExporting] = useState(false)
   const [documentsFor, setDocumentsFor] = useState<CustomerSalesRow | null>(null)
+
+  const liveDataCheckQuery = useQuery({
+    queryKey: ['customer-sales-has-live-data'],
+    queryFn: () => fetchCustomerSales({ page: 1, per_page: 1 }),
+    staleTime: 60_000,
+  })
+  const snapshotMode = liveDataCheckQuery.isSuccess && (liveDataCheckQuery.data?.meta.total ?? 0) === 0
+  const hasSnapshot = archiveMeta?.sales_listing.has_snapshot ?? false
 
   const activeParams: Omit<CustomerSalesParams, 'page'> = {
     sort: sort.key as CustomerSalesParams['sort'],
@@ -49,20 +60,24 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
   }
 
   const listQuery = useQuery({
-    queryKey: ['customer-sales', page, sort.key, sort.direction, filters],
-    queryFn: () => fetchCustomerSales({ ...activeParams, page }),
+    queryKey: ['customer-sales', snapshotMode, page, sort.key, sort.direction, filters],
+    queryFn: () => (snapshotMode ? fetchArchiveCustomerSales({ ...activeParams, page }) : fetchCustomerSales({ ...activeParams, page })),
     placeholderData: (previous) => previous,
+    enabled: liveDataCheckQuery.isSuccess,
   })
 
+  // File A has no sales-person data at all -- the panel just shows the ticket's required
+  // empty-state text in snapshot mode instead of calling this endpoint.
   const achievementQuery = useQuery({
     queryKey: ['sales-achievement', filters],
     queryFn: () => fetchSalesAchievement(activeParams),
+    enabled: !snapshotMode,
   })
 
   const documentsQuery = useQuery({
     queryKey: ['customer-sales-documents', documentsFor?.id, filters],
     queryFn: () => fetchCustomerSalesDocuments(documentsFor!.id, activeParams),
-    enabled: !!documentsFor,
+    enabled: !!documentsFor && !snapshotMode,
   })
 
   const rows = listQuery.data?.data ?? []
@@ -71,7 +86,7 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
   const exportReport = async (format: 'xlsx' | 'csv') => {
     setIsExporting(true)
     try {
-      const blob = await exportCustomerSales(activeParams, format)
+      const blob = snapshotMode ? await exportArchiveCustomerSales(activeParams, format) : await exportCustomerSales(activeParams, format)
       downloadBlob(reportFileName('CustomerSalesReport', filters.dateFrom, filters.dateTo, format), blob)
     } catch (error) {
       toastApiError(error)
@@ -83,10 +98,10 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
   const columns: DataTableColumn<CustomerSalesRow>[] = [
     { header: 'Customer Code', accessor: (row) => row.customer_code },
     { header: 'Customer Name', accessor: (row) => row.customer_name, sortKey: 'customer_name' },
-    { header: 'Branch', accessor: (row) => row.branch_name ?? 'Multiple' },
-    { header: 'Sales Person', accessor: (row) => row.sales_person_name ?? 'Multiple' },
+    { header: 'Branch', accessor: (row) => row.branch_name ?? (snapshotMode ? '—' : 'Multiple') },
+    { header: 'Sales Person', accessor: (row) => row.sales_person_name ?? (snapshotMode ? '—' : 'Multiple') },
     { header: 'Transactions', accessor: (row) => formatNumber(row.transaction_count), className: 'text-right', sortKey: 'transaction_count' },
-    { header: 'Total Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right', sortKey: 'qty' },
+    { header: 'Total Qty', accessor: (row) => (row.qty === null ? '—' : formatNumber(row.qty)), className: 'text-right', sortKey: 'qty' },
     { header: 'Amount Excl. Tax', accessor: (row) => formatCurrency(row.amount), className: 'text-right', sortKey: 'amount' },
     { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
     { header: 'Amount Incl. Tax', accessor: (row) => formatCurrency(row.amount_incl_tax), className: 'text-right' },
@@ -107,8 +122,22 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
     filters.status
   )
 
+  const emptyMessage = hasFilters
+    ? 'Tidak ada data untuk filter ini.'
+    : snapshotMode && !hasSnapshot
+      ? 'Data ini membutuhkan file "01 Sales Listing" yang belum diimport.'
+      : 'No sales in this period yet.'
+
   return (
     <div className="flex flex-col gap-4">
+      {snapshotMode && hasSnapshot && archiveMeta && (
+        <Alert>
+          <AlertTitle>
+            Sumber: import manual, periode {formatDate(archiveMeta.sales_listing.period_start!)} – {formatDate(archiveMeta.sales_listing.period_end!)} — bukan data live.
+          </AlertTitle>
+        </Alert>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard title="Active Customers" value={formatNumber(kpis?.total_customers ?? 0)} icon={Users} isLoading={listQuery.isLoading} />
         <SummaryCard title="Total Revenue" value={formatCurrency(kpis?.total_revenue ?? 0)} icon={TrendingUp} isLoading={listQuery.isLoading} />
@@ -150,7 +179,11 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
         />
       </div>
 
-      <SalesReportFiltersBar value={filters} onChange={(next) => { onFiltersChange(next); onPageChange(1) }} />
+      <SalesReportFiltersBar
+        value={filters}
+        onChange={(next) => { onFiltersChange(next); onPageChange(1) }}
+        hide={snapshotMode ? ['branch', 'salesPerson'] : []}
+      />
 
       <DataTable
         columns={columns}
@@ -159,8 +192,8 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
         isLoading={listQuery.isLoading}
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
-        emptyMessage={hasFilters ? 'Tidak ada data untuk filter ini.' : 'No sales in this period yet.'}
-        onRowClick={(row) => setDocumentsFor(row)}
+        emptyMessage={emptyMessage}
+        onRowClick={snapshotMode ? undefined : (row) => setDocumentsFor(row)}
         sort={sort}
         onSortChange={(key) => setSort((prev) => (prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'desc' }))}
       />
@@ -172,17 +205,21 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
           <CardTitle>Sales Achievement by Sales Person</CardTitle>
         </CardHeader>
         <CardContent>
-          <DataTable
-            columns={[
-              { header: 'Sales Person', accessor: (row) => row.sales_person_name },
-              { header: 'Total Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
-              { header: 'Total Nominal', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
-            ]}
-            data={achievementQuery.data ?? []}
-            rowKey={(row) => row.sales_person_id ?? 'unassigned'}
-            isLoading={achievementQuery.isLoading}
-            emptyMessage="No sales in this period yet."
-          />
+          {snapshotMode ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Tidak tersedia pada data import.</p>
+          ) : (
+            <DataTable
+              columns={[
+                { header: 'Sales Person', accessor: (row) => row.sales_person_name },
+                { header: 'Total Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
+                { header: 'Total Nominal', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+              ]}
+              data={achievementQuery.data ?? []}
+              rowKey={(row) => row.sales_person_id ?? 'unassigned'}
+              isLoading={achievementQuery.isLoading}
+              emptyMessage="No sales in this period yet."
+            />
+          )}
         </CardContent>
       </Card>
 

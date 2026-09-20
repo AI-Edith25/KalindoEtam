@@ -65,6 +65,7 @@ use App\Http\Controllers\Api\V1\PurchaseSettingController;
 use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\ReceiptStockController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\SalesArchiveController;
 use App\Http\Controllers\Api\V1\SalesJournalController;
 use App\Http\Controllers\Api\V1\SalesListingController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
@@ -356,6 +357,21 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('reports/sales/open-orders/export', [OpenOrdersController::class, 'export'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/listing', [SalesListingController::class, 'index'])->middleware('permission:reports.sales.view');
     Route::get('reports/sales/listing/export', [SalesListingController::class, 'export'])->middleware('permission:reports.sales.view');
+
+    // Sales Report import archive -- standalone, no FK to invoices/credit_notes/customers, feeds
+    // Sales Listing/Customer Sales/Product Sales when their live table is empty. See
+    // SalesArchiveController's own docblock.
+    Route::get('sales-archive/meta', [SalesArchiveController::class, 'meta'])->middleware('permission:reports.sales_archive.view');
+    Route::get('sales-archive/history', [SalesArchiveController::class, 'history'])->middleware('permission:reports.sales_archive.view');
+    Route::post('sales-archive/snapshots', [SalesArchiveController::class, 'store'])->middleware('permission:reports.sales_archive.import');
+    Route::post('sales-archive/batches/{batch}/resolve', [SalesArchiveController::class, 'resolve'])->middleware('permission:reports.sales_archive.import');
+    Route::get('sales-archive/sales-listing', [SalesArchiveController::class, 'salesListing'])->middleware('permission:reports.sales_archive.view');
+    Route::get('sales-archive/sales-listing/export', [SalesArchiveController::class, 'exportSalesListing'])->middleware('permission:reports.sales_archive.view');
+    Route::get('sales-archive/customer-sales', [SalesArchiveController::class, 'customerSales'])->middleware('permission:reports.sales_archive.view');
+    Route::get('sales-archive/customer-sales/export', [SalesArchiveController::class, 'exportCustomerSales'])->middleware('permission:reports.sales_archive.view');
+    Route::get('sales-archive/product-sales', [SalesArchiveController::class, 'productSales'])->middleware('permission:reports.sales_archive.view');
+    Route::get('sales-archive/product-sales/export', [SalesArchiveController::class, 'exportProductSales'])->middleware('permission:reports.sales_archive.view');
+    Route::get('sales-archive/product-sales/{itemCode}/customers', [SalesArchiveController::class, 'productSalesCustomers'])->middleware('permission:reports.sales_archive.view');
 
     // Gross Profit — split out of Sales Report's old Margin tab into its own top-level Reports
     // entry (2026-09-19), own reports.gross_profit.view permission. Same query/formula, just moved.

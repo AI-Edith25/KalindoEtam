@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, Download, FileText, Info, Printer, Receipt, RotateCw, Wallet } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
+import { Alert, AlertTitle } from '@/components/ui/alert'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
 import { Button } from '@/components/ui/button'
@@ -12,25 +13,38 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { exportArchiveSalesListing, fetchArchiveSalesListing } from '../api/salesArchiveApi'
 import { exportSalesListing, fetchSalesListing, type SalesListingParams } from '../api/salesListingApi'
 import { SalesReportFiltersBar } from './SalesReportFiltersBar'
 import { reportFileName } from '../lib/exportFileName'
-import type { PaymentStatus, SalesListingRow, SalesListingType, SalesReportFilterValues } from '../types'
+import type { PaymentStatus, SalesArchiveMeta, SalesListingRow, SalesListingType, SalesReportFilterValues } from '../types'
 
 interface SalesListingPanelProps {
   filters: SalesReportFilterValues
   onFiltersChange: (filters: SalesReportFilterValues) => void
   page: number
   onPageChange: (page: number) => void
+  archiveMeta?: SalesArchiveMeta
 }
 
 const ALL = '__all__'
+const KNOWN_TYPES = ['invoice', 'credit_note']
 
-export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange }: SalesListingPanelProps) {
+export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange, archiveMeta }: SalesListingPanelProps) {
   const [sort, setSort] = useState<DataTableSort>({ key: 'date', direction: 'desc' })
   const [type, setType] = useState<SalesListingType | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+
+  // Unfiltered check, independent of the table's own filters -- "filtered to zero" must never be
+  // confused with "the live table is empty", same convention as AccountsPayableDetailReportPage.
+  const liveDataCheckQuery = useQuery({
+    queryKey: ['sales-listing-has-live-data'],
+    queryFn: () => fetchSalesListing({ page: 1, per_page: 1 }),
+    staleTime: 60_000,
+  })
+  const snapshotMode = liveDataCheckQuery.isSuccess && (liveDataCheckQuery.data?.meta.total ?? 0) === 0
+  const hasSnapshot = archiveMeta?.sales_listing.has_snapshot ?? false
 
   const activeParams: Omit<SalesListingParams, 'page'> = {
     sort: sort.key as SalesListingParams['sort'],
@@ -45,9 +59,10 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
   }
 
   const listQuery = useQuery({
-    queryKey: ['sales-listing', page, sort.key, sort.direction, filters, type, paymentStatus],
-    queryFn: () => fetchSalesListing({ ...activeParams, page }),
+    queryKey: ['sales-listing', snapshotMode, page, sort.key, sort.direction, filters, type, paymentStatus],
+    queryFn: () => (snapshotMode ? fetchArchiveSalesListing({ ...activeParams, page }) : fetchSalesListing({ ...activeParams, page })),
     placeholderData: (previous) => previous,
+    enabled: liveDataCheckQuery.isSuccess,
   })
 
   const rows = listQuery.data?.data ?? []
@@ -56,7 +71,7 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
   const exportReport = async (format: 'xlsx' | 'csv') => {
     setIsExporting(true)
     try {
-      const blob = await exportSalesListing(activeParams, format)
+      const blob = snapshotMode ? await exportArchiveSalesListing(activeParams, format) : await exportSalesListing(activeParams, format)
       downloadBlob(reportFileName('SalesListingReport', filters.dateFrom, filters.dateTo, format), blob)
     } catch (error) {
       toastApiError(error)
@@ -72,7 +87,9 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
     { header: 'Reference DO', accessor: (row) => row.reference_do_number ?? '—' },
     { header: 'Customer Code', accessor: (row) => row.customer_code },
     { header: 'Customer Name', accessor: (row) => row.customer_name, sortKey: 'customer_name' },
-    { header: 'Type', accessor: (row) => <StatusBadge status={row.type} /> },
+    // An archive row's type can be an unrecognized raw Skybiz code (see SalesListingArchiveService)
+    // -- StatusBadge has no color-map entry for that, so it's shown as plain text instead.
+    { header: 'Type', accessor: (row) => (KNOWN_TYPES.includes(row.type) ? <StatusBadge status={row.type} /> : row.type) },
     { header: 'Amount Excl. Tax', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
     { header: 'Disc Adjustment', accessor: (row) => formatCurrency(row.discount), className: 'text-right' },
     { header: 'Tax', accessor: (row) => formatCurrency(row.tax), className: 'text-right' },
@@ -83,8 +100,22 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
 
   const hasFilters = !!(filters.customer_id || filters.sales_person_id || filters.branch_id || type || paymentStatus)
 
+  const emptyMessage = hasFilters
+    ? 'Tidak ada data untuk filter ini.'
+    : snapshotMode && !hasSnapshot
+      ? 'Data ini membutuhkan file "01 Sales Listing" yang belum diimport.'
+      : 'No sales in this period yet.'
+
   return (
     <div className="flex flex-col gap-4">
+      {snapshotMode && hasSnapshot && archiveMeta && (
+        <Alert>
+          <AlertTitle>
+            Sumber: import manual, periode {formatDate(archiveMeta.sales_listing.period_start!)} – {formatDate(archiveMeta.sales_listing.period_end!)} — bukan data live.
+          </AlertTitle>
+        </Alert>
+      )}
+
       <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
         <Info className="mt-0.5 size-4 shrink-0" />
         <p>&quot;Revenue&quot; here means invoiced (billed), not cash received — see the Payment Status/Outstanding AR columns for what&apos;s actually been collected.</p>
@@ -157,7 +188,7 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
         isLoading={listQuery.isLoading}
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
-        emptyMessage={hasFilters ? 'Tidak ada data untuk filter ini.' : 'No sales in this period yet.'}
+        emptyMessage={emptyMessage}
         sort={sort}
         onSortChange={(key) => setSort((prev) => (prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'desc' }))}
       />

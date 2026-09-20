@@ -2,6 +2,7 @@
 
 namespace App\Services\Import;
 
+use App\Exceptions\BusinessException;
 use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
 
@@ -109,5 +110,25 @@ final class ImportFileReader
         $sheet = Excel::toCollection(null, $path)->first();
 
         return $sheet?->toArray() ?? [];
+    }
+
+    /**
+     * Scans the first $limit rows for one whose cells contain $cellValue exactly (trimmed),
+     * and returns that row's 0-based index -- located by content, never a hardcoded row number,
+     * since legacy exports don't reliably keep the same number of preamble rows. Shared by every
+     * archive import service that locates its header this way (originally
+     * CustomerOutstandingArchiveImportService::findHeaderRow()).
+     */
+    public static function findHeaderRowByCell(array $rawRows, string $cellValue, int $limit = 15): int
+    {
+        foreach (array_slice($rawRows, 0, $limit) as $i => $row) {
+            foreach ($row as $cell) {
+                if (is_string($cell) && trim($cell) === $cellValue) {
+                    return $i;
+                }
+            }
+        }
+
+        throw new BusinessException("Tidak menemukan baris header (kolom \"{$cellValue}\") di {$limit} baris pertama file.");
     }
 }

@@ -1,11 +1,18 @@
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Upload } from 'lucide-react'
+import { ActionBar } from '@/components/shared/ActionBar'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
+import { useHasPermission } from '@/shared/hooks/usePermission'
+import { fetchSalesArchiveMeta } from '../api/salesArchiveApi'
 import { ProductSalesPanel } from '../components/ProductSalesPanel'
 import { CustomerSalesPanel } from '../components/CustomerSalesPanel'
 import { OpenOrdersPanel } from '../components/OpenOrdersPanel'
 import { SalesListingPanel } from '../components/SalesListingPanel'
+import { SalesArchiveImportDialog } from '../components/SalesArchiveImportDialog'
 import { emptySalesReportFilters } from '../lib/reportFilters'
 import type { SalesReportFilterValues } from '../types'
 
@@ -29,6 +36,13 @@ const TABS: { value: SalesReportTab; label: string; enabled: boolean }[] = [
  */
 export function SalesReportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [importOpen, setImportOpen] = useState(false)
+  const canImportArchive = useHasPermission('reports.sales_archive.import')
+
+  // Fetched once here, passed down to the 3 tabs that can fall back to it -- Open Orders never
+  // touches the archive at all (no import can produce open-order data, see the ticket).
+  const archiveMetaQuery = useQuery({ queryKey: ['sales-archive-meta'], queryFn: fetchSalesArchiveMeta })
+  const archiveMeta = archiveMetaQuery.data
 
   const tab = (searchParams.get('tab') as SalesReportTab) || 'products'
   const page = Number(searchParams.get('page') ?? '1')
@@ -77,7 +91,15 @@ export function SalesReportPage() {
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
 
-      <PageHeader title="Sales Report" description="Product, customer, open-order, and listing views over the same sales data." />
+      <PageHeader
+        title="Sales Report"
+        description="Product, customer, open-order, and listing views over the same sales data."
+        actions={
+          tab !== 'open-orders' && canImportArchive ? (
+            <ActionBar actions={[]} primary={{ label: 'Import Data', icon: Upload, onClick: () => setImportOpen(true) }} />
+          ) : undefined
+        }
+      />
 
       <div className="flex items-center gap-1 rounded-md border p-1">
         {TABS.map((option) => (
@@ -93,10 +115,12 @@ export function SalesReportPage() {
         ))}
       </div>
 
-      {tab === 'products' && <ProductSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
-      {tab === 'customers' && <CustomerSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'products' && <ProductSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} archiveMeta={archiveMeta} />}
+      {tab === 'customers' && <CustomerSalesPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} archiveMeta={archiveMeta} />}
       {tab === 'open-orders' && <OpenOrdersPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
-      {tab === 'listing' && <SalesListingPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} />}
+      {tab === 'listing' && <SalesListingPanel filters={filters} onFiltersChange={setFilters} page={page} onPageChange={setPage} archiveMeta={archiveMeta} />}
+
+      <SalesArchiveImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={() => archiveMetaQuery.refetch()} />
     </div>
   )
 }

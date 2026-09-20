@@ -1,34 +1,45 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download, Package, Printer, RotateCw, TrendingUp, Trophy, Users } from 'lucide-react'
+import { Download, Info, Package, Printer, RotateCw, TrendingUp, Trophy, Users } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
+import { Alert, AlertTitle } from '@/components/ui/alert'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { exportArchiveProductSales, fetchArchiveProductSales, fetchArchiveProductSalesCustomers } from '../api/salesArchiveApi'
 import { exportProductSales, fetchProductSales, fetchProductSalesCustomers, type ProductSalesParams } from '../api/productSalesApi'
 import { SalesReportFiltersBar } from './SalesReportFiltersBar'
 import { reportFileName } from '../lib/exportFileName'
-import type { ProductSalesRow, SalesReportFilterValues, SalesReportGroupBy } from '../types'
+import type { ProductSalesRow, SalesArchiveMeta, SalesReportFilterValues, SalesReportGroupBy } from '../types'
 
 interface ProductSalesPanelProps {
   filters: SalesReportFilterValues
   onFiltersChange: (filters: SalesReportFilterValues) => void
   page: number
   onPageChange: (page: number) => void
+  archiveMeta?: SalesArchiveMeta
 }
 
-export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange }: ProductSalesPanelProps) {
+export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange, archiveMeta }: ProductSalesPanelProps) {
   const [group, setGroup] = useState<SalesReportGroupBy>('item')
   const [sort, setSort] = useState<DataTableSort>({ key: 'amount', direction: 'desc' })
   const [isExporting, setIsExporting] = useState(false)
   const [customersFor, setCustomersFor] = useState<ProductSalesRow | null>(null)
+
+  const liveDataCheckQuery = useQuery({
+    queryKey: ['product-sales-has-live-data'],
+    queryFn: () => fetchProductSales({ page: 1, per_page: 1, group: 'item' }),
+    staleTime: 60_000,
+  })
+  const snapshotMode = liveDataCheckQuery.isSuccess && (liveDataCheckQuery.data?.meta.total ?? 0) === 0
+  const hasSnapshot = archiveMeta?.product_sales_detail.has_snapshot ?? false
 
   const activeParams: Omit<ProductSalesParams, 'page'> = {
     group,
@@ -45,14 +56,17 @@ export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange
   }
 
   const listQuery = useQuery({
-    queryKey: ['product-sales', page, group, sort.key, sort.direction, filters],
-    queryFn: () => fetchProductSales({ ...activeParams, page }),
+    queryKey: ['product-sales', snapshotMode, page, group, sort.key, sort.direction, filters],
+    queryFn: () => (snapshotMode ? fetchArchiveProductSales({ ...activeParams, page }) : fetchProductSales({ ...activeParams, page })),
     placeholderData: (previous) => previous,
+    enabled: liveDataCheckQuery.isSuccess,
   })
 
   const customersQuery = useQuery({
-    queryKey: ['product-sales-customers', customersFor?.id, filters],
-    queryFn: () => fetchProductSalesCustomers(customersFor!.id, activeParams),
+    queryKey: ['product-sales-customers', snapshotMode, customersFor?.id, filters],
+    queryFn: () => (snapshotMode
+      ? fetchArchiveProductSalesCustomers(customersFor!.id, activeParams)
+      : fetchProductSalesCustomers(customersFor!.id, activeParams)),
     enabled: !!customersFor && !customersFor.is_group,
   })
 
@@ -63,7 +77,7 @@ export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange
   const exportReport = async (format: 'xlsx' | 'csv') => {
     setIsExporting(true)
     try {
-      const blob = await exportProductSales(activeParams, format)
+      const blob = snapshotMode ? await exportArchiveProductSales(activeParams, format) : await exportProductSales(activeParams, format)
       downloadBlob(reportFileName('ProductSalesReport', filters.dateFrom, filters.dateTo, format), blob)
     } catch (error) {
       toastApiError(error)
@@ -128,8 +142,29 @@ export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange
     filters.status
   )
 
+  const emptyMessage = hasFilters
+    ? 'Tidak ada data untuk filter ini.'
+    : snapshotMode && !hasSnapshot
+      ? 'Data ini membutuhkan file "13 Product Sales Report - Detail" yang belum diimport.'
+      : 'No sales in this period yet.'
+
   return (
     <div className="flex flex-col gap-4">
+      {snapshotMode && hasSnapshot && archiveMeta && (
+        <Alert>
+          <AlertTitle>
+            Sumber: import manual, periode {formatDate(archiveMeta.product_sales_detail.period_start!)} – {formatDate(archiveMeta.product_sales_detail.period_end!)} — bukan data live.
+          </AlertTitle>
+        </Alert>
+      )}
+
+      {snapshotMode && hasSnapshot && (
+        <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+          <Info className="mt-0.5 size-4 shrink-0" />
+          <p>Nilai per item belum termasuk diskon/penyesuaian tingkat dokumen, sehingga total di tab ini bisa sedikit berbeda dari Sales Listing.</p>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard title="Total Qty" value={formatNumber(kpis?.total_qty ?? 0)} icon={Package} isLoading={listQuery.isLoading} />
         <SummaryCard title="Total Revenue" value={formatCurrency(kpis?.total_revenue ?? 0)} icon={TrendingUp} isLoading={listQuery.isLoading} />
@@ -188,7 +223,7 @@ export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange
         isLoading={listQuery.isLoading}
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
-        emptyMessage={hasFilters ? 'Tidak ada data untuk filter ini.' : 'No sales in this period yet.'}
+        emptyMessage={emptyMessage}
         sort={sort}
         onSortChange={(key) => setSort((prev) => (prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'desc' }))}
       />
