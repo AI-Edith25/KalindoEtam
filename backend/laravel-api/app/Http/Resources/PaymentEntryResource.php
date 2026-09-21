@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\PaymentEntryType;
+use App\Models\ChartOfAccount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -50,9 +51,18 @@ class PaymentEntryResource extends JsonResource
         $lines = [];
 
         if ($this->relationLoaded('items')) {
+            // Every supplier-purpose line debits the same suspense account — see
+            // PaymentEntry::journalLines()/mixedJournalLines()'s own '1250' literal. Resolved
+            // once here (not per-line) and only when a supplier line actually exists.
+            $supplierGlAccount = null;
+
             foreach ($this->items as $allocation) {
                 if ($allocation->is_reversed) {
                     continue;
+                }
+
+                if ($supplierGlAccount === null) {
+                    $supplierGlAccount = ChartOfAccount::query()->where('code', '1250')->first();
                 }
 
                 $lines[] = [
@@ -61,6 +71,7 @@ class PaymentEntryResource extends JsonResource
                     'accounts_payable_id' => $allocation->accounts_payable_id,
                     'accounts_payable' => $allocation->relationLoaded('accountsPayable') ? new AccountsPayableResource($allocation->accountsPayable) : null,
                     'description' => $allocation->relationLoaded('accountsPayable') ? $allocation->accountsPayable?->reference_number : null,
+                    'gl_account' => $supplierGlAccount ? new ChartOfAccountResource($supplierGlAccount) : null,
                     'branch_id' => null,
                     'amount' => $allocation->allocated_amount,
                     'notes' => null,

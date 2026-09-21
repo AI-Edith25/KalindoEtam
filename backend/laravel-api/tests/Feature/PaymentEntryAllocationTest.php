@@ -507,4 +507,43 @@ class PaymentEntryAllocationTest extends TestCase
         $response->assertJsonPath('data.invoice_id', $purchaseInvoice->id);
         $response->assertJsonPath('data.reference_number', $purchaseInvoice->document_number);
     }
+
+    /**
+     * Payment Voucher print needs the Purchase Invoice's own reference_number/remarks (not
+     * accounts_payables.reference_number, which is an internal document-number snapshot — see
+     * PaymentEntryController::show()'s own load() and AccountsPayableResource's invoice block)
+     * plus a resolved GL account per supplier line (PaymentEntryResource::unifiedLines()) — guards
+     * both against silently regressing back to null.
+     */
+    public function test_payment_entry_show_exposes_invoice_reference_and_gl_account_for_print(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 5, rate: 20000);
+        $accountsPayable = AccountsPayable::query()->where('goods_receipt_id', $goodsReceipt->id)->firstOrFail();
+        $purchaseInvoice = \App\Models\PurchaseInvoice::query()->findOrFail($accountsPayable->invoice_id);
+        $purchaseInvoice->update(['reference_number' => 'SUPPLIER-REF-001', 'remarks' => 'Test remarks']);
+
+        $payment = $this->paymentEntryService->create([
+            'payment_type' => 'supplier',
+            'supplier_id' => $this->supplier->id,
+            'payment_date' => now()->toDateString(),
+            'cash_account_id' => $this->accountId('1100'),
+            'amount' => 100000,
+        ]);
+        $payment = $this->paymentEntryService->submit($payment);
+        $this->paymentEntryAllocationService->allocateBatch($payment, [
+            ['accounts_payable_id' => $accountsPayable->id, 'amount' => 100000],
+        ]);
+
+        Permission::query()->firstOrCreate(['name' => 'finance.outgoing_payment.view', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->givePermissionTo('finance.outgoing_payment.view');
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+
+        $response = $this->getJson("/api/v1/payment-entries/{$payment->id}");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.lines.0.accounts_payable.invoice.reference_number', 'SUPPLIER-REF-001');
+        $response->assertJsonPath('data.lines.0.accounts_payable.invoice.remarks', 'Test remarks');
+        $response->assertJsonPath('data.lines.0.gl_account.code', '1250');
+    }
 }

@@ -1,6 +1,6 @@
 export type PrintFontSize = 'small' | 'medium' | 'large'
-/** 'roll' only has layout support in Invoice print — every other consumer's own `paperTypeOptions` list simply never offers it, same convention as 'half' already being Invoice-only. */
-export type PrintPaperType = 'a4' | 'continuous' | 'half' | 'roll'
+/** 'roll' only has layout support in Invoice print — every other consumer's own `paperTypeOptions` list simply never offers it, same convention as 'half' already being Invoice-only. 'letter' is Payment Voucher print-only, same reasoning. */
+export type PrintPaperType = 'a4' | 'continuous' | 'half' | 'roll' | 'letter'
 
 export interface PrintOptions {
   fontSize: PrintFontSize
@@ -35,6 +35,7 @@ export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
   continuous: 'Continuous 9.5" × 11" (Dot Matrix)',
   half: 'Half (A5 Landscape, 210 × 148.5mm)',
   roll: 'Roll (Thermal 80mm)',
+  letter: 'Letter',
 }
 
 /**
@@ -53,6 +54,10 @@ export const PRINT_PAPER_PAGE_CSS: Record<PrintPaperType, string | null> = {
   continuous: '@page { size: 9.5in 11in; margin: 6mm; }',
   half: '@page { size: 210mm 148.5mm; margin: 0; }',
   roll: null,
+  // Payment Voucher print's own A4/Letter toggle — A4 stays `null` (browser default, same as
+  // every other a4 consumer) since its own content div is already sized to 210x297mm; Letter
+  // needs an explicit @page since the browser default is A4-shaped on most locales/printers.
+  letter: '@page { size: 216mm 279mm; margin: 12mm; }',
 }
 
 const PRINT_PAPER_TYPE_STORAGE_KEY = 'print-paper-type'
@@ -126,6 +131,10 @@ export const saveDeliveryPrintOptions = deliveryPrintOptionsStorage.save
 const salesOrderPrintOptionsStorage = createPrintOptionsStorage('print-options:sales-order')
 export const loadSalesOrderPrintOptions = salesOrderPrintOptionsStorage.load
 export const saveSalesOrderPrintOptions = salesOrderPrintOptionsStorage.save
+
+const paymentVoucherPrintOptionsStorage = createPrintOptionsStorage('print-options:payment-voucher')
+export const loadPaymentVoucherPrintOptions = paymentVoucherPrintOptionsStorage.load
+export const savePaymentVoucherPrintOptions = paymentVoucherPrintOptionsStorage.save
 
 export const PRINT_FONT_SIZE_PX: Record<PrintFontSize, string> = {
   small: '11px',

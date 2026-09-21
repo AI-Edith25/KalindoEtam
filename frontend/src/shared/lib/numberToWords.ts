@@ -122,7 +122,7 @@ export function terbilangUsdWithCents(amount: number | string): string {
 const ID_SATUAN = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas']
 
 /** Classic recursive Indonesian terbilang — handles the "se-" irregulars (sebelas/seratus/seribu) a naive digit-by-digit reader would get wrong. Rupiah has no spelled-out subunit, unlike terbilangUsd's cents clause. */
-function angkaToKata(n: number): string {
+export function angkaToKata(n: number): string {
   if (n < 12) return ID_SATUAN[n]
   if (n < 20) return `${angkaToKata(n - 10)} belas`
   if (n < 100) return `${angkaToKata(Math.floor(n / 10))} puluh${n % 10 !== 0 ? ` ${angkaToKata(n % 10)}` : ''}`
@@ -140,4 +140,22 @@ export function terbilangIdr(amount: number | string): string {
   const rounded = Math.round(Number(amount))
   if (rounded === 0) return 'NOL RUPIAH'
   return `${angkaToKata(rounded)} rupiah`.toUpperCase()
+}
+
+/** Payment Voucher print's own terbilang — same Indonesian words as terbilangIdr but with NO
+    "RUPIAH" suffix (the "RP: " prefix is printed separately by the caller). When `decimals > 0`
+    and the amount has a nonzero cents remainder, appends "KOMA <cents> SEN" — no real legacy
+    voucher sample has nonzero cents to verify this wording against, so treat it as best-effort. */
+export function terbilangIdrPlain(amount: number | string, decimals = 0): string {
+  const n = Number(amount)
+  const rounded = decimals > 0 ? Math.round(n * 100) / 100 : Math.round(n)
+  const integerPart = Math.floor(rounded)
+  const words = integerPart === 0 ? 'NOL' : angkaToKata(integerPart).toUpperCase()
+
+  if (decimals > 0) {
+    const cents = Math.round((rounded - integerPart) * 100)
+    if (cents > 0) return `${words} KOMA ${angkaToKata(cents).toUpperCase()} SEN`
+  }
+
+  return words
 }

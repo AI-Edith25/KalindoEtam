@@ -19,6 +19,13 @@ class AccountsPayableResource extends JsonResource
                 'document_number' => $this->purchaseInvoice->document_number,
                 'invoice_date' => $this->purchaseInvoice->invoice_date?->format('Y-m-d'),
                 'status' => $this->purchaseInvoice->status,
+                // Supplier's own invoice number (Payment Voucher print's "Reference #" column) —
+                // distinct from accounts_payables.reference_number above, which is an internal
+                // document-number snapshot, not this.
+                'reference_number' => $this->purchaseInvoice->reference_number,
+                // Free-text entered on the Purchase Invoice — Payment Voucher print's "Description"
+                // column for supplier lines.
+                'remarks' => $this->purchaseInvoice->remarks,
             ] : null),
             'purchase_order_id' => $this->purchase_order_id,
             'goods_receipt_id' => $this->goods_receipt_id,

@@ -37,7 +37,7 @@ class PaymentEntryController extends Controller
     public function show(PaymentEntry $paymentEntry): JsonResponse
     {
         return $this->success(new PaymentEntryResource($paymentEntry->load([
-            'supplier', 'expenseAccount', 'cashAccount', 'items.accountsPayable.supplier', 'expenseLines.expenseAccount',
+            'supplier', 'expenseAccount', 'cashAccount', 'items.accountsPayable.supplier', 'items.accountsPayable.purchaseInvoice', 'expenseLines.expenseAccount',
         ])));
     }
 

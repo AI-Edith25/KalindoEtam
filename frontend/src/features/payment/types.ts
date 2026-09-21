@@ -16,6 +16,10 @@ export interface AccountsPayable {
     document_number: string | null
     invoice_date: string
     status: string
+    /** Supplier's own invoice number — distinct from AccountsPayable.reference_number, which is an internal document-number snapshot. Payment Voucher print's "Reference #" column. */
+    reference_number: string | null
+    /** Free-text entered on the Purchase Invoice. Payment Voucher print's "Description" column for supplier lines. */
+    remarks: string | null
   } | null
   purchase_order_id: string
   goods_receipt_id: string
@@ -69,6 +73,8 @@ export type PaymentVoucherLine =
       accounts_payable_id: string
       accounts_payable: AccountsPayable | null
       description: string | null
+      /** The GL account this line's amount actually posts to (the '1250' Advance to Suppliers suspense account) — see PaymentEntry::journalLines(). Payment Voucher print's "A/C" column. */
+      gl_account: ChartOfAccount | null
       branch_id: string | null
       amount: string | number
       notes: string | null
