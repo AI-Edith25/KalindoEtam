@@ -31,11 +31,6 @@ const TABLE2_COLS = [
 
 const SIGNATURE_LABELS = ['Diperiksa,', 'Disetujui,', 'Diketahui,', 'Kasir,', 'Diterima Oleh,']
 
-// TODO: confirm final hex with user — read off a screenshot of the template, not the (colorless)
-// reference PDF; treat as provisional until confirmed.
-const ACCENT_RED = '#8B2E2E' // "Keterangan" label + the 5 signature labels
-const ACCENT_BLUE = '#1F3A93' // voucher NO value, Table 1 row content, terbilang line
-
 function accountLabel(account: { code: string; name: string } | null | undefined): string {
   return account ? `${account.code} ${account.name}` : ''
 }
@@ -91,17 +86,13 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
         fontSize: `${bodyPt}pt`,
         color: '#000',
         lineHeight: 1.3,
-        // Without this, browsers commonly drop non-black text color at print time — needed for
-        // ACCENT_RED/ACCENT_BLUE below to actually come out of the printer, not just the preview.
-        printColorAdjust: 'exact',
-        WebkitPrintColorAdjust: 'exact',
       }}
     >
       {/* ---------- Header: two columns, no outer border ---------- */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
         <div>
           <PrintMetaTable size={bodyPt} rows={[{ label: 'Bank Account', value: payment.cash_account?.name ?? '' }]} />
-          <p style={{ margin: '1.5mm 0 0', fontWeight: 700, color: ACCENT_RED }}>Keterangan :</p>
+          <p style={{ margin: '1.5mm 0 0', fontWeight: 700 }}>Keterangan :</p>
           <p style={{ margin: 0 }}>
             {companyName}
             {payment.cash_account?.name ? `; ${payment.cash_account.name}` : ''}
@@ -113,7 +104,7 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
             <PrintMetaTable
               size={bodyPt}
               rows={[
-                { label: 'NO', value: <span style={{ color: ACCENT_BLUE }}>{payment.document_number ?? ''}</span>, bold: true },
+                { label: 'NO', value: payment.document_number ?? '', bold: true },
                 { label: 'Date', value: formatDdMmYyyy(payment.payment_date) },
                 { label: 'Cheque No', value: '' },
               ]}
@@ -151,9 +142,9 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
             const account = line.purpose_type === 'supplier' ? line.gl_account : line.expense_account
             return (
               <tr key={line.id ?? index}>
-                <td style={{ padding: '1mm 1.5mm', textAlign: 'left', color: ACCENT_BLUE }}>{accountLabel(account)}</td>
-                <td style={{ padding: '1mm 1.5mm', textAlign: 'left', color: ACCENT_BLUE }}>{table1Description(line)}</td>
-                <td style={{ padding: '1mm 1.5mm', textAlign: 'right', color: ACCENT_BLUE }}>{formatNum(line.amount, decimals)}</td>
+                <td style={{ padding: '1mm 1.5mm', textAlign: 'left' }}>{accountLabel(account)}</td>
+                <td style={{ padding: '1mm 1.5mm', textAlign: 'left' }}>{table1Description(line)}</td>
+                <td style={{ padding: '1mm 1.5mm', textAlign: 'right' }}>{formatNum(line.amount, decimals)}</td>
               </tr>
             )
           })}
@@ -203,7 +194,7 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
       {/* ---------- Footer: terbilang (kiri) / TOTAL (kanan) — ordinary flow after table 2, so on a
           multi-page voucher this naturally lands on the true last page with no tfoot trick needed. ---------- */}
       <div style={{ marginTop: '3mm', borderTop: '0.75pt solid #000', paddingTop: '2mm', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4mm', alignItems: 'start' }}>
-        <p style={{ margin: 0, color: ACCENT_BLUE }}>RP: {terbilangIdrPlain(payment.total_amount, decimals)}</p>
+        <p style={{ margin: 0 }}>RP: {terbilangIdrPlain(payment.total_amount, decimals)}</p>
         <p style={{ margin: 0, whiteSpace: 'nowrap' }}>
           <span style={{ fontWeight: 700 }}>TOTAL : RP</span>{' '}
           <span style={{ fontWeight: 700, fontSize: `${bodyPt * 1.15}pt` }}>{formatNum(payment.total_amount, decimals)}</span>
@@ -214,7 +205,7 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
       <div style={{ marginTop: '8mm', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '2mm' }}>
         {SIGNATURE_LABELS.map((label) => (
           <div key={label}>
-            <p style={{ margin: 0, color: ACCENT_RED }}>{label}</p>
+            <p style={{ margin: 0 }}>{label}</p>
             <div style={{ height: '16mm' }} />
             <div style={{ width: '80%', borderTop: '0.75pt solid #000' }} />
           </div>
