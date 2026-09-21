@@ -13,6 +13,10 @@ export function OutgoingPaymentPrintPage() {
   const { id } = useParams<{ id: string }>()
   const [printOptions, setPrintOptions] = useState<PrintOptions>(() => ({
     ...defaultPrintOptions,
+    // Template always prints 2 decimals ("18,079,680.00") — override the shared 0-decimal
+    // default so a first-time viewer's render already matches, without touching that shared
+    // default for every other print page still built around 0.
+    amountDecimals: 2,
     ...loadPaymentVoucherPrintOptions(),
   }))
   const [optionsOpen, setOptionsOpen] = useState(false)
