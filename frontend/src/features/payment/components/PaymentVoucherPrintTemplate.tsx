@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import { PrintMetaTable } from '@/components/shared/PrintMetaTable'
 import { terbilangIdrPlain } from '@/shared/lib/numberToWords'
 import type { PrintOptions } from '@/shared/lib/printOptions'
@@ -18,16 +17,6 @@ const TABLE1_COLS = [
   { key: 'account', label: 'A/C', align: 'left' as const, percent: 30 },
   { key: 'description', label: 'Description', align: 'left' as const, percent: 52 },
   { key: 'amount', label: 'Amount (RP)', align: 'right' as const, percent: 18 },
-]
-
-/** Vector-measured percentages of the reference PDF's ~535pt content width. */
-const TABLE2_COLS = [
-  { key: 'docDate', label: 'Doc Date', align: 'left' as const, percent: 11.6 },
-  { key: 'documentNo', label: 'Document #', align: 'left' as const, percent: 17.6 },
-  { key: 'referenceNo', label: 'Reference #', align: 'left' as const, percent: 16.6 },
-  { key: 'particulars', label: 'Particulars', align: 'left' as const, percent: 19.7 },
-  { key: 'orgAmt', label: 'Org. Amt', align: 'right' as const, percent: 14.6 },
-  { key: 'paidAmt', label: 'Paid Amt', align: 'right' as const, percent: 17.7 },
 ]
 
 const SIGNATURE_LABELS = ['Diperiksa,', 'Disetujui,', 'Diketahui,', 'Kasir,', 'Diterima Oleh,']
@@ -75,10 +64,9 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
   const bodyPt = FONT_PT[printOptions.fontSize]
   const lines = payment.lines
 
-  // Table 2's real data rows carry NO border (vector-confirmed: only the header row is
-  // bordered, the space below is pure whitespace) — the base gap already accounts for exactly 1
-  // data row, each additional row eats into it so the footer stays roughly where the template has
-  // it. Clamped at 0 once rows exceed what fits; the page then overflows normally.
+  // Spacing before the footer, sized as if the (now-removed) detail table were still present —
+  // keeps the footer landing roughly where the template has it. Clamped at 0 once rows exceed
+  // what fits; the page then overflows normally.
   const extraRows = Math.max(0, lines.length - 1)
   const detailSpacerMm = Math.max(0, DETAIL_TABLE_BASE_GAP_MM - extraRows * DETAIL_TABLE_ROW_HEIGHT_MM)
 
@@ -161,53 +149,10 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
         </tbody>
       </table>
 
-      {/* ---------- Table 2: Doc Date | Document # | Reference # | Particulars | Org. Amt | Paid Amt
-          Header bordered (top/bottom + column separators); data rows carry NO border at all —
-          plain floating text, matching the reference PDF exactly. ---------- */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginTop: '8mm' }}>
-        <colgroup>
-          {TABLE2_COLS.map((col) => (
-            <col key={col.key} style={{ width: `${col.percent}%` }} />
-          ))}
-        </colgroup>
-        {/* table-header-group repeats this row on every printed page for a multi-page voucher. */}
-        <thead style={{ display: 'table-header-group' }}>
-          <tr style={{ borderTop: '0.75pt solid #000', borderBottom: '0.75pt solid #000' }}>
-            {TABLE2_COLS.map((col, index) => (
-              <th
-                key={col.key}
-                style={{
-                  textAlign: 'center',
-                  fontWeight: 700,
-                  padding: '1mm 1.5mm',
-                  borderRight: index < TABLE2_COLS.length - 1 ? '0.75pt solid #000' : undefined,
-                }}
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, index) => (
-            <tr key={line.id ?? index} style={{ breakInside: 'avoid' }}>
-              <td style={dataCellStyle}>{line.purpose_type === 'supplier' ? formatDdMmYyyy(line.accounts_payable?.invoice?.invoice_date) : ''}</td>
-              <td style={dataCellStyle}>{line.purpose_type === 'supplier' ? (line.accounts_payable?.invoice?.document_number ?? '') : ''}</td>
-              <td style={dataCellStyle}>{line.purpose_type === 'supplier' ? (line.accounts_payable?.invoice?.reference_number ?? '') : ''}</td>
-              <td style={dataCellStyle}>{line.notes ?? ''}</td>
-              <td style={{ ...dataCellStyle, textAlign: 'right' }}>
-                {formatNum(line.purpose_type === 'supplier' ? (line.accounts_payable?.amount ?? line.amount) : line.amount, decimals)}
-              </td>
-              <td style={{ ...dataCellStyle, textAlign: 'right' }}>{formatNum(line.amount, decimals)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
       {/* Pure whitespace, no grid — shrinks as real data rows are added so the footer below lands close to its template position on a short voucher. */}
       <div style={{ height: `${detailSpacerMm}mm` }} />
 
-      {/* ---------- Footer: terbilang (kiri) / TOTAL (kanan) — ordinary flow after table 2, so on a
+      {/* ---------- Footer: terbilang (kiri) / TOTAL (kanan) — ordinary flow after table 1, so on a
           multi-page voucher this naturally lands on the true last page with no tfoot trick needed. ---------- */}
       <div style={{ borderTop: '0.75pt solid #000', paddingTop: '1.3mm', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4mm', alignItems: 'start' }}>
         <p style={{ margin: 0 }}>RP: {terbilangIdrPlain(payment.total_amount, decimals)}</p>
@@ -229,9 +174,4 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
       </div>
     </div>
   )
-}
-
-const dataCellStyle: CSSProperties = {
-  padding: '1mm 1.5mm',
-  verticalAlign: 'top',
 }
