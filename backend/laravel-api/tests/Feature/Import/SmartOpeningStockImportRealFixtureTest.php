@@ -67,8 +67,9 @@ class SmartOpeningStockImportRealFixtureTest extends TestCase
         $uom = UnitOfMeasurement::query()->create(['name' => 'Unit']);
         $btg = Warehouse::query()->create(['code' => 'BTG', 'name' => 'Bontang', 'warehouse_type' => WarehouseType::MAIN]);
         $smd = Warehouse::query()->create(['code' => 'SMD', 'name' => 'Samarinda', 'warehouse_type' => WarehouseType::MAIN]);
+        $bpp = Warehouse::query()->create(['code' => 'BPP', 'name' => 'Balikpapan', 'warehouse_type' => WarehouseType::MAIN]);
 
-        return compact('itemGroup', 'uom', 'btg', 'smd');
+        return compact('itemGroup', 'uom', 'btg', 'smd', 'bpp');
     }
 
     private function makeItem(string $code, ItemGroup $group, UnitOfMeasurement $uom, string $qtyCategory = 'unit'): Item
@@ -164,5 +165,43 @@ class SmartOpeningStockImportRealFixtureTest extends TestCase
         // Rounded to 2dp by QtyCategoryValidator (item's qty_category is 'weight') -- the sum
         // itself (98.88 + 2158.519 = 2257.399) is correct, storage rounding is separate and expected.
         $this->assertEqualsWithDelta(round(98.88 + 2158.519, 2), (float) $line->qty, 0.001);
+    }
+
+    /**
+     * Real bug: BPP's SC PCC 50 KG row is B/F 110744.999, IN 45412, OUT 53091 -- the legacy
+     * export's own BALANCE column already carries this as 103065.999, not a clean 103066, from
+     * precision computed upstream (see cleanWholeNumberDrift()'s docblock). SC PCC 50 KG is
+     * qty_category 'unit' (a ZAK/sack count genuinely must be whole) -- before the fix this
+     * whole import failed at resolve() with "Item ini dihitung per satuan (ZAK)." even though a
+     * human reading the file sees a clean whole number.
+     */
+    public function test_stock_balance_tolerates_float_drift_on_whole_number_item(): void
+    {
+        $master = $this->seedMaster();
+        $this->makeItem('SC PCC 50 KG', $master['itemGroup'], $master['uom'], 'unit');
+
+        $upload = $this->post('/api/v1/opening-stock/smart-import', [
+            'file' => $this->fixtureFile('xlsStockBalance.xlsx'),
+            'metadata_cutoff_date' => '2026-09-20',
+        ]);
+        $upload->assertCreated();
+
+        $summary = $upload->json('data.preview_summary');
+        $bppGroup = collect($summary['groups'])->firstWhere('warehouse_code', 'BPP');
+        $this->assertNotNull($bppGroup);
+        $line = collect($bppGroup['lines'])->firstWhere('item_code', 'SC PCC 50 KG');
+        $this->assertNotNull($line);
+        $this->assertEqualsWithDelta(103066.0, (float) $line['qty'], 0.001);
+
+        $batchId = $upload->json('data.id');
+        $resolve = $this->post("/api/v1/opening-stock/smart-import/{$batchId}/resolve");
+        $resolve->assertOk();
+        $this->assertSame(0, $resolve->json('data.failed_rows'));
+
+        $bppDoc = OpeningStock::query()->where('warehouse_id', $master['bpp']->id)->first();
+        $this->assertNotNull($bppDoc);
+        $bppLine = $bppDoc->items->firstWhere('item_code', 'SC PCC 50 KG');
+        $this->assertNotNull($bppLine);
+        $this->assertEqualsWithDelta(103066.0, (float) $bppLine->qty, 0.001);
     }
 }

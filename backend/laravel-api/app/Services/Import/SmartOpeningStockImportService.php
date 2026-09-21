@@ -400,7 +400,7 @@ class SmartOpeningStockImportService
                 'item_code' => $item->item_code,
                 'item_name' => $item->item_name,
                 'uom' => $item->uom?->name,
-                'qty' => $r['qty'],
+                'qty' => $this->cleanWholeNumberDrift($item, $r['qty']),
                 'unit_cost' => $r['unit_cost'],
             ];
         }
@@ -411,5 +411,27 @@ class SmartOpeningStockImportService
 
             return $group;
         }, $groups));
+    }
+
+    /**
+     * Legacy ledger exports carry B/F + IN - OUT balances computed upstream with more internal
+     * precision than the file displays — a whole-number-only item (qty_category=unit, e.g. a
+     * ZAK/sack count) can come through as 106515.999 instead of a clean 106516, which
+     * QtyCategoryValidator (correctly strict at 1e-6 for real user entry) would otherwise reject
+     * outright. Only true float drift is forgiven here (within WHOLE_NUMBER_DRIFT_TOLERANCE of a
+     * whole number) — a genuinely fractional qty like 50.7 sacks still surfaces as a normal
+     * validation failure instead of being silently rounded away.
+     */
+    private const WHOLE_NUMBER_DRIFT_TOLERANCE = 0.01;
+
+    private function cleanWholeNumberDrift(Item $item, float $qty): float
+    {
+        if ($item->qty_category->decimalPlaces() !== 0) {
+            return $qty;
+        }
+
+        $rounded = round($qty);
+
+        return abs($qty - $rounded) <= self::WHOLE_NUMBER_DRIFT_TOLERANCE ? $rounded : $qty;
     }
 }
