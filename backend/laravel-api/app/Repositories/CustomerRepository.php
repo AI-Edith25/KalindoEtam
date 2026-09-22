@@ -20,6 +20,8 @@ class CustomerRepository extends BaseRepository
             $query->where(fn ($q) => $q->where('customer_code', 'like', "%{$search}%")->orWhere('customer_name', 'like', "%{$search}%"));
         }
 
-        return $query->paginate($perPage);
+        // UUID primary key means an unordered scan has no relation to insertion order — without this,
+        // a customer created after the page cap can silently never appear (see CustomerLookupOrderingTest).
+        return $query->latest()->paginate($perPage);
     }
 }

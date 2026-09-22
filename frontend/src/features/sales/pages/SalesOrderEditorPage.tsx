@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
-import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -20,11 +20,11 @@ import { formatCurrency } from '@/lib/utils'
 import { computeSubtotal, computeLineTaxTotal } from '@/shared/lib/documentTotals'
 import {
   fetchBranches,
-  fetchCustomersLookup,
   fetchSalesPersonsLookup,
   fetchTaxesLookup,
   fetchTermsOfPaymentLookup,
   fetchWarehousesLookup,
+  searchCustomersLookup,
 } from '@/features/master/api/lookupsApi'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { approveSalesOrder, createSalesOrder, fetchSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
@@ -49,8 +49,20 @@ export function SalesOrderEditorPage() {
     enabled: isEdit,
   })
 
-  const customers = useQuery({ queryKey: ['customers-lookup'], queryFn: fetchCustomersLookup })
-  const customerOptions = customers.data?.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}` })) ?? []
+  // Async search (not a preloaded list) — the Customer master can run into the thousands, same
+  // reasoning as Item's picker and InvoiceEditorPage's own Customer field (searchCustomersLookup).
+  // A plain page-1 lookup silently drops customers created after whatever page cap applies.
+  const [selectedCustomerOption, setSelectedCustomerOption] = useState<SearchableSelectOption<{ customer_code: string; phone: string | null }> | undefined>(
+    undefined,
+  )
+  const loadCustomerOptions = async (query: string) => {
+    const customers = await searchCustomersLookup(query)
+    return customers.map((customer) => ({
+      value: customer.id,
+      label: `${customer.customer_code} — ${customer.customer_name}`,
+      data: { customer_code: customer.customer_code, phone: customer.phone },
+    }))
+  }
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const salesPersonOptions = salesPersons.data?.map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name })) ?? []
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
@@ -110,6 +122,11 @@ export function SalesOrderEditorPage() {
         tax_id: line.tax_id ?? '',
       })),
     })
+    setSelectedCustomerOption(
+      order.customer
+        ? { value: order.customer.id, label: `${order.customer.customer_code} — ${order.customer.customer_name}`, data: { customer_code: order.customer.customer_code, phone: order.customer.phone } }
+        : undefined,
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderQuery.data])
 
@@ -141,11 +158,11 @@ export function SalesOrderEditorPage() {
   const customerIdForPrefill = form.watch('customer_id')
   useEffect(() => {
     if (!customerIdForPrefill || form.getValues('tel')) return
+    if (selectedCustomerOption?.value !== customerIdForPrefill) return
 
-    const customer = customers.data?.find((c) => c.id === customerIdForPrefill)
-    if (customer?.phone) form.setValue('tel', customer.phone)
+    if (selectedCustomerOption.data?.phone) form.setValue('tel', selectedCustomerOption.data.phone)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerIdForPrefill, customers.data])
+  }, [customerIdForPrefill, selectedCustomerOption])
 
   const toPayload = (values: SalesOrderEditorValues): SalesOrderFormValues => ({
     customer_id: values.customer_id,
@@ -266,11 +283,15 @@ export function SalesOrderEditorPage() {
                   <FormItem>
                     <FormLabel>Customer</FormLabel>
                     <SearchableSelect
-                      options={customerOptions}
+                      loadOptions={loadCustomerOptions}
+                      selectedOption={selectedCustomerOption}
                       value={field.value}
-                      onChange={(value) => field.onChange(value ?? '')}
-                      loading={customers.isLoading}
+                      onChange={(value, option) => {
+                        field.onChange(value ?? '')
+                        setSelectedCustomerOption(option)
+                      }}
                       placeholder="Select customer"
+                      aria-label="Customer"
                     />
                     <FormMessage />
                   </FormItem>
@@ -279,7 +300,7 @@ export function SalesOrderEditorPage() {
               <FormItem>
                 <FormLabel>Customer Code</FormLabel>
                 <FormControl>
-                  <Input value={customers.data?.find((c) => c.id === customerIdForPrefill)?.customer_code ?? ''} disabled readOnly />
+                  <Input value={selectedCustomerOption?.data?.customer_code ?? ''} disabled readOnly />
                 </FormControl>
               </FormItem>
               {creditBlocked && (
