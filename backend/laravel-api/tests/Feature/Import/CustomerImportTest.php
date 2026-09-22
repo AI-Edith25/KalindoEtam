@@ -98,4 +98,25 @@ class CustomerImportTest extends TestCase
         $this->assertNotNull($customer);
         $this->assertNull($customer->terms_of_payment_id);
     }
+
+    /** Blank AND a literal 0 both mean "No Limit" on import — see ImportFieldDefinition::$zeroMeansNull. */
+    public function test_blank_or_zero_credit_limit_imports_as_no_limit(): void
+    {
+        $csv = "CusCode,CusName,Tel,Email,TermCode,CreditLimit,Address1,Address2,Address3,Address4\n"
+            ."CUS-003,PT Blank Limit,,,,,,,,\n"
+            ."CUS-004,PT Zero Limit,,,,0,,,,\n";
+
+        $upload = $this->post('/api/v1/import/customers/batches', ['file' => $this->csvFile('customers.csv', $csv)]);
+        $batchId = $upload->json('data.batch.id');
+
+        $this->patchJson("/api/v1/import/batches/{$batchId}/mapping", $this->mapping())->assertOk();
+        $this->postJson("/api/v1/import/batches/{$batchId}/preview")->assertOk();
+        $this->postJson("/api/v1/import/batches/{$batchId}/commit", [
+            'write_mode' => 'upsert',
+            'commit_mode' => 'skip_invalid',
+        ])->assertOk();
+
+        $this->assertNull(Customer::query()->where('customer_code', 'CUS-003')->first()->credit_limit);
+        $this->assertNull(Customer::query()->where('customer_code', 'CUS-004')->first()->credit_limit);
+    }
 }

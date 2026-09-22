@@ -602,10 +602,21 @@ class ImportBatchService
     private function transformScalar(ImportFieldDefinition $field, mixed $raw, array $cleanSettings): mixed
     {
         return match ($field->type) {
-            'number' => DataCleaner::normalizeNumber($raw, $cleanSettings[$field->name] ?? 'dot_thousands'),
+            'number' => $this->normalizeImportedNumber($field, $raw, $cleanSettings),
             'date' => DataCleaner::normalizeDate($raw),
             default => DataCleaner::normalizeText($raw),
         };
+    }
+
+    private function normalizeImportedNumber(ImportFieldDefinition $field, mixed $raw, array $cleanSettings): ?float
+    {
+        $value = DataCleaner::normalizeNumber($raw, $cleanSettings[$field->name] ?? 'dot_thousands');
+
+        if ($field->zeroMeansNull && $value === 0.0) {
+            return null;
+        }
+
+        return $value;
     }
 
     private function flagDuplicateUniqueKeys(array $rows, string $uniqueKeyField): array

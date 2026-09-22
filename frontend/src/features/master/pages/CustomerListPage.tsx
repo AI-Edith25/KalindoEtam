@@ -11,7 +11,7 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { formatNumber } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { deleteCustomer, fetchCustomers } from '../api/customerApi'
 import { CustomerFormDrawer } from '../components/CustomerFormDrawer'
 import { CustomerDetailDrawer } from '../components/CustomerDetailDrawer'
@@ -46,6 +46,7 @@ export function CustomerListPage() {
     { header: 'Phone', accessor: (row) => row.phone ?? '—' },
     { header: 'Telephone', accessor: (row) => row.telephone ?? '—' },
     { header: 'Email', accessor: (row) => row.email ?? '—' },
+    { header: 'Credit Limit', accessor: (row) => (row.credit_limit != null ? formatCurrency(row.credit_limit) : 'No Limit') },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.is_active ? 'active' : 'inactive'} /> },
     {
       header: '',

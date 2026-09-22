@@ -111,6 +111,18 @@ class SalesOrderCreditCheckTest extends TestCase
         $this->assertNotNull($salesOrder->id);
     }
 
+    /** credit_limit = null ("No Limit") must skip the over-limit check regardless of order size. */
+    public function test_customer_with_no_limit_can_create_sales_order_of_any_size(): void
+    {
+        $this->customer->update(['credit_limit' => null]);
+
+        $salesOrder = $this->salesOrderService->create($this->newOrderPayload([
+            'items' => [['item_id' => $this->item->id, 'qty' => 1, 'rate' => 999_999_999]],
+        ]));
+
+        $this->assertNotNull($salesOrder->id);
+    }
+
     public function test_customer_with_overdue_invoice_blocks_sales_order_creation(): void
     {
         $this->submittedInvoiceWithDueDate(now()->subDays(10)->toDateString());

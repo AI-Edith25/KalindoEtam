@@ -2,7 +2,7 @@ import { Pencil } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { DetailDrawerLayout, DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Customer } from '../types'
 
 interface CustomerDetailDrawerProps {
@@ -35,6 +35,10 @@ export function CustomerDetailDrawer({ open, onOpenChange, customer, onEdit }: C
         <DetailField label="No. NPWP" value={customer.no_npwp ?? '—'} />
         <DetailField label="Location / Area" value={customer.area ?? '—'} />
         <DetailField label="Nama Sales" value={customer.sales_person?.name ?? '—'} />
+        <DetailField
+          label="Credit Limit"
+          value={customer.credit_limit != null ? formatCurrency(customer.credit_limit) : 'No Limit'}
+        />
       </DetailSection>
 
       <Separator />

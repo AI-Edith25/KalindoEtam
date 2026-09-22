@@ -13,6 +13,9 @@ namespace App\Services\Import;
  * @param  ?string  $autoMapFrom  a synthetic row key (see ImportTemplate::transformRow()) this field
  *   should always map from in the 1-step auto-import flow, instead of a real file header — e.g.
  *   Supplier/Customer's `address` field maps from `_address` (Address1-4 joined by transformRow()).
+ * @param  bool  $zeroMeansNull  'number' fields only — treat an imported literal 0 the same as a
+ *   blank cell (both become null) instead of a real zero value. Off by default: most numeric
+ *   import fields (quantities, rates) need a real 0 to stay 0.
  */
 final class ImportFieldDefinition
 {
@@ -26,6 +29,7 @@ final class ImportFieldDefinition
         public readonly array $synonyms = [],
         public readonly string $example = '',
         public readonly ?string $autoMapFrom = null,
+        public readonly bool $zeroMeansNull = false,
     ) {}
 
     public function toArray(): array

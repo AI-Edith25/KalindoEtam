@@ -86,6 +86,7 @@ final class CustomerImportTemplate implements ImportTemplate
                 type: 'number',
                 synonyms: ['credit limit', 'creditlimit', 'limit kredit'],
                 example: '50000000',
+                zeroMeansNull: true,
             ),
         ];
     }
