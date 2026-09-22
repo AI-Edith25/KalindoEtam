@@ -93,8 +93,9 @@ class StockLedgerRepository extends BaseRepository
      * Batched sibling of latestBalanceUnlocked() — one query for a whole list of items in one
      * warehouse (e.g. Sales Order's item dropdown search results), instead of N+1 single-item
      * lookups. Same unlocked, display-only posture; never use this to decide what to write to the
-     * ledger. Same ROW_NUMBER-latest-row-per-item shape currentBalances() already uses, tie-broken
-     * the same way latestBalanceUnlocked() is (posting_datetime then created_at, not id).
+     * ledger. ROW_NUMBER-latest-row-per-item shape, tie-broken the same way latestBalanceUnlocked()
+     * is (posting_datetime then created_at, not id) — unlike currentBalances(), which sums
+     * qty_change instead of trusting a single "latest" row (see that method's docblock).
      *
      * @param  string[]  $itemIds
      * @return array<string, float> balance_qty keyed by item_id — an item with no ledger rows yet
@@ -140,23 +141,25 @@ class StockLedgerRepository extends BaseRepository
 
     /**
      * One row per (item, warehouse) pair that has any ledger history — "what
-     * do we have, where." No balances table exists; balance is always the
-     * latest stock_ledgers row per pair. A paginated report across every
-     * pair can't loop latestBalance() per pair like totalBalanceForItem()
-     * does for one item (N+1, doesn't paginate) — instead rank rows per
-     * pair by recency and keep only rn=1, then join items/warehouses for
-     * filtering and display.
+     * do we have, where." No balances table exists; current_qty is
+     * SUM(qty_change) per pair — the same net-movement math the Valuation
+     * report's Closing Qty uses — not any single row's stored balance_qty.
+     * balance_qty is a running total computed at write time off "whatever
+     * row currently sorts latest by posting_datetime"; that ordering can
+     * disagree with true chronological/insertion order (e.g. a same-day
+     * cancellation posts at now() while its document posts at a midnight
+     * cutoff_date), so picking "the latest row" here could surface a
+     * stale/reversed balance even though the net movement is correct.
      */
     public function currentBalances(array $filters, int $perPage = 15)
     {
-        $ranked = $this->model->query()
-            ->select('item_id', 'warehouse_id', 'balance_qty')
-            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY item_id, warehouse_id ORDER BY posting_datetime DESC, id DESC) as rn');
-
-        $latest = DB::query()->fromSub($ranked, 'ranked')->where('rn', 1);
+        $qtyTotals = $this->model->query()
+            ->select('item_id', 'warehouse_id')
+            ->selectRaw('SUM(qty_change) as current_qty')
+            ->groupBy('item_id', 'warehouse_id');
 
         // FifoLayer, not this table, is the cost source of truth — qty_remaining here should
-        // already agree with balance_qty above (same item+warehouse), but a LEFT JOIN keeps a
+        // already agree with current_qty above (same item+warehouse), but a LEFT JOIN keeps a
         // row with no layers (yet) from disappearing, rather than an inner join silently
         // dropping it from the report.
         $fifoValues = DB::table('fifo_layers')
@@ -167,27 +170,27 @@ class StockLedgerRepository extends BaseRepository
             ->groupBy('item_id', 'warehouse_id');
 
         return DB::query()
-            ->fromSub($latest, 'latest_balances')
-            ->join('items', 'items.id', '=', 'latest_balances.item_id')
-            ->join('warehouses', 'warehouses.id', '=', 'latest_balances.warehouse_id')
+            ->fromSub($qtyTotals, 'qty_totals')
+            ->join('items', 'items.id', '=', 'qty_totals.item_id')
+            ->join('warehouses', 'warehouses.id', '=', 'qty_totals.warehouse_id')
             ->join('uoms', 'uoms.id', '=', 'items.uom_id')
             ->leftJoinSub($fifoValues, 'fifo_values', function ($join) {
-                $join->on('fifo_values.item_id', '=', 'latest_balances.item_id')
-                    ->on('fifo_values.warehouse_id', '=', 'latest_balances.warehouse_id');
+                $join->on('fifo_values.item_id', '=', 'qty_totals.item_id')
+                    ->on('fifo_values.warehouse_id', '=', 'qty_totals.warehouse_id');
             })
             ->select([
-                'latest_balances.item_id',
+                'qty_totals.item_id',
                 'items.item_code',
                 'items.item_name',
-                'latest_balances.warehouse_id',
+                'qty_totals.warehouse_id',
                 'warehouses.name as warehouse_name',
-                'latest_balances.balance_qty as current_qty',
+                'qty_totals.current_qty',
                 'uoms.name as uom',
                 DB::raw('COALESCE(fifo_values.fifo_value, 0) as total_value'),
             ])
-            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('latest_balances.warehouse_id', $warehouseId))
+            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('qty_totals.warehouse_id', $warehouseId))
             ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->where('items.item_group_id', $itemGroupId))
-            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('latest_balances.item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('qty_totals.item_id', $itemId))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
                 fn ($q) => $q->where('items.item_code', 'like', "%{$search}%")
                     ->orWhere('items.item_name', 'like', "%{$search}%")
@@ -205,11 +208,9 @@ class StockLedgerRepository extends BaseRepository
      */
     public function totalValueSummary(array $filters): array
     {
-        $ranked = $this->model->query()
-            ->select('item_id', 'warehouse_id', 'balance_qty')
-            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY item_id, warehouse_id ORDER BY posting_datetime DESC, id DESC) as rn');
-
-        $latest = DB::query()->fromSub($ranked, 'ranked')->where('rn', 1);
+        $qtyTotals = $this->model->query()
+            ->select('item_id', 'warehouse_id')
+            ->groupBy('item_id', 'warehouse_id');
 
         $fifoValues = DB::table('fifo_layers')
             ->whereNull('deleted_at')
@@ -218,19 +219,19 @@ class StockLedgerRepository extends BaseRepository
             ->groupBy('item_id', 'warehouse_id');
 
         $rows = DB::query()
-            ->fromSub($latest, 'latest_balances')
-            ->join('items', 'items.id', '=', 'latest_balances.item_id')
+            ->fromSub($qtyTotals, 'qty_totals')
+            ->join('items', 'items.id', '=', 'qty_totals.item_id')
             ->leftJoinSub($fifoValues, 'fifo_values', function ($join) {
-                $join->on('fifo_values.item_id', '=', 'latest_balances.item_id')
-                    ->on('fifo_values.warehouse_id', '=', 'latest_balances.warehouse_id');
+                $join->on('fifo_values.item_id', '=', 'qty_totals.item_id')
+                    ->on('fifo_values.warehouse_id', '=', 'qty_totals.warehouse_id');
             })
             ->select([
-                'latest_balances.item_id',
+                'qty_totals.item_id',
                 DB::raw('COALESCE(fifo_values.fifo_value, 0) as total_value'),
             ])
-            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('latest_balances.warehouse_id', $warehouseId))
+            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('qty_totals.warehouse_id', $warehouseId))
             ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->where('items.item_group_id', $itemGroupId))
-            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('latest_balances.item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('qty_totals.item_id', $itemId))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
                 fn ($q) => $q->where('items.item_code', 'like', "%{$search}%")
                     ->orWhere('items.item_name', 'like', "%{$search}%")
