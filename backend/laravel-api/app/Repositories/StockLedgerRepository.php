@@ -30,16 +30,37 @@ class StockLedgerRepository extends BaseRepository
 
     public function historyForItem(string $itemId, int $perPage = 15)
     {
-        return $this->model->query()
+        return $this->withRunningBalance($this->model->query())
             ->where('item_id', $itemId)
             ->orderByDesc('posting_datetime')
+            ->orderByDesc('created_at')
             ->paginate($perPage);
+    }
+
+    /**
+     * Overrides the stored balance_qty with a running SUM(qty_change) in posting order
+     * (posting_datetime, then created_at) per item+warehouse. The stored column was written
+     * off "whatever row sorted latest at write time", so it's wrong for any row posted out of
+     * timestamp order (e.g. a Goods Receipt behind a later-dated Opening Stock). Correlated
+     * subquery rather than a window so the report's filters don't shrink the running total.
+     */
+    protected function withRunningBalance($query)
+    {
+        return $query->select('stock_ledgers.*')->selectRaw(
+            '(SELECT SUM(prior.qty_change) FROM stock_ledgers prior
+                WHERE prior.item_id = stock_ledgers.item_id
+                  AND prior.warehouse_id = stock_ledgers.warehouse_id
+                  AND prior.deleted_at IS NULL
+                  AND (prior.posting_datetime < stock_ledgers.posting_datetime
+                       OR (prior.posting_datetime = stock_ledgers.posting_datetime AND prior.created_at <= stock_ledgers.created_at))
+            ) as balance_qty'
+        );
     }
 
     /** All ledger entries across every item/warehouse — the report view. Same filtering shape as GoodsReceiptRepository::search(), applied to posting_datetime. */
     public function search(array $filters, int $perPage = 15)
     {
-        return $this->model->query()
+        return $this->withRunningBalance($this->model->query())
             ->with(['item', 'warehouse'])
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
             ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
@@ -52,7 +73,7 @@ class StockLedgerRepository extends BaseRepository
                         ->orWhere('item_name', 'like', "%{$search}%"))
             ))
             ->orderByDesc('posting_datetime')
-            ->orderByDesc('id')
+            ->orderByDesc('created_at')
             ->paginate($perPage);
     }
 

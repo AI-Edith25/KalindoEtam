@@ -125,4 +125,44 @@ class StockBalanceCurrentQtyTest extends TestCase
         $this->assertEquals(600, $ledger->peekBalance($item->id, $warehouse->id));
         $this->assertEquals([$item->id => 600.0], $ledger->peekBalances([$item->id], $warehouse->id));
     }
+
+    /**
+     * The stored balance_qty on each ledger row was written off the old latest-row read, so it's
+     * wrong for any row posted out of timestamp order. The Stock Ledger screens must show a running
+     * balance recomputed in posting order, not the stored column.
+     */
+    public function test_ledger_running_balance_is_recomputed_in_posting_order(): void
+    {
+        Permission::query()->firstOrCreate(['name' => 'inventory.stock_ledger.view', 'guard_name' => 'web']);
+        auth()->user()->givePermissionTo('inventory.stock_ledger.view');
+
+        $warehouse = Warehouse::query()->create(['name' => 'Samarinda', 'code' => 'SMD', 'warehouse_type' => WarehouseType::MAIN]);
+        $itemGroup = ItemGroup::query()->create(['name' => 'General']);
+        $uom = UnitOfMeasurement::query()->create(['name' => 'Zak']);
+        $item = Item::query()->create([
+            'item_code' => 'SC-PCC-50', 'item_name' => 'SC PCC 50 KG', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 0,
+        ]);
+
+        $ledger = app(StockLedgerService::class);
+        $record = fn (float $qty, $at, string $ref) => $ledger->record(
+            itemId: $item->id, warehouseId: $warehouse->id,
+            transactionType: StockTransactionType::IN, voucherType: StockVoucherType::GOODS_RECEIPT,
+            voucherId: (string) Str::uuid(), qtyChange: $qty, postingDatetime: $at, referenceNo: $ref,
+        );
+
+        $record(500, Carbon::parse('2026-01-10 00:00:00'), 'OS-LATER');
+        $record(100, Carbon::parse('2026-01-05 09:00:00'), 'GR-EARLIER');
+        // Stored balance_qty from a pre-fix write — must be ignored on read.
+        \App\Models\StockLedger::query()->where('reference_no', 'GR-EARLIER')->update(['balance_qty' => 9999]);
+
+        $expected = ['OS-LATER' => 600, 'GR-EARLIER' => 100];
+
+        foreach (["/api/v1/items/{$item->id}/stock-ledger", '/api/v1/stock-ledger'] as $url) {
+            $rows = collect($this->getJson($url)->assertOk()->json('data'))->pluck('balance_qty', 'reference_no');
+
+            foreach ($expected as $ref => $balance) {
+                $this->assertEquals($balance, $rows[$ref], "{$url} {$ref}");
+            }
+        }
+    }
 }
