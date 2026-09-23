@@ -13,15 +13,19 @@ class StockLedgerRepository extends BaseRepository
         parent::__construct($model);
     }
 
+    /**
+     * SUM(qty_change), not the "latest by posting_datetime" row's balance_qty: rows aren't
+     * posted in timestamp order (Opening Stock posts at its cutoff_date, cancellations and
+     * Goods Receipts at now()), so a later-dated row would otherwise hide every movement
+     * posted after it — same reasoning as currentBalances().
+     */
     public function latestBalance(string $itemId, string $warehouseId): float
     {
         return (float) $this->model->query()
             ->where('item_id', $itemId)
             ->where('warehouse_id', $warehouseId)
-            ->orderByDesc('posting_datetime')
-            ->orderByDesc('created_at')
             ->lockForUpdate()
-            ->value('balance_qty') ?? 0;
+            ->sum('qty_change');
     }
 
     public function historyForItem(string $itemId, int $perPage = 15)
@@ -52,53 +56,27 @@ class StockLedgerRepository extends BaseRepository
             ->paginate($perPage);
     }
 
-    /**
-     * Item.current_stock represents the item's total on-hand quantity
-     * across every warehouse, not just the one most recently touched —
-     * sum each warehouse's latest balance, not just the latest write.
-     */
+    /** Item.current_stock: the item's net on-hand qty across every warehouse. */
     public function totalBalanceForItem(string $itemId): float
     {
-        $warehouseIds = $this->model->query()
-            ->where('item_id', $itemId)
-            ->distinct()
-            ->pluck('warehouse_id');
-
-        $total = 0.0;
-
-        foreach ($warehouseIds as $warehouseId) {
-            $total += $this->latestBalance($itemId, $warehouseId);
-        }
-
-        return $total;
+        return (float) $this->model->query()->where('item_id', $itemId)->sum('qty_change');
     }
 
-    /**
-     * Identical to latestBalance() minus the row lock — for display-only
-     * reads (e.g. a draft document's snapshot of "what does the system
-     * currently say") where taking FOR UPDATE would hold a lock for no
-     * real reason and risks contention between unrelated concurrent drafts.
-     */
+    /** latestBalance() minus the row lock — display-only reads, never for deciding a ledger write. */
     public function latestBalanceUnlocked(string $itemId, string $warehouseId): float
     {
         return (float) $this->model->query()
             ->where('item_id', $itemId)
             ->where('warehouse_id', $warehouseId)
-            ->orderByDesc('posting_datetime')
-            ->orderByDesc('created_at')
-            ->value('balance_qty') ?? 0;
+            ->sum('qty_change');
     }
 
     /**
-     * Batched sibling of latestBalanceUnlocked() — one query for a whole list of items in one
-     * warehouse (e.g. Sales Order's item dropdown search results), instead of N+1 single-item
-     * lookups. Same unlocked, display-only posture; never use this to decide what to write to the
-     * ledger. ROW_NUMBER-latest-row-per-item shape, tie-broken the same way latestBalanceUnlocked()
-     * is (posting_datetime then created_at, not id) — unlike currentBalances(), which sums
-     * qty_change instead of trusting a single "latest" row (see that method's docblock).
+     * Batched latestBalanceUnlocked() for many items in one warehouse (Sales Order's item
+     * dropdown) — one grouped query instead of N+1. Display-only.
      *
      * @param  string[]  $itemIds
-     * @return array<string, float> balance_qty keyed by item_id — an item with no ledger rows yet
+     * @return array<string, float> keyed by item_id — an item with no ledger rows yet
      *                              simply doesn't appear (caller treats a missing key as 0).
      */
     public function latestBalancesForItems(array $itemIds, string $warehouseId): array
@@ -107,16 +85,12 @@ class StockLedgerRepository extends BaseRepository
             return [];
         }
 
-        $ranked = $this->model->query()
-            ->select('item_id', 'balance_qty')
-            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY item_id ORDER BY posting_datetime DESC, created_at DESC) as rn')
+        return $this->model->query()
+            ->selectRaw('item_id, SUM(qty_change) as qty')
             ->where('warehouse_id', $warehouseId)
-            ->whereIn('item_id', $itemIds);
-
-        return DB::query()
-            ->fromSub($ranked, 'ranked')
-            ->where('rn', 1)
-            ->pluck('balance_qty', 'item_id')
+            ->whereIn('item_id', $itemIds)
+            ->groupBy('item_id')
+            ->pluck('qty', 'item_id')
             ->map(fn ($qty) => (float) $qty)
             ->all();
     }

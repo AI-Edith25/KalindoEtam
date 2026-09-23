@@ -92,4 +92,37 @@ class StockBalanceCurrentQtyTest extends TestCase
         $this->assertEquals(2286, $row['current_qty']);
         $this->assertEquals(2286 * 31532, $row['total_value']);
     }
+
+    /**
+     * Goods Receipt posts at now(); an Opening Stock whose cutoff_date is later than that
+     * sorts "latest" forever, so the old latest-row read ignored every receipt after it —
+     * items.current_stock and the SO stock hint never went up after a GR submit.
+     */
+    public function test_a_movement_posted_before_a_later_dated_row_still_counts(): void
+    {
+        $warehouse = Warehouse::query()->create(['name' => 'Samarinda', 'code' => 'SMD', 'warehouse_type' => WarehouseType::MAIN]);
+        $itemGroup = ItemGroup::query()->create(['name' => 'General']);
+        $uom = UnitOfMeasurement::query()->create(['name' => 'Zak']);
+        $item = Item::query()->create([
+            'item_code' => 'SC-PCC-50', 'item_name' => 'SC PCC 50 KG', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 0,
+        ]);
+
+        $ledger = app(StockLedgerService::class);
+
+        $ledger->record(
+            itemId: $item->id, warehouseId: $warehouse->id,
+            transactionType: StockTransactionType::IN, voucherType: StockVoucherType::OPENING_STOCK,
+            voucherId: (string) Str::uuid(), qtyChange: 500, postingDatetime: now()->addMonth(),
+        );
+        $ledger->record(
+            itemId: $item->id, warehouseId: $warehouse->id,
+            transactionType: StockTransactionType::IN, voucherType: StockVoucherType::GOODS_RECEIPT,
+            voucherId: (string) Str::uuid(), qtyChange: 100, postingDatetime: now(),
+        );
+
+        $this->assertEquals(600, $item->fresh()->current_stock);
+        $this->assertEquals(600, $ledger->getCurrentBalance($item->id, $warehouse->id));
+        $this->assertEquals(600, $ledger->peekBalance($item->id, $warehouse->id));
+        $this->assertEquals([$item->id => 600.0], $ledger->peekBalances([$item->id], $warehouse->id));
+    }
 }
