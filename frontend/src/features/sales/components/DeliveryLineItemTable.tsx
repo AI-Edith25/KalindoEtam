@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { cn, formatNumber } from '@/lib/utils'
 import type { DeliveryEditorValues } from '../lib/deliveryFormSchema'
 
@@ -41,7 +41,7 @@ export function DeliveryLineItemTable({ form, disabled }: DeliveryLineItemTableP
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
+            <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
             <TableHead className="text-right">Ordered Qty</TableHead>
             <TableHead className="text-right">Already Delivered</TableHead>
             <TableHead className="text-right">Remaining</TableHead>
@@ -57,9 +57,9 @@ export function DeliveryLineItemTable({ form, disabled }: DeliveryLineItemTableP
 
             return (
               <TableRow key={field.id}>
-                <TableCell className="sticky left-0 z-10 bg-background">
-                  <div className="font-medium">{field.item_code}</div>
-                  <div className="text-xs text-muted-foreground">{field.item_name}</div>
+                <TableCell className={STICKY_FIRST_COL}>
+                  <div className="truncate font-medium">{field.item_code}</div>
+                  <div className="truncate text-xs text-muted-foreground" title={field.item_name}>{field.item_name}</div>
                 </TableCell>
                 <TableCell className="text-right">{formatNumber(field.ordered)}</TableCell>
                 <TableCell className="text-right">{formatNumber(field.alreadyDelivered)}</TableCell>

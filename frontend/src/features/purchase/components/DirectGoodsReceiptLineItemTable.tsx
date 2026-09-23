@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
@@ -66,7 +66,7 @@ export function DirectGoodsReceiptLineItemTable({ form, taxes, disabled }: Direc
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
+              <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="w-28">Qty</TableHead>
               <TableHead className="w-36">Rate</TableHead>
               <TableHead className="w-44">Tax</TableHead>
@@ -92,7 +92,7 @@ export function DirectGoodsReceiptLineItemTable({ form, taxes, disabled }: Direc
 
                 return (
                 <TableRow key={field.id}>
-                  <TableCell className="sticky left-0 z-10 bg-background">
+                  <TableCell className={STICKY_FIRST_COL}>
                     <FormField
                       control={control}
                       name={`items.${index}.item_id`}

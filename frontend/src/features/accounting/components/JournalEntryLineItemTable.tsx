@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
@@ -29,7 +29,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-10 bg-background">Chart of Account</TableHead>
+              <TableHead className={STICKY_FIRST_COL}>Chart of Account</TableHead>
               <TableHead className="w-36">Debit</TableHead>
               <TableHead className="w-36">Credit</TableHead>
               <TableHead>Description</TableHead>
@@ -46,7 +46,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
             ) : (
               fields.map((field, index) => (
                 <TableRow key={field.id}>
-                  <TableCell className="sticky left-0 z-10 bg-background">
+                  <TableCell className={STICKY_FIRST_COL}>
                     <FormField
                       control={control}
                       name={`lines.${index}.chart_of_account_id`}

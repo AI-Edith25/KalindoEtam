@@ -8,7 +8,7 @@ import { Loader2, Plus, Save, Send, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -331,7 +331,7 @@ export function DebitNoteEditorPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
+                        <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
                         <TableHead className="text-right">Original Qty</TableHead>
                         <TableHead className="text-right">Original Amount</TableHead>
                         <TableHead className="w-32">Qty Adjusted</TableHead>
@@ -344,10 +344,10 @@ export function DebitNoteEditorPage() {
 
                         return (
                           <TableRow key={line.id}>
-                            <TableCell className="sticky left-0 z-10 bg-background">
+                            <TableCell className={STICKY_FIRST_COL}>
                               <div className="flex flex-col">
-                                <span className="font-medium">{line.item_name}</span>
-                                <span className="text-xs text-muted-foreground">{line.item_code}</span>
+                                <span className="truncate font-medium" title={line.item_name}>{line.item_name}</span>
+                                <span className="truncate text-xs text-muted-foreground">{line.item_code}</span>
                               </div>
                             </TableCell>
                             <TableCell className="text-right">{line.qty}</TableCell>
@@ -389,7 +389,7 @@ export function DebitNoteEditorPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="sticky left-0 z-10 bg-background">Description</TableHead>
+                        <TableHead className={STICKY_FIRST_COL}>Description</TableHead>
                         <TableHead className="w-40">Amount</TableHead>
                         <TableHead className="w-12" />
                       </TableRow>
@@ -404,7 +404,7 @@ export function DebitNoteEditorPage() {
                       )}
                       {freeLines.map((line) => (
                         <TableRow key={line.key}>
-                          <TableCell className="sticky left-0 z-10 bg-background">
+                          <TableCell className={STICKY_FIRST_COL}>
                             <Input
                               placeholder="e.g. Expedited handling fee"
                               value={line.description}

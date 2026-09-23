@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { formatQty, parseLocaleQty, qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { GoodsReceiptEditorValues } from '../lib/goodsReceiptFormSchema'
@@ -67,7 +67,7 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
+              <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="text-right">Ordered Qty</TableHead>
               <TableHead className="text-right">Already Received</TableHead>
               <TableHead className="text-right">Remaining</TableHead>
@@ -97,7 +97,7 @@ export function GoodsReceiptLineItemTable({ form, purchaseOrderItems, disabled }
 
                 return (
                   <TableRow key={field.id}>
-                    <TableCell className="sticky left-0 z-10 bg-background">
+                    <TableCell className={STICKY_FIRST_COL}>
                       <FormField
                         control={control}
                         name={`items.${index}.purchase_order_item_id`}

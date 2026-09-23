@@ -18,7 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
-import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -815,7 +815,7 @@ function InvoiceForm({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="sticky left-0 z-10 bg-background">Description</TableHead>
+                        <TableHead className={STICKY_FIRST_COL}>Description</TableHead>
                         <TableHead className="w-32 text-right">Qty</TableHead>
                         <TableHead className="w-40 text-right">Rate</TableHead>
                         <TableHead className="w-40 text-right">Amount</TableHead>
@@ -832,7 +832,7 @@ function InvoiceForm({
                       )}
                       {transportLines.map((line) => (
                         <TableRow key={line.key}>
-                          <TableCell className="sticky left-0 z-10 bg-background">
+                          <TableCell className={STICKY_FIRST_COL}>
                             <SearchableSelect<MiscellaneousItem>
                               loadOptions={loadMiscItemOptions}
                               selectedOption={line.misc_item_id ? { value: line.misc_item_id, label: line.description } : undefined}

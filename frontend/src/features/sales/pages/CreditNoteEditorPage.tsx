@@ -8,7 +8,7 @@ import { Loader2, Save, Send } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -345,7 +345,7 @@ export function CreditNoteEditorPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
+                      <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
                       <TableHead className="text-right">Remaining Qty</TableHead>
                       <TableHead className="text-right">Remaining Amount</TableHead>
                       <TableHead className="w-32">Qty Credited</TableHead>
@@ -362,10 +362,10 @@ export function CreditNoteEditorPage() {
 
                       return (
                         <TableRow key={line.id}>
-                          <TableCell className="sticky left-0 z-10 bg-background">
+                          <TableCell className={STICKY_FIRST_COL}>
                             <div className="flex flex-col">
-                              <span className="font-medium">{line.item_name}</span>
-                              <span className="text-xs text-muted-foreground">{line.item_code}</span>
+                              <span className="truncate font-medium" title={line.item_name}>{line.item_name}</span>
+                              <span className="truncate text-xs text-muted-foreground">{line.item_code}</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right">{formatNumber(line.creditable_qty)}</TableCell>

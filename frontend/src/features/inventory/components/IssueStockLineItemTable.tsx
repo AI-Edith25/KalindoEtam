@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { LineItemTableScroll } from '@/components/shared/LineItemTableScroll'
+import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
@@ -80,7 +80,7 @@ export function IssueStockLineItemTable({ form, warehouseId, disabled }: IssueSt
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-10 bg-background">Item</TableHead>
+              <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="w-32 text-right">Qty</TableHead>
               <TableHead className="w-40 text-right">Unit Cost (FIFO)</TableHead>
               <TableHead className="w-10" />
@@ -105,7 +105,7 @@ export function IssueStockLineItemTable({ form, warehouseId, disabled }: IssueSt
 
                 return (
                   <TableRow key={field.id}>
-                    <TableCell className="sticky left-0 z-10 bg-background">
+                    <TableCell className={STICKY_FIRST_COL}>
                       <FormField
                         control={control}
                         name={`items.${index}.item_id`}
