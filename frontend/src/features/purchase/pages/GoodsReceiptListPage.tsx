@@ -10,6 +10,7 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
+import { GoodsReceiptHeaderEditDialog } from '../components/GoodsReceiptHeaderEditDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
@@ -41,6 +42,7 @@ export function GoodsReceiptListPage() {
   const [filters, setFilters] = useState<GoodsReceiptFilterValues>(emptyGoodsReceiptFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingReceipt, setDeletingReceipt] = useState<GoodsReceipt | null>(null)
+  const [editingHeader, setEditingHeader] = useState<GoodsReceipt | null>(null)
   const [isExporting, setIsExporting] = useState(false)
 
   const listQuery = useQuery({
@@ -139,7 +141,10 @@ export function GoodsReceiptListPage() {
         actions.push({ label: 'Delete', icon: Trash2, variant: 'destructive', onClick: () => setDeletingReceipt(receipt) })
       }
     }
-    // submitted is terminal — Goods Receipt has no cancel action (see goodsReceiptApi.ts).
+    // submitted has no cancel action (see goodsReceiptApi.ts) — only a header-only edit (dates + notes).
+    if (receipt.status === 'submitted' && canUpdate) {
+      actions.push({ label: 'Edit', icon: Pencil, onClick: () => setEditingHeader(receipt) })
+    }
 
     return actions
   }
@@ -260,6 +265,8 @@ export function GoodsReceiptListPage() {
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
+
+      <GoodsReceiptHeaderEditDialog receipt={editingHeader} onOpenChange={(open) => !open && setEditingHeader(null)} />
 
       <DeleteDialog
         open={!!deletingReceipt}

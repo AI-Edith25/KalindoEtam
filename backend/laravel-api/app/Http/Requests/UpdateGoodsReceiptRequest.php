@@ -16,7 +16,7 @@ class UpdateGoodsReceiptRequest extends FormRequest
         return [
             'warehouse_id' => ['sometimes', 'required', 'uuid', 'exists:warehouses,id'],
             'receipt_date' => ['sometimes', 'required', 'date'],
-            // Optional — defaults to receipt_date + the Supplier's Terms of Payment days, see
+            // Optional â€” defaults to receipt_date + the Supplier's Terms of Payment days, see
             // GoodsReceiptService::resolveDueDate(). Only the historical import still passes it explicitly.
             'due_date' => ['nullable', 'date', 'after_or_equal:receipt_date'],
             'remarks' => ['nullable', 'string'],

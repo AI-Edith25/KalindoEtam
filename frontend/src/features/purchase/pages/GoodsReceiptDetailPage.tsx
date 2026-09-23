@@ -10,6 +10,8 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
+import { useHasPermission } from '@/shared/hooks/usePermission'
+import { GoodsReceiptHeaderEditDialog } from '../components/GoodsReceiptHeaderEditDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -32,6 +34,8 @@ export function GoodsReceiptDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [editingHeader, setEditingHeader] = useState(false)
+  const canUpdate = useHasPermission('purchase.goods_receipts.update')
 
   const receiptQuery = useQuery({
     queryKey: ['goods-receipts', id],
@@ -95,6 +99,11 @@ export function GoodsReceiptDetailPage() {
                 Delete
               </Button>
             </div>
+          ) : receipt.status === 'submitted' && canUpdate ? (
+            <Button variant="outline" onClick={() => setEditingHeader(true)}>
+              <Pencil className="size-4" />
+              Edit
+            </Button>
           ) : undefined
         }
       />
@@ -171,6 +180,8 @@ export function GoodsReceiptDetailPage() {
           </DetailSection>
         </CardContent>
       </Card>
+
+      <GoodsReceiptHeaderEditDialog receipt={editingHeader ? receipt : null} onOpenChange={setEditingHeader} />
 
       <DeleteDialog
         open={confirmingDelete}

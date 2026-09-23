@@ -7,6 +7,7 @@ use App\Enums\QtyCategory;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
+use App\Models\FifoLayer;
 use App\Models\GoodsReceipt;
 use App\Models\Item;
 use App\Models\PurchaseOrderItem;
@@ -165,6 +166,10 @@ class GoodsReceiptService
     public function update(GoodsReceipt $goodsReceipt, array $data): GoodsReceipt
     {
         return DB::transaction(function () use ($goodsReceipt, $data) {
+            if ($goodsReceipt->status === DocumentStatus::SUBMITTED) {
+                return $this->updateSubmittedHeader($goodsReceipt, $data);
+            }
+
             $this->assertDraft($goodsReceipt, 'updated');
 
             $headerData = collect($data)->except('items')->all();
@@ -223,7 +228,37 @@ class GoodsReceiptService
     }
 
     /**
-     * Terms of Payment live on the Supplier, not the receipt � due date is receipt_date + the
+     * A confirmed receipt only allows header edits (dates + notes) — items/qty/warehouse already
+     * moved stock and PO received_qty, so they stay locked. The stock ledger posts with now(), not
+     * receipt_date, so only the FIFO layer's received_date needs to follow a date change.
+     */
+    protected function updateSubmittedHeader(GoodsReceipt $goodsReceipt, array $data): GoodsReceipt
+    {
+        if (isset($data['items']) || isset($data['warehouse_id'])) {
+            throw new BusinessException('Only Receipt Date, Due Date and Notes can be changed on a confirmed Goods Receipt.');
+        }
+
+        $receiptDate = $data['receipt_date'] ?? $goodsReceipt->receipt_date->toDateString();
+
+        $this->goodsReceiptRepository->update($goodsReceipt, [
+            'receipt_date' => $receiptDate,
+            'due_date' => $this->resolveDueDate($data, $goodsReceipt->supplier_id, $receiptDate),
+            'remarks' => array_key_exists('remarks', $data) ? $data['remarks'] : $goodsReceipt->remarks,
+        ]);
+
+        FifoLayer::query()
+            ->where('source_type', StockVoucherType::GOODS_RECEIPT->value)
+            ->where('source_id', $goodsReceipt->id)
+            ->update(['received_date' => $receiptDate]);
+
+        $goodsReceipt = $goodsReceipt->fresh(['supplier', 'warehouse', 'purchaseOrder', 'items']);
+        $this->auditLogService->record('updated', 'goods_receipt', "Updated header of confirmed Goods Receipt \"{$goodsReceipt->document_number}\".");
+
+        return $goodsReceipt;
+    }
+
+    /**
+     * Terms of Payment live on the Supplier, not the receipt — due date is receipt_date + the
      * Supplier's TOP days (no TOP = due on receipt). An explicit due_date still wins (historical
      * import passes one).
      */

@@ -140,6 +140,29 @@ class GoodsReceiptTest extends TestCase
         $this->assertSame('2026-09-01', $direct->due_date->toDateString());
     }
 
+    public function test_confirmed_receipt_allows_header_edit_only(): void
+    {
+        $receipt = $this->goodsReceiptService->submit($this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => '2026-09-01',
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 1000]],
+        ]));
+
+        $receipt = $this->goodsReceiptService->update($receipt, ['receipt_date' => '2026-09-05', 'due_date' => '2026-09-20', 'remarks' => 'fixed']);
+
+        $this->assertSame('2026-09-05', $receipt->receipt_date->toDateString());
+        $this->assertSame('2026-09-20', $receipt->due_date->toDateString());
+        $this->assertSame('fixed', $receipt->remarks);
+        $this->assertSame('submitted', $receipt->status->value);
+        $this->assertEquals(5, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
+        $this->assertSame('2026-09-05', \App\Models\FifoLayer::query()->where('source_id', $receipt->id)->sole()->received_date->toDateString());
+
+        $this->expectException(BusinessException::class);
+        $this->goodsReceiptService->update($receipt, ['items' => [['item_id' => $this->item->id, 'qty' => 9, 'rate' => 1000]]]);
+    }
+
     public function test_over_receipt_is_still_blocked_by_default(): void
     {
         $purchaseOrder = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);
