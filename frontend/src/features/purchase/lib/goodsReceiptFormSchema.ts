@@ -70,7 +70,6 @@ export const directGoodsReceiptLineRowSchema = z
 export const goodsReceiptFormSchema = z.object({
   warehouse_id: z.string().min(1, 'Warehouse is required'),
   receipt_date: z.string().min(1, 'Receipt date is required'),
-  due_date: z.string().min(1, 'Due date is required'),
   remarks: z.string().optional().or(z.literal('')),
   items: z.array(goodsReceiptLineRowSchema).superRefine((items, ctx) => {
     const hasAny = items.some((line) => parseLocaleQty(line.receiveNow || '0') > 0)
@@ -123,7 +122,6 @@ export const directGoodsReceiptFormSchema = z.object({
   supplier_id: z.string().min(1, 'Supplier is required'),
   warehouse_id: z.string().min(1, 'Warehouse is required'),
   receipt_date: z.string().min(1, 'Receipt date is required'),
-  due_date: z.string().min(1, 'Due date is required'),
   remarks: z.string().optional().or(z.literal('')),
   items: z.array(directGoodsReceiptLineRowSchema).min(1, 'Add at least one line item.'),
 })

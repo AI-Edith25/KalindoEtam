@@ -20,7 +20,9 @@ class StoreGoodsReceiptRequest extends FormRequest
             'supplier_id' => ['required_without:purchase_order_id', 'nullable', 'uuid', 'exists:suppliers,id'],
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'receipt_date' => ['required', 'date'],
-            'due_date' => ['required', 'date', 'after_or_equal:receipt_date'],
+            // Optional — defaults to receipt_date + the Supplier's Terms of Payment days, see
+            // GoodsReceiptService::resolveDueDate(). Only the historical import still passes it explicitly.
+            'due_date' => ['nullable', 'date', 'after_or_equal:receipt_date'],
             'remarks' => ['nullable', 'string'],
             // Whole-request confirmation that a Weight-category over-tolerance excess is
             // intentional â€” see QtyCategoryValidator::assertWeightOverReceiptAllowed().

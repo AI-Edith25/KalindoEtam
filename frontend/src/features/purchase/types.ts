@@ -115,7 +115,6 @@ export interface GoodsReceiptFormValues {
   supplier_id?: string
   warehouse_id: string
   receipt_date: string
-  due_date: string
   remarks: string | null
   /** From-PO lines carry purchase_order_item_id; direct-mode lines carry item_id + rate instead. tax_id is direct-mode only (optional/manual, export-only — see GoodsReceiptItem). */
   items: { purchase_order_item_id?: string; item_id?: string; rate?: number; qty: number; tax_id?: string | null }[]

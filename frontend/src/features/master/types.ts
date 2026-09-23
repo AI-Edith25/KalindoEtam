@@ -185,6 +185,7 @@ export interface Supplier {
   telephone: string | null
   email: string | null
   address: string | null
+  terms_of_payment_id: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -197,6 +198,7 @@ export interface SupplierFormValues {
   telephone: string | null
   email: string | null
   address: string | null
+  terms_of_payment_id: string | null
   is_active: boolean
 }
 

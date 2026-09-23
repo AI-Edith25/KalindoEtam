@@ -10,6 +10,7 @@ use App\Exceptions\BusinessException;
 use App\Models\GoodsReceipt;
 use App\Models\Item;
 use App\Models\PurchaseOrderItem;
+use App\Models\Supplier;
 use App\Repositories\GoodsReceiptItemRepository;
 use App\Repositories\GoodsReceiptRepository;
 use App\Repositories\ItemRepository;
@@ -17,6 +18,7 @@ use App\Repositories\PurchaseOrderItemRepository;
 use App\Repositories\PurchaseOrderRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class GoodsReceiptService
@@ -63,7 +65,7 @@ class GoodsReceiptService
                 'supplier_id' => $purchaseOrder->supplier_id,
                 'warehouse_id' => $data['warehouse_id'],
                 'receipt_date' => $data['receipt_date'],
-                'due_date' => $data['due_date'],
+                'due_date' => $this->resolveDueDate($data, $purchaseOrder->supplier_id, $data['receipt_date']),
                 'remarks' => $data['remarks'] ?? null,
                 'source_document_number' => $data['source_document_number'] ?? null,
             ]);
@@ -118,7 +120,7 @@ class GoodsReceiptService
             'supplier_id' => $data['supplier_id'],
             'warehouse_id' => $data['warehouse_id'],
             'receipt_date' => $data['receipt_date'],
-            'due_date' => $data['due_date'],
+            'due_date' => $this->resolveDueDate($data, $data['supplier_id'], $data['receipt_date']),
             'remarks' => $data['remarks'] ?? null,
             'source_document_number' => $data['source_document_number'] ?? null,
         ]);
@@ -166,6 +168,7 @@ class GoodsReceiptService
             $this->assertDraft($goodsReceipt, 'updated');
 
             $headerData = collect($data)->except('items')->all();
+            $headerData['due_date'] = $this->resolveDueDate($data, $goodsReceipt->supplier_id, $data['receipt_date'] ?? $goodsReceipt->receipt_date);
 
             if (isset($data['items'])) {
                 $goodsReceipt->items()->delete();
@@ -217,6 +220,22 @@ class GoodsReceiptService
 
             return $goodsReceipt;
         });
+    }
+
+    /**
+     * Terms of Payment live on the Supplier, not the receipt � due date is receipt_date + the
+     * Supplier's TOP days (no TOP = due on receipt). An explicit due_date still wins (historical
+     * import passes one).
+     */
+    protected function resolveDueDate(array $data, string $supplierId, $receiptDate): string
+    {
+        if (! empty($data['due_date'])) {
+            return $data['due_date'];
+        }
+
+        $days = Supplier::query()->with('termsOfPayment')->find($supplierId)?->termsOfPayment?->days ?? 0;
+
+        return Carbon::parse($receiptDate)->addDays($days)->toDateString();
     }
 
     public function delete(GoodsReceipt $goodsReceipt): void

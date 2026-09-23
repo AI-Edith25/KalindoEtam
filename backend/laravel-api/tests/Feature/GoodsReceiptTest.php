@@ -111,6 +111,35 @@ class GoodsReceiptTest extends TestCase
         $this->assertEquals(950000, (float) $layer->unit_cost);
     }
 
+    public function test_due_date_defaults_from_supplier_terms_of_payment(): void
+    {
+        $top = \App\Models\TermsOfPayment::query()->create(['code' => 'N30', 'name' => 'Net 30', 'days' => 30]);
+        $this->supplier->update(['terms_of_payment_id' => $top->id]);
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 10, rate: 1000);
+
+        $fromPo = $this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => '2026-09-01',
+            'items' => [['purchase_order_item_id' => $purchaseOrder->items->first()->id, 'qty' => 5]],
+        ]);
+        $this->assertSame('2026-10-01', $fromPo->due_date->toDateString());
+
+        // Changing receipt_date on a draft re-derives the due date.
+        $fromPo = $this->goodsReceiptService->update($fromPo, ['receipt_date' => '2026-09-10']);
+        $this->assertSame('2026-10-10', $fromPo->due_date->toDateString());
+
+        $noTopSupplier = Supplier::query()->create(['supplier_code' => 'S002', 'supplier_name' => 'Cash Supplier']);
+        $direct = $this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $noTopSupplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => '2026-09-01',
+            'items' => [['item_id' => $this->item->id, 'qty' => 1, 'rate' => 1000]],
+        ]);
+        $this->assertSame('2026-09-01', $direct->due_date->toDateString());
+    }
+
     public function test_over_receipt_is_still_blocked_by_default(): void
     {
         $purchaseOrder = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);

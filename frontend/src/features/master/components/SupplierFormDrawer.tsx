@@ -2,15 +2,17 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { fetchTermsOfPaymentLookup } from '../api/lookupsApi'
 import { createSupplier, updateSupplier } from '../api/supplierApi'
 import type { Supplier } from '../types'
 
@@ -21,6 +23,7 @@ const supplierFormSchema = z.object({
   telephone: z.string().max(50).optional().or(z.literal('')),
   email: z.string().email('Enter a valid email address').optional().or(z.literal('')),
   address: z.string().max(255).optional().or(z.literal('')),
+  terms_of_payment_id: z.string().optional().or(z.literal('')),
   is_active: z.boolean(),
 })
 
@@ -33,6 +36,7 @@ const emptyValues: SupplierFormValues = {
   telephone: '',
   email: '',
   address: '',
+  terms_of_payment_id: '',
   is_active: true,
 }
 
@@ -46,6 +50,7 @@ interface SupplierFormDrawerProps {
 export function SupplierFormDrawer({ open, onOpenChange, supplier }: SupplierFormDrawerProps) {
   const isEdit = !!supplier
   const queryClient = useQueryClient()
+  const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
 
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
@@ -64,6 +69,7 @@ export function SupplierFormDrawer({ open, onOpenChange, supplier }: SupplierFor
             telephone: supplier.telephone ?? '',
             email: supplier.email ?? '',
             address: supplier.address ?? '',
+            terms_of_payment_id: supplier.terms_of_payment_id ?? '',
             is_active: supplier.is_active,
           }
         : emptyValues,
@@ -78,6 +84,7 @@ export function SupplierFormDrawer({ open, onOpenChange, supplier }: SupplierFor
         telephone: values.telephone || null,
         email: values.email || null,
         address: values.address || null,
+        terms_of_payment_id: values.terms_of_payment_id || null,
       }
       return isEdit ? updateSupplier(supplier.id, payload) : createSupplier(payload)
     },
@@ -178,6 +185,24 @@ export function SupplierFormDrawer({ open, onOpenChange, supplier }: SupplierFor
                     <FormControl>
                       <Input placeholder="Optional" autoComplete="off" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="terms_of_payment_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Terms of Payment</FormLabel>
+                    <SearchableSelect
+                      options={termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={termsOfPayment.isLoading}
+                      placeholder="Cash (due on receipt)"
+                      aria-label="Terms of Payment"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

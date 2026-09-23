@@ -35,7 +35,6 @@ import type { GoodsReceiptItem, PurchaseOrderItem } from '../types'
 const emptyValues: GoodsReceiptEditorValues = {
   warehouse_id: '',
   receipt_date: '',
-  due_date: '',
   remarks: '',
   items: [],
 }
@@ -44,7 +43,6 @@ const emptyDirectValues: DirectGoodsReceiptEditorValues = {
   supplier_id: '',
   warehouse_id: '',
   receipt_date: '',
-  due_date: '',
   remarks: '',
   items: [],
 }
@@ -154,7 +152,6 @@ export function GoodsReceiptEditorPage() {
     form.reset({
       warehouse_id: receiptQuery.data?.warehouse_id ?? '',
       receipt_date: receiptQuery.data?.receipt_date ?? '',
-      due_date: receiptQuery.data?.due_date ?? '',
       remarks: receiptQuery.data?.remarks ?? '',
       items,
     })
@@ -172,7 +169,6 @@ export function GoodsReceiptEditorPage() {
       supplier_id: receipt?.supplier_id ?? '',
       warehouse_id: receipt?.warehouse_id ?? '',
       receipt_date: receipt?.receipt_date ?? '',
-      due_date: receipt?.due_date ?? '',
       remarks: receipt?.remarks ?? '',
       items: (receipt?.items ?? []).map((line) => ({
         item_id: line.item_id,
@@ -198,7 +194,6 @@ export function GoodsReceiptEditorPage() {
         return updateGoodsReceipt(id!, {
           warehouse_id: values.warehouse_id,
           receipt_date: values.receipt_date,
-          due_date: values.due_date,
           remarks: values.remarks || null,
           items,
           confirm_over_receipt: confirmOverReceipt,
@@ -209,7 +204,6 @@ export function GoodsReceiptEditorPage() {
         purchase_order_id: purchaseOrderId!,
         warehouse_id: values.warehouse_id,
         receipt_date: values.receipt_date,
-        due_date: values.due_date,
         remarks: values.remarks || null,
         items,
         confirm_over_receipt: confirmOverReceipt,
@@ -245,7 +239,6 @@ export function GoodsReceiptEditorPage() {
         return updateGoodsReceipt(id!, {
           warehouse_id: values.warehouse_id,
           receipt_date: values.receipt_date,
-          due_date: values.due_date,
           remarks: values.remarks || null,
           items,
         })
@@ -256,7 +249,6 @@ export function GoodsReceiptEditorPage() {
         supplier_id: values.supplier_id,
         warehouse_id: values.warehouse_id,
         receipt_date: values.receipt_date,
-        due_date: values.due_date,
         remarks: values.remarks || null,
         items,
       })
@@ -417,19 +409,6 @@ export function GoodsReceiptEditorPage() {
                 />
                 <FormField
                   control={directForm.control}
-                  name="due_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Due Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={directForm.control}
                   name="remarks"
                   render={({ field }) => (
                     <FormItem className="sm:col-span-2">
@@ -554,19 +533,6 @@ export function GoodsReceiptEditorPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Receipt Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="due_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Due Date</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
