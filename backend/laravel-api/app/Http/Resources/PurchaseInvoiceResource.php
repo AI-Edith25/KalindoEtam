@@ -21,6 +21,7 @@ class PurchaseInvoiceResource extends JsonResource
             'status' => $this->status,
             'display_status' => $this->resolveDisplayStatus(),
             'revision' => $this->revision,
+            'source' => $this->source,
             'goods_receipt_id' => $this->goods_receipt_id,
             'goods_receipt' => $this->whenLoaded('goodsReceipt', fn () => $this->goodsReceipt ? [
                 'id' => $this->goodsReceipt->id,
@@ -48,6 +49,8 @@ class PurchaseInvoiceResource extends JsonResource
             'credited_amount' => $creditedAmount,
             'returnable_amount' => (float) $this->grand_total - $creditedAmount,
             'reference_number' => $this->reference_number,
+            'attention' => $this->attention,
+            'department' => $this->department,
             'remarks' => $this->remarks,
             'items' => PurchaseInvoiceItemResource::collection($this->whenLoaded('items')),
             'purchase_return_history' => $this->relationLoaded('purchaseReturns')

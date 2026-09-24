@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DocumentStatus;
+use App\Enums\PurchaseInvoiceSource;
 use App\Models\Concerns\Documentable;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -19,14 +20,15 @@ class PurchaseInvoice extends Model
 
     protected $fillable = [
         'document_number', 'status', 'revision', 'submitted_at', 'cancelled_at',
-        'goods_receipt_id', 'purchase_order_id', 'supplier_id',
+        'source', 'goods_receipt_id', 'purchase_order_id', 'supplier_id',
         'invoice_date', 'due_date',
         'subtotal', 'tax_amount', 'grand_total',
-        'reference_number', 'remarks',
+        'reference_number', 'attention', 'department', 'remarks',
     ];
 
     protected $casts = [
         'status' => DocumentStatus::class,
+        'source' => PurchaseInvoiceSource::class,
         'invoice_date' => 'date',
         'due_date' => 'date',
         'subtotal' => 'decimal:2',
@@ -89,16 +91,29 @@ class PurchaseInvoice extends Model
      * Debit/credit breakdown derived from already-stored fields, for
      * AccountingService::postForDocument() to post (see
      * PurchaseInvoiceService::submit()). Mirrors Invoice::journalLines(),
-     * AP-side. tax_amount is a manual header figure (Goods Receipt items
-     * carry no tax snapshot to derive it from), debited here to net against
-     * Sales' output-tax credit on the same shared 2100 Tax Payable account.
+     * AP-side. tax_amount is debited here to net against Sales' output-tax
+     * credit on the same shared 2100 Tax Payable account.
+     *
+     * GOODS_RECEIPT: single Dr 5100 (subtotal) — Goods Receipt items carry no per-line expense
+     * account, tax_amount is a manual header figure. DIRECT: one Dr line per distinct expense
+     * account chosen on the invoice's own lines (items must be loaded with chartOfAccount),
+     * subtotal/tax_amount are sums of the lines instead — see PurchaseInvoiceService::createDirect().
      */
     public function journalLines(): array
     {
-        $lines = [
-            ['account' => '5100', 'type' => 'debit', 'amount' => (float) $this->subtotal],   // Purchase Expense
-            ['account' => '2000', 'type' => 'credit', 'amount' => (float) $this->grand_total], // Accounts Payable
-        ];
+        $lines = $this->source === PurchaseInvoiceSource::DIRECT
+            ? $this->loadMissing('items.chartOfAccount')->items
+                ->groupBy('chart_of_account_id')
+                ->map(fn ($group) => [
+                    'account' => $group->first()->chartOfAccount->code,
+                    'type' => 'debit',
+                    'amount' => (float) $group->sum('amount'),
+                ])
+                ->values()
+                ->all()
+            : [['account' => '5100', 'type' => 'debit', 'amount' => (float) $this->subtotal]]; // Purchase Expense
+
+        $lines[] = ['account' => '2000', 'type' => 'credit', 'amount' => (float) $this->grand_total]; // Accounts Payable
 
         if ((float) $this->tax_amount > 0) {
             $lines[] = ['account' => '2100', 'type' => 'debit', 'amount' => (float) $this->tax_amount]; // Tax Payable

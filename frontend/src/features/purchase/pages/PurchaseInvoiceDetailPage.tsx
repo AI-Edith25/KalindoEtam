@@ -19,11 +19,21 @@ import { cancelPurchaseInvoice, deletePurchaseInvoice, fetchPurchaseInvoice, sub
 import { PURCHASE_RETURN_REASON_LABELS } from '../lib/purchaseReturnReasonLabels'
 import type { PurchaseInvoiceItem, PurchaseInvoicePurchaseReturnHistoryLine } from '../types'
 
-const lineColumns: DataTableColumn<PurchaseInvoiceItem>[] = [
+const goodsReceiptLineColumns: DataTableColumn<PurchaseInvoiceItem>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
   { header: 'Item Name', accessor: (row) => row.item_name },
   { header: 'Qty', accessor: (row) => formatQty(row.qty, row.item_qty_category ?? 'unit'), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
+  { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+]
+
+const directLineColumns: DataTableColumn<PurchaseInvoiceItem>[] = [
+  { header: 'Account', accessor: (row) => (row.chart_of_account ? `${row.chart_of_account.code} — ${row.chart_of_account.name}` : '—') },
+  { header: 'Description', accessor: (row) => row.item_name },
+  { header: 'Qty', accessor: (row) => formatQty(row.qty, 'unit') },
+  { header: 'UOM', accessor: (row) => row.uom || '—' },
+  { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
+  { header: 'Tax', accessor: (row) => (Number(row.tax_amount ?? 0) > 0 ? formatCurrency(row.tax_amount ?? 0) : '—'), className: 'text-right' },
   { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
 ]
 
@@ -157,6 +167,8 @@ export function PurchaseInvoiceDetailPage() {
   const invoice = invoiceQuery.data
   if (!invoice) return null
 
+  const isDirect = invoice.source === 'direct'
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -180,7 +192,7 @@ export function PurchaseInvoiceDetailPage() {
                 </Button>
               </>
             )}
-            {invoice.status === 'submitted' && Number(invoice.returnable_amount) > 0 && (
+            {!isDirect && invoice.status === 'submitted' && Number(invoice.returnable_amount) > 0 && (
               <Button variant="outline" onClick={() => navigate(`/purchase/returns/new?purchase_invoice_id=${invoice.id}`)}>
                 <FilePlus2 className="size-4" />
                 Create Return
@@ -199,7 +211,10 @@ export function PurchaseInvoiceDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Invoice Information</CardTitle>
-          <StatusBadge status={invoice.display_status} />
+          <div className="flex items-center gap-2">
+            <Badge variant={isDirect ? 'outline' : 'secondary'}>{isDirect ? 'Direct' : 'Goods Receipt'}</Badge>
+            <StatusBadge status={invoice.display_status} />
+          </div>
         </CardHeader>
         <CardContent>
           <DetailSection>
@@ -207,7 +222,14 @@ export function PurchaseInvoiceDetailPage() {
             <DetailField label="Invoice Date" value={formatDate(invoice.invoice_date)} />
             <DetailField label="Due Date" value={formatDate(invoice.due_date)} />
             <DetailField label="Reference Number" value={invoice.reference_number || '—'} />
-            <DetailField label="Warehouse" value={invoice.goods_receipt?.warehouse?.name || '—'} />
+            {isDirect ? (
+              <>
+                <DetailField label="Attention" value={invoice.attention || '—'} />
+                <DetailField label="Department" value={invoice.department || '—'} />
+              </>
+            ) : (
+              <DetailField label="Warehouse" value={invoice.goods_receipt?.warehouse?.name || '—'} />
+            )}
             <DetailField label="Notes" value={invoice.remarks || '—'} />
           </DetailSection>
         </CardContent>
@@ -225,40 +247,44 @@ export function PurchaseInvoiceDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Goods Receipt Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={buildGoodsReceiptColumns(navigate)}
-            data={invoice.goods_receipts}
-            rowKey={(row) => row.id}
-            emptyMessage="No goods receipts linked."
-          />
-        </CardContent>
-      </Card>
+      {!isDirect && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Goods Receipt Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={buildGoodsReceiptColumns(navigate)}
+              data={invoice.goods_receipts}
+              rowKey={(row) => row.id}
+              emptyMessage="No goods receipts linked."
+            />
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Purchase Order Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={buildPurchaseOrderColumns(navigate)}
-            data={invoice.purchase_orders}
-            rowKey={(row) => row.id}
-            emptyMessage="No purchase orders linked."
-          />
-        </CardContent>
-      </Card>
+      {!isDirect && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Purchase Order Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={buildPurchaseOrderColumns(navigate)}
+              data={invoice.purchase_orders}
+              rowKey={(row) => row.id}
+              emptyMessage="No purchase orders linked."
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
           <CardTitle>Item List</CardTitle>
         </CardHeader>
         <CardContent>
-          <DataTable columns={lineColumns} data={invoice.items} rowKey={(row) => row.id} emptyMessage="No line items." />
+          <DataTable columns={isDirect ? directLineColumns : goodsReceiptLineColumns} data={invoice.items} rowKey={(row) => row.id} emptyMessage="No line items." />
         </CardContent>
       </Card>
 

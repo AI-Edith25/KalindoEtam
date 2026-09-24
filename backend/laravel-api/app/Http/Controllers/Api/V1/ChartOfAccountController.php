@@ -20,7 +20,11 @@ class ChartOfAccountController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return $this->success(ChartOfAccountResource::collection($this->chartOfAccountService->list((int) ($request->query('per_page') ?? 100))));
+        $filters = $request->only(['account_type', 'is_active']);
+
+        return $this->success(ChartOfAccountResource::collection(
+            $this->chartOfAccountService->list((int) ($request->query('per_page') ?? 100), $filters)
+        ));
     }
 
     public function store(StoreChartOfAccountRequest $request): JsonResponse

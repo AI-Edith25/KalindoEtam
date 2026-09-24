@@ -18,6 +18,7 @@ class IndexPurchaseInvoiceRequest extends FormRequest
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
             'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
+            'source' => ['sometimes', 'nullable', 'in:goods_receipt,direct'],
             'supplier_id' => ['sometimes', 'nullable', 'uuid', 'exists:suppliers,id'],
             'goods_receipt_id' => ['sometimes', 'nullable', 'uuid', 'exists:goods_receipts,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],

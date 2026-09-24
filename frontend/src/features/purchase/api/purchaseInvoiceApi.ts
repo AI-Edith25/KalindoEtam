@@ -6,6 +6,7 @@ export interface PurchaseInvoiceListParams {
   page: number
   search?: string
   status?: string
+  source?: string
   supplier_id?: string
   goods_receipt_id?: string
   date_from?: string

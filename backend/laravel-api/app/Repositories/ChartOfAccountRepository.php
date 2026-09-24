@@ -3,12 +3,22 @@
 namespace App\Repositories;
 
 use App\Models\ChartOfAccount;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ChartOfAccountRepository extends BaseRepository
 {
     public function __construct(ChartOfAccount $model)
     {
         parent::__construct($model);
+    }
+
+    /** account_type/is_active filters — e.g. the Direct Purchase Invoice line's expense-account picker asks for account_type=expense&is_active=1. */
+    public function paginate(int $perPage = 100, array $filters = []): LengthAwarePaginator
+    {
+        return $this->model->query()
+            ->when($filters['account_type'] ?? null, fn ($query, $type) => $query->where('account_type', $type))
+            ->when(array_key_exists('is_active', $filters), fn ($query) => $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN)))
+            ->paginate($perPage);
     }
 
     public function findActiveByCode(string $code): ?ChartOfAccount

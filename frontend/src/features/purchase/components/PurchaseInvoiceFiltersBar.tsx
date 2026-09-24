@@ -2,7 +2,7 @@ import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { emptyPurchaseInvoiceFilters, hasActivePurchaseInvoiceFilters } from '../lib/purchaseInvoiceFilters'
-import type { DocumentStatus, PurchaseInvoiceFilterValues } from '../types'
+import type { DocumentStatus, PurchaseInvoiceFilterValues, PurchaseInvoiceSource } from '../types'
 
 const ALL = '__all__'
 
@@ -29,6 +29,22 @@ export function PurchaseInvoiceFiltersBar({ value, onChange }: PurchaseInvoiceFi
             <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="submitted">Submitted</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Type</span>
+        <Select
+          value={value.source ?? ALL}
+          onValueChange={(next) => onChange({ ...value, source: next === ALL ? null : (next as PurchaseInvoiceSource) })}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="All types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All types</SelectItem>
+            <SelectItem value="goods_receipt">Goods Receipt</SelectItem>
+            <SelectItem value="direct">Direct</SelectItem>
           </SelectContent>
         </Select>
       </div>

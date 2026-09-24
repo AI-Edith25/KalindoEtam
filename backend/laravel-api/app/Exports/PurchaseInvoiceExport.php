@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Enums\PurchaseInvoiceSource;
 use App\Models\PurchaseInvoice;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
@@ -26,7 +27,7 @@ class PurchaseInvoiceExport implements FromCollection, WithHeadings, WithMapping
     public function headings(): array
     {
         return [
-            'Date', 'Document Number', 'Reference', 'Supplier Name',
+            'Date', 'Document Number', 'Type', 'Reference', 'Supplier Name',
             'Gross Amount', 'Tax Amount', 'Net Amount', 'Status',
         ];
     }
@@ -37,7 +38,8 @@ class PurchaseInvoiceExport implements FromCollection, WithHeadings, WithMapping
         return [
             $row->invoice_date?->format('Y-m-d'),
             $row->document_number,
-            $row->goodsReceipt?->document_number,
+            $row->source === PurchaseInvoiceSource::DIRECT ? 'Direct' : 'Goods Receipt',
+            $row->goodsReceipt?->document_number ?? $row->reference_number,
             $row->supplier?->supplier_name,
             (float) $row->subtotal,
             (float) $row->tax_amount,

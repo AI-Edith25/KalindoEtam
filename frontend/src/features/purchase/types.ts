@@ -131,16 +131,24 @@ export interface GoodsReceiptFilterValues {
 }
 
 export type PurchaseInvoiceDisplayStatus = 'draft' | 'unpaid' | 'partial' | 'paid' | 'cancelled'
+export type PurchaseInvoiceSource = 'goods_receipt' | 'direct'
 
 export interface PurchaseInvoiceItem {
   id: string
-  goods_receipt_item_id: string
-  item_id: string
-  item_code: string
+  /** Null for a Direct/Non-Stock line — no source Goods Receipt line. */
+  goods_receipt_item_id: string | null
+  item_id: string | null
+  item_code: string | null
+  /** For a Direct line this doubles as the free-text Description the user typed. */
   item_name: string
-  uom: string
+  uom: string | null
   /** From the line's Item — decides whether qty_returned must be a whole number or may carry decimals. */
   item_qty_category?: 'unit' | 'weight'
+  /** Direct/Non-Stock line only — the expense account it posts to. */
+  chart_of_account_id?: string | null
+  chart_of_account?: { id: string; code: string; name: string } | null
+  tax_id?: string | null
+  tax_amount?: string | number
   rate: string | number
   qty: string | number
   amount: string | number
@@ -166,10 +174,11 @@ export interface PurchaseInvoice {
   status: DocumentStatus
   display_status: PurchaseInvoiceDisplayStatus
   revision: number
-  goods_receipt_id: string
+  source: PurchaseInvoiceSource
+  goods_receipt_id: string | null
   goods_receipt: { id: string; document_number: string | null; warehouse: { id: string; name: string; code: string } | null } | null
   goods_receipts: { id: string; document_number: string | null }[]
-  purchase_order_id: string
+  purchase_order_id: string | null
   purchase_orders: { id: string; document_number: string | null }[]
   supplier_id: string
   supplier: { id: string; supplier_code: string; supplier_name: string } | null
@@ -183,6 +192,10 @@ export interface PurchaseInvoice {
   credited_amount: string | number
   returnable_amount: string | number
   reference_number: string | null
+  /** Direct/Non-Stock invoice only — e.g. vehicle plate number. */
+  attention: string | null
+  /** Direct/Non-Stock invoice only — free text, no Department master exists in this app. */
+  department: string | null
   remarks: string | null
   items: PurchaseInvoiceItem[]
   purchase_return_history: PurchaseInvoicePurchaseReturnHistoryLine[]
@@ -191,17 +204,32 @@ export interface PurchaseInvoice {
   created_at: string
 }
 
+export interface DirectPurchaseInvoiceLineInput {
+  chart_of_account_id: string
+  description: string
+  uom?: string | null
+  qty: number
+  rate: number
+  tax_id?: string | null
+}
+
 export interface PurchaseInvoiceFormValues {
+  source?: PurchaseInvoiceSource
   goods_receipt_ids?: string[]
+  supplier_id?: string
   invoice_date: string
-  due_date: string
+  due_date: string | null
   tax_amount: number | null
   reference_number: string | null
+  attention?: string | null
+  department?: string | null
   remarks: string | null
+  items?: DirectPurchaseInvoiceLineInput[]
 }
 
 export interface PurchaseInvoiceFilterValues {
   status: DocumentStatus | null
+  source: PurchaseInvoiceSource | null
   dateFrom: string
   dateTo: string
 }

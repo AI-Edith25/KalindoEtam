@@ -23,9 +23,9 @@ class ChartOfAccountService
      * sprint's new Expense categories) would otherwise silently disappear
      * from every dropdown built on this endpoint.
      */
-    public function list(int $perPage = 100): LengthAwarePaginator
+    public function list(int $perPage = 100, array $filters = []): LengthAwarePaginator
     {
-        return $this->chartOfAccountRepository->paginate($perPage);
+        return $this->chartOfAccountRepository->paginate($perPage, $filters);
     }
 
     public function create(array $data): ChartOfAccount

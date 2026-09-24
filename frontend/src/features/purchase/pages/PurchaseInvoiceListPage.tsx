@@ -11,6 +11,7 @@ import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMe
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { Badge } from '@/components/ui/badge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
@@ -37,12 +38,13 @@ export function PurchaseInvoiceListPage() {
   const activeFilterParams = {
     ...(search ? { search } : {}),
     ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.source ? { source: filters.source } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
   }
 
   const listQuery = useQuery({
-    queryKey: ['purchase-invoices', page, search, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: ['purchase-invoices', page, search, filters.status, filters.source, filters.dateFrom, filters.dateTo],
     queryFn: () => fetchPurchaseInvoices({ page, ...activeFilterParams }),
     placeholderData: (previous) => previous,
   })
@@ -115,7 +117,8 @@ export function PurchaseInvoiceListPage() {
   const columns: DataTableColumn<PurchaseInvoice>[] = [
     { header: 'Date', accessor: (row) => formatDate(row.invoice_date) },
     { header: 'Document Number', accessor: (row) => row.document_number ?? '—' },
-    { header: 'Reference', accessor: (row) => row.goods_receipt?.document_number ?? '—' },
+    { header: 'Type', accessor: (row) => <Badge variant={row.source === 'direct' ? 'outline' : 'secondary'}>{row.source === 'direct' ? 'Direct' : 'Goods Receipt'}</Badge> },
+    { header: 'Reference', accessor: (row) => row.goods_receipt?.document_number ?? row.reference_number ?? '—' },
     { header: 'Supplier Name', accessor: (row) => row.supplier?.supplier_name ?? '—' },
     { header: 'Gross Amount', accessor: (row) => formatCurrency(row.subtotal), className: 'text-right' },
     { header: 'Tax Amount', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
@@ -128,7 +131,7 @@ export function PurchaseInvoiceListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(search || filters.status || filters.source || filters.dateFrom || filters.dateTo)
 
   return (
     <div className="flex flex-col gap-4">
@@ -136,7 +139,7 @@ export function PurchaseInvoiceListPage() {
 
       <PageHeader
         title="Invoices"
-        description="Billed against a received Goods Receipt. Accounts Payable is created once an Invoice is submitted."
+        description="Billed against a received Goods Receipt, or Direct/Non-Stock. Accounts Payable is created once an Invoice is submitted."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} invoices` : undefined}
         actions={
           <ActionBar

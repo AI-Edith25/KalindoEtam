@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseInvoiceRepository extends BaseRepository
 {
-    protected const EAGER = ['supplier', 'purchaseOrder', 'purchaseOrders', 'goodsReceipt.warehouse', 'goodsReceipts', 'items.item', 'creator', 'updater', 'accountsPayable'];
+    protected const EAGER = ['supplier', 'purchaseOrder', 'purchaseOrders', 'goodsReceipt.warehouse', 'goodsReceipts', 'items.item', 'items.chartOfAccount', 'creator', 'updater', 'accountsPayable'];
 
     public function __construct(PurchaseInvoice $model)
     {
@@ -27,6 +27,7 @@ class PurchaseInvoiceRepository extends BaseRepository
         return $this->model->query()
             ->with(self::EAGER)
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['source'] ?? null, fn ($query, $source) => $query->where('source', $source))
             ->when($filters['supplier_id'] ?? null, fn ($query, $supplierId) => $query->where('supplier_id', $supplierId))
             ->when($filters['goods_receipt_id'] ?? null, fn ($query, $goodsReceiptId) => $query->where('goods_receipt_id', $goodsReceiptId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '>=', $date))
@@ -58,6 +59,7 @@ class PurchaseInvoiceRepository extends BaseRepository
         return $this->model->query()
             ->with(self::EAGER)
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['source'] ?? null, fn ($query, $source) => $query->where('source', $source))
             ->when($filters['supplier_id'] ?? null, fn ($query, $supplierId) => $query->where('supplier_id', $supplierId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('invoice_date', '<=', $date))
