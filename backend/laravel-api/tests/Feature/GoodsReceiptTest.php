@@ -140,7 +140,7 @@ class GoodsReceiptTest extends TestCase
         $this->assertSame('2026-09-01', $direct->due_date->toDateString());
     }
 
-    public function test_confirmed_receipt_allows_header_edit_only(): void
+    public function test_confirmed_receipt_header_only_edit_leaves_stock_untouched(): void
     {
         $receipt = $this->goodsReceiptService->submit($this->goodsReceiptService->create([
             'purchase_order_id' => null,
@@ -157,10 +157,110 @@ class GoodsReceiptTest extends TestCase
         $this->assertSame('fixed', $receipt->remarks);
         $this->assertSame('submitted', $receipt->status->value);
         $this->assertEquals(5, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
+        $this->assertDatabaseCount('stock_ledgers', 1);
         $this->assertSame('2026-09-05', \App\Models\FifoLayer::query()->where('source_id', $receipt->id)->sole()->received_date->toDateString());
+    }
+
+    public function test_confirmed_receipt_qty_edit_reposts_stock_and_fifo(): void
+    {
+        $receipt = $this->goodsReceiptService->submit($this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => '2026-09-01',
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 1000]],
+        ]));
+
+        $receipt = $this->goodsReceiptService->update($receipt, [
+            'items' => [['item_id' => $this->item->id, 'qty' => 9, 'rate' => 1200]],
+        ]);
+
+        $this->assertEquals(9, (float) $receipt->items->first()->qty);
+        $this->assertEquals(9, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
+        // Reverse (-5) + repost (+9) — old ledger entry is never deleted, only ever appended to.
+        $this->assertDatabaseCount('stock_ledgers', 3);
+
+        $layer = \App\Models\FifoLayer::query()->where('source_id', $receipt->id)->sole();
+        $this->assertEquals(9, (float) $layer->qty_remaining);
+        $this->assertEquals(1200, (float) $layer->unit_cost);
+    }
+
+    public function test_confirmed_receipt_edit_is_blocked_once_fifo_layer_already_consumed(): void
+    {
+        $receipt = $this->goodsReceiptService->submit($this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => '2026-09-01',
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 1000]],
+        ]));
+
+        app(\App\Services\FifoLayerService::class)->consume(
+            $this->item->id, $this->warehouse->id, 2, \App\Enums\StockVoucherType::DELIVERY, (string) \Illuminate\Support\Str::uuid(),
+        );
 
         $this->expectException(BusinessException::class);
         $this->goodsReceiptService->update($receipt, ['items' => [['item_id' => $this->item->id, 'qty' => 9, 'rate' => 1000]]]);
+    }
+
+    public function test_confirmed_receipt_edit_moves_stock_to_new_warehouse(): void
+    {
+        $otherWarehouse = Warehouse::query()->create(['name' => 'Second WH', 'code' => 'WH2', 'warehouse_type' => WarehouseType::MAIN]);
+
+        $receipt = $this->goodsReceiptService->submit($this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => '2026-09-01',
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 1000]],
+        ]));
+
+        $receipt = $this->goodsReceiptService->update($receipt, ['warehouse_id' => $otherWarehouse->id]);
+
+        $this->assertSame($otherWarehouse->id, $receipt->warehouse_id);
+        $this->assertEquals(0, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
+        $this->assertEquals(5, $this->stockLedgerService->getCurrentBalance($this->item->id, $otherWarehouse->id));
+    }
+
+    public function test_confirmed_direct_receipt_edit_allows_changing_supplier(): void
+    {
+        $otherSupplier = Supplier::query()->create(['supplier_code' => 'S003', 'supplier_name' => 'Corrected Supplier']);
+
+        $receipt = $this->goodsReceiptService->submit($this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => '2026-09-01',
+            'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 1000]],
+        ]));
+
+        $receipt = $this->goodsReceiptService->update($receipt, ['supplier_id' => $otherSupplier->id]);
+
+        $this->assertSame($otherSupplier->id, $receipt->supplier_id);
+    }
+
+    public function test_confirmed_receipt_qty_edit_adjusts_po_received_qty(): void
+    {
+        $purchaseOrder = $this->submittedPurchaseOrder(qty: 50, rate: 1000000);
+        $poItemId = $purchaseOrder->items->first()->id;
+
+        $receipt = $this->goodsReceiptService->submit($this->goodsReceiptService->create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['purchase_order_item_id' => $poItemId, 'qty' => 20]],
+        ]));
+
+        $this->assertEquals(20, (float) $purchaseOrder->items->first()->fresh()->received_qty);
+
+        $receipt = $this->goodsReceiptService->update($receipt, [
+            'items' => [['purchase_order_item_id' => $poItemId, 'qty' => 15]],
+        ]);
+
+        $this->assertEquals(15, (float) $receipt->items->first()->qty);
+        $this->assertEquals(15, (float) $purchaseOrder->items->first()->fresh()->received_qty);
+        $this->assertEquals(15, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
     }
 
     public function test_over_receipt_is_still_blocked_by_default(): void

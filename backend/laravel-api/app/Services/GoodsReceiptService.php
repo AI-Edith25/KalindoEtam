@@ -71,34 +71,7 @@ class GoodsReceiptService
                 'source_document_number' => $data['source_document_number'] ?? null,
             ]);
 
-            $confirmOverReceipt = (bool) ($data['confirm_over_receipt'] ?? false);
-            $this->assertAggregateWithinOutstanding($purchaseOrder->id, $data['items'], $confirmOverReceipt);
-            $overReceiptByIndex = $this->computeOverReceiptQtyByIndex($purchaseOrder->id, $data['items']);
-
-            foreach ($data['items'] as $index => $line) {
-                $poItem = $this->resolvePurchaseOrderItem($purchaseOrder->id, $line['purchase_order_item_id']);
-                $item = $poItem->item;
-                $this->qtyCategoryValidator->assertValid($item, $line['qty']);
-                $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
-                $amount = $qty * $poItem->rate;
-                [$taxId, $taxAmount] = $this->taxService->resolveLineTax(['tax_id' => $poItem->tax_id], null, '', $amount);
-
-                $this->goodsReceiptItemRepository->create([
-                    'goods_receipt_id' => $goodsReceipt->id,
-                    'purchase_order_item_id' => $poItem->id,
-                    'item_id' => $item->id,
-                    'item_code' => $item->item_code,
-                    'item_name' => $item->item_name,
-                    'uom' => $item->uom->name,
-                    'qty' => $qty,
-                    'over_receipt_qty' => $overReceiptByIndex[$index] ?? 0,
-                    'qty_category' => $item->qty_category,
-                    'rate' => $poItem->rate,
-                    'amount' => $amount,
-                    'tax_id' => $taxId,
-                    'tax_amount' => $taxAmount,
-                ]);
-            }
+            $this->replaceItems($goodsReceipt, $data['items'], (bool) ($data['confirm_over_receipt'] ?? false));
 
             $goodsReceipt = $goodsReceipt->fresh(['supplier', 'warehouse', 'purchaseOrder', 'items']);
             $this->auditLogService->record('created', 'goods_receipt', "Created Goods Receipt \"{$goodsReceipt->document_number}\".");
@@ -126,9 +99,7 @@ class GoodsReceiptService
             'source_document_number' => $data['source_document_number'] ?? null,
         ]);
 
-        foreach ($data['items'] as $line) {
-            $this->createDirectLine($goodsReceipt, $line);
-        }
+        $this->replaceItems($goodsReceipt, $data['items'], false);
 
         $goodsReceipt = $goodsReceipt->fresh(['supplier', 'warehouse', 'items']);
         $this->auditLogService->record('created', 'goods_receipt', "Created Goods Receipt \"{$goodsReceipt->document_number}\".");
@@ -163,11 +134,56 @@ class GoodsReceiptService
         ]);
     }
 
+    /**
+     * Rebuilds $goodsReceipt's line items from request data — shared by create(), the draft
+     * branch of update(), and updateSubmitted() (called after the old lines are already
+     * cleared). PO-linked branch re-validates the aggregate outstanding qty and records
+     * over-receipt; the Direct Receipt branch just types each line as given.
+     */
+    protected function replaceItems(GoodsReceipt $goodsReceipt, array $items, bool $confirmOverReceipt): void
+    {
+        if ($goodsReceipt->purchase_order_id === null) {
+            foreach ($items as $line) {
+                $this->createDirectLine($goodsReceipt, $line);
+            }
+
+            return;
+        }
+
+        $this->assertAggregateWithinOutstanding($goodsReceipt->purchase_order_id, $items, $confirmOverReceipt);
+        $overReceiptByIndex = $this->computeOverReceiptQtyByIndex($goodsReceipt->purchase_order_id, $items);
+
+        foreach ($items as $index => $line) {
+            $poItem = $this->resolvePurchaseOrderItem($goodsReceipt->purchase_order_id, $line['purchase_order_item_id']);
+            $item = $poItem->item;
+            $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+            $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
+            $amount = $qty * $poItem->rate;
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax(['tax_id' => $poItem->tax_id], null, '', $amount);
+
+            $this->goodsReceiptItemRepository->create([
+                'goods_receipt_id' => $goodsReceipt->id,
+                'purchase_order_item_id' => $poItem->id,
+                'item_id' => $item->id,
+                'item_code' => $item->item_code,
+                'item_name' => $item->item_name,
+                'uom' => $item->uom->name,
+                'qty' => $qty,
+                'over_receipt_qty' => $overReceiptByIndex[$index] ?? 0,
+                'qty_category' => $item->qty_category,
+                'rate' => $poItem->rate,
+                'amount' => $amount,
+                'tax_id' => $taxId,
+                'tax_amount' => $taxAmount,
+            ]);
+        }
+    }
+
     public function update(GoodsReceipt $goodsReceipt, array $data): GoodsReceipt
     {
         return DB::transaction(function () use ($goodsReceipt, $data) {
             if ($goodsReceipt->status === DocumentStatus::SUBMITTED) {
-                return $this->updateSubmittedHeader($goodsReceipt, $data);
+                return $this->updateSubmitted($goodsReceipt, $data);
             }
 
             $this->assertDraft($goodsReceipt, 'updated');
@@ -177,45 +193,7 @@ class GoodsReceiptService
 
             if (isset($data['items'])) {
                 $goodsReceipt->items()->delete();
-
-                $confirmOverReceipt = (bool) ($data['confirm_over_receipt'] ?? false);
-                $overReceiptByIndex = [];
-
-                if ($goodsReceipt->purchase_order_id !== null) {
-                    $this->assertAggregateWithinOutstanding($goodsReceipt->purchase_order_id, $data['items'], $confirmOverReceipt);
-                    $overReceiptByIndex = $this->computeOverReceiptQtyByIndex($goodsReceipt->purchase_order_id, $data['items']);
-                }
-
-                foreach ($data['items'] as $index => $line) {
-                    if ($goodsReceipt->purchase_order_id === null) {
-                        $this->createDirectLine($goodsReceipt, $line);
-
-                        continue;
-                    }
-
-                    $poItem = $this->resolvePurchaseOrderItem($goodsReceipt->purchase_order_id, $line['purchase_order_item_id']);
-                    $item = $poItem->item;
-                    $this->qtyCategoryValidator->assertValid($item, $line['qty']);
-                    $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
-                    $amount = $qty * $poItem->rate;
-                    [$taxId, $taxAmount] = $this->taxService->resolveLineTax(['tax_id' => $poItem->tax_id], null, '', $amount);
-
-                    $this->goodsReceiptItemRepository->create([
-                        'goods_receipt_id' => $goodsReceipt->id,
-                        'purchase_order_item_id' => $poItem->id,
-                        'item_id' => $item->id,
-                        'item_code' => $item->item_code,
-                        'item_name' => $item->item_name,
-                        'uom' => $item->uom->name,
-                        'qty' => $qty,
-                        'over_receipt_qty' => $overReceiptByIndex[$index] ?? 0,
-                        'qty_category' => $item->qty_category,
-                        'rate' => $poItem->rate,
-                        'amount' => $amount,
-                        'tax_id' => $taxId,
-                        'tax_amount' => $taxAmount,
-                    ]);
-                }
+                $this->replaceItems($goodsReceipt, $data['items'], (bool) ($data['confirm_over_receipt'] ?? false));
             }
 
             $this->goodsReceiptRepository->update($goodsReceipt, $headerData);
@@ -228,23 +206,52 @@ class GoodsReceiptService
     }
 
     /**
-     * A confirmed receipt only allows header edits (dates + notes) — items/qty/warehouse already
-     * moved stock and PO received_qty, so they stay locked. The stock ledger posts with now(), not
-     * receipt_date, so only the FIFO layer's received_date needs to follow a date change.
+     * A confirmed receipt can be corrected in full — items/qty/rate/warehouse, and (Direct
+     * Receipt only) supplier — because a wrong item, qty or supplier is a data-entry mistake,
+     * not a new transaction. Stock already moved at submit(), so an items/warehouse change
+     * first reverses exactly what was posted (reverseReceiptStock(), which fails loudly via
+     * FifoLayerService::reverseReceipt() if any of this receipt's FIFO layers has already been
+     * consumed by a later Sale/Issue — the same hard rule OpeningStockService::cancel() relies
+     * on; that consumed stock has already flowed into another document's cost, so it can't be
+     * rewritten out from under it) before reposting fresh stock for the new lines. A
+     * header-only edit (dates/notes, same items/warehouse) skips the reverse/repost — the FIFO
+     * layer's received_date still needs to follow a receipt_date change either way.
      */
-    protected function updateSubmittedHeader(GoodsReceipt $goodsReceipt, array $data): GoodsReceipt
+    protected function updateSubmitted(GoodsReceipt $goodsReceipt, array $data): GoodsReceipt
     {
-        if (isset($data['items']) || isset($data['warehouse_id'])) {
-            throw new BusinessException('Only Receipt Date, Due Date and Notes can be changed on a confirmed Goods Receipt.');
+        $itemsChanging = array_key_exists('items', $data);
+        $warehouseChanging = array_key_exists('warehouse_id', $data) && $data['warehouse_id'] !== $goodsReceipt->warehouse_id;
+
+        if ($itemsChanging || $warehouseChanging) {
+            $goodsReceipt->load('items.purchaseOrderItem');
+            $this->reverseReceiptStock($goodsReceipt);
+
+            if ($itemsChanging) {
+                $goodsReceipt->items()->delete();
+            }
         }
 
         $receiptDate = $data['receipt_date'] ?? $goodsReceipt->receipt_date->toDateString();
+        $supplierId = ($goodsReceipt->purchase_order_id === null && ! empty($data['supplier_id']))
+            ? $data['supplier_id']
+            : $goodsReceipt->supplier_id;
 
         $this->goodsReceiptRepository->update($goodsReceipt, [
+            'supplier_id' => $supplierId,
+            'warehouse_id' => $data['warehouse_id'] ?? $goodsReceipt->warehouse_id,
             'receipt_date' => $receiptDate,
-            'due_date' => $this->resolveDueDate($data, $goodsReceipt->supplier_id, $receiptDate),
+            'due_date' => $this->resolveDueDate($data, $supplierId, $receiptDate),
             'remarks' => array_key_exists('remarks', $data) ? $data['remarks'] : $goodsReceipt->remarks,
         ]);
+
+        if ($itemsChanging) {
+            $this->replaceItems($goodsReceipt, $data['items'], (bool) ($data['confirm_over_receipt'] ?? false));
+        }
+
+        if ($itemsChanging || $warehouseChanging) {
+            $goodsReceipt->load('items.purchaseOrderItem.item');
+            $this->postReceiptStock($goodsReceipt);
+        }
 
         FifoLayer::query()
             ->where('source_type', StockVoucherType::GOODS_RECEIPT->value)
@@ -252,9 +259,39 @@ class GoodsReceiptService
             ->update(['received_date' => $receiptDate]);
 
         $goodsReceipt = $goodsReceipt->fresh(['supplier', 'warehouse', 'purchaseOrder', 'items']);
-        $this->auditLogService->record('updated', 'goods_receipt', "Updated header of confirmed Goods Receipt \"{$goodsReceipt->document_number}\".");
+        $this->auditLogService->record('updated', 'goods_receipt', "Updated confirmed Goods Receipt \"{$goodsReceipt->document_number}\".");
 
         return $goodsReceipt;
+    }
+
+    /**
+     * Reverses exactly what postReceiptStock() posted for $goodsReceipt's *current* items —
+     * deletes their FIFO layers (rejects if any has already been consumed downstream), posts a
+     * matching negative Stock Ledger entry per line, and reverses the PO received_qty
+     * increment. Must run before the receipt's warehouse_id or items are changed, since it
+     * relies on both still pointing at what was actually posted at submit() time.
+     */
+    protected function reverseReceiptStock(GoodsReceipt $goodsReceipt): void
+    {
+        $this->fifoLayerService->reverseReceipt(StockVoucherType::GOODS_RECEIPT, $goodsReceipt->id);
+
+        foreach ($goodsReceipt->items as $line) {
+            $this->stockLedgerService->record(
+                itemId: $line->item_id,
+                warehouseId: $goodsReceipt->warehouse_id,
+                transactionType: StockTransactionType::OUT,
+                voucherType: StockVoucherType::GOODS_RECEIPT,
+                voucherId: $goodsReceipt->id,
+                qtyChange: -(float) $line->qty,
+                postingDatetime: now(),
+                referenceNo: $goodsReceipt->document_number,
+                remarks: "Correction of Goods Receipt {$goodsReceipt->document_number}",
+            );
+
+            if ($line->purchaseOrderItem !== null) {
+                $this->purchaseOrderItemRepository->incrementReceivedQty($line->purchaseOrderItem, -(float) $line->qty);
+            }
+        }
     }
 
     /**
@@ -314,34 +351,7 @@ class GoodsReceiptService
                     });
             }
 
-            foreach ($goodsReceipt->items as $line) {
-                $this->stockLedgerService->record(
-                    itemId: $line->item_id,
-                    warehouseId: $goodsReceipt->warehouse_id,
-                    transactionType: StockTransactionType::IN,
-                    voucherType: StockVoucherType::GOODS_RECEIPT,
-                    voucherId: $goodsReceipt->id,
-                    qtyChange: $line->qty,
-                    postingDatetime: now(),
-                    referenceNo: $goodsReceipt->document_number,
-                    remarks: "Goods Receipt {$goodsReceipt->document_number}",
-                );
-
-                $this->fifoLayerService->receive(
-                    itemId: $line->item_id,
-                    warehouseId: $goodsReceipt->warehouse_id,
-                    qty: (float) $line->qty,
-                    unitCost: (float) $line->rate,
-                    sourceType: StockVoucherType::GOODS_RECEIPT,
-                    sourceId: $goodsReceipt->id,
-                    sourceDocumentNumber: $goodsReceipt->document_number,
-                    receivedDate: $goodsReceipt->receipt_date,
-                );
-
-                if ($line->purchaseOrderItem !== null) {
-                    $this->purchaseOrderItemRepository->incrementReceivedQty($line->purchaseOrderItem, $line->qty);
-                }
-            }
+            $this->postReceiptStock($goodsReceipt);
 
             $goodsReceipt->submit();
 
@@ -350,6 +360,45 @@ class GoodsReceiptService
 
             return $goodsReceipt;
         });
+    }
+
+    /**
+     * Posts stock for $goodsReceipt's *current* items — Stock Ledger IN entries, FIFO
+     * receive() layers, and PO received_qty increments. Shared by submit() (first time) and
+     * updateSubmitted() (repost after reverseReceiptStock()); PO status/outstanding validation
+     * stays scoped to submit() — updateSubmitted() already re-validates outstanding via
+     * replaceItems()'s assertAggregateWithinOutstanding() call before reaching here.
+     */
+    protected function postReceiptStock(GoodsReceipt $goodsReceipt): void
+    {
+        foreach ($goodsReceipt->items as $line) {
+            $this->stockLedgerService->record(
+                itemId: $line->item_id,
+                warehouseId: $goodsReceipt->warehouse_id,
+                transactionType: StockTransactionType::IN,
+                voucherType: StockVoucherType::GOODS_RECEIPT,
+                voucherId: $goodsReceipt->id,
+                qtyChange: $line->qty,
+                postingDatetime: now(),
+                referenceNo: $goodsReceipt->document_number,
+                remarks: "Goods Receipt {$goodsReceipt->document_number}",
+            );
+
+            $this->fifoLayerService->receive(
+                itemId: $line->item_id,
+                warehouseId: $goodsReceipt->warehouse_id,
+                qty: (float) $line->qty,
+                unitCost: (float) $line->rate,
+                sourceType: StockVoucherType::GOODS_RECEIPT,
+                sourceId: $goodsReceipt->id,
+                sourceDocumentNumber: $goodsReceipt->document_number,
+                receivedDate: $goodsReceipt->receipt_date,
+            );
+
+            if ($line->purchaseOrderItem !== null) {
+                $this->purchaseOrderItemRepository->incrementReceivedQty($line->purchaseOrderItem, $line->qty);
+            }
+        }
     }
 
     protected function resolvePurchaseOrderItem(string $purchaseOrderId, string $purchaseOrderItemId): PurchaseOrderItem

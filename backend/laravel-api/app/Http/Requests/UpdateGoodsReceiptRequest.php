@@ -14,6 +14,10 @@ class UpdateGoodsReceiptRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Only meaningful for a Direct Receipt (no purchase_order_id) — see
+            // GoodsReceiptService::updateSubmitted(). Ignored for a PO-linked receipt, whose
+            // supplier is inherited from the Purchase Order.
+            'supplier_id' => ['sometimes', 'nullable', 'uuid', 'exists:suppliers,id'],
             'warehouse_id' => ['sometimes', 'required', 'uuid', 'exists:warehouses,id'],
             'receipt_date' => ['sometimes', 'required', 'date'],
             // Optional — defaults to receipt_date + the Supplier's Terms of Payment days, see

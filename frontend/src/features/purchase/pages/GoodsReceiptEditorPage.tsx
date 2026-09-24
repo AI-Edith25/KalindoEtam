@@ -72,6 +72,7 @@ export function GoodsReceiptEditorPage() {
   // An existing draft's own purchase_order_id decides its mode — a direct receipt can't
   // gain a PO on edit, and vice versa (create() branches once, at creation, only).
   const isDirectMode = isEdit ? receiptQuery.data?.purchase_order_id === null : mode === 'direct'
+  const isSubmittedEdit = isEdit && receiptQuery.data?.status === 'submitted'
 
   const purchaseOrderId = isEdit ? receiptQuery.data?.purchase_order_id : (selectedPurchaseOrderId ?? undefined)
 
@@ -109,22 +110,15 @@ export function GoodsReceiptEditorPage() {
   })
 
   useEffect(() => {
-    const receipt = receiptQuery.data
-    if (!receipt) return
-
-    if (receipt.status !== 'draft') {
-      toast.error('Only draft goods receipts can be edited.')
-      navigate(`/purchase/goods-receipts/${receipt.id}`, { replace: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receiptQuery.data])
-
-  useEffect(() => {
     const purchaseOrder = purchaseOrderQuery.data
     if (!purchaseOrder || isDirectMode) return
 
     const poItemById = new Map(purchaseOrder.items.map((poItem) => [poItem.id, poItem]))
-
+    // A submitted receipt's own qty is already folded into poItem.received_qty (posted at
+    // submit()), so its outstanding_qty understates what's really available to re-enter here —
+    // add the existing line's own qty back so the remaining/max shown matches what the backend
+    // will actually accept (it reverses this receipt's old qty before re-validating). A draft's
+    // qty hasn't been received yet, so its outstanding_qty is already accurate as-is.
     const buildRow = (poItem: PurchaseOrderItem, existing?: GoodsReceiptItem) => ({
       purchase_order_item_id: poItem.id,
       item_code: poItem.item_code ?? '',
@@ -132,7 +126,7 @@ export function GoodsReceiptEditorPage() {
       rate: Number(poItem.rate),
       ordered: Number(poItem.qty),
       alreadyReceived: Number(poItem.received_qty),
-      remaining: Number(poItem.outstanding_qty),
+      remaining: Number(poItem.outstanding_qty) + (isSubmittedEdit ? Number(existing?.qty ?? 0) : 0),
       allowOverReceipt: poItem.allow_over_receipt ?? false,
       qtyCategory: poItem.item_qty_category ?? 'unit',
       receiveNow: String(existing?.qty ?? 0),
@@ -243,6 +237,7 @@ export function GoodsReceiptEditorPage() {
 
       if (isEdit) {
         return updateGoodsReceipt(id!, {
+          supplier_id: values.supplier_id,
           warehouse_id: values.warehouse_id,
           receipt_date: values.receipt_date,
           due_date: values.due_date || null,
@@ -374,7 +369,6 @@ export function GoodsReceiptEditorPage() {
                         value={field.value}
                         onChange={(value) => field.onChange(value ?? '')}
                         loading={suppliers.isLoading}
-                        disabled={isEdit}
                         clearable={false}
                         placeholder="Select supplier"
                         aria-label="Supplier"
@@ -472,7 +466,7 @@ export function GoodsReceiptEditorPage() {
               </Button>
               <Button type="submit" variant="outline" disabled={saveDirectMutation.isPending}>
                 {saveDirectMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                Receive Goods
+                {isSubmittedEdit ? 'Save Changes' : 'Receive Goods'}
               </Button>
               {isEdit && receiptQuery.data?.status === 'draft' && (
                 <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
@@ -623,9 +617,11 @@ export function GoodsReceiptEditorPage() {
           </Card>
 
           <p className="text-right text-sm text-muted-foreground">
-            {isEdit && receiptQuery.data?.status === 'draft'
-              ? 'Receiving Goods records what arrived. Confirming updates stock levels and creates the payable to your supplier.'
-              : 'Recording quantities here doesn’t move stock yet — you’ll confirm the receipt on the next screen.'}
+            {isSubmittedEdit
+              ? 'This receipt is already confirmed — saving changes immediately updates stock, FIFO cost and the Purchase Order.'
+              : isEdit && receiptQuery.data?.status === 'draft'
+                ? 'Receiving Goods records what arrived. Confirming updates stock levels and creates the payable to your supplier.'
+                : 'Recording quantities here doesn’t move stock yet — you’ll confirm the receipt on the next screen.'}
           </p>
 
           <div className="flex justify-end gap-2">
@@ -634,7 +630,7 @@ export function GoodsReceiptEditorPage() {
             </Button>
             <Button type="submit" variant="outline" disabled={saveMutation.isPending}>
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Receive Goods
+              {isSubmittedEdit ? 'Save Changes' : 'Receive Goods'}
             </Button>
             {isEdit && receiptQuery.data?.status === 'draft' && (
               <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
