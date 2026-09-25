@@ -32,7 +32,9 @@ class StockLedgerController extends Controller
         $filters = $request->validated();
         $perPage = $filters['per_page'] ?? 15;
 
-        $rows = $this->stockLedgerService->attachCostInfo($this->stockLedgerService->listAll($filters, $perPage));
+        $rows = $this->stockLedgerService->attachCustomerInfo(
+            $this->stockLedgerService->attachCostInfo($this->stockLedgerService->listAll($filters, $perPage))
+        );
 
         return $this->success(StockLedgerResource::collection($rows));
     }

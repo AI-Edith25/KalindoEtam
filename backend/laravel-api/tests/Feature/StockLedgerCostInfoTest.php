@@ -4,9 +4,12 @@ namespace Tests\Feature;
 
 use App\Enums\StockVoucherType;
 use App\Enums\WarehouseType;
+use App\Models\Customer;
+use App\Models\Delivery;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Permission;
+use App\Models\SalesOrder;
 use App\Models\UnitOfMeasurement;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -75,5 +78,48 @@ class StockLedgerCostInfoTest extends TestCase
 
         // Balance after both: 20 remaining @ 58000 (only one cost in the layer set).
         $this->assertEquals(20 * 58000, $outRow['balance_value']);
+    }
+
+    public function test_delivery_rows_carry_the_customer_name_but_goods_receipt_rows_do_not(): void
+    {
+        $warehouse = Warehouse::query()->create(['name' => 'Samarinda', 'code' => 'SMD', 'warehouse_type' => WarehouseType::MAIN]);
+        $itemGroup = ItemGroup::query()->create(['name' => 'General']);
+        $uom = UnitOfMeasurement::query()->create(['name' => 'Zak']);
+        $item = Item::query()->create([
+            'item_code' => 'ITM001', 'item_name' => 'Semen Portland 50kg', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 60000,
+        ]);
+        $customer = Customer::query()->create(['customer_code' => 'CUST1', 'customer_name' => 'Acme Corp']);
+        foreach (['sales', 'delivery'] as $documentType) {
+            \App\Models\NamingSeries::query()->create(['module' => 'test', 'document_type' => $documentType, 'digit_length' => 5]);
+        }
+        $salesOrder = SalesOrder::query()->create(['customer_id' => $customer->id, 'order_date' => now()]);
+        $delivery = Delivery::query()->create([
+            'sales_order_id' => $salesOrder->id, 'customer_id' => $customer->id, 'warehouse_id' => $warehouse->id,
+            'delivery_date' => now(), 'due_date' => now()->addDays(30),
+        ]);
+
+        $stockLedgerService = app(\App\Services\StockLedgerService::class);
+        $stockLedgerService->record(
+            itemId: $item->id, warehouseId: $warehouse->id,
+            transactionType: \App\Enums\StockTransactionType::OUT, voucherType: StockVoucherType::DELIVERY,
+            voucherId: $delivery->id, qtyChange: -5, postingDatetime: now(),
+        );
+
+        $receiptId = (string) \Illuminate\Support\Str::uuid();
+        $stockLedgerService->record(
+            itemId: $item->id, warehouseId: $warehouse->id,
+            transactionType: \App\Enums\StockTransactionType::IN, voucherType: StockVoucherType::GOODS_RECEIPT,
+            voucherId: $receiptId, qtyChange: 30, postingDatetime: now(),
+        );
+
+        $response = $this->getJson('/api/v1/stock-ledger');
+        $response->assertOk();
+
+        $rows = collect($response->json('data'));
+        $deliveryRow = $rows->firstWhere('voucher_id', $delivery->id);
+        $receiptRow = $rows->firstWhere('voucher_id', $receiptId);
+
+        $this->assertEquals('Acme Corp', $deliveryRow['customer_name']);
+        $this->assertNull($receiptRow['customer_name']);
     }
 }

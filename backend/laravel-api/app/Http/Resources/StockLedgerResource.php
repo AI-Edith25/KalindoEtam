@@ -19,6 +19,7 @@ class StockLedgerResource extends JsonResource
             'voucher_type' => $this->voucher_type,
             'voucher_id' => $this->voucher_id,
             'reference_no' => $this->reference_no,
+            'customer_name' => $this->customer_name ?? null,
             'qty_change' => $this->qty_change,
             'balance_qty' => $this->balance_qty,
             'posting_datetime' => $this->posting_datetime,

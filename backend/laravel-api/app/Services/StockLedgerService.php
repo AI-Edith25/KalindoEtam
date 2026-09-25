@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
+use App\Models\CreditNote;
+use App\Models\Delivery;
 use App\Models\FifoLayer;
 use App\Models\FifoLayerConsumption;
 use App\Models\StockLedger;
@@ -136,6 +138,37 @@ class StockLedgerService
             $row->value_in = $qtyChange > 0 ? round($qtyChange * $unitCost, 2) : 0.0;
             $row->value_out = $qtyChange < 0 ? round(abs($qtyChange) * $unitCost, 2) : 0.0;
             $row->balance_value = round((float) $row->balance_qty * ($currentAverageCosts["{$row->item_id}|{$row->warehouse_id}"] ?? 0.0), 2);
+        }
+
+        return $paginator;
+    }
+
+    /**
+     * Annotates each row with customer_name — transient, not a real column. Only 'delivery'
+     * and 'credit_note' voucher rows are customer-facing (Goods Receipt/Transfer/Adjustment/
+     * etc. have no customer), so every other row gets null. Two grouped queries, not N+1.
+     */
+    public function attachCustomerInfo(LengthAwarePaginator $paginator): LengthAwarePaginator
+    {
+        $rows = $paginator->getCollection();
+
+        if ($rows->isEmpty()) {
+            return $paginator;
+        }
+
+        $deliveryIds = $rows->where('voucher_type', StockVoucherType::DELIVERY)->pluck('voucher_id')->unique()->values()->all();
+        $creditNoteIds = $rows->where('voucher_type', StockVoucherType::CREDIT_NOTE)->pluck('voucher_id')->unique()->values()->all();
+
+        $deliveryCustomers = Delivery::query()->whereIn('id', $deliveryIds)->with('customer')->get()->pluck('customer.customer_name', 'id');
+        $creditNoteCustomers = CreditNote::query()->whereIn('id', $creditNoteIds)->with('customer')->get()->pluck('customer.customer_name', 'id');
+
+        foreach ($rows as $row) {
+            /** @var StockLedger $row */
+            $row->customer_name = match ($row->voucher_type) {
+                StockVoucherType::DELIVERY => $deliveryCustomers[$row->voucher_id] ?? null,
+                StockVoucherType::CREDIT_NOTE => $creditNoteCustomers[$row->voucher_id] ?? null,
+                default => null,
+            };
         }
 
         return $paginator;

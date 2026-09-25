@@ -64,6 +64,7 @@ export function StockLedgerPanel() {
     { header: 'Date', accessor: (row) => formatDate(row.posting_datetime) },
     { header: 'Item', accessor: (row) => (row.item ? `${row.item.item_code} — ${row.item.item_name}` : '—') },
     { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
+    { header: 'Customer', accessor: (row) => row.customer_name ?? '—' },
     { header: 'Voucher Type', accessor: (row) => <StatusBadge status={row.voucher_type} /> },
     {
       header: 'Reference Document',
