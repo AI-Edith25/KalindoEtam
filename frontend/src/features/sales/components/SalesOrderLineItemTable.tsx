@@ -203,7 +203,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                       name={`items.${index}.rate`}
                       render={({ field: rateField }) => (
                         <FormItem className="gap-0">
-                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={rowDisabled} />
+                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={rowDisabled} decimals={2} />
                           <FormMessage />
                         </FormItem>
                       )}
