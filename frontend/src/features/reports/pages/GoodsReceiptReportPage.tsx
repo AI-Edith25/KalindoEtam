@@ -84,6 +84,7 @@ export function GoodsReceiptReportPage() {
           </Button>
         ),
     },
+    { header: 'Supplier', accessor: (row) => row.supplier?.supplier_name ?? '—' },
     { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
     { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },
     {
