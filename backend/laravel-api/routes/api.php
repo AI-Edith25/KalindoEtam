@@ -179,7 +179,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('item-warehouse-prices/export', [ItemWarehousePriceController::class, 'export'])->middleware('permission:master.item_prices.view');
     Route::post('item-warehouse-prices/import-preview', [ItemWarehousePriceController::class, 'importPreview'])->middleware('permission:master.item_prices.import');
     Route::post('item-warehouse-prices/import-commit', [ItemWarehousePriceController::class, 'importCommit'])->middleware('permission:master.item_prices.import');
+    // Must come before the apiResource below — otherwise 'trashed' is captured by suppliers/{supplier}.
+    Route::get('suppliers/trashed', [SupplierController::class, 'trashed'])->middleware('permission:master.suppliers.view');
     $withPagePermissions(Route::apiResource('suppliers', SupplierController::class), 'master.suppliers');
+    Route::post('suppliers/{supplier}/restore', [SupplierController::class, 'restore'])->middleware('permission:master.suppliers.delete');
     // Must come before the apiResource below — otherwise 'next-code' is captured by sales-persons/{sales_person}.
     Route::get('sales-persons/next-code', [SalesPersonController::class, 'nextCode'])->middleware('permission:master.sales_persons.create');
     $withPagePermissions(Route::apiResource('sales-persons', SalesPersonController::class), 'master.sales_persons');

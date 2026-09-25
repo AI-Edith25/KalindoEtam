@@ -24,6 +24,11 @@ class SupplierService
         return $this->supplierRepository->paginate($perPage, $search);
     }
 
+    public function listTrashed(int $perPage = 200, ?string $search = null): LengthAwarePaginator
+    {
+        return $this->supplierRepository->paginateTrashed($perPage, $search);
+    }
+
     public function create(array $data): Supplier
     {
         return DB::transaction(function () use ($data) {
@@ -50,6 +55,16 @@ class SupplierService
             $name = $supplier->supplier_name;
             $this->supplierRepository->delete($supplier);
             $this->auditLogService->record('deleted', 'supplier', "Deleted supplier \"{$name}\".");
+        });
+    }
+
+    public function restore(Supplier $supplier): Supplier
+    {
+        return DB::transaction(function () use ($supplier) {
+            $supplier->restore();
+            $this->auditLogService->record('restored', 'supplier', "Restored supplier \"{$supplier->supplier_name}\".");
+
+            return $supplier;
         });
     }
 }

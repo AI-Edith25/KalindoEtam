@@ -26,6 +26,22 @@ class SupplierController extends Controller
         )));
     }
 
+    public function trashed(Request $request): JsonResponse
+    {
+        return $this->success(SupplierResource::collection($this->supplierService->listTrashed(
+            (int) ($request->query('per_page') ?? 200),
+            $request->query('search'),
+        )));
+    }
+
+    public function restore(string $supplier): JsonResponse
+    {
+        $supplier = Supplier::onlyTrashed()->findOrFail($supplier);
+        $supplier = $this->supplierService->restore($supplier);
+
+        return $this->success(new SupplierResource($supplier), 'Supplier restored.');
+    }
+
     public function store(StoreSupplierRequest $request): JsonResponse
     {
         $supplier = $this->supplierService->create($request->validated());

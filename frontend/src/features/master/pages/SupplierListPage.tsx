@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { ArchiveRestore, Download, Eye, Pencil, Plus, RotateCw, Trash2, Undo2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -11,8 +14,9 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { formatNumber } from '@/lib/utils'
-import { deleteSupplier, fetchSuppliers } from '../api/supplierApi'
+import { toastApiError } from '@/shared/services/errorHandler'
+import { formatDate, formatNumber } from '@/lib/utils'
+import { deleteSupplier, fetchSuppliers, fetchTrashedSuppliers, restoreSupplier } from '../api/supplierApi'
 import { SupplierFormDrawer } from '../components/SupplierFormDrawer'
 import { SupplierDetailDrawer } from '../components/SupplierDetailDrawer'
 import { SupplierFiltersBar } from '../components/SupplierFiltersBar'
@@ -26,10 +30,30 @@ const SORTERS: Record<string, (s: Supplier) => string | number> = {
 
 export function SupplierListPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const canCreate = useHasPermission('master.suppliers.create')
   const canUpdate = useHasPermission('master.suppliers.update')
   const canDelete = useHasPermission('master.suppliers.delete')
   const canImport = useHasPermission('master.suppliers.import')
+  const [showTrashed, setShowTrashed] = useState(false)
+  const [trashedPage, setTrashedPage] = useState(1)
+
+  const trashedQuery = useQuery({
+    queryKey: ['suppliers-trashed', trashedPage],
+    queryFn: () => fetchTrashedSuppliers(trashedPage),
+    enabled: showTrashed,
+  })
+
+  const restoreMutation = useMutation({
+    mutationFn: (supplier: Supplier) => restoreSupplier(supplier.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers-trashed'] })
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
+      toast.success('Supplier restored.')
+    },
+    onError: toastApiError,
+  })
+
   const list = useEntityListPage<Supplier, SupplierFilterValues>({
     queryKey: 'suppliers',
     fetchList: fetchSuppliers,
@@ -62,6 +86,23 @@ export function SupplierListPage() {
     },
   ]
 
+  const trashedColumns: DataTableColumn<Supplier>[] = [
+    { header: 'Code', accessor: (row) => row.supplier_code },
+    { header: 'Name', accessor: (row) => row.supplier_name },
+    { header: 'Deleted At', accessor: (row) => formatDate(row.deleted_at) },
+    {
+      header: '',
+      className: 'text-right',
+      accessor: (row) => (
+        <RowActionsMenu
+          actions={[
+            { label: 'Restore', icon: Undo2, onClick: () => restoreMutation.mutate(row) },
+          ]}
+        />
+      ),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="master" />
@@ -69,38 +110,70 @@ export function SupplierListPage() {
       <PageHeader
         title="Suppliers"
         description="Manage suppliers used across the purchase workflow."
-        count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} suppliers` : undefined}
+        count={
+          showTrashed
+            ? trashedQuery.data?.meta
+              ? `${formatNumber(trashedQuery.data.meta.total)} deleted`
+              : undefined
+            : list.listQuery.data?.meta
+              ? `${formatNumber(list.listQuery.data.meta.total)} suppliers`
+              : undefined
+        }
         actions={
           <ActionBar
             actions={[
-              { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
+              {
+                label: showTrashed ? 'Back to Suppliers' : 'Show Deleted',
+                icon: ArchiveRestore,
+                disabled: !canDelete,
+                onClick: () => setShowTrashed((prev) => !prev),
+              },
+              { label: 'Refresh', icon: RotateCw, onClick: () => (showTrashed ? trashedQuery.refetch() : list.listQuery.refetch()), disabled: showTrashed ? trashedQuery.isFetching : list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
               { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/suppliers/quick-import') },
             ]}
-            primary={canCreate ? { label: 'New Supplier', icon: Plus, onClick: list.openCreate } : undefined}
+            primary={!showTrashed && canCreate ? { label: 'New Supplier', icon: Plus, onClick: list.openCreate } : undefined}
           />
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <SearchBox value={list.search} onChange={list.setSearch} placeholder="Search code, name, or email…" />
-        <SupplierFiltersBar value={list.filters} onChange={list.setFilters} />
-      </div>
+      {showTrashed ? (
+        <>
+          <DataTable
+            columns={trashedColumns}
+            data={trashedQuery.data?.data ?? []}
+            rowKey={(row) => row.id}
+            isLoading={trashedQuery.isLoading}
+            isError={trashedQuery.isError}
+            onRetry={() => trashedQuery.refetch()}
+            emptyMessage="No deleted suppliers."
+          />
 
-      <DataTable
-        columns={columns}
-        data={list.rows}
-        rowKey={(row) => row.id}
-        isLoading={list.listQuery.isLoading}
-        isError={list.listQuery.isError}
-        onRetry={() => list.listQuery.refetch()}
-        emptyMessage={list.search || list.filters.isActive !== null ? 'No suppliers match your search or filters.' : 'No suppliers yet.'}
-        onRowClick={(row) => list.setDetailItem(row)}
-        sort={list.sort}
-        onSortChange={list.handleSortChange}
-      />
+          {trashedQuery.data?.meta && <Pagination meta={trashedQuery.data.meta} onPageChange={setTrashedPage} />}
+        </>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <SearchBox value={list.search} onChange={list.setSearch} placeholder="Search code, name, or email…" />
+            <SupplierFiltersBar value={list.filters} onChange={list.setFilters} />
+          </div>
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} />}
+          <DataTable
+            columns={columns}
+            data={list.rows}
+            rowKey={(row) => row.id}
+            isLoading={list.listQuery.isLoading}
+            isError={list.listQuery.isError}
+            onRetry={() => list.listQuery.refetch()}
+            emptyMessage={list.search || list.filters.isActive !== null ? 'No suppliers match your search or filters.' : 'No suppliers yet.'}
+            onRowClick={(row) => list.setDetailItem(row)}
+            sort={list.sort}
+            onSortChange={list.handleSortChange}
+          />
+
+          {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} />}
+        </>
+      )}
 
       <SupplierFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} supplier={list.editingItem} />
 

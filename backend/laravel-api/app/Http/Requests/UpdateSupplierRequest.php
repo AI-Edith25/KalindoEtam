@@ -15,7 +15,7 @@ class UpdateSupplierRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'supplier_code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('suppliers', 'supplier_code')->ignore($this->route('supplier'))],
+            'supplier_code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('suppliers', 'supplier_code')->whereNull('deleted_at')->ignore($this->route('supplier'))],
             'supplier_name' => ['sometimes', 'required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'telephone' => ['nullable', 'string', 'max:50'],
