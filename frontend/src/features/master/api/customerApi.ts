@@ -17,3 +17,9 @@ export async function fetchNextCustomerCode(): Promise<string> {
   const { data } = await apiClient.get<ApiResponse<{ customer_code: string }>>('/customers/next-code')
   return data.data.customer_code
 }
+
+/** Maintenance > Customers "Export" button — server-side search/status filter, all matching rows (not just the loaded page). */
+export async function exportCustomers(params: { search?: string; is_active?: boolean }): Promise<Blob> {
+  const { data } = await apiClient.get<Blob>('/customers/export', { params, responseType: 'blob' })
+  return data
+}

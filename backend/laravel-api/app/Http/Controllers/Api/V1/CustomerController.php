@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exports\CustomerListingExport;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCustomerRequest;
@@ -12,6 +13,9 @@ use App\Services\CustomerCreditService;
 use App\Services\CustomerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CustomerController extends Controller
 {
@@ -34,6 +38,27 @@ class CustomerController extends Controller
             (int) ($request->query('per_page') ?? 200),
             $request->query('search'),
         )));
+    }
+
+    /** Maintenance > Customers "Export" button — see CustomerListingExport's docblock for the layout. */
+    public function export(Request $request): BinaryFileResponse
+    {
+        $validated = $request->validate(['search' => ['nullable', 'string', 'max:255']]);
+        // Not the `boolean` validation rule: axios serializes JS true/false as the literal
+        // strings "true"/"false", which that rule rejects (422'd the Outstanding view toggle before).
+        $isActive = $request->has('is_active') ? filter_var($request->query('is_active'), FILTER_VALIDATE_BOOLEAN) : null;
+        $search = $validated['search'] ?? null;
+
+        $count = $this->customerService->exportCount($search, $isActive);
+        if ($count > 10000) {
+            throw ValidationException::withMessages([
+                'search' => ["Data yang cocok ({$count} baris) melebihi batas 10.000. Persempit pencarian atau filter status terlebih dahulu."],
+            ]);
+        }
+
+        $export = new CustomerListingExport($this->customerService->exportRows($search, $isActive));
+
+        return Excel::download($export, 'xlsCustomerListing_' . now()->format('Ymd_Hi') . '.xlsx');
     }
 
     public function store(StoreCustomerRequest $request): JsonResponse

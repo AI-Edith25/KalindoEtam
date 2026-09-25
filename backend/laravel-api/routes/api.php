@@ -169,8 +169,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     $withPagePermissions(Route::apiResource('currencies', CurrencyController::class), 'master.currencies');
     $withPagePermissions(Route::apiResource('taxes', TaxController::class), 'master.taxes');
     $withPagePermissions(Route::apiResource('miscellaneous-items', MiscellaneousItemController::class), 'master.miscellaneous');
-    // Must come before the apiResource below — otherwise 'next-code' is captured by customers/{customer}.
+    // Must come before the apiResource below — otherwise 'next-code'/'export' are captured by customers/{customer}.
     Route::get('customers/next-code', [CustomerController::class, 'nextCode'])->middleware('permission:master.customers.create');
+    Route::get('customers/export', [CustomerController::class, 'export'])->middleware('permission:master.customers.view');
     $withPagePermissions(Route::apiResource('customers', CustomerController::class), 'master.customers');
     // Per-Warehouse Pricing — reuses master.item_prices.* permissions verbatim (same page, no
     // apiResource: every write, including a single cell, goes through the one bulk endpoint).

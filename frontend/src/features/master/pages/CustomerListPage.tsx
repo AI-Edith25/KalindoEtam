@@ -1,5 +1,8 @@
+import { useState } from 'react'
+import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
-import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { Download, Eye, Loader2, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -11,8 +14,9 @@ import { SectionNav } from '@/components/shared/SectionNav'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useEntityListPage } from '@/shared/hooks/useEntityListPage'
 import { useHasPermission } from '@/shared/hooks/usePermission'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { deleteCustomer, fetchCustomers } from '../api/customerApi'
+import { deleteCustomer, exportCustomers, fetchCustomers } from '../api/customerApi'
 import { CustomerFormDrawer } from '../components/CustomerFormDrawer'
 import { CustomerDetailDrawer } from '../components/CustomerDetailDrawer'
 import { CustomerFiltersBar } from '../components/CustomerFiltersBar'
@@ -30,6 +34,8 @@ export function CustomerListPage() {
   const canUpdate = useHasPermission('master.customers.update')
   const canDelete = useHasPermission('master.customers.delete')
   const canImport = useHasPermission('master.customers.import')
+  const canExport = useHasPermission('master.customers.view')
+  const [isExporting, setIsExporting] = useState(false)
   const list = useEntityListPage<Customer, CustomerFilterValues>({
     queryKey: 'customers',
     fetchList: fetchCustomers,
@@ -63,6 +69,38 @@ export function CustomerListPage() {
     },
   ]
 
+  const runExport = async () => {
+    setIsExporting(true)
+    try {
+      const blob = await exportCustomers({
+        search: list.search.trim() || undefined,
+        is_active: list.filters.isActive ?? undefined,
+      })
+      const now = new Date()
+      const pad = (value: number) => String(value).padStart(2, '0')
+      const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`
+      downloadBlob(`xlsCustomerListing_${stamp}.xlsx`, blob)
+      toast.success('Export started — check your downloads.')
+    } catch (error) {
+      // exportCustomers uses responseType: 'blob', so a JSON error body (e.g. the 10,000-row
+      // cap message) arrives as an unparsed Blob rather than parsed JSON — read it back here
+      // instead of calling toastApiError(), which can't see inside a Blob.
+      let message = 'Failed to export customers.'
+      if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
+        try {
+          const parsed = JSON.parse(await error.response.data.text())
+          const firstFieldError = parsed?.errors ? Object.values(parsed.errors)[0] : undefined
+          message = (Array.isArray(firstFieldError) ? firstFieldError[0] : undefined) ?? parsed?.message ?? message
+        } catch {
+          // keep the generic message
+        }
+      }
+      toast.error(message)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <SectionNav group="master" />
@@ -75,7 +113,12 @@ export function CustomerListPage() {
           <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
-              { label: 'Export', icon: Download, disabled: true },
+              {
+                label: isExporting ? 'Exporting…' : 'Export',
+                icon: isExporting ? Loader2 : Download,
+                disabled: !canExport || isExporting,
+                onClick: runExport,
+              },
               { label: 'Import', icon: Upload, disabled: !canImport, onClick: () => navigate('/master/customers/quick-import') },
             ]}
             primary={canCreate ? { label: 'New Customer', icon: Plus, onClick: list.openCreate } : undefined}

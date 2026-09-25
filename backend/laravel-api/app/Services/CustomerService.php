@@ -6,6 +6,7 @@ use App\Contracts\DocumentNumberGeneratorInterface;
 use App\Models\Customer;
 use App\Repositories\CustomerRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class CustomerService
@@ -30,6 +31,16 @@ class CustomerService
     public function list(int $perPage = 200, ?string $search = null): LengthAwarePaginator
     {
         return $this->customerRepository->paginate($perPage, $search);
+    }
+
+    public function exportCount(?string $search, ?bool $isActive): int
+    {
+        return $this->customerRepository->exportQuery($search, $isActive)->count();
+    }
+
+    public function exportRows(?string $search, ?bool $isActive): Collection
+    {
+        return $this->customerRepository->exportQuery($search, $isActive)->get();
     }
 
     public function create(array $data): Customer
