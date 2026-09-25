@@ -52,6 +52,7 @@ use App\Http\Controllers\Api\V1\PaymentVoucherImportController;
 use App\Http\Controllers\Api\V1\PeriodController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\PoTrackingController;
+use App\Http\Controllers\Api\V1\PrintSettingController;
 use App\Http\Controllers\Api\V1\ProductSalesController;
 use App\Http\Controllers\Api\V1\ProfitLossController;
 use App\Http\Controllers\Api\V1\PurchaseByItemController;
@@ -132,6 +133,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('auth/me', [AuthController::class, 'me']);
     Route::post('auth/change-password', [AuthController::class, 'changePassword']);
 
+    // Print Options' server-side priority-load (Delivery Order / Invoice print only, see
+    // PrintSettingService::DOCUMENT_TYPES) — every authenticated user manages their own, same
+    // trust level as the localStorage they already fully control.
+    Route::get('print-settings', [PrintSettingController::class, 'index']);
+    Route::put('print-settings/{documentType}', [PrintSettingController::class, 'update'])->where('documentType', 'delivery-order|invoice');
+
     $withPagePermissions(Route::apiResource('companies', CompanyController::class), 'administration.company');
     // App-shell branding (name/logo only) — every authenticated user needs this regardless of
     // administration.company.view, see docs/ADMINISTRATION_DESIGN.md. Deliberately outside $withPagePermissions.
@@ -158,6 +165,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])->middleware('permission:administration.users.update');
     Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->middleware('permission:administration.users.update');
     Route::post('users/{user}/role', [UserController::class, 'assignRole'])->middleware('permission:administration.users.update');
+    // Admin trial-and-error of another user's Print Options (dot-matrix tuning etc.) — separate
+    // permission from administration.users.* since not every user admin needs this.
+    Route::get('users/{user}/print-settings', [PrintSettingController::class, 'showForUser'])->middleware('permission:administration.print_settings.view');
+    Route::put('users/{user}/print-settings/{documentType}', [PrintSettingController::class, 'updateForUser'])
+        ->where('documentType', 'delivery-order|invoice')
+        ->middleware('permission:administration.print_settings.update');
 
     // Administration — Audit Log (docs/ADMINISTRATION_DESIGN.md §6): read-only, system-wide,
     // deliberately not DocumentTimeline. Gated on the same 'administration.audit_log' page every

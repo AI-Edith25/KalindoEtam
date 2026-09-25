@@ -5,7 +5,15 @@ import JsBarcode from 'jsbarcode'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
-import { loadInvoicePaperTypePreference, loadShowDiscountPreference, saveInvoicePaperTypePreference, saveShowDiscountPreference, type PrintOptions } from '@/shared/lib/printOptions'
+import {
+  DOTMATRIX_HALF_DEFAULTS,
+  loadInvoicePaperTypePreference,
+  loadShowDiscountPreference,
+  saveInvoicePaperTypePreference,
+  saveShowDiscountPreference,
+  type PrintOptions,
+} from '@/shared/lib/printOptions'
+import { fetchMyPrintSettings, saveMyPrintSetting } from '@/shared/lib/printSettingApi'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
@@ -97,14 +105,35 @@ export function InvoicePrintPage() {
     setPrintOptions(next)
     saveInvoicePaperTypePreference(next.paperType)
     saveShowDiscountPreference(next.showDiscount ?? false)
+    // Server mirrors exactly what the two localStorage writes above already persist, plus the
+    // dot-matrix tuning fields — no new persistence semantics, just a second destination.
+    saveMyPrintSetting('invoice', {
+      paperType: next.paperType,
+      showDiscount: next.showDiscount ?? false,
+      dotMatrixHeightMm: next.dotMatrixHeightMm,
+      dotMatrixOffsetLeftMm: next.dotMatrixOffsetLeftMm,
+      dotMatrixOffsetTopMm: next.dotMatrixOffsetTopMm,
+    }).catch(() => {
+      // Best-effort — localStorage above already persisted the change for this browser.
+    })
   }
   const [optionsOpen, setOptionsOpen] = useState(false)
+
+  // Priority: server setting (if this user has saved one) > localStorage > the defaults above —
+  // never blocks the print preview's first paint, and a user with no server row behaves exactly
+  // as before this existed.
+  const printSettingsQuery = useQuery({ queryKey: ['print-settings'], queryFn: fetchMyPrintSettings })
+  useEffect(() => {
+    const serverSettings = printSettingsQuery.data?.invoice
+    if (serverSettings) setPrintOptions((prev) => ({ ...prev, ...serverSettings }))
+  }, [printSettingsQuery.data])
   // Roll used to be a separate ?format=roll URL toggle with its own button, independent of the
   // in-dialog Paper Type dropdown that offered A4/Continuous only. Print Options now has exactly
   // one Paper Type field (A4/Half/Continuous/Roll) driving all four, so `format` is just derived
   // from it instead of tracked separately.
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
-  const isHalf = format === 'a4' && printOptions.paperType === 'half'
+  const isDotMatrix = printOptions.paperType === 'dotmatrix_half'
+  const isLandscape = format === 'a4' && (printOptions.paperType === 'half' || isDotMatrix)
   const showDiscount = printOptions.showDiscount ?? false
   const showTax = printOptions.showTax ?? false
   const showBreakdown = showTax || showDiscount
@@ -153,8 +182,11 @@ export function InvoicePrintPage() {
   const tel = invoice.sales_order?.tel ?? invoice.customer?.phone ?? ''
   const fax = invoice.sales_order?.fax ?? ''
   const location = invoice.delivery?.warehouse?.name ?? ''
-  const paperKey = printOptions.paperType === 'half' ? 'half' : printOptions.paperType === 'continuous' ? 'continuous' : 'a4'
+  const paperKey = printOptions.paperType === 'half' || isDotMatrix ? 'half' : printOptions.paperType === 'continuous' ? 'continuous' : 'a4'
   const paperSize = PAPER_SIZES[paperKey]
+  const dotMatrixHeightMm = printOptions.dotMatrixHeightMm ?? DOTMATRIX_HALF_DEFAULTS.heightMm
+  const dotMatrixOffsetLeftMm = printOptions.dotMatrixOffsetLeftMm ?? DOTMATRIX_HALF_DEFAULTS.offsetLeftMm
+  const dotMatrixOffsetTopMm = printOptions.dotMatrixOffsetTopMm ?? DOTMATRIX_HALF_DEFAULTS.offsetTopMm
 
   return (
     <div
@@ -171,18 +203,23 @@ export function InvoicePrintPage() {
       style={
         format === 'roll'
           ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` }
-          : { width: `${paperSize.widthMm}mm`, minHeight: `${paperSize.heightMm}mm` }
+          : { width: `${paperSize.widthMm}mm`, minHeight: isDotMatrix ? `${dotMatrixHeightMm}mm` : `${paperSize.heightMm}mm` }
       }
     >
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title
           + date on top, URL + page number on bottom) — that's not part of the document, it's
           browser UI. Document margins come from this wrapper's own padding instead (Roll) or
           each layout's own 10mm content inset (Landscape/Portrait — see invoicePrintConstants.ts's
-          MARGIN_MM), never a real @page margin, so screen and print always agree on paper size. */}
+          MARGIN_MM), never a real @page margin, so screen and print always agree on paper size.
+
+          Dot-matrix mode deliberately omits `size` — Chrome on the stakeholder's machine uses the
+          printer's own configured paper size regardless of what we ask for here. */}
       <style>
-        {(format === 'roll'
-          ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
-          : `@page { size: ${paperSize.widthMm}mm ${paperSize.heightMm}mm; margin: 0; }`) +
+        {(isDotMatrix
+          ? '@page { margin: 0; }'
+          : format === 'roll'
+            ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
+            : `@page { size: ${paperSize.widthMm}mm ${paperSize.heightMm}mm; margin: 0; }`) +
           /* Without this, Chrome drops background/border colors that rely on print-color-adjust
              defaults, thinning out table borders and the totals box on some printers/PDF drivers. */
           ' @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'}
@@ -195,30 +232,39 @@ export function InvoicePrintPage() {
             <Settings2 className="size-4" />
             Print Options
           </Button>
-          <Button onClick={() => window.print()}>
+          <Button
+            onClick={async () => {
+              await document.fonts.ready
+              window.print()
+            }}
+          >
             <Printer className="size-4" />
             Print
           </Button>
         </div>
       </div>
 
-      {format === 'a4' && isHalf && (
-        <InvoiceLandscapeLayout
-          invoice={invoice}
-          companyName={companyName}
-          printHeader={printHeaderQuery.data}
-          customerTel={tel}
-          location={location}
-          signatureLeftLabel={printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
-          signatureRightLabel={printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
-          fontFamily={printOptions.fontFamily}
-          showTax={showTax}
-          showDiscount={showDiscount}
-          showDecimalTotals={printOptions.showDecimalTotals}
-        />
+      {format === 'a4' && isLandscape && (
+        <div style={isDotMatrix ? { marginLeft: `${dotMatrixOffsetLeftMm}mm`, marginTop: `${dotMatrixOffsetTopMm}mm` } : undefined}>
+          <InvoiceLandscapeLayout
+            invoice={invoice}
+            companyName={companyName}
+            printHeader={printHeaderQuery.data}
+            customerTel={tel}
+            location={location}
+            signatureLeftLabel={printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
+            signatureRightLabel={printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
+            fontFamily={printOptions.fontFamily}
+            showTax={showTax}
+            showDiscount={showDiscount}
+            showDecimalTotals={printOptions.showDecimalTotals}
+            heightMm={isDotMatrix ? dotMatrixHeightMm : undefined}
+            clipOverflow={isDotMatrix}
+          />
+        </div>
       )}
 
-      {format === 'a4' && !isHalf && (
+      {format === 'a4' && !isLandscape && (
         <InvoicePortraitLayout
           invoice={invoice}
           companyName={companyName}
@@ -355,7 +401,7 @@ export function InvoicePrintPage() {
         onChange={handlePrintOptionsChange}
         fields={[]}
         showPaperType
-        paperTypeOptions={['a4', 'half', 'continuous', 'roll']}
+        paperTypeOptions={['a4', 'half', 'continuous', 'roll', 'dotmatrix_half']}
         showFontSize={false}
         showFontFamily
         defaultFontFamily={format === 'a4' ? DEJAVU_FONT_STACK : undefined}

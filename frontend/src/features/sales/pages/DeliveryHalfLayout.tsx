@@ -34,6 +34,15 @@ export interface DeliveryHalfLayoutProps {
   companyAddress: string | undefined
   fontFamily: string
   decimalsOn: boolean
+  /**
+   * Dot-matrix mode only — omitted (undefined) for every other paper type, which keeps this
+   * component's output byte-identical to before: the sheet div only gets a fixed `height` +
+   * `overflow: hidden` when this is actually passed a number, otherwise it falls back to the
+   * original `minHeight`-only behavior.
+   */
+  heightMm?: number
+  /** Guarantees Chrome never emits a 2nd page for this sheet — dot-matrix mode only. */
+  clipOverflow?: boolean
 }
 
 /**
@@ -45,7 +54,7 @@ export interface DeliveryHalfLayoutProps {
  * rule DOES exist below the item-table header (the ticket said there shouldn't be one), and TOTAL
  * QTY here (unlike A4's) follows the "Tampilkan Desimal" toggle same as the item rows.
  */
-export function DeliveryHalfLayout({ delivery, companyName, companyAddress, fontFamily, decimalsOn }: DeliveryHalfLayoutProps) {
+export function DeliveryHalfLayout({ delivery, companyName, companyAddress, fontFamily, decimalsOn, heightMm, clipOverflow }: DeliveryHalfLayoutProps) {
   const totalQty = delivery.items.reduce((sum, item) => sum + Number(item.qty), 0)
   const uniformUom = delivery.items.length > 0 && delivery.items.every((item) => item.uom === delivery.items[0].uom) ? delivery.items[0].uom : ''
   const notes = delivery.remarks || delivery.sales_order?.remarks || ''
@@ -57,6 +66,13 @@ export function DeliveryHalfLayout({ delivery, companyName, companyAddress, font
         flexDirection: 'column',
         width: `${HALF.pageWidthMm}mm`,
         minHeight: `${HALF.pageHeightMm}mm`,
+        height: heightMm != null ? `${heightMm}mm` : undefined,
+        overflow: clipOverflow ? 'hidden' : undefined,
+        // Both properties: `break-after` isn't honored by print in Chrome until ~116 (the
+        // stakeholder's Chrome 109 predates it) — `page-break-after` is the legacy alias that
+        // actually works there.
+        breakAfter: clipOverflow ? 'avoid' : undefined,
+        pageBreakAfter: clipOverflow ? 'avoid' : undefined,
         boxSizing: 'border-box',
         padding: HALF.marginMm,
         fontFamily,

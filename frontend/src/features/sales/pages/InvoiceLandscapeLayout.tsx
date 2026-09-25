@@ -225,6 +225,17 @@ export interface InvoiceLandscapeLayoutProps {
   showDiscount: boolean
   /** Tampilkan Desimal, totals box only (item-table money columns always show 2 decimals regardless, per Section 9) — unset defaults to ON (2 decimals), matching the legacy Half output the spec was extracted from. */
   showDecimalTotals?: boolean
+  /**
+   * Dot-matrix mode only — omitted (undefined) for every other paper type, which keeps every
+   * formula below a no-op (`bottomShiftMm` is 0) and this component's output byte-identical to
+   * before. When set, the whole bottom cluster (terbilang, E&O.E, bank notes, totals box — and by
+   * extension the signature block, since its position is computed FROM the totals box) shifts up
+   * by exactly `148.5 - heightMm`, a uniform translation, not a rescale — content above that
+   * cluster (header, item table) is untouched, per the ticket's own "konten di atas biarkan sama."
+   */
+  heightMm?: number
+  /** Guarantees Chrome never emits a 2nd page for this sheet — dot-matrix mode only. */
+  clipOverflow?: boolean
 }
 
 export function InvoiceLandscapeLayout({
@@ -239,27 +250,36 @@ export function InvoiceLandscapeLayout({
   showTax,
   showDiscount,
   showDecimalTotals,
+  heightMm,
+  clipOverflow,
 }: InvoiceLandscapeLayoutProps) {
   const effectiveFontFamily = fontFamily ?? DEJAVU_FONT_STACK
   const itemCols = getItemCols(showTax)
   const totalsDecimals = (showDecimalTotals ?? true) ? 2 : 0
   const totalsRows = buildTotalsRows(invoice, showTax, showDiscount)
+  const bottomShiftMm = heightMm != null ? 148.5 - heightMm : 0
+  const totalsTableTopMm = TOTALS_TABLE_TOP_MM - bottomShiftMm
 
   // Predicts the totals table's own rendered height (real <table> below, auto-fit) so the
   // signature block can be positioned with real clearance regardless of row count — see
   // LANDSCAPE_SIGNATURE_GAP_MM's own derivation comment. Verified fit at the worst case (Tax +
   // Discount both on, 4 rows): totalsBoxBottom ≈ 113.5mm, signatureNameTop ≈ 116.2mm, signature
   // caption ends ≈145.4mm — inside the 148.5mm page with margin to spare.
-  const totalsBoxBottom = TOTALS_TABLE_TOP_MM + totalsRows.length * TOTALS_BOX_ROW_HEIGHT_MM
-  const signatureNameTop = Math.max(LANDSCAPE_LEFT_COLUMN_BOTTOM_MM, totalsBoxBottom) + LANDSCAPE_SIGNATURE_GAP_MM
+  const totalsBoxBottom = totalsTableTopMm + totalsRows.length * TOTALS_BOX_ROW_HEIGHT_MM
+  const signatureNameTop = Math.max(LANDSCAPE_LEFT_COLUMN_BOTTOM_MM - bottomShiftMm, totalsBoxBottom) + LANDSCAPE_SIGNATURE_GAP_MM
 
   return (
     <div
       style={{
         position: 'relative',
         width: '210mm',
-        height: '148.5mm',
-        overflow: 'visible', // pagination for long invoices is unmeasured (spec Section 12) — flow past this box rather than silently clip line items
+        height: `${heightMm ?? 148.5}mm`,
+        overflow: clipOverflow ? 'hidden' : 'visible', // pagination for long invoices is unmeasured (spec Section 12) — flow past this box rather than silently clip line items
+        // Both properties: `break-after` isn't honored by print in Chrome until ~116 (the
+        // stakeholder's Chrome 109 predates it) — `page-break-after` is the legacy alias that
+        // actually works there.
+        breakAfter: clipOverflow ? 'avoid' : undefined,
+        pageBreakAfter: clipOverflow ? 'avoid' : undefined,
         fontFamily: effectiveFontFamily,
         color: '#000',
         lineHeight: LINE_HEIGHT,
@@ -386,12 +406,12 @@ export function InvoiceLandscapeLayout({
       </table>
 
       {/* ---------- TERMS KIRI ---------- */}
-      <T top={82.44} left={10} size={FONT_PT.words}>{terbilangIdr(invoice.grand_total)}</T>
-      <Line top={88.02} left={10} width={190} height={0.2} color="#000" />
-      <T top={88.58} left={10} size={FONT_PT.eoeNote} bold italic>E. &amp; O.E</T>
-      <T top={92.79} left={10} size={9}>1. All cheque and payment should be crossed and made payable to</T>
-      <T top={97.29} left={13.7} size={FONT_PT.bankNote} bold>{legacyCompanyName(companyName)}</T>
-      <T top={102.05} left={13.7} size={FONT_PT.bankNote} bold>BCA NO A/C. 0271461312</T>
+      <T top={82.44 - bottomShiftMm} left={10} size={FONT_PT.words}>{terbilangIdr(invoice.grand_total)}</T>
+      <Line top={88.02 - bottomShiftMm} left={10} width={190} height={0.2} color="#000" />
+      <T top={88.58 - bottomShiftMm} left={10} size={FONT_PT.eoeNote} bold italic>E. &amp; O.E</T>
+      <T top={92.79 - bottomShiftMm} left={10} size={9}>1. All cheque and payment should be crossed and made payable to</T>
+      <T top={97.29 - bottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>{legacyCompanyName(companyName)}</T>
+      <T top={102.05 - bottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>BCA NO A/C. 0271461312</T>
 
       {/* ---------- KOTAK TOTAL ----------
           Real <table>, outer border ONLY (no internal rule — BUG 2 / spec Section 8), every row
@@ -400,7 +420,7 @@ export function InvoiceLandscapeLayout({
         style={{
           position: 'absolute',
           left: `${TOTALS_TABLE_LEFT_MM}mm`,
-          top: `${TOTALS_TABLE_TOP_MM}mm`,
+          top: `${totalsTableTopMm}mm`,
           width: `${TOTALS_TABLE_WIDTH_MM}mm`,
           borderCollapse: 'collapse',
           border: `${TOTALS_BOX.borderMm}mm solid #000`,

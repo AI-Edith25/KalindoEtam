@@ -1,6 +1,25 @@
 export type PrintFontSize = 'small' | 'medium' | 'large'
-/** 'roll' only has layout support in Invoice print — every other consumer's own `paperTypeOptions` list simply never offers it, same convention as 'half' already being Invoice-only. 'letter' is Payment Voucher print-only, same reasoning. */
-export type PrintPaperType = 'a4' | 'continuous' | 'half' | 'roll' | 'letter'
+/**
+ * 'roll' only has layout support in Invoice print — every other consumer's own `paperTypeOptions`
+ * list simply never offers it, same convention as 'half' already being Invoice-only. 'letter' is
+ * Payment Voucher print-only, same reasoning.
+ *
+ * 'dotmatrix_half' — opt-in only (Delivery Order + Invoice, see their own `paperTypeOptions`
+ * arrays): same physical layout as 'half' but never emits a second page, for printers whose own
+ * paper size Chrome uses instead of `@page size` (a real stakeholder's dot-matrix setup). See
+ * DOTMATRIX_HALF_DEFAULTS below for its tunable numbers.
+ */
+export type PrintPaperType = 'a4' | 'continuous' | 'half' | 'roll' | 'letter' | 'dotmatrix_half'
+
+/** Font Style dropdown choices — shared by PrintOptionsDialog (print time) and the admin PrintSettingsDialog (features/administration), which edits the same choices for another user. */
+export const FONT_FAMILY_OPTIONS = [
+  { value: '"Times New Roman", "Tinos", "Liberation Serif", serif', label: 'Times New Roman' },
+  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
+  { value: '"Courier New", "Cutive Mono", monospace', label: 'Courier New' },
+  // Invoice print's own exact-replica default (see InvoiceLandscapeLayout) — listed explicitly so
+  // it's a real selectable choice, not just an invisible fallback.
+  { value: '"DejaVu Sans Condensed", sans-serif', label: 'DejaVu Sans Condensed' },
+] as const
 
 export interface PrintOptions {
   fontSize: PrintFontSize
@@ -19,7 +38,19 @@ export interface PrintOptions {
   /** Only Invoice print acts on this (editable signature block labels, both default to "AUTHORISED SIGNATURE") — every other consumer leaves it unset, same convention as showDiscount. */
   signatureLeftLabel?: string
   signatureRightLabel?: string
+  /** Only meaningful when paperType === 'dotmatrix_half' (Delivery/Invoice print only) — see DOTMATRIX_HALF_DEFAULTS. */
+  dotMatrixHeightMm?: number
+  dotMatrixOffsetLeftMm?: number
+  dotMatrixOffsetTopMm?: number
 }
+
+/**
+ * Starting guesses for the dot-matrix mode's tunable numbers (ticket's own stated values) — the
+ * whole point of this mode is that these are wrong until an admin trial-and-errors them against
+ * the real stakeholder printer via the Print Settings admin dialog, so this is the one place to
+ * change the default guess.
+ */
+export const DOTMATRIX_HALF_DEFAULTS = { heightMm: 135, offsetLeftMm: 0, offsetTopMm: 0 } as const
 
 /** Matches the pre-existing print output exactly (formatNumber/formatCurrency both rendered 0 decimals, A4/browser-default paper) so opening this dialog is opt-in, never a silent format change. */
 export const defaultPrintOptions: PrintOptions = {
@@ -36,6 +67,7 @@ export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
   half: 'Half (A5 Landscape, 210 × 148.5mm)',
   roll: 'Roll (Thermal 80mm)',
   letter: 'Letter',
+  dotmatrix_half: 'Dot Matrix Half (9.5" × 5.5")',
 }
 
 /**
@@ -58,6 +90,11 @@ export const PRINT_PAPER_PAGE_CSS: Record<PrintPaperType, string | null> = {
   // every other a4 consumer) since its own content div is already sized to 210x297mm; Letter
   // needs an explicit @page since the browser default is A4-shaped on most locales/printers.
   letter: '@page { size: 216mm 279mm; margin: 12mm; }',
+  // Never read from here — Delivery/Invoice print build their own dot-matrix @page string inline
+  // (deliberately margin-only, no size, so Chrome follows the printer's own paper size) and no
+  // other consumer offers this paper type. Present only so this Record<PrintPaperType, ...> stays
+  // exhaustive.
+  dotmatrix_half: null,
 }
 
 const PRINT_PAPER_TYPE_STORAGE_KEY = 'print-paper-type'

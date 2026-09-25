@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
-import { loadDeliveryPrintOptions, saveDeliveryPrintOptions, type PrintOptions } from '@/shared/lib/printOptions'
+import { DOTMATRIX_HALF_DEFAULTS, loadDeliveryPrintOptions, saveDeliveryPrintOptions, type PrintOptions } from '@/shared/lib/printOptions'
+import { fetchMyPrintSettings, saveMyPrintSetting } from '@/shared/lib/printSettingApi'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchDelivery } from '../api/deliveryApi'
 import { DEJAVU_FONT_STACK, legacyCompanyName } from './invoicePrintConstants'
@@ -40,8 +41,21 @@ export function DeliveryPrintPage() {
   const handlePrintOptionsChange = (next: PrintOptions) => {
     setPrintOptions(next)
     saveDeliveryPrintOptions(next)
+    saveMyPrintSetting('delivery-order', next).catch(() => {
+      // Best-effort — localStorage above already persisted the change for this browser; a
+      // failed server save just means an admin can't remotely see/tune it yet.
+    })
   }
   const [optionsOpen, setOptionsOpen] = useState(false)
+
+  // Priority: server setting (if this user has saved one) > localStorage > the defaults above —
+  // never blocks the print preview's first paint, and a user with no server row behaves exactly
+  // as before this existed.
+  const printSettingsQuery = useQuery({ queryKey: ['print-settings'], queryFn: fetchMyPrintSettings })
+  useEffect(() => {
+    const serverSettings = printSettingsQuery.data?.['delivery-order']
+    if (serverSettings) setPrintOptions((prev) => ({ ...prev, ...serverSettings }))
+  }, [printSettingsQuery.data])
 
   const deliveryQuery = useQuery({
     queryKey: ['deliveries', id],
@@ -62,12 +76,28 @@ export function DeliveryPrintPage() {
   if (!delivery) return null
 
   const companyName = legacyCompanyName(brandingQuery.data?.name ?? 'PT Kalindo Etam')
-  const isHalf = printOptions.paperType === 'half'
+  const isDotMatrix = printOptions.paperType === 'dotmatrix_half'
+  const isHalfFamily = printOptions.paperType === 'half' || isDotMatrix
   const decimalsOn = printOptions.showDecimalTotals ?? false
   const fontFamily = printOptions.fontFamily ?? DEJAVU_FONT_STACK
   const signatureLeftLabel = printOptions.signatureLeftLabel ?? DEFAULT_SIGNATURE_LEFT_LABEL
   const signatureRightLabel = printOptions.signatureRightLabel ?? DEFAULT_SIGNATURE_RIGHT_LABEL
-  const paper = isHalf ? HALF : A4
+  const paper = isHalfFamily ? HALF : A4
+  const dotMatrixHeightMm = printOptions.dotMatrixHeightMm ?? DOTMATRIX_HALF_DEFAULTS.heightMm
+  const dotMatrixOffsetLeftMm = printOptions.dotMatrixOffsetLeftMm ?? DOTMATRIX_HALF_DEFAULTS.offsetLeftMm
+  const dotMatrixOffsetTopMm = printOptions.dotMatrixOffsetTopMm ?? DOTMATRIX_HALF_DEFAULTS.offsetTopMm
+
+  const halfLayout = (
+    <DeliveryHalfLayout
+      delivery={delivery}
+      companyName={companyName}
+      companyAddress={printHeaderQuery.data?.address ?? undefined}
+      fontFamily={fontFamily}
+      decimalsOn={decimalsOn}
+      heightMm={isDotMatrix ? dotMatrixHeightMm : undefined}
+      clipOverflow={isDotMatrix}
+    />
+  )
 
   return (
     <div className="mx-auto flex w-fit flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none">
@@ -75,9 +105,15 @@ export function DeliveryPrintPage() {
           in deliveryPrintConstants.ts). Setting both (as this used to) double-margins the actual
           printed page (the physical @page inset PLUS the div's own padding on top of it), which is
           also what was pushing Half's content past one physical page. margin:0 here + the div's own
-          padding is the same convention InvoicePrintPage.tsx already uses. */}
+          padding is the same convention InvoicePrintPage.tsx already uses.
+
+          Dot-matrix mode deliberately omits `size` — Chrome on the stakeholder's machine uses the
+          printer's own configured paper size regardless of what we ask for here, so asking for a
+          rigid size we can't guarantee just adds a false expectation; margin:0 is all that matters. */}
       <style>
-        {`@page { size: ${paper.pageWidthMm}mm ${paper.pageHeightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
+        {isDotMatrix
+          ? '@page { margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'
+          : `@page { size: ${paper.pageWidthMm}mm ${paper.pageHeightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
       </style>
 
       <div className="flex items-start justify-between print:hidden">
@@ -87,15 +123,24 @@ export function DeliveryPrintPage() {
             <Settings2 className="size-4" />
             Print Options
           </Button>
-          <Button onClick={() => window.print()}>
+          <Button
+            onClick={async () => {
+              await document.fonts.ready
+              window.print()
+            }}
+          >
             <Printer className="size-4" />
             Print
           </Button>
         </div>
       </div>
 
-      {isHalf ? (
-        <DeliveryHalfLayout delivery={delivery} companyName={companyName} companyAddress={printHeaderQuery.data?.address ?? undefined} fontFamily={fontFamily} decimalsOn={decimalsOn} />
+      {isHalfFamily ? (
+        isDotMatrix ? (
+          <div style={{ marginLeft: `${dotMatrixOffsetLeftMm}mm`, marginTop: `${dotMatrixOffsetTopMm}mm` }}>{halfLayout}</div>
+        ) : (
+          halfLayout
+        )
       ) : (
         <DeliveryPortraitLayout
           delivery={delivery}
@@ -115,7 +160,7 @@ export function DeliveryPrintPage() {
         onChange={handlePrintOptionsChange}
         fields={[]}
         showPaperType
-        paperTypeOptions={['a4', 'half']}
+        paperTypeOptions={['a4', 'half', 'dotmatrix_half']}
         showFontSize={false}
         showFontFamily
         defaultFontFamily={DEJAVU_FONT_STACK}
@@ -123,7 +168,7 @@ export function DeliveryPrintPage() {
         showSignatureLabels
         defaultSignatureLeftLabel={DEFAULT_SIGNATURE_LEFT_LABEL}
         defaultSignatureRightLabel={DEFAULT_SIGNATURE_RIGHT_LABEL}
-        signatureLabelsDisabledHint={isHalf ? 'Hanya untuk kertas A4' : undefined}
+        signatureLabelsDisabledHint={isHalfFamily ? 'Hanya untuk kertas A4' : undefined}
       />
     </div>
   )

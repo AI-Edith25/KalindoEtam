@@ -27,6 +27,9 @@ class RolePermissionSeeder extends Seeder
         'administration.audit_log' => ['view'],
         'administration.naming_series' => ['view', 'create', 'update', 'delete'],
         'administration.purchase_settings' => ['view', 'update'],
+        // Admin trial-and-error of another user's Print Options (dot-matrix tuning etc.) — not
+        // every administration.users admin needs this, so it's a separate permission.
+        'administration.print_settings' => ['view', 'update'],
         'master.items' => ['view', 'create', 'update', 'delete', 'import'],
         'master.item_groups' => ['view', 'create', 'update', 'delete', 'import'],
         'master.uoms' => ['view', 'create', 'update', 'delete', 'import'],

@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
+  DOTMATRIX_HALF_DEFAULTS,
+  FONT_FAMILY_OPTIONS,
   PRINT_FONT_SIZE_LABELS,
   PRINT_PAPER_TYPE_LABELS,
   type PrintFontSize,
@@ -12,15 +14,6 @@ import {
 } from '@/shared/lib/printOptions'
 
 const DECIMAL_CHOICES = ['0', '1', '2', '3', '4']
-
-const FONT_FAMILY_OPTIONS = [
-  { value: '"Times New Roman", "Tinos", "Liberation Serif", serif', label: 'Times New Roman' },
-  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
-  { value: '"Courier New", "Cutive Mono", monospace', label: 'Courier New' },
-  // Invoice print's own exact-replica default (see InvoicePaperLayout) — listed explicitly so
-  // it's a real selectable choice, not just an invisible fallback.
-  { value: '"DejaVu Sans Condensed", sans-serif', label: 'DejaVu Sans Condensed' },
-]
 
 interface PrintOptionsDialogProps {
   open: boolean
@@ -112,6 +105,37 @@ export function PrintOptionsDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {showPaperType && options.paperType === 'dotmatrix_half' && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Dot Matrix Tuning (mm)</label>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Sheet Height</span>
+                  <Input
+                    type="number"
+                    value={options.dotMatrixHeightMm ?? DOTMATRIX_HALF_DEFAULTS.heightMm}
+                    onChange={(e) => onChange({ ...options, dotMatrixHeightMm: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Offset Left</span>
+                  <Input
+                    type="number"
+                    value={options.dotMatrixOffsetLeftMm ?? DOTMATRIX_HALF_DEFAULTS.offsetLeftMm}
+                    onChange={(e) => onChange({ ...options, dotMatrixOffsetLeftMm: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Offset Top</span>
+                  <Input
+                    type="number"
+                    value={options.dotMatrixOffsetTopMm ?? DOTMATRIX_HALF_DEFAULTS.offsetTopMm}
+                    onChange={(e) => onChange({ ...options, dotMatrixOffsetTopMm: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
             </div>
           )}
           {showFontSize && (

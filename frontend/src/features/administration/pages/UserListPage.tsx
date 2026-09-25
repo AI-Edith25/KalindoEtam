@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Key, Pencil, Plus, Power, PowerOff, RotateCw, ShieldPlus } from 'lucide-react'
+import { Key, Pencil, Plus, Power, PowerOff, Printer, RotateCw, ShieldPlus } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -18,18 +18,22 @@ import { activateUser, deactivateUser, fetchUsersPaged } from '../api/userApi'
 import { UserFormDrawer } from '../components/UserFormDrawer'
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog'
 import { AssignRoleDialog } from '../components/AssignRoleDialog'
+import { PrintSettingsDialog } from '../components/PrintSettingsDialog'
 import type { User } from '../types'
 
 export function UserListPage() {
   const queryClient = useQueryClient()
   const canCreate = useHasPermission('administration.users.create')
   const canUpdate = useHasPermission('administration.users.update')
+  const canViewPrintSettings = useHasPermission('administration.print_settings.view')
+  const canUpdatePrintSettings = useHasPermission('administration.print_settings.update')
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null)
   const [assignRoleUser, setAssignRoleUser] = useState<User | null>(null)
+  const [printSettingsUser, setPrintSettingsUser] = useState<User | null>(null)
 
   const listQuery = useQuery({
     queryKey: ['users-paged', page],
@@ -75,8 +79,8 @@ export function UserListPage() {
       className: 'text-right',
       accessor: (row) => (
         <RowActionsMenu
-          actions={
-            canUpdate
+          actions={[
+            ...(canUpdate
               ? [
                   { label: 'Edit', icon: Pencil, onClick: () => openEdit(row) },
                   { label: 'Assign Role', icon: ShieldPlus, onClick: () => setAssignRoleUser(row) },
@@ -85,8 +89,9 @@ export function UserListPage() {
                     ? { label: 'Deactivate', icon: PowerOff, onClick: () => toggleActiveMutation.mutate(row) }
                     : { label: 'Activate', icon: Power, onClick: () => toggleActiveMutation.mutate(row) },
                 ]
-              : []
-          }
+              : []),
+            ...(canViewPrintSettings ? [{ label: 'Print Settings', icon: Printer, onClick: () => setPrintSettingsUser(row) }] : []),
+          ]}
         />
       ),
     },
@@ -125,6 +130,12 @@ export function UserListPage() {
       <UserFormDrawer open={formOpen} onOpenChange={setFormOpen} user={editingUser} />
       <ResetPasswordDialog open={!!resetPasswordUser} onOpenChange={(open) => !open && setResetPasswordUser(null)} user={resetPasswordUser} />
       <AssignRoleDialog open={!!assignRoleUser} onOpenChange={(open) => !open && setAssignRoleUser(null)} user={assignRoleUser} />
+      <PrintSettingsDialog
+        open={!!printSettingsUser}
+        onOpenChange={(open) => !open && setPrintSettingsUser(null)}
+        user={printSettingsUser}
+        canUpdate={canUpdatePrintSettings}
+      />
     </div>
   )
 }
