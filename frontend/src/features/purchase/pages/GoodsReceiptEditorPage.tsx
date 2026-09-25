@@ -14,11 +14,11 @@ import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
-import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { getErrorMessage, isOverReceiptConfirmationRequired, toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { parseLocaleQty } from '@/shared/lib/qty'
-import { fetchSuppliersLookup, fetchTaxesLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchTaxesLookup, fetchWarehousesLookup, searchSuppliersLookup } from '@/features/master/api/lookupsApi'
 import { fetchGoodsReceipt, createGoodsReceipt, updateGoodsReceipt, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { fetchPurchaseOrder, fetchPurchaseOrders } from '../api/purchaseOrderApi'
 import { GoodsReceiptLineItemTable } from '../components/GoodsReceiptLineItemTable'
@@ -93,8 +93,14 @@ export function GoodsReceiptEditorPage() {
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
-  const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup, enabled: isDirectMode })
-  const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name })) ?? []
+  // Async search (not a preloaded list) — the Supplier master can outgrow a single page
+  // (same reasoning as Customer's picker, see SalesOrderEditorPage). A plain page-1
+  // lookup silently drops suppliers past whatever page cap applies.
+  const [selectedSupplierOption, setSelectedSupplierOption] = useState<SearchableSelectOption | undefined>(undefined)
+  const loadSupplierOptions = async (query: string) => {
+    const suppliers = await searchSuppliersLookup(query)
+    return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
+  }
   // Only for the Direct Receipt line-item table's optional/manual Tax column (export-only field, no PO to inherit from) — enabled only in direct mode, same as suppliers above.
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup, enabled: isDirectMode })
   const activePurchaseTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'purchase')
@@ -179,6 +185,7 @@ export function GoodsReceiptEditorPage() {
         tax_id: line.tax_id ?? '',
       })),
     })
+    setSelectedSupplierOption(receipt?.supplier ? { value: receipt.supplier.id, label: receipt.supplier.supplier_name } : undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDirectMode, receiptQuery.data, isEdit])
 
@@ -365,10 +372,13 @@ export function GoodsReceiptEditorPage() {
                     <FormItem>
                       <FormLabel>Supplier</FormLabel>
                       <SearchableSelect
-                        options={supplierOptions}
+                        loadOptions={loadSupplierOptions}
+                        selectedOption={selectedSupplierOption}
                         value={field.value}
-                        onChange={(value) => field.onChange(value ?? '')}
-                        loading={suppliers.isLoading}
+                        onChange={(value, option) => {
+                          field.onChange(value ?? '')
+                          setSelectedSupplierOption(option)
+                        }}
                         clearable={false}
                         placeholder="Select supplier"
                         aria-label="Supplier"

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -11,13 +11,13 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
-import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { parseLocaleQty } from '@/shared/lib/qty'
-import { fetchSuppliersLookup, fetchTaxesLookup } from '@/features/master/api/lookupsApi'
+import { fetchTaxesLookup, searchSuppliersLookup } from '@/features/master/api/lookupsApi'
 import { createPurchaseOrder, fetchPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder } from '../api/purchaseOrderApi'
 import { PurchaseOrderLineItemTable } from '../components/PurchaseOrderLineItemTable'
 import { computeSubtotal, computeLineTaxTotal } from '@/shared/lib/documentTotals'
@@ -43,8 +43,14 @@ export function PurchaseOrderEditorPage() {
     enabled: isEdit,
   })
 
-  const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
-  const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code} — ${supplier.supplier_name}` })) ?? []
+  // Async search (not a preloaded list) — the Supplier master can outgrow a single page
+  // (same reasoning as Customer's picker, see SalesOrderEditorPage). A plain page-1
+  // lookup silently drops suppliers past whatever page cap applies.
+  const [selectedSupplierOption, setSelectedSupplierOption] = useState<SearchableSelectOption | undefined>(undefined)
+  const loadSupplierOptions = async (query: string) => {
+    const suppliers = await searchSuppliersLookup(query)
+    return suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code} — ${supplier.supplier_name}` }))
+  }
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
 
   const form = useForm<PurchaseOrderEditorValues>({
@@ -82,6 +88,7 @@ export function PurchaseOrderEditorPage() {
         tax_id: line.tax_id ?? '',
       })),
     })
+    setSelectedSupplierOption(order.supplier ? { value: order.supplier.id, label: `${order.supplier.supplier_code} — ${order.supplier.supplier_name}` } : undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderQuery.data])
 
@@ -170,11 +177,15 @@ export function PurchaseOrderEditorPage() {
                   <FormItem>
                     <FormLabel>Supplier</FormLabel>
                     <SearchableSelect
-                      options={supplierOptions}
+                      loadOptions={loadSupplierOptions}
+                      selectedOption={selectedSupplierOption}
                       value={field.value}
-                      onChange={(value) => field.onChange(value ?? '')}
-                      loading={suppliers.isLoading}
+                      onChange={(value, option) => {
+                        field.onChange(value ?? '')
+                        setSelectedSupplierOption(option)
+                      }}
                       placeholder="Select supplier"
+                      aria-label="Supplier"
                     />
                     <FormMessage />
                   </FormItem>

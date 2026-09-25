@@ -18,13 +18,13 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
-import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { formatQty } from '@/shared/lib/qty'
 import { computeLineTaxTotal, computeSubtotal } from '@/shared/lib/documentTotals'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
-import { fetchSuppliersLookup, fetchTaxesLookup } from '@/features/master/api/lookupsApi'
+import { fetchTaxesLookup, searchSuppliersLookup } from '@/features/master/api/lookupsApi'
 import { fetchGoodsReceipts } from '../api/goodsReceiptApi'
 import { createPurchaseInvoice, fetchPurchaseInvoice, submitPurchaseInvoice, updatePurchaseInvoice } from '../api/purchaseInvoiceApi'
 import { DirectPurchaseInvoiceLineItemTable } from '../components/DirectPurchaseInvoiceLineItemTable'
@@ -490,8 +490,16 @@ function DirectPurchaseInvoiceForm({
   navigate: NavigateFunction
   queryClient: QueryClient
 }) {
-  const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
-  const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name })) ?? []
+  // Async search (not a preloaded list) — the Supplier master can outgrow a single page
+  // (same reasoning as Customer's picker, see SalesOrderEditorPage). A plain page-1
+  // lookup silently drops suppliers past whatever page cap applies.
+  const [selectedSupplierOption, setSelectedSupplierOption] = useState<SearchableSelectOption | undefined>(
+    invoice?.supplier ? { value: invoice.supplier.id, label: invoice.supplier.supplier_name } : undefined,
+  )
+  const loadSupplierOptions = async (query: string) => {
+    const suppliers = await searchSuppliersLookup(query)
+    return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
+  }
   const accounts = useChartOfAccountsLookup()
   const expenseAccounts = (accounts.data ?? []).filter((account) => account.account_type === 'expense' && account.is_active)
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
@@ -600,10 +608,13 @@ function DirectPurchaseInvoiceForm({
                   <FormItem>
                     <FormLabel>Supplier</FormLabel>
                     <SearchableSelect
-                      options={supplierOptions}
+                      loadOptions={loadSupplierOptions}
+                      selectedOption={selectedSupplierOption}
                       value={field.value}
-                      onChange={(value) => field.onChange(value ?? '')}
-                      loading={suppliers.isLoading}
+                      onChange={(value, option) => {
+                        field.onChange(value ?? '')
+                        setSelectedSupplierOption(option)
+                      }}
                       clearable={false}
                       placeholder="Select supplier"
                       aria-label="Supplier"

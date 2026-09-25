@@ -32,7 +32,8 @@ export async function fetchItemsByIds(itemIds: string[], warehouseId: string): P
   })
   return data.data
 }
-export const fetchSuppliersLookup = () => fetchLookupList<Supplier>('/suppliers')
+/** Static preload (Outgoing Payment's Mixed Voucher lines only) — everything else uses searchSuppliersLookup below, since the Supplier master can outgrow a single page. */
+export const fetchSuppliersLookup = () => fetchLookupList<Supplier>('/suppliers', { per_page: '1000' })
 export const searchSuppliersLookup = (search: string) => fetchLookupList<Supplier>('/suppliers', { per_page: '30', search })
 export const fetchWarehousesLookup = () => fetchLookupList<Warehouse>('/warehouses', { per_page: '200' })
 export const fetchCustomersLookup = () => fetchLookupList<Customer>('/customers')
