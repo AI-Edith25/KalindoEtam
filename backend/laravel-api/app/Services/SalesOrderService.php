@@ -7,6 +7,7 @@ use App\Exceptions\BusinessException;
 use App\Exports\Concerns\BuildsSalesSummaryReport;
 use App\Models\Item;
 use App\Models\SalesOrder;
+use App\Models\SalesOrderItem;
 use App\Repositories\CompanyRepository;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
@@ -152,6 +153,10 @@ class SalesOrderService
 
     public function update(SalesOrder $salesOrder, array $data): SalesOrder
     {
+        if ($salesOrder->status === SalesOrderStatus::APPROVED) {
+            return $this->updateApproved($salesOrder, $data);
+        }
+
         return DB::transaction(function () use ($salesOrder, $data) {
             $this->assertDraft($salesOrder, 'updated');
 
@@ -197,6 +202,142 @@ class SalesOrderService
 
             return $salesOrder;
         });
+    }
+
+    /**
+     * A stakeholder-driven relaxation: an Approved order used to be fully locked (the
+     * assertDraft() path above). Now it can still be corrected, but a line a Delivery already
+     * references (even a still-Pending one — DeliveryItem exists as soon as the Delivery is
+     * created, before delivered_qty ever moves) is locked, since sales_order_items.id is
+     * restrictOnDelete() from delivery_items. Everything else — every header field, and any
+     * line with no Delivery against it yet — stays freely editable. Unlike update() above,
+     * this also re-runs the credit check: approve() was the only place that ever re-checked it,
+     * and an Approved order edited afterward has no later approve() call to catch a drift over
+     * the customer's limit.
+     */
+    protected function updateApproved(SalesOrder $salesOrder, array $data): SalesOrder
+    {
+        return DB::transaction(function () use ($salesOrder, $data) {
+            $headerData = collect($data)->except(['items', 'tax_id', 'tax_amount', 'override_credit_block', 'override_reason', 'override_stock_block', 'stock_override_reason'])->all();
+
+            $subtotal = (float) $salesOrder->total_amount;
+            $this->enforceCreditCheck(
+                $data['customer_id'] ?? $salesOrder->customer_id,
+                isset($data['items']) ? $this->sumLines($data['items']) : $subtotal,
+                $data['override_credit_block'] ?? false,
+                $data['override_reason'] ?? null,
+                "updating approved Sales Order \"{$salesOrder->document_number}\"",
+            );
+
+            if (isset($data['items'])) {
+                $warehouseId = $data['warehouse_id'] ?? $salesOrder->warehouse_id;
+
+                if (! empty($warehouseId)) {
+                    $this->enforceStockCheck(
+                        $data['items'],
+                        $warehouseId,
+                        $data['override_stock_block'] ?? false,
+                        $data['stock_override_reason'] ?? null,
+                        "updating approved Sales Order \"{$salesOrder->document_number}\"",
+                        $salesOrder->id,
+                    );
+                }
+
+                $this->syncApprovedItems($salesOrder, $data['items']);
+
+                $freshItems = $salesOrder->items()->get();
+                $totalAmount = round((float) $freshItems->sum('amount'), 2);
+                $taxAmount = round((float) $freshItems->sum('tax_amount'), 2);
+                $headerData['total_amount'] = $totalAmount;
+                $headerData['tax_amount'] = $taxAmount;
+                $headerData['grand_total'] = round($totalAmount + $taxAmount, 2);
+            }
+
+            if (array_key_exists('tax_id', $data)) {
+                $headerData['tax_id'] = $data['tax_id'];
+            }
+
+            $this->salesOrderRepository->update($salesOrder, $headerData);
+
+            $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'warehouse', 'termsOfPayment', 'tax', 'items.item', 'items.tax', 'items.deliveryItems']);
+            $this->auditLogService->record('updated', 'sales_order', "Updated approved Sales Order \"{$salesOrder->document_number}\".");
+
+            return $salesOrder;
+        });
+    }
+
+    /**
+     * Diff-and-merge, not delete-and-recreate (replaceItems()'s approach), because a line
+     * already referenced by a DeliveryItem can't be deleted — restrictOnDelete() on
+     * delivery_items.sales_order_item_id throws at the DB level. A line is "locked" once any
+     * DeliveryItem references it (regardless of delivered_qty, which only moves once that
+     * Delivery is completed): it must appear in $items unchanged, or this rejects the whole
+     * edit rather than silently dropping the caller's attempt to touch it.
+     */
+    protected function syncApprovedItems(SalesOrder $salesOrder, array $items): void
+    {
+        $existing = $salesOrder->items()->with('deliveryItems')->get()->keyBy('id');
+        $incomingById = collect($items)->filter(fn ($line) => ! empty($line['id']))->keyBy('id');
+
+        foreach ($existing as $itemId => $existingLine) {
+            /** @var SalesOrderItem $existingLine */
+            $isLocked = $existingLine->deliveryItems->isNotEmpty();
+            $incomingLine = $incomingById->get($itemId);
+
+            if (! $isLocked) {
+                continue;
+            }
+
+            $unchanged = $incomingLine
+                && $incomingLine['item_id'] === $existingLine->item_id
+                && (int) $incomingLine['qty'] === (int) $existingLine->qty
+                && abs((float) $incomingLine['rate'] - (float) $existingLine->rate) < 0.005
+                && ($incomingLine['tax_id'] ?? null) === $existingLine->tax_id;
+
+            if (! $unchanged) {
+                throw new BusinessException("Line item \"{$existingLine->item?->item_name}\" already has a Delivery against it and cannot be changed or removed.");
+            }
+        }
+
+        $itemsById = Item::query()->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
+
+        // Delete-then-recreate is safe here: only unlocked rows reach this point (locked rows
+        // were verified unchanged and left alone above), and an unlocked row by definition has
+        // no DeliveryItem referencing it yet.
+        foreach ($existing as $itemId => $existingLine) {
+            if ($existingLine->deliveryItems->isNotEmpty()) {
+                continue;
+            }
+
+            if (! $incomingById->has($itemId)) {
+                $existingLine->delete();
+            }
+        }
+
+        foreach ($items as $line) {
+            if (! empty($line['id']) && $existing->has($line['id']) && $existing[$line['id']]->deliveryItems->isNotEmpty()) {
+                continue; // Locked — already verified unchanged above, never rewritten.
+            }
+
+            $lineAmount = $line['qty'] * $line['rate'];
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'sales_tax_id', $lineAmount);
+
+            $attributes = [
+                'sales_order_id' => $salesOrder->id,
+                'item_id' => $line['item_id'],
+                'qty' => $line['qty'],
+                'rate' => $line['rate'],
+                'amount' => $lineAmount,
+                'tax_id' => $taxId,
+                'tax_amount' => $taxAmount,
+            ];
+
+            if (! empty($line['id']) && $existing->has($line['id'])) {
+                $this->salesOrderItemRepository->update($existing[$line['id']], $attributes);
+            } else {
+                $this->salesOrderItemRepository->create($attributes + ['delivered_qty' => 0]);
+            }
+        }
     }
 
     public function delete(SalesOrder $salesOrder): void

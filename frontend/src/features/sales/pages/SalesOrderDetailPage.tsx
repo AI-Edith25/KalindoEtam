@@ -82,6 +82,7 @@ export function SalesOrderDetailPage() {
   )
   const canOverrideCredit = useHasPermission('sales.orders.override_credit_check')
   const canApprove = useHasPermission('sales.orders.approve')
+  const canUpdate = useHasPermission('sales.orders.update')
   const creditBlockActive = creditBlocked && !(overrideCreditBlock && overrideReason.trim())
 
   // Stock availability block — see SalesOrderStockService on the backend. Same "own independent
@@ -191,6 +192,12 @@ export function SalesOrderDetailPage() {
                   Delete
                 </Button>
               </>
+            )}
+            {order.status === 'approved' && canUpdate && (
+              <Button variant="outline" onClick={() => navigate(`/sales/orders/${order.id}/edit`)}>
+                <Pencil className="size-4" />
+                Edit
+              </Button>
             )}
             {(order.status === 'submitted' || order.status === 'approved') && (
               <Button variant="destructive" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>

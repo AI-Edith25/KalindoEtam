@@ -87,8 +87,8 @@ export function SalesOrderEditorPage() {
     const order = orderQuery.data
     if (!order) return
 
-    if (order.status !== 'submitted') {
-      toast.error('Only sales orders awaiting approval can be edited.')
+    if (order.status !== 'submitted' && order.status !== 'approved') {
+      toast.error('Cancelled sales orders cannot be edited.')
       navigate(`/sales/orders/${order.id}`, { replace: true })
       return
     }
@@ -111,6 +111,7 @@ export function SalesOrderEditorPage() {
       // toPayload() below sends null, clearing any stale value on save.
       tax_id: '',
       items: order.items.map((line) => ({
+        id: line.id,
         item_id: line.item_id,
         item_code: line.item_code ?? '',
         item_name: line.item_name ?? '',
@@ -120,6 +121,7 @@ export function SalesOrderEditorPage() {
         qty: String(line.qty),
         rate: String(line.rate),
         tax_id: line.tax_id ?? '',
+        is_locked: line.is_locked,
       })),
     })
     setSelectedCustomerOption(
@@ -179,6 +181,7 @@ export function SalesOrderEditorPage() {
     terms_of_payment_id: values.terms_of_payment_id || null,
     tax_id: values.tax_id || null,
     items: values.items.map((line) => ({
+      ...(line.id ? { id: line.id } : {}),
       item_id: line.item_id,
       qty: Number(line.qty),
       rate: Number(line.rate),

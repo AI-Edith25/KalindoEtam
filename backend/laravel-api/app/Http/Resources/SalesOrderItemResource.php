@@ -23,6 +23,9 @@ class SalesOrderItemResource extends JsonResource
             'tax_amount' => $this->tax_amount,
             'delivered_qty' => $this->delivered_qty,
             'outstanding_qty' => $this->qty - $this->delivered_qty,
+            // Any Delivery already referencing this line locks it against edit/removal on an
+            // Approved order — see SalesOrderService::syncApprovedItems().
+            'is_locked' => $this->whenLoaded('deliveryItems', fn () => $this->deliveryItems->isNotEmpty(), false),
         ];
     }
 }

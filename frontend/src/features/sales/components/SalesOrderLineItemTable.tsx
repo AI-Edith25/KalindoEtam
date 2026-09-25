@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
-import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Lock, Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,6 +35,19 @@ function InsufficientStockIcon() {
           <AlertTriangle className="size-3.5 text-destructive" />
         </TooltipTrigger>
         <TooltipContent>Qty melebihi stok tersedia di warehouse ini</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+function LockedRowIcon() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger>
+          <Lock className="size-3.5 shrink-0 text-muted-foreground" />
+        </TooltipTrigger>
+        <TooltipContent>Sudah ada Delivery untuk baris ini — tidak bisa diubah atau dihapus</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )
@@ -140,6 +153,9 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                   row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
                 const isInsufficientStock =
                   !!row?.available_qty && row.available_qty !== '' && Number(row.qty) > Number(row.available_qty)
+                // Already referenced by a Delivery (Approved-order edit) — see SalesOrderService::syncApprovedItems.
+                const isRowLocked = !!row?.id && !!row.is_locked
+                const rowDisabled = disabled || isRowLocked
 
                 return (
                 <TableRow key={field.id}>
@@ -149,15 +165,18 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                       name={`items.${index}.item_id`}
                       render={({ field: itemField }) => (
                         <FormItem className="gap-0">
-                          <SearchableSelect
-                            loadOptions={loadItemOptions}
-                            selectedOption={selectedOption}
-                            value={itemField.value}
-                            onChange={(value, option) => handleItemChange(index, value ?? '', option)}
-                            disabled={disabled}
-                            placeholder="Select item"
-                            aria-label="Item"
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <SearchableSelect
+                              loadOptions={loadItemOptions}
+                              selectedOption={selectedOption}
+                              value={itemField.value}
+                              onChange={(value, option) => handleItemChange(index, value ?? '', option)}
+                              disabled={rowDisabled}
+                              placeholder="Select item"
+                              aria-label="Item"
+                            />
+                            {isRowLocked && <LockedRowIcon />}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -170,7 +189,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                       render={({ field: qtyField }) => (
                         <FormItem className="gap-0">
                           <div className="flex items-center gap-1.5">
-                            <Input type="number" min={1} step="1" disabled={disabled} {...qtyField} />
+                            <Input type="number" min={1} step="1" disabled={rowDisabled} {...qtyField} />
                             {isInsufficientStock && <InsufficientStockIcon />}
                           </div>
                           <FormMessage />
@@ -184,7 +203,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                       name={`items.${index}.rate`}
                       render={({ field: rateField }) => (
                         <FormItem className="gap-0">
-                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={disabled} />
+                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={rowDisabled} />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -199,7 +218,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                           <Select
                             value={taxField.value || NO_TAX}
                             onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
-                            disabled={disabled}
+                            disabled={rowDisabled}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="No tax" />
@@ -236,7 +255,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                       size="icon"
                       className="size-8 text-destructive hover:text-destructive"
                       onClick={() => remove(index)}
-                      disabled={disabled}
+                      disabled={rowDisabled}
                     >
                       <Trash2 className="size-4" />
                       <span className="sr-only">Remove row</span>

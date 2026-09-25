@@ -10,11 +10,17 @@ import { z } from 'zod'
  * only actually reduced at Delivery.
  */
 export const lineItemFormSchema = z.object({
+  // Existing SalesOrderItem id — present only when editing an Approved order's already-saved
+  // line (see SalesOrderService::syncApprovedItems on the backend). Omitted for new rows.
+  id: z.string().optional(),
   item_id: z.string().min(1, 'Item is required'),
   // Denormalized display fields for the row's SearchableSelect — populated on pick
   // (or from the loaded order's line for edit mode), never sent in the payload.
   item_code: z.string().optional(),
   item_name: z.string().optional(),
+  // Locks the row in SalesOrderLineItemTable once a Delivery already references it — mirrors
+  // available_qty below: display-only, never sent in the payload.
+  is_locked: z.boolean().optional(),
   // Denormalized from the picked item's available_qty at selection time — drives the row's
   // insufficient-stock badge and evaluateStockBlock()'s client-side preview. Never sent in the
   // payload; a stale value (warehouse changed after picking, or stock moved elsewhere) is fine —

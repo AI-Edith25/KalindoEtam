@@ -28,6 +28,8 @@ export interface SalesOrderItem {
   tax_amount: string | number
   delivered_qty: number
   outstanding_qty: number
+  /** True once any Delivery references this line — locked against edit/removal on an Approved order. */
+  is_locked: boolean
 }
 
 export interface SalesOrder {
@@ -87,7 +89,7 @@ export interface SalesOrderFormValues {
   reference?: string | null
   terms_of_payment_id?: string | null
   tax_id?: string | null
-  items: { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
+  items: { id?: string; item_id: string; qty: number; rate: number; tax_id?: string | null }[]
   override_credit_block?: boolean
   override_reason?: string | null
   override_stock_block?: boolean
