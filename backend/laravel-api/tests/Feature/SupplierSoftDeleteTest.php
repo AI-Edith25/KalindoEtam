@@ -78,18 +78,4 @@ class SupplierSoftDeleteTest extends TestCase
             'supplier_name' => $another->supplier_name,
         ])->assertUnprocessable();
     }
-
-    public function test_deleted_supplier_can_be_listed_and_restored(): void
-    {
-        $supplier = Supplier::query()->create(['supplier_code' => 'SUP-006', 'supplier_name' => 'Restorable Supplier']);
-        $supplier->delete();
-
-        $this->getJson('/api/v1/suppliers/trashed')
-            ->assertOk()
-            ->assertJsonFragment(['supplier_code' => 'SUP-006']);
-
-        $this->postJson("/api/v1/suppliers/{$supplier->id}/restore")->assertOk();
-
-        $this->assertDatabaseHas('suppliers', ['id' => $supplier->id, 'deleted_at' => null]);
-    }
 }

@@ -22,15 +22,4 @@ class SupplierRepository extends BaseRepository
 
         return $query->paginate($perPage);
     }
-
-    public function paginateTrashed(int $perPage = 15, ?string $search = null): LengthAwarePaginator
-    {
-        $query = $this->model->onlyTrashed();
-
-        if ($search) {
-            $query->where(fn ($q) => $q->where('supplier_code', 'like', "%{$search}%")->orWhere('supplier_name', 'like', "%{$search}%"));
-        }
-
-        return $query->paginate($perPage);
-    }
 }
