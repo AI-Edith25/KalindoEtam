@@ -125,6 +125,7 @@ export const navTree: NavGroup[] = [
         permissionGroup: 'accounting',
       },
       { key: 'chart_of_accounts', label: 'Chart of Accounts', path: '/finance/chart-of-accounts', actions: ['view', 'create', 'update', 'delete'], permissionGroup: 'master' },
+      { key: 'bank_reconciliation', label: 'Bank Reconciliation', path: '/finance/bank-reconciliation', actions: ['view', 'create', 'update'] },
     ],
   },
   {

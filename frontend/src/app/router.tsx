@@ -96,6 +96,8 @@ import { OutgoingPaymentListPage } from '@/features/payment/pages/OutgoingPaymen
 import { OutgoingPaymentEditorPage } from '@/features/payment/pages/OutgoingPaymentEditorPage'
 import { OutgoingPaymentDetailPage } from '@/features/payment/pages/OutgoingPaymentDetailPage'
 import { OutgoingPaymentPrintPage } from '@/features/payment/pages/OutgoingPaymentPrintPage'
+import { BankStatementUploadPage } from '@/features/bank-reconciliation/pages/BankStatementUploadPage'
+import { BankReconciliationDetailPage } from '@/features/bank-reconciliation/pages/BankReconciliationDetailPage'
 import { JournalEntryListPage } from '@/features/accounting/pages/JournalEntryListPage'
 import { JournalEntryEditorPage } from '@/features/accounting/pages/JournalEntryEditorPage'
 import { JournalEntryDetailPage } from '@/features/accounting/pages/JournalEntryDetailPage'
@@ -413,6 +415,8 @@ export function AppRouter() {
         <Route path="/finance/outgoing/new" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id/edit" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentEditorPage /></ProtectedRoute>} />
         <Route path="/finance/outgoing/:id" element={<ProtectedRoute permission="finance.outgoing_payment.view"><OutgoingPaymentDetailPage /></ProtectedRoute>} />
+        <Route path="/finance/bank-reconciliation" element={<ProtectedRoute permission="finance.bank_reconciliation.view"><BankReconciliationDetailPage /></ProtectedRoute>} />
+        <Route path="/finance/bank-reconciliation/upload" element={<ProtectedRoute permission="finance.bank_reconciliation.create"><BankStatementUploadPage /></ProtectedRoute>} />
         <Route path="/finance/chart-of-accounts" element={<ProtectedRoute permission="master.chart_of_accounts.view"><ChartOfAccountsPage /></ProtectedRoute>} />
         <Route
           path="/finance/chart-of-accounts/import"
