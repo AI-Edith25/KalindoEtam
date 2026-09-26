@@ -10,14 +10,19 @@ use App\Http\Requests\SubmitPaymentEntryRequest;
 use App\Http\Requests\UpdatePaymentEntryRequest;
 use App\Http\Resources\PaymentEntryResource;
 use App\Models\PaymentEntry;
+use App\Services\BankStatement\BankReconciliationService;
 use App\Services\PaymentEntryService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class PaymentEntryController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(protected PaymentEntryService $paymentEntryService) {}
+    public function __construct(
+        protected PaymentEntryService $paymentEntryService,
+        protected BankReconciliationService $bankReconciliationService,
+    ) {}
 
     public function index(IndexPaymentEntryRequest $request): JsonResponse
     {
@@ -61,6 +66,14 @@ class PaymentEntryController extends Controller
     public function submit(SubmitPaymentEntryRequest $request, PaymentEntry $paymentEntry): JsonResponse
     {
         $paymentEntry = $this->paymentEntryService->submit($paymentEntry, $request->validated()['lines'] ?? []);
+
+        // Best-effort: a stale bank reconciliation summary is fixable with "Re-run
+        // reconciliation" later, so this must never fail an already-successful submit.
+        try {
+            $this->bankReconciliationService->recomputeIfTracked($paymentEntry->cash_account_id, $paymentEntry->payment_date->format('Y-m-d'));
+        } catch (\Throwable $e) {
+            Log::warning('Bank reconciliation recompute failed after Payment Entry submit', ['payment_entry_id' => $paymentEntry->id, 'error' => $e->getMessage()]);
+        }
 
         return $this->success(new PaymentEntryResource($paymentEntry), 'Payment Entry submitted.');
     }

@@ -9,14 +9,19 @@ use App\Http\Requests\StoreReceiptEntryRequest;
 use App\Http\Requests\UpdateReceiptEntryRequest;
 use App\Http\Resources\ReceiptEntryResource;
 use App\Models\ReceiptEntry;
+use App\Services\BankStatement\BankReconciliationService;
 use App\Services\ReceiptEntryService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class ReceiptEntryController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(protected ReceiptEntryService $receiptEntryService) {}
+    public function __construct(
+        protected ReceiptEntryService $receiptEntryService,
+        protected BankReconciliationService $bankReconciliationService,
+    ) {}
 
     public function index(IndexReceiptEntryRequest $request): JsonResponse
     {
@@ -58,6 +63,14 @@ class ReceiptEntryController extends Controller
     public function submit(ReceiptEntry $receiptEntry): JsonResponse
     {
         $receiptEntry = $this->receiptEntryService->submit($receiptEntry);
+
+        // Best-effort: a stale bank reconciliation summary is fixable with "Re-run
+        // reconciliation" later, so this must never fail an already-successful submit.
+        try {
+            $this->bankReconciliationService->recomputeIfTracked($receiptEntry->cash_account_id, $receiptEntry->receipt_date->format('Y-m-d'));
+        } catch (\Throwable $e) {
+            Log::warning('Bank reconciliation recompute failed after Receipt Entry submit', ['receipt_entry_id' => $receiptEntry->id, 'error' => $e->getMessage()]);
+        }
 
         return $this->success(new ReceiptEntryResource($receiptEntry), 'Receipt Entry submitted.');
     }

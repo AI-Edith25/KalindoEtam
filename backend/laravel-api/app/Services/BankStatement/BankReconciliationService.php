@@ -1,0 +1,226 @@
+<?php
+
+namespace App\Services\BankStatement;
+
+use App\Enums\BankReconciliationStatus;
+use App\Enums\BankStatementLineMatchStatus;
+use App\Enums\BankStatementStatus;
+use App\Enums\DocumentStatus;
+use App\Models\BankReconciliationSummary;
+use App\Models\BankStatement;
+use App\Models\BankStatementLine;
+use App\Models\PaymentEntry;
+use App\Models\ReceiptEntry;
+use App\Repositories\BankReconciliationRepository;
+use Carbon\Carbon;
+use Carbon\CarbonPeriod;
+
+class BankReconciliationService
+{
+    public function __construct(private BankReconciliationRepository $repository) {}
+
+    public function recomputeForStatement(BankStatement $statement): void
+    {
+        if ($statement->period_start === null || $statement->period_end === null) {
+            return; // empty statement, nothing to match/summarize
+        }
+
+        $this->match($statement->bank_account_id, $statement->period_start->format('Y-m-d'), $statement->period_end->format('Y-m-d'));
+        $this->recomputeSummary($statement->bank_account_id, $statement->period_start->format('Y-m-d'), $statement->period_end->format('Y-m-d'));
+    }
+
+    /** Runs recompute only for bank accounts that have ever had a statement uploaded -- a no-op everywhere else. */
+    public function recomputeIfTracked(string $bankAccountId, string $date): void
+    {
+        if (! BankStatement::query()->where('bank_account_id', $bankAccountId)->exists()) {
+            return;
+        }
+
+        $this->match($bankAccountId, $date, $date);
+        $this->recomputeSummary($bankAccountId, $date, $date);
+    }
+
+    /**
+     * Exact date + exact amount match against an unclaimed Payment Voucher (credit
+     * side) or Official Receipt (debit side) on the same bank account. Tolerance
+     * widens the date window without loosening the amount match.
+     */
+    public function match(string $bankAccountId, string $dateFrom, string $dateTo, int $toleranceDays = 0): void
+    {
+        $lines = BankStatementLine::query()
+            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
+            ->where('match_status', BankStatementLineMatchStatus::UNMATCHED)
+            ->whereDate('transaction_date', '>=', $dateFrom)
+            ->whereDate('transaction_date', '<=', $dateTo)
+            ->get();
+
+        foreach ($lines as $line) {
+            $document = $this->findCandidate($bankAccountId, $line, $toleranceDays);
+
+            if ($document !== null) {
+                $line->update([
+                    'matched_document_type' => $document->getMorphClass(),
+                    'matched_document_id' => $document->id,
+                    'match_status' => BankStatementLineMatchStatus::MATCHED,
+                ]);
+            }
+        }
+    }
+
+    public function manualMatch(BankStatementLine $line, string $documentType, string $documentId): void
+    {
+        $line->update([
+            'matched_document_type' => $documentType,
+            'matched_document_id' => $documentId,
+            'match_status' => BankStatementLineMatchStatus::MANUAL_MATCHED,
+        ]);
+    }
+
+    private function findCandidate(string $bankAccountId, BankStatementLine $line, int $toleranceDays): PaymentEntry|ReceiptEntry|null
+    {
+        $from = Carbon::parse($line->transaction_date)->subDays($toleranceDays)->format('Y-m-d');
+        $to = Carbon::parse($line->transaction_date)->addDays($toleranceDays)->format('Y-m-d');
+
+        if ((float) $line->credit_amount > 0) {
+            $claimed = BankStatementLine::query()->where('matched_document_type', (new PaymentEntry())->getMorphClass())->pluck('matched_document_id');
+
+            return PaymentEntry::query()
+                ->where('cash_account_id', $bankAccountId)
+                ->where('status', DocumentStatus::SUBMITTED)
+                ->whereDate('payment_date', '>=', $from)
+                ->whereDate('payment_date', '<=', $to)
+                ->where('total_amount', $line->credit_amount)
+                ->whereNotIn('id', $claimed)
+                ->first();
+        }
+
+        if ((float) $line->debit_amount > 0) {
+            $claimed = BankStatementLine::query()->where('matched_document_type', (new ReceiptEntry())->getMorphClass())->pluck('matched_document_id');
+
+            return ReceiptEntry::query()
+                ->where('cash_account_id', $bankAccountId)
+                ->where('status', DocumentStatus::SUBMITTED)
+                ->whereDate('receipt_date', '>=', $from)
+                ->whereDate('receipt_date', '<=', $to)
+                ->where('total_amount', $line->debit_amount)
+                ->whereNotIn('id', $claimed)
+                ->first();
+        }
+
+        return null;
+    }
+
+    /**
+     * Upserts one BankReconciliationSummary row per day in range. A day with no
+     * PROCESSED statement covering it is `not_uploaded`, regardless of whether the
+     * system side has activity that day -- never fabricated as balanced/zero.
+     */
+    public function recomputeSummary(string $bankAccountId, string $dateFrom, string $dateTo): void
+    {
+        $systemTotals = $this->repository->systemTotalsByDate($bankAccountId, $dateFrom, $dateTo);
+        $coveredDates = $this->coveredDates($bankAccountId, $dateFrom, $dateTo);
+
+        $statementTotals = BankStatementLine::query()
+            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
+            ->whereDate('transaction_date', '>=', $dateFrom)
+            ->whereDate('transaction_date', '<=', $dateTo)
+            ->selectRaw('transaction_date as date, SUM(debit_amount) as debit_total, SUM(credit_amount) as credit_total')
+            ->groupBy('transaction_date')
+            ->get()
+            ->keyBy(fn ($row) => Carbon::parse($row->date)->format('Y-m-d'));
+
+        foreach (CarbonPeriod::create($dateFrom, $dateTo) as $date) {
+            $key = $date->format('Y-m-d');
+
+            if (! isset($coveredDates[$key])) {
+                $this->upsertSummary($bankAccountId, $key, 0, 0, 0, 0, BankReconciliationStatus::NOT_UPLOADED);
+
+                continue;
+            }
+
+            $system = $systemTotals[$key] ?? ['debit' => 0.0, 'credit' => 0.0];
+            $statement = $statementTotals[$key] ?? null;
+            $statementDebit = (float) ($statement->debit_total ?? 0);
+            $statementCredit = (float) ($statement->credit_total ?? 0);
+
+            $varianceDebit = round($system['debit'] - $statementDebit, 2);
+            $varianceCredit = round($system['credit'] - $statementCredit, 2);
+            $status = (abs($varianceDebit) < 0.01 && abs($varianceCredit) < 0.01)
+                ? BankReconciliationStatus::BALANCED
+                : BankReconciliationStatus::UNBALANCED;
+
+            $this->upsertSummary($bankAccountId, $key, $system['debit'], $system['credit'], $statementDebit, $statementCredit, $status, $varianceDebit, $varianceCredit);
+        }
+    }
+
+    public function getDailyBalancingSummary(?string $bankAccountId, string $dateFrom, string $dateTo)
+    {
+        return BankReconciliationSummary::query()
+            ->when($bankAccountId, fn ($q) => $q->where('bank_account_id', $bankAccountId))
+            ->whereDate('date', '>=', $dateFrom)
+            ->whereDate('date', '<=', $dateTo)
+            ->orderBy('bank_account_id')
+            ->orderBy('date')
+            ->get();
+    }
+
+    /** @return array<string, true> Y-m-d dates covered by at least one PROCESSED statement. */
+    private function coveredDates(string $bankAccountId, string $dateFrom, string $dateTo): array
+    {
+        $statements = BankStatement::query()
+            ->where('bank_account_id', $bankAccountId)
+            ->where('status', BankStatementStatus::PROCESSED)
+            ->whereNotNull('period_start')
+            ->whereNotNull('period_end')
+            ->whereDate('period_start', '<=', $dateTo)
+            ->whereDate('period_end', '>=', $dateFrom)
+            ->get(['period_start', 'period_end']);
+
+        $covered = [];
+        foreach ($statements as $statement) {
+            foreach (CarbonPeriod::create($statement->period_start, $statement->period_end) as $date) {
+                $covered[$date->format('Y-m-d')] = true;
+            }
+        }
+
+        return $covered;
+    }
+
+    private function upsertSummary(
+        string $bankAccountId,
+        string $date,
+        float $systemDebit,
+        float $systemCredit,
+        float $statementDebit,
+        float $statementCredit,
+        BankReconciliationStatus $status,
+        float $varianceDebit = 0,
+        float $varianceCredit = 0,
+    ): void {
+        $attributes = [
+            'system_debit_total' => $systemDebit,
+            'system_credit_total' => $systemCredit,
+            'statement_debit_total' => $statementDebit,
+            'statement_credit_total' => $statementCredit,
+            'variance_debit' => $varianceDebit,
+            'variance_credit' => $varianceCredit,
+            'status' => $status,
+            'generated_at' => now(),
+        ];
+
+        // Not updateOrCreate(['date' => $date], ...) -- its lookup builds a raw where()
+        // with $date as given ('Y-m-d'), but a 'date'-cast column is stored as a full
+        // "Y-m-d 00:00:00" string, so that lookup would never match an existing row and
+        // would violate the (bank_account_id, date) unique constraint on the second run.
+        $existing = BankReconciliationSummary::query()
+            ->where('bank_account_id', $bankAccountId)
+            ->whereDate('date', $date)
+            ->first();
+
+        if ($existing !== null) {
+            $existing->update($attributes);
+        } else {
+            BankReconciliationSummary::query()->create(array_merge(['bank_account_id' => $bankAccountId, 'date' => $date], $attributes));
+        }
+    }
+}

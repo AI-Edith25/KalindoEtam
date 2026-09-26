@@ -10,7 +10,10 @@ use Illuminate\Support\Facades\Storage;
 
 class BankStatementService
 {
-    public function __construct(private BankStatementParserRegistry $registry) {}
+    public function __construct(
+        private BankStatementParserRegistry $registry,
+        private BankReconciliationService $reconciliationService,
+    ) {}
 
     /**
      * Parses synchronously (statement files are small -- one bank/one period at a
@@ -65,6 +68,9 @@ class BankStatementService
             ]);
         });
 
-        return $batch->refresh();
+        $batch = $batch->refresh();
+        $this->reconciliationService->recomputeForStatement($batch);
+
+        return $batch;
     }
 }
