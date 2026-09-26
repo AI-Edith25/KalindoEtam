@@ -14,9 +14,11 @@ class StockLedgerRepository extends BaseRepository
     }
 
     /**
-     * SUM(qty_change), not the "latest by posting_datetime" row's balance_qty: rows aren't
-     * posted in timestamp order (Opening Stock posts at its cutoff_date, cancellations and
-     * Goods Receipts at now()), so a later-dated row would otherwise hide every movement
+     * SUM(qty_change), not the "latest by posting_datetime" row's balance_qty: every
+     * posting_datetime is the source document's own business date (receipt_date,
+     * delivery_date, ...), which users can and do backdate/postdate relative to when
+     * the document is actually entered — so insertion order and posting_datetime order
+     * regularly disagree, and a later-dated row would otherwise hide every movement
      * posted after it — same reasoning as currentBalances().
      */
     public function latestBalance(string $itemId, string $warehouseId): float

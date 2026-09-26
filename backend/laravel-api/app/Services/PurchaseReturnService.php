@@ -181,7 +181,7 @@ class PurchaseReturnService
                         voucherType: StockVoucherType::PURCHASE_RETURN,
                         voucherId: $purchaseReturn->id,
                         qtyChange: -$line->qty_returned,
-                        postingDatetime: now(),
+                        postingDatetime: $purchaseReturn->return_date,
                         referenceNo: $purchaseReturn->document_number,
                         remarks: "Purchase Return {$purchaseReturn->document_number}",
                     );
@@ -233,7 +233,7 @@ class PurchaseReturnService
                         voucherType: StockVoucherType::PURCHASE_RETURN,
                         voucherId: $purchaseReturn->id,
                         qtyChange: $line->qty_returned,
-                        postingDatetime: now(),
+                        postingDatetime: $purchaseReturn->return_date,
                         referenceNo: $purchaseReturn->document_number,
                         remarks: "Reversal of Purchase Return {$purchaseReturn->document_number}",
                     );

@@ -37,7 +37,7 @@ class StockInService
                     voucherType: StockVoucherType::STOCK_IN,
                     voucherId: $stockIn->id,
                     qtyChange: $stockIn->qty_in,
-                    postingDatetime: now(),
+                    postingDatetime: $stockIn->date_in,
                     remarks: $data['remarks'] ?? null,
                 );
 
