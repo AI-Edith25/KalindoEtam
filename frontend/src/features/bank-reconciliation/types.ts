@@ -46,6 +46,30 @@ export interface BankReconciliationDetailRow {
   direction?: 'debit' | 'credit'
 }
 
+/** Point 2's "View" -- one uploaded file covering a summary row's day. */
+export interface BankReconciliationFile {
+  id: string
+  original_filename: string
+  uploaded_at: string | null
+  uploaded_by: string | null
+}
+
+/** Point 3's sub-table: one row per Cash Book document, plus one per statement line with no matching document. */
+export type BankReconciliationComparisonStatus = 'match' | 'not_in_bank' | 'not_in_cash_book'
+
+export interface BankReconciliationComparisonRow {
+  id: string
+  date: string
+  cash_book_label: string | null
+  cash_book_debit: number | null
+  cash_book_credit: number | null
+  statement_label: string | null
+  statement_debit: number | null
+  statement_credit: number | null
+  selisih: number
+  status: BankReconciliationComparisonStatus
+}
+
 export interface BankReconciliationSummary {
   id: string
   bank_account_id: string

@@ -500,9 +500,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Voucher/Official Receipt. See BankStatementService / BankReconciliationService.
     Route::post('bank-statements', [BankStatementController::class, 'store'])->middleware('permission:finance.bank_reconciliation.create');
     Route::get('bank-statements/{bankStatement}', [BankStatementController::class, 'show'])->middleware('permission:finance.bank_reconciliation.view');
+    Route::get('bank-statements/{bankStatement}/download', [BankStatementController::class, 'download'])->middleware('permission:finance.bank_reconciliation.view');
     Route::post('bank-statements/{bankStatement}/confirm', [BankStatementController::class, 'confirm'])->middleware('permission:finance.bank_reconciliation.create');
     Route::get('bank-reconciliation', [BankReconciliationController::class, 'index'])->middleware('permission:finance.bank_reconciliation.view');
     Route::get('bank-reconciliation/lines', [BankReconciliationController::class, 'lines'])->middleware('permission:finance.bank_reconciliation.view');
+    Route::get('bank-reconciliation/day-detail', [BankReconciliationController::class, 'dayDetail'])->middleware('permission:finance.bank_reconciliation.view');
+    Route::get('bank-reconciliation/comparison', [BankReconciliationController::class, 'comparisonRows'])->middleware('permission:finance.bank_reconciliation.view');
     Route::post('bank-reconciliation/recompute', [BankReconciliationController::class, 'recompute'])->middleware('permission:finance.bank_reconciliation.update');
     Route::post('bank-statement-lines/{bankStatementLine}/manual-match', [BankReconciliationController::class, 'manualMatch'])->middleware('permission:finance.bank_reconciliation.update');
 

@@ -2,76 +2,33 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { RotateCw, Upload } from 'lucide-react'
+import { Download, FileText, MoreVertical, RotateCw, Upload, X } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
-import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
-import { fetchPaymentEntries } from '@/features/payment/api/paymentEntryApi'
-import { fetchReceiptEntries } from '@/features/payment/api/receiptEntryApi'
 import {
-  fetchBankReconciliationDetailRows,
+  fetchBankReconciliationComparisonRows,
+  fetchBankReconciliationDayDetail,
+  fetchBankStatementFileObjectUrl,
   fetchDailyBalancingSummary,
-  manualMatchBankStatementLine,
   recomputeReconciliation,
 } from '../api/bankReconciliationApi'
-import type { BankReconciliationDetailRow, BankReconciliationDetailView, BankReconciliationSummary, BankReconciliationStatus } from '../types'
-
-const VIEW_TABS: { value: BankReconciliationDetailView; label: string }[] = [
-  { value: 'import', label: 'Data Import' },
-  { value: 'system', label: 'Data Sistem' },
-]
-
-/** Payment Voucher/Official Receipt list endpoints already support server-side `search` — reused here instead of a new lookup endpoint. */
-function ManualMatchPicker({ row, onMatched }: { row: BankReconciliationDetailRow; onMatched: () => void }) {
-  const [documentType, setDocumentType] = useState<'payment_entry' | 'receipt_entry'>(row.direction === 'credit' ? 'payment_entry' : 'receipt_entry')
-
-  const mutation = useMutation({
-    mutationFn: (documentId: string) => manualMatchBankStatementLine(row.bank_statement_line_id!, documentType, documentId),
-    onSuccess: () => { toast.success('Line matched.'); onMatched() },
-    onError: (error) => toastApiError(error),
-  })
-
-  const loadOptions = async (search: string) => {
-    if (documentType === 'payment_entry') {
-      const { data } = await fetchPaymentEntries({ page: 1, per_page: 10, search })
-      return data.map((entry) => ({ value: entry.id, label: `${entry.document_number} — ${formatCurrency(entry.total_amount)}` }))
-    }
-    const { data } = await fetchReceiptEntries({ page: 1, per_page: 10, search })
-    return data.map((entry) => ({ value: entry.id, label: `${entry.document_number} — ${formatCurrency(entry.total_amount)}` }))
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      <Select value={documentType} onValueChange={(value) => setDocumentType(value as typeof documentType)}>
-        <SelectTrigger className="h-8 w-28 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="payment_entry">Payment Voucher</SelectItem>
-          <SelectItem value="receipt_entry">Official Receipt</SelectItem>
-        </SelectContent>
-      </Select>
-      <SearchableSelect
-        key={documentType}
-        loadOptions={loadOptions}
-        onChange={(value) => value && mutation.mutate(value)}
-        placeholder="Find document..."
-        loading={mutation.isPending}
-        className="h-8 w-56"
-      />
-    </div>
-  )
-}
+import type {
+  BankReconciliationComparisonStatus,
+  BankReconciliationFile,
+  BankReconciliationSummary,
+  BankReconciliationStatus,
+} from '../types'
 
 const STATUS_LABEL: Record<BankReconciliationStatus, string> = {
   balanced: 'Balanced',
@@ -88,10 +45,163 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
-/**
- * Daily balancing table (one row per bank account + day, no Bank Account column since the filter
- * above already picks it) -- select a day to open its transaction-level detail below, either side:
- * "Data Import" (uploaded statement lines) or "Data Sistem" (Payment Voucher/Official Receipt).
+const COMPARISON_STATUS_LABEL: Record<BankReconciliationComparisonStatus, string> = {
+  match: 'Match',
+  not_in_bank: 'Tidak ada di bank',
+  not_in_cash_book: 'Tidak ada di cash book',
+}
+
+/** Shows whichever side (debit/credit) is actually populated -- a document/line is never both. */
+function formatSide(debit: number | null, credit: number | null): string {
+  if (debit === null && credit === null) return '-'
+  return formatCurrency((debit ?? 0) > 0 ? (debit as number) : (credit ?? 0))
+}
+
+/** Point 3: row-per-transaction comparison, Cash Book (system) vs uploaded bank statement, for one day. */
+function ComparisonSubTable({ bankAccountId, date }: { bankAccountId: string; date: string }) {
+  const comparisonQuery = useQuery({
+    queryKey: ['bank-reconciliation-comparison', bankAccountId, date],
+    queryFn: () => fetchBankReconciliationComparisonRows(bankAccountId, date),
+  })
+
+  if (comparisonQuery.isLoading) {
+    return <p className="p-4 text-sm text-muted-foreground">Loading...</p>
+  }
+  if (comparisonQuery.isError) {
+    return <p className="p-4 text-sm text-destructive">Failed to load comparison.</p>
+  }
+  if (!comparisonQuery.data?.length) {
+    return <p className="p-4 text-sm text-muted-foreground">No transactions for this day.</p>
+  }
+
+  return (
+    <div className="bg-muted/30 p-4">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Tanggal</TableHead>
+            <TableHead>Keterangan / No. Voucher (Cash Book)</TableHead>
+            <TableHead className="text-right">Debit/Kredit Cash Book</TableHead>
+            <TableHead>Keterangan Mutasi Bank</TableHead>
+            <TableHead className="text-right">Debit/Kredit Mutasi</TableHead>
+            <TableHead className="text-right">Selisih</TableHead>
+            <TableHead>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {comparisonQuery.data.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell>{formatDate(row.date)}</TableCell>
+              <TableCell>{row.cash_book_label ?? '-'}</TableCell>
+              <TableCell className="text-right">{formatSide(row.cash_book_debit, row.cash_book_credit)}</TableCell>
+              <TableCell>{row.statement_label ?? '-'}</TableCell>
+              <TableCell className="text-right">{formatSide(row.statement_debit, row.statement_credit)}</TableCell>
+              <TableCell className="text-right">{formatCurrency(row.selisih)}</TableCell>
+              <TableCell>
+                <Badge variant={row.status === 'match' ? 'default' : 'destructive'}>{COMPARISON_STATUS_LABEL[row.status]}</Badge>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+/** Point 2's "View" -- the day's uploaded file(s) ("folder" contents) plus its Cash Book Transaction rows. */
+function DayDetailDialog({ row, onClose }: { row: BankReconciliationSummary; onClose: () => void }) {
+  const detailQuery = useQuery({
+    queryKey: ['bank-reconciliation-day-detail', row.bank_account_id, row.date],
+    queryFn: () => fetchBankReconciliationDayDetail(row.bank_account_id, row.date),
+  })
+
+  const handleDownload = async (file: BankReconciliationFile) => {
+    const url = await fetchBankStatementFileObjectUrl(file.id)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = file.original_filename
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {row.bank_account_name} &mdash; {formatDate(row.date)}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div>
+            <h4 className="mb-2 text-sm font-medium">Mutasi Bank (File)</h4>
+            {detailQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : !detailQuery.data?.files.length ? (
+              <p className="text-sm text-muted-foreground">Belum ada file yang di-upload.</p>
+            ) : (
+              <ul className="space-y-2">
+                {detailQuery.data.files.map((file) => (
+                  <li key={file.id} className="flex items-center justify-between gap-2 rounded border p-2 text-sm">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <FileText className="size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{file.original_filename}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {file.uploaded_by ?? '-'} &middot; {file.uploaded_at ? formatDate(file.uploaded_at) : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => handleDownload(file)}>
+                      <Download className="size-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-sm font-medium">Journal List &mdash; Cash Book</h4>
+            {detailQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : !detailQuery.data?.cash_book_rows.length ? (
+              <p className="text-sm text-muted-foreground">No cash book transactions for this day.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Document</TableHead>
+                    <TableHead>Party</TableHead>
+                    <TableHead className="text-right">Debit</TableHead>
+                    <TableHead className="text-right">Credit</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {detailQuery.data.cash_book_rows.map((cashBookRow) => (
+                    <TableRow key={cashBookRow.id}>
+                      <TableCell className="capitalize">{cashBookRow.type}</TableCell>
+                      <TableCell>{cashBookRow.document_number ?? '-'}</TableCell>
+                      <TableCell>{cashBookRow.party_name ?? '-'}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(cashBookRow.debit)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(cashBookRow.credit)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Daily balancing table -- one row per bank account (only one exists) + day. The "⋮" menu's "View"
+ * expands a Cash Book vs bank statement comparison sub-table below that row; "See the file" opens
+ * that day's uploaded file(s) + raw Cash Book rows in a dialog.
  */
 export function BankReconciliationDetailPage() {
   const navigate = useNavigate()
@@ -99,33 +209,14 @@ export function BankReconciliationDetailPage() {
   const canUpdate = useHasPermission('finance.bank_reconciliation.update')
   const canCreate = useHasPermission('finance.bank_reconciliation.create')
 
-  const [bankAccountId, setBankAccountId] = useState<string>('')
   const [dateFrom, setDateFrom] = useState(() => todayIso())
   const [dateTo, setDateTo] = useState(() => todayIso())
-  const [selectedRow, setSelectedRow] = useState<BankReconciliationSummary | null>(null)
-  const [view, setView] = useState<BankReconciliationDetailView>('import')
-  // One selected day's unmatched rows stay in the low tens at most -- but only the row actually
-  // being matched right now mounts its SearchableSelect, not all of them at once regardless.
-  const [matchingRowId, setMatchingRowId] = useState<string | null>(null)
-
-  const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
-  const bankAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
+  const [viewRow, setViewRow] = useState<BankReconciliationSummary | null>(null)
 
   const summaryQuery = useQuery({
-    queryKey: ['bank-reconciliation-summary', bankAccountId, dateFrom, dateTo],
-    queryFn: () => fetchDailyBalancingSummary({ bank_account_id: bankAccountId || undefined, date_from: dateFrom, date_to: dateTo }),
-  })
-
-  const detailRowsQuery = useQuery({
-    queryKey: ['bank-reconciliation-detail-rows', selectedRow?.bank_account_id, selectedRow?.date, view],
-    queryFn: () =>
-      fetchBankReconciliationDetailRows({
-        bank_account_id: selectedRow!.bank_account_id,
-        date_from: selectedRow!.date,
-        date_to: selectedRow!.date,
-        view,
-      }),
-    enabled: selectedRow !== null && selectedRow.status !== 'not_uploaded',
+    queryKey: ['bank-reconciliation-summary', dateFrom, dateTo],
+    queryFn: () => fetchDailyBalancingSummary({ date_from: dateFrom, date_to: dateTo }),
   })
 
   const recomputeMutation = useMutation({
@@ -133,7 +224,7 @@ export function BankReconciliationDetailPage() {
     onSuccess: () => {
       toast.success('Reconciliation recomputed.')
       queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-summary'] })
-      queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-detail-rows'] })
+      queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-comparison'] })
     },
     onError: (error) => toastApiError(error),
   })
@@ -156,46 +247,29 @@ export function BankReconciliationDetailPage() {
       { header: 'Status', accessor: (row) => <StatusPill status={row.status} /> },
       {
         header: '',
-        accessor: (row) =>
-          canUpdate && row.status !== 'not_uploaded' ? (
-            <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); recomputeMutation.mutate(row) }} disabled={recomputeMutation.isPending}>
-              <RotateCw className="h-4 w-4" />
-            </Button>
-          ) : null,
-      },
-    ],
-    [canUpdate, recomputeMutation],
-  )
-
-  const detailColumns = useMemo<DataTableColumn<BankReconciliationDetailRow>[]>(
-    () => [
-      { header: 'Date', accessor: (row) => formatDate(row.date) },
-      { header: 'Customer', accessor: (row) => row.customer ?? '-' },
-      { header: 'System', accessor: (row) => (row.system_amount !== null ? formatCurrency(row.system_amount) : '-'), className: 'text-right' },
-      { header: 'Statement', accessor: (row) => (row.statement_amount !== null ? formatCurrency(row.statement_amount) : '-'), className: 'text-right' },
-      { header: 'Selisih', accessor: (row) => formatCurrency(row.selisih), className: 'text-right' },
-      {
-        header: 'Status',
         accessor: (row) => (
-          <div className="space-y-1">
-            <Badge variant={row.status === 'unmatched' ? 'destructive' : 'default'}>{row.status}</Badge>
-            {view === 'import' && row.status === 'unmatched' && canUpdate && (
-              matchingRowId === row.id ? (
-                <ManualMatchPicker
-                  row={row}
-                  onMatched={() => { setMatchingRowId(null); queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-detail-rows'] }) }}
-                />
-              ) : (
-                <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={() => setMatchingRowId(row.id)}>
-                  Match
-                </Button>
-              )
+          <div className="flex items-center justify-end gap-1">
+            {canUpdate && row.status !== 'not_uploaded' && (
+              <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); recomputeMutation.mutate(row) }} disabled={recomputeMutation.isPending}>
+                <RotateCw className="h-4 w-4" />
+              </Button>
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onClick={() => setExpandedRowId((current) => (current === row.id ? null : row.id))}>View</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setViewRow(row)}>See the file</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ),
       },
     ],
-    [view, canUpdate, queryClient, matchingRowId],
+    [canUpdate, recomputeMutation],
   )
 
   return (
@@ -216,22 +290,6 @@ export function BankReconciliationDetailPage() {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-4 pt-6">
           <div className="space-y-1.5">
-            <Label>Bank Account</Label>
-            <Select value={bankAccountId || 'all'} onValueChange={(value) => setBankAccountId(value === 'all' ? '' : value)}>
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="All bank accounts" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All bank accounts</SelectItem>
-                {bankAccountOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label>From</Label>
             <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           </div>
@@ -249,43 +307,24 @@ export function BankReconciliationDetailPage() {
         isLoading={summaryQuery.isLoading}
         isError={summaryQuery.isError}
         onRetry={() => summaryQuery.refetch()}
-        onRowClick={(row) => setSelectedRow(row)}
         emptyMessage="No data for this range."
+        isRowExpanded={(row) => expandedRowId === row.id}
+        renderRowDetail={(row) => (
+          <div className="relative">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="absolute right-2 top-2 z-10"
+              onClick={() => setExpandedRowId(null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            <ComparisonSubTable bankAccountId={row.bank_account_id} date={row.date} />
+          </div>
+        )}
       />
 
-      {selectedRow && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {selectedRow.bank_account_name} &mdash; {formatDate(selectedRow.date)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {selectedRow.status === 'not_uploaded' ? (
-              <p className="text-sm text-muted-foreground">{STATUS_LABEL.not_uploaded}</p>
-            ) : (
-              <>
-                <div className="flex items-center gap-1 rounded-md border p-1">
-                  {VIEW_TABS.map((tab) => (
-                    <Button key={tab.value} size="sm" variant={view === tab.value ? 'default' : 'ghost'} onClick={() => setView(tab.value)}>
-                      {tab.label}
-                    </Button>
-                  ))}
-                </div>
-                <DataTable
-                  columns={detailColumns}
-                  data={detailRowsQuery.data ?? []}
-                  rowKey={(row) => row.id}
-                  isLoading={detailRowsQuery.isLoading}
-                  isError={detailRowsQuery.isError}
-                  onRetry={() => detailRowsQuery.refetch()}
-                  emptyMessage="No transactions for this day."
-                />
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {viewRow && <DayDetailDialog row={viewRow} onClose={() => setViewRow(null)} />}
     </div>
   )
 }

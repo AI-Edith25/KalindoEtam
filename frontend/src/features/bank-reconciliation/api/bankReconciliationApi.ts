@@ -1,8 +1,11 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiResponse } from '@/shared/types/api'
+import type { CashBookRow } from '@/features/accounting/types'
 import type {
+  BankReconciliationComparisonRow,
   BankReconciliationDetailRow,
   BankReconciliationDetailView,
+  BankReconciliationFile,
   BankReconciliationSummary,
   BankStatement,
   BankStatementFormatTemplate,
@@ -82,4 +85,31 @@ export async function manualMatchBankStatementLine(lineId: string, documentType:
     document_type: documentType,
     document_id: documentId,
   })
+}
+
+export interface BankReconciliationDayDetail {
+  files: BankReconciliationFile[]
+  cash_book_rows: CashBookRow[]
+}
+
+/** Point 2's "View" -- the day's uploaded file(s) plus its Cash Book Transaction rows. */
+export async function fetchBankReconciliationDayDetail(bankAccountId: string, date: string): Promise<BankReconciliationDayDetail> {
+  const { data } = await apiClient.get<ApiResponse<BankReconciliationDayDetail>>('/bank-reconciliation/day-detail', {
+    params: { bank_account_id: bankAccountId, date },
+  })
+  return data.data
+}
+
+/** Point 3's row-click sub-table: Cash Book vs uploaded statement, one row per document/unmatched line. */
+export async function fetchBankReconciliationComparisonRows(bankAccountId: string, date: string): Promise<BankReconciliationComparisonRow[]> {
+  const { data } = await apiClient.get<ApiResponse<BankReconciliationComparisonRow[]>>('/bank-reconciliation/comparison', {
+    params: { bank_account_id: bankAccountId, date },
+  })
+  return data.data
+}
+
+/** Authenticated blob, same pattern as receiptEntryAttachmentApi.ts -- bank-statements stay behind auth:sanctum, no public URL. */
+export async function fetchBankStatementFileObjectUrl(bankStatementId: string): Promise<string> {
+  const { data } = await apiClient.get(`/bank-statements/${bankStatementId}/download`, { responseType: 'blob' })
+  return URL.createObjectURL(data as Blob)
 }

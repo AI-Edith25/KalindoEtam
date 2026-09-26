@@ -13,6 +13,7 @@ use App\Models\ChartOfAccount;
 use App\Models\PaymentEntry;
 use App\Models\ReceiptEntry;
 use App\Repositories\BankReconciliationRepository;
+use App\Repositories\CashBookRepository;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
@@ -21,7 +22,10 @@ use Illuminate\Support\Str;
 
 class BankReconciliationService
 {
-    public function __construct(private BankReconciliationRepository $repository) {}
+    public function __construct(
+        private BankReconciliationRepository $repository,
+        private CashBookRepository $cashBookRepository,
+    ) {}
 
     public function recomputeForStatement(BankStatement $statement): void
     {
@@ -216,6 +220,121 @@ class BankReconciliationService
         return $existing->concat($synthesized)
             ->sortBy([['bank_account_id', 'asc'], ['date', 'asc']])
             ->values();
+    }
+
+    /**
+     * "View" on a day's row -- the uploaded file(s) covering that day (the "folder" contents,
+     * point 2a) plus that day's Cash Book Transaction rows (point 2b, pulled automatically from
+     * the system, not uploaded) -- reuses CashBookRepository, same read model as the Cash Book
+     * Transaction screen, filtered to this bank account/day via its cash_account_id filter.
+     */
+    public function dayDetail(string $bankAccountId, string $date): array
+    {
+        $statementIds = BankStatementLine::query()
+            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
+            ->whereDate('transaction_date', $date)
+            ->pluck('bank_statement_id')
+            ->unique();
+
+        $files = BankStatement::query()
+            ->whereIn('id', $statementIds)
+            ->with('creator')
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (BankStatement $statement) => [
+                'id' => $statement->id,
+                'original_filename' => $statement->original_filename,
+                'uploaded_at' => $statement->created_at?->toIso8601String(),
+                'uploaded_by' => $statement->creator?->name,
+            ])
+            ->all();
+
+        $cashBookRows = $this->cashBookRepository
+            ->paginate('all', ['cash_account_id' => $bankAccountId, 'date_from' => $date, 'date_to' => $date], 500)
+            ->items();
+
+        return ['files' => $files, 'cash_book_rows' => $cashBookRows];
+    }
+
+    /**
+     * Point 3's row-click sub-table: Cash Book (PV/OR, point 2b's same system side) vs uploaded
+     * bank statement lines for one day, matched via BankStatementLine::matched_document_id.
+     * Unlike importRows()/systemRows() below (each shows every row from its own side, the other
+     * side null if unmatched -- built for browsing "from" one side), this never repeats a matched
+     * pair: one comparison row per Cash Book document, plus one per statement line that has no
+     * matching document at all.
+     */
+    public function comparisonRows(string $bankAccountId, string $date): array
+    {
+        $lines = BankStatementLine::query()
+            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
+            ->whereDate('transaction_date', $date)
+            ->get();
+
+        $matchedLinesByDocKey = $lines
+            ->filter(fn (BankStatementLine $line) => $line->matched_document_id !== null)
+            ->keyBy(fn (BankStatementLine $line) => $line->matched_document_type.'|'.$line->matched_document_id);
+
+        $receipts = ReceiptEntry::query()
+            ->where('cash_account_id', $bankAccountId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->whereDate('receipt_date', $date)
+            ->with('customer')
+            ->get();
+
+        $payments = PaymentEntry::query()
+            ->where('cash_account_id', $bankAccountId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->whereDate('payment_date', $date)
+            ->with('supplier', 'expenseAccount')
+            ->get();
+
+        $rows = collect();
+
+        $addCashBookRow = function (PaymentEntry|ReceiptEntry $document, Carbon $date, ?string $partyName, bool $isReceipt) use (&$rows, $matchedLinesByDocKey) {
+            $matchedLine = $matchedLinesByDocKey->get($document->getMorphClass().'|'.$document->id);
+            $documentAmount = (float) $document->total_amount;
+            $statementAmount = $matchedLine !== null
+                ? (float) ((float) $matchedLine->credit_amount > 0 ? $matchedLine->credit_amount : $matchedLine->debit_amount)
+                : null;
+
+            $rows->push([
+                'id' => 'doc-'.$document->id,
+                'date' => $date->format('Y-m-d'),
+                'cash_book_label' => trim(($document->document_number ?? '').' - '.($partyName ?? '')),
+                'cash_book_debit' => $isReceipt ? $documentAmount : 0.0,
+                'cash_book_credit' => $isReceipt ? 0.0 : $documentAmount,
+                'statement_label' => $matchedLine?->description,
+                'statement_debit' => $matchedLine !== null ? (float) $matchedLine->debit_amount : null,
+                'statement_credit' => $matchedLine !== null ? (float) $matchedLine->credit_amount : null,
+                'selisih' => $statementAmount !== null ? round($documentAmount - $statementAmount, 2) : $documentAmount,
+                'status' => $matchedLine !== null ? 'match' : 'not_in_bank',
+            ]);
+        };
+
+        foreach ($receipts as $receipt) {
+            $addCashBookRow($receipt, $receipt->receipt_date, $receipt->customer?->customer_name, true);
+        }
+        foreach ($payments as $payment) {
+            $addCashBookRow($payment, $payment->payment_date, $payment->supplier?->supplier_name ?? $payment->expenseAccount?->name, false);
+        }
+
+        foreach ($lines->where('matched_document_id', null) as $line) {
+            $rows->push([
+                'id' => 'line-'.$line->id,
+                'date' => $line->transaction_date->format('Y-m-d'),
+                'cash_book_label' => null,
+                'cash_book_debit' => null,
+                'cash_book_credit' => null,
+                'statement_label' => $line->description,
+                'statement_debit' => (float) $line->debit_amount,
+                'statement_credit' => (float) $line->credit_amount,
+                'selisih' => (float) $line->credit_amount > 0 ? (float) $line->credit_amount : (float) $line->debit_amount,
+                'status' => 'not_in_cash_book',
+            ]);
+        }
+
+        return $rows->sortBy('date')->values()->all();
     }
 
     /**

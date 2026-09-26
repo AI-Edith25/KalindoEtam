@@ -9,6 +9,7 @@ use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -80,6 +81,19 @@ class BankStatementControllerTest extends TestCase
         $this->assertSame(1, $batch->lines()->count());
         $this->assertSame('2026-09-01', $batch->period_start->format('Y-m-d'));
         $this->assertSame('2026-09-01', $batch->period_end->format('Y-m-d'));
+    }
+
+    public function test_download_streams_the_originally_uploaded_file(): void
+    {
+        Storage::fake('local');
+        $file = UploadedFile::fake()->createWithContent('statement.csv', self::BCA_CSV);
+        $upload = $this->postJson('/api/v1/bank-statements', ['bank_account_id' => $this->bankAccount->id, 'file' => $file]);
+        $batchId = $upload->json('data.batch.id');
+
+        $response = $this->get("/api/v1/bank-statements/{$batchId}/download");
+
+        $response->assertStatus(200);
+        $response->assertHeader('content-disposition', 'attachment; filename=statement.csv');
     }
 
     public function test_without_permission_is_forbidden(): void

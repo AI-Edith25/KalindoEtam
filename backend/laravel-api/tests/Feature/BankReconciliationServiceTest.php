@@ -11,6 +11,7 @@ use App\Models\ChartOfAccount;
 use App\Models\Customer;
 use App\Models\PaymentEntry;
 use App\Models\ReceiptEntry;
+use App\Models\User;
 use App\Services\BankStatement\BankReconciliationService;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -328,5 +329,95 @@ class BankReconciliationServiceTest extends TestCase
         $rows = $this->service->importRows(null, '2026-09-01', '2026-09-01');
 
         $this->assertCount(2, $rows);
+    }
+
+    public function test_comparisonRows_marks_matched_pair_as_match(): void
+    {
+        $this->submittedReceipt('2026-09-01', 1500000);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
+        ]);
+        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+
+        $rows = collect($this->service->comparisonRows($this->bankAccount->id, '2026-09-01'));
+
+        $this->assertCount(1, $rows);
+        $row = $rows->first();
+        $this->assertSame('match', $row['status']);
+        $this->assertSame(1500000.0, $row['cash_book_debit']);
+        $this->assertSame(1500000.0, $row['statement_debit']);
+        $this->assertSame(0.0, $row['selisih']);
+    }
+
+    public function test_comparisonRows_marks_unmatched_document_as_not_in_bank(): void
+    {
+        $this->submittedPayment('2026-09-01', 900901);
+
+        $rows = collect($this->service->comparisonRows($this->bankAccount->id, '2026-09-01'));
+
+        $this->assertCount(1, $rows);
+        $row = $rows->first();
+        $this->assertSame('not_in_bank', $row['status']);
+        $this->assertSame(900901.0, $row['cash_book_credit']);
+        $this->assertNull($row['statement_debit']);
+        $this->assertNull($row['statement_credit']);
+        $this->assertSame(900901.0, $row['selisih']);
+    }
+
+    public function test_comparisonRows_marks_unmatched_statement_line_as_not_in_cash_book(): void
+    {
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'biaya admin', 'debit_amount' => 0, 'credit_amount' => 25000],
+        ]);
+
+        $rows = collect($this->service->comparisonRows($this->bankAccount->id, '2026-09-01'));
+
+        $this->assertCount(1, $rows);
+        $row = $rows->first();
+        $this->assertSame('not_in_cash_book', $row['status']);
+        $this->assertSame(25000.0, $row['statement_credit']);
+        $this->assertNull($row['cash_book_debit']);
+        $this->assertNull($row['cash_book_credit']);
+        $this->assertSame(25000.0, $row['selisih']);
+    }
+
+    public function test_dayDetail_returns_uploaded_files_and_cash_book_rows(): void
+    {
+        $uploader = User::factory()->create(['name' => 'Budi']);
+        $statement = BankStatement::query()->create([
+            'bank_account_id' => $this->bankAccount->id,
+            'format_template' => 'bca',
+            'original_filename' => 'mutasi-september.csv',
+            'disk' => 'local',
+            'file_path' => 'test.csv',
+            'status' => BankStatementStatus::PROCESSED,
+            'period_start' => '2026-09-01',
+            'period_end' => '2026-09-01',
+            'created_by' => $uploader->id,
+        ]);
+        $statement->lines()->create([
+            'transaction_date' => '2026-09-01',
+            'description' => 'transfer masuk',
+            'debit_amount' => 1500000,
+            'credit_amount' => 0,
+        ]);
+        $this->submittedReceipt('2026-09-01', 1500000);
+
+        $detail = $this->service->dayDetail($this->bankAccount->id, '2026-09-01');
+
+        $this->assertCount(1, $detail['files']);
+        $this->assertSame('mutasi-september.csv', $detail['files'][0]['original_filename']);
+        $this->assertSame('Budi', $detail['files'][0]['uploaded_by']);
+        $this->assertCount(1, $detail['cash_book_rows']);
+    }
+
+    public function test_dayDetail_files_empty_when_nothing_uploaded_for_that_day(): void
+    {
+        $this->submittedReceipt('2026-09-01', 500000);
+
+        $detail = $this->service->dayDetail($this->bankAccount->id, '2026-09-01');
+
+        $this->assertSame([], $detail['files']);
+        $this->assertCount(1, $detail['cash_book_rows']);
     }
 }

@@ -33,6 +33,7 @@ class CashBookRepository
             ->when($filters['date_from'] ?? null, fn ($q, $date) => $q->whereDate('date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($q, $date) => $q->whereDate('date', '<=', $date))
             ->when($filters['branch_id'] ?? null, fn ($q, $branchId) => $q->where('branch_id', $branchId))
+            ->when($filters['cash_account_id'] ?? null, fn ($q, $cashAccountId) => $q->where('cash_account_id', $cashAccountId))
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(
                 fn ($q2) => $q2->where('document_number', 'like', "%{$search}%")
@@ -53,6 +54,7 @@ class CashBookRepository
                 'receipt_entries.id',
                 DB::raw("'receipt' as type"),
                 'receipt_entries.document_number',
+                'receipt_entries.cash_account_id',
                 'customers.customer_name as party_name',
                 'chart_of_accounts.name as payment_method_name',
                 'receipt_entries.receipt_date as date',
@@ -76,6 +78,7 @@ class CashBookRepository
                 'payment_entries.id',
                 DB::raw("'payment' as type"),
                 'payment_entries.document_number',
+                'payment_entries.cash_account_id',
                 DB::raw('COALESCE(suppliers.supplier_name, expense_accounts.name) as party_name'),
                 'cash_accounts.name as payment_method_name',
                 'payment_entries.payment_date as date',

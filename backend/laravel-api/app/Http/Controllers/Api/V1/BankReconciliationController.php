@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexBankReconciliationDayDetailRequest;
 use App\Http\Requests\IndexBankReconciliationDetailRequest;
 use App\Http\Requests\IndexBankReconciliationSummaryRequest;
 use App\Http\Requests\ManualMatchBankStatementLineRequest;
@@ -46,6 +47,22 @@ class BankReconciliationController extends Controller
             : $this->bankReconciliationService->importRows($bankAccountId, $data['date_from'], $data['date_to']);
 
         return $this->success($rows);
+    }
+
+    /** "View" action (⋮ menu) on a summary row -- uploaded file(s) for that day plus that day's Cash Book rows. */
+    public function dayDetail(IndexBankReconciliationDayDetailRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        return $this->success($this->bankReconciliationService->dayDetail($data['bank_account_id'], $data['date']));
+    }
+
+    /** Row-click sub-table: Cash Book vs uploaded bank statement, matched/unmatched either side, for one day. */
+    public function comparisonRows(IndexBankReconciliationDayDetailRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        return $this->success($this->bankReconciliationService->comparisonRows($data['bank_account_id'], $data['date']));
     }
 
     /** "Re-run reconciliation" — re-matches and rebuilds the summary for an explicit range. */

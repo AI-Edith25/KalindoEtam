@@ -10,6 +10,8 @@ use App\Models\BankStatement;
 use App\Services\BankStatement\BankStatementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BankStatementController extends Controller
 {
@@ -48,5 +50,11 @@ class BankStatementController extends Controller
     public function show(BankStatement $bankStatement): JsonResponse
     {
         return $this->success(new BankStatementResource($bankStatement->load('bankAccount')));
+    }
+
+    /** Point 2a's "View" -- the originally uploaded file, same StreamedResponse pattern as ImportController::failedRows(). */
+    public function download(BankStatement $bankStatement): StreamedResponse
+    {
+        return Storage::disk($bankStatement->disk)->download($bankStatement->file_path, $bankStatement->original_filename);
     }
 }
