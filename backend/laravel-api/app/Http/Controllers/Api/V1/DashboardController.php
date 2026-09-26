@@ -10,6 +10,7 @@ use App\Http\Requests\DashboardFinancialSummaryRequest;
 use App\Http\Requests\DashboardSalesAchievementRequest;
 use App\Http\Requests\LowStockItemsRequest;
 use App\Http\Requests\RecentTransactionsRequest;
+use App\Http\Resources\BankReconciliationSummaryResource;
 use App\Http\Resources\ItemResource;
 use App\Services\DashboardService;
 use Illuminate\Http\JsonResponse;
@@ -38,6 +39,13 @@ class DashboardController extends Controller
     public function accountsPayableOutstanding(): JsonResponse
     {
         return $this->success($this->dashboardService->accountsPayableOutstanding());
+    }
+
+    public function bankBalancing(DashboardDateRequest $request): JsonResponse
+    {
+        return $this->success(BankReconciliationSummaryResource::collection(
+            $this->dashboardService->bankBalancing($request->resolvedDate())->load('bankAccount')
+        ));
     }
 
     public function accountsReceivableOutstanding(): JsonResponse

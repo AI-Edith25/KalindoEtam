@@ -19,7 +19,9 @@ use App\Repositories\ReceiptEntryRepository;
 use App\Repositories\SalesOrderRepository;
 use App\Repositories\SalesPersonRepository;
 use App\Repositories\SalesTargetRepository;
+use App\Services\BankStatement\BankReconciliationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 
 /**
@@ -53,6 +55,7 @@ class DashboardService
         protected DebitNoteRepository $debitNoteRepository,
         protected SalesTargetRepository $salesTargetRepository,
         protected SalesPersonRepository $salesPersonRepository,
+        protected BankReconciliationService $bankReconciliationService,
     ) {}
 
     public function stockSummary(): array
@@ -78,6 +81,12 @@ class DashboardService
     public function accountsReceivableOutstanding(): array
     {
         return $this->accountsReceivableRepository->outstandingSummary();
+    }
+
+    /** Today's row per bank account -- BankReconciliationService::getDailyBalancingSummary() is the same read the future WA automation will call. */
+    public function bankBalancing(string $date): Collection
+    {
+        return $this->bankReconciliationService->getDailyBalancingSummary(null, $date, $date);
     }
 
     public function lowStockItems(int $threshold, int $perPage = 15): LengthAwarePaginator

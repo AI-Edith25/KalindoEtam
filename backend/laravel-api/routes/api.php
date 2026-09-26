@@ -638,6 +638,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
         Route::get('sales-today', [DashboardController::class, 'salesToday'])->middleware('permission:sales.orders.view');
         Route::get('accounts-payable-outstanding', [DashboardController::class, 'accountsPayableOutstanding'])->middleware('permission:finance.accounts_payable.view');
         Route::get('accounts-receivable-outstanding', [DashboardController::class, 'accountsReceivableOutstanding'])->middleware('permission:finance.accounts_receivable.view');
+        Route::get('bank-balancing', [DashboardController::class, 'bankBalancing'])->middleware('permission:finance.bank_reconciliation.view');
         Route::get('low-stock-items', [DashboardController::class, 'lowStockItems'])->middleware('permission:master.items.view');
         Route::get('recent-transactions', [DashboardController::class, 'recentTransactions'])->middleware('permission:dashboard.view');
 

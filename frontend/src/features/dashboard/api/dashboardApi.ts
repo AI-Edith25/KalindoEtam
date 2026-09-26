@@ -1,5 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
+import type { BankReconciliationSummary } from '@/features/bank-reconciliation/types'
 import type {
   FinancialSummary,
   InventoryMovementPoint,
@@ -78,5 +79,11 @@ export async function fetchRecentTransactions(limit: number): Promise<RecentTran
 
 export async function fetchSalesAchievement(params?: { month: number; year: number }): Promise<SalesAchievement> {
   const { data } = await apiClient.get<ApiResponse<SalesAchievement>>('/dashboard/sales-achievement', { params })
+  return data.data
+}
+
+/** One row per bank account for `date` (default: today) -- not_uploaded rather than a zero row when no statement covers it yet. */
+export async function fetchBankBalancing(date?: string): Promise<BankReconciliationSummary[]> {
+  const { data } = await apiClient.get<ApiResponse<BankReconciliationSummary[]>>('/dashboard/bank-balancing', { params: { date } })
   return data.data
 }
