@@ -123,10 +123,7 @@ class IssueStockService
                     voucherType: StockVoucherType::ISSUE_STOCK,
                     voucherId: $issueStock->id,
                     qtyChange: -(float) $line->qty,
-                    // now(), not issue_date — same convention as Delivery/GoodsReceipt: the ledger
-                    // orders by real submission time so "current balance" is always the latest
-                    // physical state, regardless of what business date the document is labeled with.
-                    postingDatetime: now(),
+                    postingDatetime: $issueStock->issue_date,
                     referenceNo: $issueStock->document_number,
                     remarks: "Issue Stock {$issueStock->document_number}",
                 );
@@ -166,7 +163,7 @@ class IssueStockService
                     voucherType: StockVoucherType::ISSUE_STOCK,
                     voucherId: $issueStock->id,
                     qtyChange: (float) $line->qty,
-                    postingDatetime: now(),
+                    postingDatetime: $issueStock->issue_date,
                     referenceNo: $issueStock->document_number,
                     remarks: "Cancellation of Issue Stock {$issueStock->document_number}",
                 );

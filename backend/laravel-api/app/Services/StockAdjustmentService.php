@@ -104,7 +104,7 @@ class StockAdjustmentService
                     transactionType: StockTransactionType::ADJUSTMENT,
                     voucherType: StockVoucherType::STOCK_ADJUSTMENT,
                     voucherId: $adjustment->id,
-                    postingDatetime: now(),
+                    postingDatetime: $adjustment->adjustment_date,
                     referenceNo: $adjustment->document_number,
                     remarks: $line->reason,
                 );

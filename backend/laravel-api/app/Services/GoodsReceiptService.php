@@ -283,7 +283,7 @@ class GoodsReceiptService
                 voucherType: StockVoucherType::GOODS_RECEIPT,
                 voucherId: $goodsReceipt->id,
                 qtyChange: -(float) $line->qty,
-                postingDatetime: now(),
+                postingDatetime: $goodsReceipt->receipt_date,
                 referenceNo: $goodsReceipt->document_number,
                 remarks: "Correction of Goods Receipt {$goodsReceipt->document_number}",
             );
@@ -379,7 +379,7 @@ class GoodsReceiptService
                 voucherType: StockVoucherType::GOODS_RECEIPT,
                 voucherId: $goodsReceipt->id,
                 qtyChange: $line->qty,
-                postingDatetime: now(),
+                postingDatetime: $goodsReceipt->receipt_date,
                 referenceNo: $goodsReceipt->document_number,
                 remarks: "Goods Receipt {$goodsReceipt->document_number}",
             );

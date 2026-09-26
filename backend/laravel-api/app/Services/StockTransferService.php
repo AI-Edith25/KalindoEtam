@@ -117,7 +117,7 @@ class StockTransferService
                     voucherType: StockVoucherType::STOCK_TRANSFER,
                     voucherId: $transfer->id,
                     qtyChange: -$line->qty,
-                    postingDatetime: now(),
+                    postingDatetime: $transfer->transfer_date,
                     referenceNo: $transfer->document_number,
                     remarks: "Transfer out to {$transfer->destinationWarehouse->name} ({$transfer->document_number})",
                 );
@@ -137,7 +137,7 @@ class StockTransferService
                     voucherType: StockVoucherType::STOCK_TRANSFER,
                     voucherId: $transfer->id,
                     qtyChange: $line->qty,
-                    postingDatetime: now(),
+                    postingDatetime: $transfer->transfer_date,
                     referenceNo: $transfer->document_number,
                     remarks: "Transfer in from {$transfer->sourceWarehouse->name} ({$transfer->document_number})",
                 );

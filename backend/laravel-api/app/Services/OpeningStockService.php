@@ -174,7 +174,7 @@ class OpeningStockService
                     voucherType: StockVoucherType::OPENING_STOCK,
                     voucherId: $openingStock->id,
                     qtyChange: -(float) $line->qty,
-                    postingDatetime: now(),
+                    postingDatetime: $openingStock->cutoff_date,
                     referenceNo: $openingStock->document_number,
                     remarks: "Cancellation of Opening Stock {$openingStock->document_number}",
                 );

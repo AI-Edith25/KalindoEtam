@@ -109,9 +109,7 @@ class ReceiptStockService
                     voucherType: StockVoucherType::RECEIPT_STOCK,
                     voucherId: $receiptStock->id,
                     qtyChange: (float) $line->qty,
-                    // now(), not receipt_date — same convention as GoodsReceipt/Delivery (see
-                    // IssueStockService::submit()'s identical note).
-                    postingDatetime: now(),
+                    postingDatetime: $receiptStock->receipt_date,
                     referenceNo: $receiptStock->document_number,
                     remarks: "Receipt Stock {$receiptStock->document_number}",
                 );
@@ -152,7 +150,7 @@ class ReceiptStockService
                     voucherType: StockVoucherType::RECEIPT_STOCK,
                     voucherId: $receiptStock->id,
                     qtyChange: -(float) $line->qty,
-                    postingDatetime: now(),
+                    postingDatetime: $receiptStock->receipt_date,
                     referenceNo: $receiptStock->document_number,
                     remarks: "Cancellation of Receipt Stock {$receiptStock->document_number}",
                 );

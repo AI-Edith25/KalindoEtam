@@ -287,7 +287,7 @@ class CreditNoteService
                 voucherType: StockVoucherType::CREDIT_NOTE,
                 voucherId: $creditNote->id,
                 qtyChange: (float) $line->qty_credited,
-                postingDatetime: now(),
+                postingDatetime: $creditNote->credit_note_date,
                 referenceNo: $creditNote->document_number,
                 remarks: "Credit Note restock {$creditNote->document_number}",
             );
@@ -329,7 +329,7 @@ class CreditNoteService
                 voucherType: StockVoucherType::CREDIT_NOTE,
                 voucherId: $creditNote->id,
                 qtyChange: -(float) $line->qty_credited,
-                postingDatetime: now(),
+                postingDatetime: $creditNote->credit_note_date,
                 referenceNo: $creditNote->document_number,
                 remarks: "Reversal of Credit Note restock {$creditNote->document_number}",
             );

@@ -233,7 +233,7 @@ class DeliveryService
                     voucherType: StockVoucherType::DELIVERY,
                     voucherId: $delivery->id,
                     qtyChange: -$line->qty,
-                    postingDatetime: now(),
+                    postingDatetime: $delivery->delivery_date,
                     referenceNo: $delivery->document_number,
                     remarks: "Delivery {$delivery->document_number}",
                 );
