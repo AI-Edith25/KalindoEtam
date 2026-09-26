@@ -1,0 +1,5 @@
+AccountNo;Ccy;PostDate;Remarks;AdditionalDesc;Credit Amount;Debit Amount;Close Balance
+1234567890123;IDR;01 September 2026 14:24:27;                                                             MCM InhouseTrf  DARI CUSTOMER SATU 99101;                                                             MCM InhouseTrf  DARI CUSTOMER SATU 99101;18429612.00;0.00;130941712.79
+1234567890123;IDR;01 September 2026 15:27:32;                                                             MCM InhouseTrf  DARI CUSTOMER DUA 99101;                                                             MCM InhouseTrf  DARI CUSTOMER DUA 99101;5000000.00;0.00;135941712.79
+1234567890123;IDR;02 Januari 2026 09:10:00;                                                             BIAYA ADMIN BULANAN;                                                             BIAYA ADMIN BULANAN;0.00;25000.00;135916712.79
+1234567890123;IDR;15 January 2026 11:45:30;                                                             MCM InhouseTrf  DARI CUSTOMER TIGA 99101;                                                             MCM InhouseTrf  DARI CUSTOMER TIGA 99101;7500000.00;0.00;143416712.79
