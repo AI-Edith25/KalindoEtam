@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -166,11 +166,70 @@ function DayDetailDialog({ row, onClose }: { row: BankReconciliationSummary; onC
   )
 }
 
+const LOCK_PIN = '2578'
+
+/** Blocks the whole page behind a PIN until the correct one is entered -- resets (re-locks) every
+ * time this page is navigated to, since nothing persists `unlocked` across mounts. */
+function BankReconciliationPinLock({ onUnlock }: { onUnlock: () => void }) {
+  const [pin, setPin] = useState('')
+  const [error, setError] = useState(false)
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (pin === LOCK_PIN) {
+      onUnlock()
+      return
+    }
+    setError(true)
+    setPin('')
+  }
+
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <Card className="w-full max-w-sm">
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5 text-center">
+              <h2 className="text-lg font-semibold">Bank Reconciliation Terkunci</h2>
+              <p className="text-sm text-muted-foreground">Masukkan PIN untuk membuka halaman ini.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bank-reconciliation-pin">PIN</Label>
+              <Input
+                id="bank-reconciliation-pin"
+                type="password"
+                inputMode="numeric"
+                autoFocus
+                value={pin}
+                onChange={(e) => { setPin(e.target.value); setError(false) }}
+              />
+              {error && <p className="text-sm text-destructive">PIN salah, coba lagi.</p>}
+            </div>
+            <Button type="submit" className="w-full" disabled={!pin}>
+              Buka
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 /** Daily balancing table -- one row per bank account (only one exists) + day, in a "Ringkasan" tab.
  * The "⋮" menu's "View" switches to a "Detail" tab showing that row's Cash Book vs bank statement
  * comparison; "See the file" opens that day's uploaded file(s) in a dialog. Row click does nothing.
  */
 export function BankReconciliationDetailPage() {
+  const [unlocked, setUnlocked] = useState(false)
+
+  if (!unlocked) {
+    return <BankReconciliationPinLock onUnlock={() => setUnlocked(true)} />
+  }
+
+  return <BankReconciliationDetailPageContent />
+}
+
+function BankReconciliationDetailPageContent() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const canUpdate = useHasPermission('finance.bank_reconciliation.update')
