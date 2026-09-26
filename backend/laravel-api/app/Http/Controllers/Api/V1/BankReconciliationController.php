@@ -25,8 +25,7 @@ class BankReconciliationController extends Controller
     {
         $data = $request->validated();
         $summaries = $this->bankReconciliationService
-            ->getDailyBalancingSummary($data['bank_account_id'] ?? null, $data['date_from'], $data['date_to'])
-            ->load('bankAccount');
+            ->getDailyBalancingSummary($data['bank_account_id'] ?? null, $data['date_from'], $data['date_to']);
 
         return $this->success(BankReconciliationSummaryResource::collection($summaries));
     }

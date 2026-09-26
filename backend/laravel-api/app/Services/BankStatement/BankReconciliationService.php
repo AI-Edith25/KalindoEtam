@@ -9,11 +9,15 @@ use App\Enums\DocumentStatus;
 use App\Models\BankReconciliationSummary;
 use App\Models\BankStatement;
 use App\Models\BankStatementLine;
+use App\Models\ChartOfAccount;
 use App\Models\PaymentEntry;
 use App\Models\ReceiptEntry;
 use App\Repositories\BankReconciliationRepository;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class BankReconciliationService
 {
@@ -120,12 +124,16 @@ class BankReconciliationService
         $systemTotals = $this->repository->systemTotalsByDate($bankAccountId, $dateFrom, $dateTo);
         $coveredDates = $this->coveredDates($bankAccountId, $dateFrom, $dateTo);
 
+        // GROUP BY DATE(transaction_date), not the raw column -- a bank statement line's date
+        // carries a real time-of-day from the source file (e.g. BCA's PostDate), so two lines on
+        // the same calendar day but different times would otherwise land in separate groups and
+        // silently lose one one another once keyed by day below.
         $statementTotals = BankStatementLine::query()
             ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
             ->whereDate('transaction_date', '>=', $dateFrom)
             ->whereDate('transaction_date', '<=', $dateTo)
-            ->selectRaw('transaction_date as date, SUM(debit_amount) as debit_total, SUM(credit_amount) as credit_total')
-            ->groupBy('transaction_date')
+            ->selectRaw('DATE(transaction_date) as date, SUM(debit_amount) as debit_total, SUM(credit_amount) as credit_total')
+            ->groupBy(DB::raw('DATE(transaction_date)'))
             ->get()
             ->keyBy(fn ($row) => Carbon::parse($row->date)->format('Y-m-d'));
 
@@ -153,15 +161,61 @@ class BankReconciliationService
         }
     }
 
-    public function getDailyBalancingSummary(?string $bankAccountId, string $dateFrom, string $dateTo)
+    /**
+     * Every is_cash_bank account gets a row for every day in range -- a day no write path has
+     * ever recomputed (no PV/OR submitted, no statement uploaded, nothing to trigger
+     * recomputeSummary()) has no persisted BankReconciliationSummary row at all, but that's
+     * itself a "not_uploaded" day, not nothing to show. Missing (account, date) pairs are
+     * synthesized here at read time rather than requiring some scheduled job to have pre-created
+     * them -- exactly the gap that would otherwise hide the Dashboard's whole "you forgot to
+     * upload today's statement" alert on a day with zero other activity on that account.
+     */
+    public function getDailyBalancingSummary(?string $bankAccountId, string $dateFrom, string $dateTo): Collection
     {
-        return BankReconciliationSummary::query()
+        $existing = BankReconciliationSummary::query()
             ->when($bankAccountId, fn ($q) => $q->where('bank_account_id', $bankAccountId))
             ->whereDate('date', '>=', $dateFrom)
             ->whereDate('date', '<=', $dateTo)
-            ->orderBy('bank_account_id')
-            ->orderBy('date')
+            ->with('bankAccount')
             ->get();
+
+        $bankAccounts = ChartOfAccount::query()
+            ->where('is_cash_bank', true)
+            ->when($bankAccountId, fn ($q) => $q->where('id', $bankAccountId))
+            ->get();
+
+        $existingKeys = $existing->map(fn ($s) => $s->bank_account_id.'|'.$s->date->format('Y-m-d'))->flip();
+
+        $synthesized = collect();
+        foreach ($bankAccounts as $account) {
+            foreach (CarbonPeriod::create($dateFrom, $dateTo) as $date) {
+                $key = $account->id.'|'.$date->format('Y-m-d');
+
+                if ($existingKeys->has($key)) {
+                    continue;
+                }
+
+                $summary = new BankReconciliationSummary([
+                    'bank_account_id' => $account->id,
+                    'date' => $date->format('Y-m-d'),
+                    'system_debit_total' => 0,
+                    'system_credit_total' => 0,
+                    'statement_debit_total' => 0,
+                    'statement_credit_total' => 0,
+                    'variance_debit' => 0,
+                    'variance_credit' => 0,
+                    'status' => BankReconciliationStatus::NOT_UPLOADED,
+                    'generated_at' => now(),
+                ]);
+                $summary->id = (string) Str::uuid();
+                $summary->setRelation('bankAccount', $account);
+                $synthesized->push($summary);
+            }
+        }
+
+        return $existing->concat($synthesized)
+            ->sortBy([['bank_account_id', 'asc'], ['date', 'asc']])
+            ->values();
     }
 
     /** @return array<string, true> Y-m-d dates covered by at least one PROCESSED statement. */

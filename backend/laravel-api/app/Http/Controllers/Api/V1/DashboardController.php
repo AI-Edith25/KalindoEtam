@@ -44,7 +44,7 @@ class DashboardController extends Controller
     public function bankBalancing(DashboardDateRequest $request): JsonResponse
     {
         return $this->success(BankReconciliationSummaryResource::collection(
-            $this->dashboardService->bankBalancing($request->resolvedDate())->load('bankAccount')
+            $this->dashboardService->bankBalancing($request->resolvedDate())
         ));
     }
 

@@ -146,6 +146,27 @@ class BankReconciliationServiceTest extends TestCase
         $this->assertEquals(0, (float) $summary->variance_debit);
     }
 
+    /**
+     * BCA's PostDate carries a real time-of-day (e.g. "14:24:27"); two lines on the same
+     * calendar day but different times must still sum into one day's statement total, not
+     * silently drop one another because GROUP BY grouped by the full timestamp instead of
+     * just the date.
+     */
+    public function test_recompute_summary_sums_same_day_lines_with_different_times_of_day(): void
+    {
+        $this->submittedReceipt('2026-09-01', 23429612);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'transfer 1', 'transaction_date' => '2026-09-01 14:24:27', 'debit_amount' => 18429612, 'credit_amount' => 0],
+            ['description' => 'transfer 2', 'transaction_date' => '2026-09-01 15:27:32', 'debit_amount' => 5000000, 'credit_amount' => 0],
+        ]);
+
+        $this->service->recomputeSummary($this->bankAccount->id, '2026-09-01', '2026-09-01');
+
+        $summary = BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail();
+        $this->assertEquals(23429612, (float) $summary->statement_debit_total);
+        $this->assertSame(BankReconciliationStatus::BALANCED, $summary->status);
+    }
+
     public function test_recompute_summary_is_unbalanced_when_totals_differ(): void
     {
         $this->submittedReceipt('2026-09-01', 1500000);
@@ -173,5 +194,40 @@ class BankReconciliationServiceTest extends TestCase
         $line->refresh();
         $this->assertSame(BankStatementLineMatchStatus::MANUAL_MATCHED, $line->match_status);
         $this->assertSame($receipt->id, $line->matched_document_id);
+    }
+
+    /**
+     * A day nothing ever recomputed for (no PV/OR, no statement upload) has no persisted
+     * BankReconciliationSummary row at all -- that must still surface as not_uploaded for every
+     * is_cash_bank account, not be silently missing from the Dashboard's daily table.
+     */
+    public function test_getDailyBalancingSummary_synthesizes_not_uploaded_for_every_bank_account_with_no_recomputed_row(): void
+    {
+        $secondBankAccount = ChartOfAccount::query()->create([
+            'code' => '1102', 'name' => 'BANK MANDIRI SMD', 'account_type' => 'asset',
+            'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
+        ]);
+
+        $rows = $this->service->getDailyBalancingSummary(null, '2026-09-26', '2026-09-26');
+
+        $this->assertCount(2, $rows);
+        $this->assertTrue($rows->every(fn ($row) => $row->status === BankReconciliationStatus::NOT_UPLOADED));
+        $this->assertEqualsCanonicalizing(
+            [$this->bankAccount->id, $secondBankAccount->id],
+            $rows->pluck('bank_account_id')->all(),
+        );
+    }
+
+    public function test_getDailyBalancingSummary_filters_synthesized_rows_by_bank_account_id(): void
+    {
+        ChartOfAccount::query()->create([
+            'code' => '1102', 'name' => 'BANK MANDIRI SMD', 'account_type' => 'asset',
+            'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
+        ]);
+
+        $rows = $this->service->getDailyBalancingSummary($this->bankAccount->id, '2026-09-26', '2026-09-26');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($this->bankAccount->id, $rows->first()->bank_account_id);
     }
 }
