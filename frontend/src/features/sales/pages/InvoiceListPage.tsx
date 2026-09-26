@@ -214,7 +214,9 @@ export function InvoiceListPage() {
         (row.deliveries ?? [])
           .map((delivery) => delivery.document_number)
           .filter(Boolean)
-          .join(', ') || '—',
+          .join(', ') ||
+        [row.reference_1, row.reference_2].filter(Boolean).join(', ') ||
+        '—',
     },
     { header: 'Attention', accessor: (row) => row.sales_order?.attention ?? '—' },
     { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
