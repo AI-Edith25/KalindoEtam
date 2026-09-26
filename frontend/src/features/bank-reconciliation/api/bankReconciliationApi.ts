@@ -3,7 +3,6 @@ import type { ApiResponse } from '@/shared/types/api'
 import type {
   BankReconciliationDetailRow,
   BankReconciliationDetailView,
-  BankReconciliationSummary,
   BankStatement,
   BankStatementFormatTemplate,
   BankStatementPreviewRow,
@@ -41,26 +40,16 @@ export async function fetchBankStatement(batchId: string): Promise<BankStatement
   return data.data
 }
 
-export interface DailyBalancingParams {
+export interface BankReconciliationDetailParams {
   bank_account_id?: string
   date_from: string
   date_to: string
+  view?: BankReconciliationDetailView
 }
 
-export async function fetchDailyBalancingSummary(params: DailyBalancingParams): Promise<BankReconciliationSummary[]> {
-  const { data } = await apiClient.get<ApiResponse<BankReconciliationSummary[]>>('/bank-reconciliation', { params })
-  return data.data
-}
-
-/** `view` picks which side to browse from -- see BankReconciliationDetailRow. Defaults to 'import'. */
-export async function fetchBankReconciliationDetailRows(
-  bankAccountId: string,
-  date: string,
-  view: BankReconciliationDetailView = 'import',
-): Promise<BankReconciliationDetailRow[]> {
-  const { data } = await apiClient.get<ApiResponse<BankReconciliationDetailRow[]>>('/bank-reconciliation/lines', {
-    params: { bank_account_id: bankAccountId, date, view },
-  })
+/** `view` picks which side to browse from -- see BankReconciliationDetailRow. Defaults to 'import'. Omitting bank_account_id includes every bank account. */
+export async function fetchBankReconciliationDetailRows(params: BankReconciliationDetailParams): Promise<BankReconciliationDetailRow[]> {
+  const { data } = await apiClient.get<ApiResponse<BankReconciliationDetailRow[]>>('/bank-reconciliation/lines', { params })
   return data.data
 }
 

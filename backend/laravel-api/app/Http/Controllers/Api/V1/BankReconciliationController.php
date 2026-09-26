@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexBankReconciliationDetailRequest;
 use App\Http\Requests\IndexBankReconciliationSummaryRequest;
-use App\Http\Requests\IndexBankStatementLineRequest;
 use App\Http\Requests\ManualMatchBankStatementLineRequest;
 use App\Http\Requests\RecomputeBankReconciliationRequest;
 use App\Http\Resources\BankReconciliationSummaryResource;
@@ -31,18 +31,19 @@ class BankReconciliationController extends Controller
     }
 
     /**
-     * The detail page's drill-down, either side: "import" (uploaded statement lines, System =
-     * their matched document if any) or "system" (Payment Voucher/Official Receipt on this
-     * account + day, Statement = the line they're matched to if any). Same six-column shape.
+     * The detail page's main transaction list, either side: "import" (uploaded statement lines,
+     * System = their matched document if any) or "system" (Payment Voucher/Official Receipt in
+     * range, Statement = the line they're matched to if any). Same six-column shape either way.
      */
-    public function lines(IndexBankStatementLineRequest $request): JsonResponse
+    public function lines(IndexBankReconciliationDetailRequest $request): JsonResponse
     {
         $data = $request->validated();
         $view = $data['view'] ?? 'import';
+        $bankAccountId = $data['bank_account_id'] ?? null;
 
         $rows = $view === 'system'
-            ? $this->bankReconciliationService->systemRows($data['bank_account_id'], $data['date'])
-            : $this->bankReconciliationService->importRows($data['bank_account_id'], $data['date']);
+            ? $this->bankReconciliationService->systemRows($bankAccountId, $data['date_from'], $data['date_to'])
+            : $this->bankReconciliationService->importRows($bankAccountId, $data['date_from'], $data['date_to']);
 
         return $this->success($rows);
     }

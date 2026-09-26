@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Loader2, RotateCw, Upload } from 'lucide-react'
+import { RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -18,13 +18,8 @@ import { useHasPermission } from '@/shared/hooks/usePermission'
 import { fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
 import { fetchPaymentEntries } from '@/features/payment/api/paymentEntryApi'
 import { fetchReceiptEntries } from '@/features/payment/api/receiptEntryApi'
-import {
-  fetchBankReconciliationDetailRows,
-  fetchDailyBalancingSummary,
-  manualMatchBankStatementLine,
-  recomputeReconciliation,
-} from '../api/bankReconciliationApi'
-import type { BankReconciliationDetailRow, BankReconciliationDetailView, BankReconciliationSummary, BankReconciliationStatus } from '../types'
+import { fetchBankReconciliationDetailRows, manualMatchBankStatementLine, recomputeReconciliation } from '../api/bankReconciliationApi'
+import type { BankReconciliationDetailRow, BankReconciliationDetailView } from '../types'
 
 const VIEW_LABEL: Record<BankReconciliationDetailView, string> = {
   import: 'Data Import',
@@ -73,22 +68,11 @@ function ManualMatchPicker({ row, onMatched }: { row: BankReconciliationDetailRo
   )
 }
 
-const STATUS_LABEL: Record<BankReconciliationStatus, string> = {
-  balanced: 'Balanced',
-  unbalanced: 'Unbalanced',
-  not_uploaded: 'Mutasi bank belum di upload',
-}
-
-function StatusPill({ status }: { status: BankReconciliationStatus }) {
-  const variant = status === 'balanced' ? 'default' : status === 'unbalanced' ? 'destructive' : 'secondary'
-  return <Badge variant={variant}>{STATUS_LABEL[status]}</Badge>
-}
-
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
-/** Daily balancing table (deliverable 6's data, reused here) + drill-down into one day's statement lines vs matched documents. */
+/** Per-transaction reconciliation list -- Import (statement lines) or Sistem (Payment Voucher/Official Receipt), same six-column shape either way. */
 export function BankReconciliationDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -98,68 +82,65 @@ export function BankReconciliationDetailPage() {
   const [bankAccountId, setBankAccountId] = useState<string>('')
   const [dateFrom, setDateFrom] = useState(() => todayIso())
   const [dateTo, setDateTo] = useState(() => todayIso())
-  const [selectedRow, setSelectedRow] = useState<BankReconciliationSummary | null>(null)
-  const [detailView, setDetailView] = useState<BankReconciliationDetailView>('import')
+  const [view, setView] = useState<BankReconciliationDetailView>('import')
+  // A wide date range can have hundreds of unmatched rows -- rendering a live SearchableSelect
+  // per row for all of them at once is what was actually straining the page, not just this one
+  // interaction. Only the row being matched right now mounts its picker.
+  const [matchingRowId, setMatchingRowId] = useState<string | null>(null)
 
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
   const bankAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
 
-  const summaryQuery = useQuery({
-    queryKey: ['bank-reconciliation-summary', bankAccountId, dateFrom, dateTo],
-    queryFn: () => fetchDailyBalancingSummary({ bank_account_id: bankAccountId || undefined, date_from: dateFrom, date_to: dateTo }),
-  })
-
-  const detailRowsQuery = useQuery({
-    queryKey: ['bank-reconciliation-detail-rows', selectedRow?.bank_account_id, selectedRow?.date, detailView],
-    queryFn: () => fetchBankReconciliationDetailRows(selectedRow!.bank_account_id, selectedRow!.date, detailView),
-    enabled: selectedRow !== null && selectedRow.status !== 'not_uploaded',
+  const rowsQuery = useQuery({
+    queryKey: ['bank-reconciliation-detail-rows', bankAccountId, dateFrom, dateTo, view],
+    queryFn: () => fetchBankReconciliationDetailRows({ bank_account_id: bankAccountId || undefined, date_from: dateFrom, date_to: dateTo, view }),
   })
 
   const recomputeMutation = useMutation({
-    mutationFn: (row: BankReconciliationSummary) => recomputeReconciliation({ bank_account_id: row.bank_account_id, date_from: row.date, date_to: row.date }),
+    mutationFn: () => recomputeReconciliation({ bank_account_id: bankAccountId, date_from: dateFrom, date_to: dateTo }),
     onSuccess: () => {
       toast.success('Reconciliation recomputed.')
-      queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-summary'] })
       queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-detail-rows'] })
     },
     onError: (error) => toastApiError(error),
   })
 
-  const columns = useMemo<DataTableColumn<BankReconciliationSummary>[]>(
+  const columns = useMemo<DataTableColumn<BankReconciliationDetailRow>[]>(
     () => [
       { header: 'Date', accessor: (row) => formatDate(row.date) },
-      { header: 'Bank Account', accessor: (row) => row.bank_account_name ?? '-' },
+      { header: 'Customer', accessor: (row) => row.customer ?? '-' },
+      { header: 'System', accessor: (row) => (row.system_amount !== null ? formatCurrency(row.system_amount) : '-'), className: 'text-right' },
+      { header: 'Statement', accessor: (row) => (row.statement_amount !== null ? formatCurrency(row.statement_amount) : '-'), className: 'text-right' },
+      { header: 'Selisih', accessor: (row) => formatCurrency(row.selisih), className: 'text-right' },
       {
-        header: 'System (Dr/Cr)',
-        accessor: (row) => (row.status === 'not_uploaded' ? '-' : `${formatCurrency(row.system_debit_total)} / ${formatCurrency(row.system_credit_total)}`),
-      },
-      {
-        header: 'Statement (Dr/Cr)',
-        accessor: (row) => (row.status === 'not_uploaded' ? '-' : `${formatCurrency(row.statement_debit_total)} / ${formatCurrency(row.statement_credit_total)}`),
-      },
-      {
-        header: 'Selisih',
-        accessor: (row) => (row.status === 'not_uploaded' ? '-' : `${formatCurrency(row.variance_debit)} / ${formatCurrency(row.variance_credit)}`),
-      },
-      { header: 'Status', accessor: (row) => <StatusPill status={row.status} /> },
-      {
-        header: '',
-        accessor: (row) =>
-          canUpdate && row.status !== 'not_uploaded' ? (
-            <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); recomputeMutation.mutate(row) }} disabled={recomputeMutation.isPending}>
-              <RotateCw className="h-4 w-4" />
-            </Button>
-          ) : null,
+        header: 'Status',
+        accessor: (row) => (
+          <div className="space-y-1">
+            <Badge variant={row.status === 'unmatched' ? 'destructive' : 'default'}>{row.status}</Badge>
+            {view === 'import' && row.status === 'unmatched' && canUpdate && (
+              matchingRowId === row.id ? (
+                <ManualMatchPicker
+                  row={row}
+                  onMatched={() => { setMatchingRowId(null); queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-detail-rows'] }) }}
+                />
+              ) : (
+                <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={() => setMatchingRowId(row.id)}>
+                  Match
+                </Button>
+              )
+            )}
+          </div>
+        ),
       },
     ],
-    [canUpdate, recomputeMutation],
+    [view, canUpdate, queryClient, matchingRowId],
   )
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Bank Reconciliation"
-        description="Daily balancing between uploaded bank statements and Payment Voucher/Official Receipt."
+        description="Transactions from uploaded bank statements vs. Payment Voucher/Official Receipt."
         actions={
           canCreate ? (
             <Button onClick={() => navigate('/finance/bank-reconciliation/upload')}>
@@ -196,81 +177,41 @@ export function BankReconciliationDetailPage() {
             <Label>To</Label>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
+          <div className="space-y-1.5">
+            <Label>View</Label>
+            <Select value={view} onValueChange={(value) => setView(value as BankReconciliationDetailView)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="import">{VIEW_LABEL.import}</SelectItem>
+                <SelectItem value="system">{VIEW_LABEL.system}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {canUpdate && (
+            <Button
+              variant="outline"
+              disabled={!bankAccountId || recomputeMutation.isPending}
+              title={!bankAccountId ? 'Select a bank account to re-run reconciliation' : undefined}
+              onClick={() => recomputeMutation.mutate()}
+            >
+              <RotateCw className="mr-2 h-4 w-4" />
+              Re-run reconciliation
+            </Button>
+          )}
         </CardContent>
       </Card>
 
       <DataTable
         columns={columns}
-        data={summaryQuery.data ?? []}
+        data={rowsQuery.data ?? []}
         rowKey={(row) => row.id}
-        isLoading={summaryQuery.isLoading}
-        isError={summaryQuery.isError}
-        onRetry={() => summaryQuery.refetch()}
-        onRowClick={(row) => setSelectedRow(row)}
+        isLoading={rowsQuery.isLoading}
+        isError={rowsQuery.isError}
+        onRetry={() => rowsQuery.refetch()}
         emptyMessage="No data for this range."
       />
-
-      {selectedRow && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">
-              {selectedRow.bank_account_name} &mdash; {formatDate(selectedRow.date)}
-            </CardTitle>
-            {selectedRow.status !== 'not_uploaded' && (
-              <Select value={detailView} onValueChange={(value) => setDetailView(value as BankReconciliationDetailView)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="import">{VIEW_LABEL.import}</SelectItem>
-                  <SelectItem value="system">{VIEW_LABEL.system}</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </CardHeader>
-          <CardContent>
-            {selectedRow.status === 'not_uploaded' ? (
-              <p className="text-sm text-muted-foreground">{STATUS_LABEL.not_uploaded}</p>
-            ) : detailRowsQuery.isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <div className="overflow-auto rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 text-left">
-                    <tr>
-                      <th className="p-2">Date</th>
-                      <th className="p-2">Customer</th>
-                      <th className="p-2 text-right">System</th>
-                      <th className="p-2 text-right">Statement</th>
-                      <th className="p-2 text-right">Selisih</th>
-                      <th className="p-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(detailRowsQuery.data ?? []).map((row) => (
-                      <tr key={row.id} className="border-t align-top">
-                        <td className="p-2">{formatDate(row.date)}</td>
-                        <td className="p-2">{row.customer ?? '-'}</td>
-                        <td className="p-2 text-right">{row.system_amount !== null ? formatCurrency(row.system_amount) : '-'}</td>
-                        <td className="p-2 text-right">{row.statement_amount !== null ? formatCurrency(row.statement_amount) : '-'}</td>
-                        <td className="p-2 text-right">{formatCurrency(row.selisih)}</td>
-                        <td className="p-2">
-                          <Badge variant={row.status === 'unmatched' ? 'destructive' : 'default'}>{row.status}</Badge>
-                          {detailView === 'import' && row.status === 'unmatched' && canUpdate && (
-                            <div className="mt-1">
-                              <ManualMatchPicker row={row} onMatched={() => queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-detail-rows'] })} />
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

@@ -219,16 +219,17 @@ class BankReconciliationService
     }
 
     /**
-     * Import view: one row per uploaded statement line, "System" = its matched document's
-     * amount (null if unmatched). Matches BankStatementController::lines()'s date/account scope.
+     * Import view: one row per uploaded statement line in range, "System" = its matched
+     * document's amount (null if unmatched). Null $bankAccountId means every bank account.
      *
      * @return array<int, array>
      */
-    public function importRows(string $bankAccountId, string $date): array
+    public function importRows(?string $bankAccountId, string $dateFrom, string $dateTo): array
     {
         $lines = BankStatementLine::query()
-            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
-            ->whereDate('transaction_date', $date)
+            ->when($bankAccountId, fn ($q) => $q->whereHas('bankStatement', fn ($q2) => $q2->where('bank_account_id', $bankAccountId)))
+            ->whereDate('transaction_date', '>=', $dateFrom)
+            ->whereDate('transaction_date', '<=', $dateTo)
             ->with(['matchedDocument' => function ($morphTo) {
                 $morphTo->morphWith([
                     ReceiptEntry::class => ['customer'],
@@ -262,25 +263,28 @@ class BankReconciliationService
     }
 
     /**
-     * System view: one row per Payment Voucher (credit)/Official Receipt (debit) on this bank
-     * account + date, "Statement" = the statement line it's matched to (null if unmatched) --
-     * the mirror image of importRows(), same six-column shape, browsing from the other side.
+     * System view: one row per Payment Voucher (credit)/Official Receipt (debit) in range,
+     * "Statement" = the statement line it's matched to (null if unmatched) -- the mirror image
+     * of importRows(), same six-column shape, browsing from the other side. Null $bankAccountId
+     * means every bank account.
      *
      * @return array<int, array>
      */
-    public function systemRows(string $bankAccountId, string $date): array
+    public function systemRows(?string $bankAccountId, string $dateFrom, string $dateTo): array
     {
         $receipts = ReceiptEntry::query()
-            ->where('cash_account_id', $bankAccountId)
+            ->when($bankAccountId, fn ($q) => $q->where('cash_account_id', $bankAccountId))
             ->where('status', DocumentStatus::SUBMITTED)
-            ->whereDate('receipt_date', $date)
+            ->whereDate('receipt_date', '>=', $dateFrom)
+            ->whereDate('receipt_date', '<=', $dateTo)
             ->with('customer')
             ->get();
 
         $payments = PaymentEntry::query()
-            ->where('cash_account_id', $bankAccountId)
+            ->when($bankAccountId, fn ($q) => $q->where('cash_account_id', $bankAccountId))
             ->where('status', DocumentStatus::SUBMITTED)
-            ->whereDate('payment_date', $date)
+            ->whereDate('payment_date', '>=', $dateFrom)
+            ->whereDate('payment_date', '<=', $dateTo)
             ->with('supplier', 'expenseAccount')
             ->get();
 

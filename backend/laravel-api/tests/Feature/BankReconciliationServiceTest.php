@@ -239,7 +239,7 @@ class BankReconciliationServiceTest extends TestCase
         ]);
         $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
 
-        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01');
+        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01', '2026-09-01');
 
         $this->assertCount(1, $rows);
         $this->assertSame('Acme', $rows[0]['customer']);
@@ -255,7 +255,7 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'biaya admin', 'debit_amount' => 25000, 'credit_amount' => 0],
         ]);
 
-        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01');
+        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01', '2026-09-01');
 
         $this->assertCount(1, $rows);
         $this->assertNull($rows[0]['customer']);
@@ -273,7 +273,7 @@ class BankReconciliationServiceTest extends TestCase
         ]);
         $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
 
-        $rows = collect($this->service->systemRows($this->bankAccount->id, '2026-09-01'));
+        $rows = collect($this->service->systemRows($this->bankAccount->id, '2026-09-01', '2026-09-01'));
 
         $matchedRow = $rows->firstWhere('id', $receipt->id);
         $this->assertSame('Acme', $matchedRow['customer']);
@@ -284,5 +284,49 @@ class BankReconciliationServiceTest extends TestCase
         $unmatchedRow = $rows->firstWhere('statement_amount', null);
         $this->assertSame(900901.0, $unmatchedRow['system_amount']);
         $this->assertSame('unmatched', $unmatchedRow['status']);
+    }
+
+    public function test_importRows_spans_the_whole_date_range_not_just_one_day(): void
+    {
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'day one', 'debit_amount' => 10000, 'credit_amount' => 0],
+        ]);
+        $this->statementWithLines('2026-09-03', [
+            ['description' => 'day three', 'debit_amount' => 20000, 'credit_amount' => 0],
+        ]);
+
+        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01', '2026-09-03');
+
+        $this->assertCount(2, $rows);
+    }
+
+    public function test_importRows_with_no_bank_account_filter_includes_every_account(): void
+    {
+        $otherBankAccount = ChartOfAccount::query()->create([
+            'code' => '1102', 'name' => 'BANK MANDIRI SMD', 'account_type' => 'asset',
+            'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
+        ]);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'account one', 'debit_amount' => 10000, 'credit_amount' => 0],
+        ]);
+        BankStatement::query()->create([
+            'bank_account_id' => $otherBankAccount->id,
+            'format_template' => 'bca',
+            'original_filename' => 'test.csv',
+            'disk' => 'local',
+            'file_path' => 'test.csv',
+            'status' => BankStatementStatus::PROCESSED,
+            'period_start' => '2026-09-01',
+            'period_end' => '2026-09-01',
+        ])->lines()->create([
+            'transaction_date' => '2026-09-01',
+            'description' => 'account two',
+            'debit_amount' => 20000,
+            'credit_amount' => 0,
+        ]);
+
+        $rows = $this->service->importRows(null, '2026-09-01', '2026-09-01');
+
+        $this->assertCount(2, $rows);
     }
 }
