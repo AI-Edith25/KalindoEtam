@@ -5,9 +5,11 @@ export type PrintFontSize = 'small' | 'medium' | 'large'
  * Payment Voucher print-only, same reasoning.
  *
  * 'dotmatrix_half' — opt-in only (Delivery Order + Invoice, see their own `paperTypeOptions`
- * arrays): same physical layout as 'half' but never emits a second page, for printers whose own
- * paper size Chrome uses instead of `@page size` (a real stakeholder's dot-matrix setup). See
- * DOTMATRIX_HALF_DEFAULTS below for its tunable numbers.
+ * arrays): same physical layout as 'half', but its own fixed 9.5in x 5.5in @page size
+ * (DOTMATRIX_HALF_PAGE_SIZE_MM in invoicePrintConstants.ts), not PAPER_SIZES.half's 210x148.5mm —
+ * locked in CSS so page count never depends on whatever custom paper form is registered in a given
+ * device's printer driver. See DOTMATRIX_HALF_DEFAULTS below for its other tunable numbers
+ * (content height/offset, independent of the physical @page size above).
  */
 export type PrintPaperType = 'a4' | 'continuous' | 'half' | 'roll' | 'letter' | 'dotmatrix_half'
 
@@ -90,8 +92,8 @@ export const PRINT_PAPER_PAGE_CSS: Record<PrintPaperType, string | null> = {
   // every other a4 consumer) since its own content div is already sized to 210x297mm; Letter
   // needs an explicit @page since the browser default is A4-shaped on most locales/printers.
   letter: '@page { size: 216mm 279mm; margin: 12mm; }',
-  // Never read from here — Delivery/Invoice print build their own dot-matrix @page string inline
-  // (deliberately margin-only, no size, so Chrome follows the printer's own paper size) and no
+  // Never read from here — Delivery/Invoice print build their own dot-matrix @page string inline,
+  // using DOTMATRIX_HALF_PAGE_SIZE_MM (invoicePrintConstants.ts) for its explicit size, and no
   // other consumer offers this paper type. Present only so this Record<PrintPaperType, ...> stays
   // exhaustive.
   dotmatrix_half: null,

@@ -59,6 +59,12 @@ export const PAPER_SIZES: Record<InvoicePaperKey, { widthMm: number; heightMm: n
   continuous: { widthMm: 241.3, heightMm: 279.4 },
 }
 
+/** Dot Matrix Half's own physical page (9.5in x 5.5in) -- distinct from PAPER_SIZES.half (A5
+    landscape, 210x148.5mm): same Half layout, different physical paper. Locked into every
+    dot-matrix @page rule (Invoice + Delivery print) so page count no longer depends on whatever
+    custom paper form is registered in a given device's printer driver. */
+export const DOTMATRIX_HALF_PAGE_SIZE_MM = { widthMm: 241.3, heightMm: 139.7 } as const
+
 /** Content width after MARGIN_MM on both sides: 190mm for A4/Half, 221.3mm for Continuous. */
 export function contentWidthMm(paper: InvoicePaperKey): number {
   return PAPER_SIZES[paper].widthMm - 2 * MARGIN_MM

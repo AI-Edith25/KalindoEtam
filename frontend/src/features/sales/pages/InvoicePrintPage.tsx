@@ -19,7 +19,7 @@ import { useAuth } from '@/app/AuthContext'
 import { fetchInvoice } from '../api/invoiceApi'
 import { InvoiceLandscapeLayout } from './InvoiceLandscapeLayout'
 import { InvoicePortraitLayout } from './InvoicePortraitLayout'
-import { DEJAVU_FONT_STACK, PAPER_SIZES } from './invoicePrintConstants'
+import { DEJAVU_FONT_STACK, DOTMATRIX_HALF_PAGE_SIZE_MM, PAPER_SIZES } from './invoicePrintConstants'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -212,11 +212,14 @@ export function InvoicePrintPage() {
           each layout's own 10mm content inset (Landscape/Portrait — see invoicePrintConstants.ts's
           MARGIN_MM), never a real @page margin, so screen and print always agree on paper size.
 
-          Dot-matrix mode deliberately omits `size` — Chrome on the stakeholder's machine uses the
-          printer's own configured paper size regardless of what we ask for here. */}
+          Dot-matrix mode locks `size` to DOTMATRIX_HALF_PAGE_SIZE_MM (9.5in x 5.5in) so page count
+          no longer depends on whatever custom paper form is registered in a given device's printer
+          driver -- this used to omit `size` entirely for one stakeholder's printer whose driver
+          disagreed with any size we asked for, but that traded away predictable page count for
+          every other device, which is the worse failure mode. */}
       <style>
         {(isDotMatrix
-          ? '@page { margin: 0; }'
+          ? `@page { size: ${DOTMATRIX_HALF_PAGE_SIZE_MM.widthMm}mm ${DOTMATRIX_HALF_PAGE_SIZE_MM.heightMm}mm; margin: 0; }`
           : format === 'roll'
             ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
             : `@page { size: ${paperSize.widthMm}mm ${paperSize.heightMm}mm; margin: 0; }`) +

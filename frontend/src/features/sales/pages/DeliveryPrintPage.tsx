@@ -8,7 +8,7 @@ import { DOTMATRIX_HALF_DEFAULTS, loadDeliveryPrintOptions, saveDeliveryPrintOpt
 import { fetchMyPrintSettings, saveMyPrintSetting } from '@/shared/lib/printSettingApi'
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchDelivery } from '../api/deliveryApi'
-import { DEJAVU_FONT_STACK, legacyCompanyName } from './invoicePrintConstants'
+import { DEJAVU_FONT_STACK, DOTMATRIX_HALF_PAGE_SIZE_MM, legacyCompanyName } from './invoicePrintConstants'
 import { A4, HALF } from './deliveryPrintConstants'
 import { DeliveryPortraitLayout } from './DeliveryPortraitLayout'
 import { DeliveryHalfLayout } from './DeliveryHalfLayout'
@@ -107,12 +107,15 @@ export function DeliveryPrintPage() {
           also what was pushing Half's content past one physical page. margin:0 here + the div's own
           padding is the same convention InvoicePrintPage.tsx already uses.
 
-          Dot-matrix mode deliberately omits `size` — Chrome on the stakeholder's machine uses the
-          printer's own configured paper size regardless of what we ask for here, so asking for a
-          rigid size we can't guarantee just adds a false expectation; margin:0 is all that matters. */}
+          Dot-matrix mode locks `size` to DOTMATRIX_HALF_PAGE_SIZE_MM (9.5in x 5.5in, same constant
+          InvoicePrintPage.tsx uses) so page count no longer depends on whatever custom paper form
+          is registered in a given device's printer driver -- this used to omit `size` entirely for
+          one stakeholder's printer whose driver disagreed with any size we asked for, but that
+          traded away predictable page count for every other device, which is the worse failure
+          mode. */}
       <style>
         {isDotMatrix
-          ? '@page { margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'
+          ? `@page { size: ${DOTMATRIX_HALF_PAGE_SIZE_MM.widthMm}mm ${DOTMATRIX_HALF_PAGE_SIZE_MM.heightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`
           : `@page { size: ${paper.pageWidthMm}mm ${paper.pageHeightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
       </style>
 
