@@ -1,6 +1,5 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiResponse } from '@/shared/types/api'
-import type { CashBookRow } from '@/features/accounting/types'
 import type {
   BankReconciliationComparisonRow,
   BankReconciliationDetailRow,
@@ -89,10 +88,9 @@ export async function manualMatchBankStatementLine(lineId: string, documentType:
 
 export interface BankReconciliationDayDetail {
   files: BankReconciliationFile[]
-  cash_book_rows: CashBookRow[]
 }
 
-/** Point 2's "View" -- the day's uploaded file(s) plus its Cash Book Transaction rows. */
+/** "See the file" -- the day's uploaded file(s). */
 export async function fetchBankReconciliationDayDetail(bankAccountId: string, date: string): Promise<BankReconciliationDayDetail> {
   const { data } = await apiClient.get<ApiResponse<BankReconciliationDayDetail>>('/bank-reconciliation/day-detail', {
     params: { bank_account_id: bankAccountId, date },

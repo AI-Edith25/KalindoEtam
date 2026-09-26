@@ -13,7 +13,6 @@ use App\Models\ChartOfAccount;
 use App\Models\PaymentEntry;
 use App\Models\ReceiptEntry;
 use App\Repositories\BankReconciliationRepository;
-use App\Repositories\CashBookRepository;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
@@ -22,10 +21,7 @@ use Illuminate\Support\Str;
 
 class BankReconciliationService
 {
-    public function __construct(
-        private BankReconciliationRepository $repository,
-        private CashBookRepository $cashBookRepository,
-    ) {}
+    public function __construct(private BankReconciliationRepository $repository) {}
 
     public function recomputeForStatement(BankStatement $statement): void
     {
@@ -222,12 +218,7 @@ class BankReconciliationService
             ->values();
     }
 
-    /**
-     * "View" on a day's row -- the uploaded file(s) covering that day (the "folder" contents,
-     * point 2a) plus that day's Cash Book Transaction rows (point 2b, pulled automatically from
-     * the system, not uploaded) -- reuses CashBookRepository, same read model as the Cash Book
-     * Transaction screen, filtered to this bank account/day via its cash_account_id filter.
-     */
+    /** "See the file" on a day's row -- the uploaded file(s) covering that day (the "folder" contents). */
     public function dayDetail(string $bankAccountId, string $date): array
     {
         $statementIds = BankStatementLine::query()
@@ -249,11 +240,7 @@ class BankReconciliationService
             ])
             ->all();
 
-        $cashBookRows = $this->cashBookRepository
-            ->paginate('all', ['cash_account_id' => $bankAccountId, 'date_from' => $date, 'date_to' => $date], 500)
-            ->items();
-
-        return ['files' => $files, 'cash_book_rows' => $cashBookRows];
+        return ['files' => $files];
     }
 
     /**

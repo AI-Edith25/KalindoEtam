@@ -381,7 +381,7 @@ class BankReconciliationServiceTest extends TestCase
         $this->assertSame(25000.0, $row['selisih']);
     }
 
-    public function test_dayDetail_returns_uploaded_files_and_cash_book_rows(): void
+    public function test_dayDetail_returns_uploaded_files(): void
     {
         $uploader = User::factory()->create(['name' => 'Budi']);
         $statement = BankStatement::query()->create([
@@ -401,23 +401,18 @@ class BankReconciliationServiceTest extends TestCase
             'debit_amount' => 1500000,
             'credit_amount' => 0,
         ]);
-        $this->submittedReceipt('2026-09-01', 1500000);
 
         $detail = $this->service->dayDetail($this->bankAccount->id, '2026-09-01');
 
         $this->assertCount(1, $detail['files']);
         $this->assertSame('mutasi-september.csv', $detail['files'][0]['original_filename']);
         $this->assertSame('Budi', $detail['files'][0]['uploaded_by']);
-        $this->assertCount(1, $detail['cash_book_rows']);
     }
 
     public function test_dayDetail_files_empty_when_nothing_uploaded_for_that_day(): void
     {
-        $this->submittedReceipt('2026-09-01', 500000);
-
         $detail = $this->service->dayDetail($this->bankAccount->id, '2026-09-01');
 
         $this->assertSame([], $detail['files']);
-        $this->assertCount(1, $detail['cash_book_rows']);
     }
 }

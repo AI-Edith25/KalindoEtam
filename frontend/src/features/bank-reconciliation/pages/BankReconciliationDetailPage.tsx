@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, FileText, MoreVertical, RotateCw, Upload, X } from 'lucide-react'
+import { ArrowLeft, Download, FileText, MoreVertical, RotateCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -126,82 +127,48 @@ function DayDetailDialog({ row, onClose }: { row: BankReconciliationSummary; onC
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[95vw] max-h-[85vh] max-w-lg overflow-y-auto rounded-lg p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="break-words pr-6">
             {row.bank_account_name} &mdash; {formatDate(row.date)}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div>
-            <h4 className="mb-2 text-sm font-medium">Mutasi Bank (File)</h4>
-            {detailQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : !detailQuery.data?.files.length ? (
-              <p className="text-sm text-muted-foreground">Belum ada file yang di-upload.</p>
-            ) : (
-              <ul className="space-y-2">
-                {detailQuery.data.files.map((file) => (
-                  <li key={file.id} className="flex items-center justify-between gap-2 rounded border p-2 text-sm">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <FileText className="size-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{file.original_filename}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {file.uploaded_by ?? '-'} &middot; {file.uploaded_at ? formatDate(file.uploaded_at) : '-'}
-                        </p>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="ghost" onClick={() => handleDownload(file)}>
-                      <Download className="size-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div>
-            <h4 className="mb-2 text-sm font-medium">Journal List &mdash; Cash Book</h4>
-            {detailQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : !detailQuery.data?.cash_book_rows.length ? (
-              <p className="text-sm text-muted-foreground">No cash book transactions for this day.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Document</TableHead>
-                    <TableHead>Party</TableHead>
-                    <TableHead className="text-right">Debit</TableHead>
-                    <TableHead className="text-right">Credit</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {detailQuery.data.cash_book_rows.map((cashBookRow) => (
-                    <TableRow key={cashBookRow.id}>
-                      <TableCell className="capitalize">{cashBookRow.type}</TableCell>
-                      <TableCell>{cashBookRow.document_number ?? '-'}</TableCell>
-                      <TableCell>{cashBookRow.party_name ?? '-'}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(cashBookRow.debit)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(cashBookRow.credit)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
+        <div>
+          <h4 className="mb-2 text-sm font-medium">Mutasi Bank (File)</h4>
+          {detailQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : !detailQuery.data?.files.length ? (
+            <p className="text-sm text-muted-foreground">Belum ada file mutasi.</p>
+          ) : (
+            <ul className="space-y-2">
+              {detailQuery.data.files.map((file) => (
+                <li key={file.id} className="flex w-full items-center gap-3 rounded border p-2 text-sm">
+                  <FileText className="size-8 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium" title={file.original_filename}>
+                      {file.original_filename}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {file.uploaded_by ?? '-'} &middot; {file.uploaded_at ? formatDate(file.uploaded_at) : '-'}
+                    </p>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-10 w-10 shrink-0" onClick={() => handleDownload(file)}>
+                    <Download className="size-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </DialogContent>
     </Dialog>
   )
 }
 
-/** Daily balancing table -- one row per bank account (only one exists) + day. The "⋮" menu's "View"
- * expands a Cash Book vs bank statement comparison sub-table below that row; "See the file" opens
- * that day's uploaded file(s) + raw Cash Book rows in a dialog.
+/** Daily balancing table -- one row per bank account (only one exists) + day, in a "Ringkasan" tab.
+ * The "⋮" menu's "View" switches to a "Detail" tab showing that row's Cash Book vs bank statement
+ * comparison; "See the file" opens that day's uploaded file(s) in a dialog. Row click does nothing.
  */
 export function BankReconciliationDetailPage() {
   const navigate = useNavigate()
@@ -211,7 +178,8 @@ export function BankReconciliationDetailPage() {
 
   const [dateFrom, setDateFrom] = useState(() => todayIso())
   const [dateTo, setDateTo] = useState(() => todayIso())
-  const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'summary' | 'detail'>('summary')
+  const [detailRow, setDetailRow] = useState<BankReconciliationSummary | null>(null)
   const [viewRow, setViewRow] = useState<BankReconciliationSummary | null>(null)
 
   const summaryQuery = useQuery({
@@ -261,7 +229,7 @@ export function BankReconciliationDetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem onClick={() => setExpandedRowId((current) => (current === row.id ? null : row.id))}>View</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setDetailRow(row); setActiveTab('detail') }}>View</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setViewRow(row)}>See the file</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -287,42 +255,56 @@ export function BankReconciliationDetailPage() {
         }
       />
 
-      <Card>
-        <CardContent className="flex flex-wrap items-end gap-4 pt-6">
-          <div className="space-y-1.5">
-            <Label>From</Label>
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>To</Label>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'summary' | 'detail')}>
+        <TabsList>
+          <TabsTrigger value="summary">Ringkasan</TabsTrigger>
+          <TabsTrigger value="detail">Detail</TabsTrigger>
+        </TabsList>
 
-      <DataTable
-        columns={summaryColumns}
-        data={summaryQuery.data ?? []}
-        rowKey={(row) => row.id}
-        isLoading={summaryQuery.isLoading}
-        isError={summaryQuery.isError}
-        onRetry={() => summaryQuery.refetch()}
-        emptyMessage="No data for this range."
-        isRowExpanded={(row) => expandedRowId === row.id}
-        renderRowDetail={(row) => (
-          <div className="relative">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="absolute right-2 top-2 z-10"
-              onClick={() => setExpandedRowId(null)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-            <ComparisonSubTable bankAccountId={row.bank_account_id} date={row.date} />
-          </div>
-        )}
-      />
+        <TabsContent value="summary" className="space-y-4">
+          <Card>
+            <CardContent className="flex flex-wrap items-end gap-4 pt-6">
+              <div className="space-y-1.5">
+                <Label>From</Label>
+                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>To</Label>
+                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <DataTable
+            columns={summaryColumns}
+            data={summaryQuery.data ?? []}
+            rowKey={(row) => row.id}
+            isLoading={summaryQuery.isLoading}
+            isError={summaryQuery.isError}
+            onRetry={() => summaryQuery.refetch()}
+            emptyMessage="No data for this range."
+          />
+        </TabsContent>
+
+        <TabsContent value="detail" className="space-y-4">
+          {!detailRow ? (
+            <p className="p-4 text-sm text-muted-foreground">Pilih data lewat menu &#8942; &rarr; View.</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <Button size="sm" variant="outline" onClick={() => setActiveTab('summary')}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Kembali ke Ringkasan
+                </Button>
+                <span className="text-sm font-medium">
+                  {detailRow.bank_account_name} &mdash; {formatDate(detailRow.date)}
+                </span>
+              </div>
+              <ComparisonSubTable bankAccountId={detailRow.bank_account_id} date={detailRow.date} />
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {viewRow && <DayDetailDialog row={viewRow} onClose={() => setViewRow(null)} />}
     </div>

@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import {
   Table,
@@ -49,9 +49,6 @@ interface DataTableProps<T> {
   footerRow?: ReactNode
   /** Per-row className (e.g. tinting an overdue row red) — merged alongside the click/hover classes above, never replacing them. */
   rowClassName?: (row: T) => string | undefined
-  /** Renders an extra full-width row right below a given row (e.g. an expand-on-click comparison sub-table) — only shown when `isRowExpanded` returns true for that row. */
-  renderRowDetail?: (row: T) => ReactNode
-  isRowExpanded?: (row: T) => boolean
 }
 
 /** String headers use themselves as the React key (unchanged behavior for every existing caller); a ReactNode header needs `column.id` or falls back to its column index. */
@@ -77,8 +74,6 @@ export function DataTable<T>({
   stickyHeader,
   footerRow,
   rowClassName,
-  renderRowDetail,
-  isRowExpanded,
 }: DataTableProps<T>) {
   if (isError) {
     return <ErrorState onRetry={onRetry} />
@@ -134,25 +129,17 @@ export function DataTable<T>({
             </TableRow>
           ) : (
             data.map((row, rowIndex) => (
-              <Fragment key={rowKey(row)}>
-                <TableRow
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={cn(onRowClick && 'cursor-pointer hover:bg-muted/50', rowClassName?.(row))}
-                >
-                  {columns.map((column, index) => (
-                    <TableCell key={columnKey(column, index)} className={column.className}>
-                      {column.accessor(row, rowIndex)}
-                    </TableCell>
-                  ))}
-                </TableRow>
-                {renderRowDetail && isRowExpanded?.(row) && (
-                  <TableRow>
-                    <TableCell colSpan={columns.length} className="p-0">
-                      {renderRowDetail(row)}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </Fragment>
+              <TableRow
+                key={rowKey(row)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={cn(onRowClick && 'cursor-pointer hover:bg-muted/50', rowClassName?.(row))}
+              >
+                {columns.map((column, index) => (
+                  <TableCell key={columnKey(column, index)} className={column.className}>
+                    {column.accessor(row, rowIndex)}
+                  </TableCell>
+                ))}
+              </TableRow>
             ))
           )}
         </TableBody>
