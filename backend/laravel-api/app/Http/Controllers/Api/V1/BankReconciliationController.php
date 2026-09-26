@@ -30,18 +30,21 @@ class BankReconciliationController extends Controller
         return $this->success(BankReconciliationSummaryResource::collection($summaries));
     }
 
-    /** Statement lines vs matched documents for one bank account + day -- the detail page's drill-down. */
+    /**
+     * The detail page's drill-down, either side: "import" (uploaded statement lines, System =
+     * their matched document if any) or "system" (Payment Voucher/Official Receipt on this
+     * account + day, Statement = the line they're matched to if any). Same six-column shape.
+     */
     public function lines(IndexBankStatementLineRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $lines = BankStatementLine::query()
-            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $data['bank_account_id']))
-            ->whereDate('transaction_date', $data['date'])
-            ->with('matchedDocument')
-            ->orderBy('transaction_date')
-            ->get();
+        $view = $data['view'] ?? 'import';
 
-        return $this->success(BankStatementLineResource::collection($lines));
+        $rows = $view === 'system'
+            ? $this->bankReconciliationService->systemRows($data['bank_account_id'], $data['date'])
+            : $this->bankReconciliationService->importRows($data['bank_account_id'], $data['date']);
+
+        return $this->success($rows);
     }
 
     /** "Re-run reconciliation" — re-matches and rebuilds the summary for an explicit range. */

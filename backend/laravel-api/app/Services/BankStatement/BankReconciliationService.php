@@ -218,6 +218,110 @@ class BankReconciliationService
             ->values();
     }
 
+    /**
+     * Import view: one row per uploaded statement line, "System" = its matched document's
+     * amount (null if unmatched). Matches BankStatementController::lines()'s date/account scope.
+     *
+     * @return array<int, array>
+     */
+    public function importRows(string $bankAccountId, string $date): array
+    {
+        $lines = BankStatementLine::query()
+            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
+            ->whereDate('transaction_date', $date)
+            ->with(['matchedDocument' => function ($morphTo) {
+                $morphTo->morphWith([
+                    ReceiptEntry::class => ['customer'],
+                    PaymentEntry::class => ['supplier', 'expenseAccount'],
+                ]);
+            }])
+            ->orderBy('transaction_date')
+            ->get();
+
+        return $lines->map(function (BankStatementLine $line) {
+            $statementAmount = (float) $line->credit_amount > 0 ? (float) $line->credit_amount : (float) $line->debit_amount;
+            $document = $line->matchedDocument;
+            $systemAmount = $document?->total_amount !== null ? (float) $document->total_amount : null;
+
+            return [
+                'id' => $line->id,
+                'date' => $line->transaction_date->format('Y-m-d'),
+                'customer' => $this->partyNameForDocument($document),
+                'system_amount' => $systemAmount,
+                'statement_amount' => $statementAmount,
+                'selisih' => $systemAmount !== null ? round($systemAmount - $statementAmount, 2) : $statementAmount,
+                'status' => $line->match_status->value,
+                'description' => $line->description,
+                'bank_statement_line_id' => $line->id,
+                // Credit line -> Payment Voucher (outflow), debit line -> Official Receipt (inflow) --
+                // same direction findCandidate() itself matches on. Lets the manual-match picker
+                // default to the right document type instead of always guessing Payment Voucher.
+                'direction' => (float) $line->credit_amount > 0 ? 'credit' : 'debit',
+            ];
+        })->all();
+    }
+
+    /**
+     * System view: one row per Payment Voucher (credit)/Official Receipt (debit) on this bank
+     * account + date, "Statement" = the statement line it's matched to (null if unmatched) --
+     * the mirror image of importRows(), same six-column shape, browsing from the other side.
+     *
+     * @return array<int, array>
+     */
+    public function systemRows(string $bankAccountId, string $date): array
+    {
+        $receipts = ReceiptEntry::query()
+            ->where('cash_account_id', $bankAccountId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->whereDate('receipt_date', $date)
+            ->with('customer')
+            ->get();
+
+        $payments = PaymentEntry::query()
+            ->where('cash_account_id', $bankAccountId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->whereDate('payment_date', $date)
+            ->with('supplier', 'expenseAccount')
+            ->get();
+
+        $rows = $receipts->map(fn (ReceiptEntry $r) => $this->systemRow($r, $r->receipt_date, $r->customer?->customer_name))
+            ->concat($payments->map(fn (PaymentEntry $p) => $this->systemRow($p, $p->payment_date, $p->supplier?->supplier_name ?? $p->expenseAccount?->name)));
+
+        return $rows->sortBy('date')->values()->all();
+    }
+
+    private function systemRow(PaymentEntry|ReceiptEntry $document, Carbon $date, ?string $partyName): array
+    {
+        $matchedLine = BankStatementLine::query()
+            ->where('matched_document_type', $document->getMorphClass())
+            ->where('matched_document_id', $document->id)
+            ->first();
+        $statementAmount = $matchedLine !== null
+            ? (float) ((float) $matchedLine->credit_amount > 0 ? $matchedLine->credit_amount : $matchedLine->debit_amount)
+            : null;
+        $systemAmount = (float) $document->total_amount;
+
+        return [
+            'id' => $document->id,
+            'date' => $date->format('Y-m-d'),
+            'customer' => $partyName,
+            'system_amount' => $systemAmount,
+            'statement_amount' => $statementAmount,
+            'selisih' => $statementAmount !== null ? round($systemAmount - $statementAmount, 2) : $systemAmount,
+            'status' => $matchedLine?->match_status->value ?? 'unmatched',
+            'document_number' => $document->document_number,
+        ];
+    }
+
+    private function partyNameForDocument(PaymentEntry|ReceiptEntry|null $document): ?string
+    {
+        return match (true) {
+            $document instanceof ReceiptEntry => $document->customer?->customer_name,
+            $document instanceof PaymentEntry => $document->supplier?->supplier_name ?? $document->expenseAccount?->name,
+            default => null,
+        };
+    }
+
     /** @return array<string, true> Y-m-d dates covered by at least one PROCESSED statement. */
     private function coveredDates(string $bankAccountId, string $dateFrom, string $dateTo): array
     {

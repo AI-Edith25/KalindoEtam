@@ -25,15 +25,25 @@ export interface BankStatementPreviewRow {
   running_balance: number | null
 }
 
-export interface BankStatementLine {
+export type BankReconciliationDetailView = 'import' | 'system'
+
+/**
+ * One row of the drill-down, either side: "import" (an uploaded statement line, system_amount =
+ * its matched document's amount) or "system" (a Payment Voucher/Official Receipt, statement_amount
+ * = the line it's matched to) -- same shape either way, browsing from the other side.
+ */
+export interface BankReconciliationDetailRow {
   id: string
-  transaction_date: string
-  description: string
-  debit_amount: number
-  credit_amount: number
-  running_balance: number | null
-  match_status: BankStatementLineMatchStatus
-  matched_document: { type: string; id: string; document_number: string } | null
+  date: string
+  customer: string | null
+  system_amount: number | null
+  statement_amount: number | null
+  selisih: number
+  status: BankStatementLineMatchStatus
+  description?: string
+  document_number?: string
+  bank_statement_line_id?: string
+  direction?: 'debit' | 'credit'
 }
 
 export interface BankReconciliationSummary {

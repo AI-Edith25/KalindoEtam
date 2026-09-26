@@ -230,4 +230,59 @@ class BankReconciliationServiceTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertSame($this->bankAccount->id, $rows->first()->bank_account_id);
     }
+
+    public function test_importRows_shows_matched_documents_customer_and_system_amount(): void
+    {
+        $receipt = $this->submittedReceipt('2026-09-01', 1500000);
+        $statement = $this->statementWithLines('2026-09-01', [
+            ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
+        ]);
+        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+
+        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('Acme', $rows[0]['customer']);
+        $this->assertSame(1500000.0, $rows[0]['system_amount']);
+        $this->assertSame(1500000.0, $rows[0]['statement_amount']);
+        $this->assertSame(0.0, $rows[0]['selisih']);
+        $this->assertSame('matched', $rows[0]['status']);
+    }
+
+    public function test_importRows_leaves_customer_and_system_amount_null_when_unmatched(): void
+    {
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'biaya admin', 'debit_amount' => 25000, 'credit_amount' => 0],
+        ]);
+
+        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01');
+
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows[0]['customer']);
+        $this->assertNull($rows[0]['system_amount']);
+        $this->assertSame(25000.0, $rows[0]['selisih']);
+        $this->assertSame('unmatched', $rows[0]['status']);
+    }
+
+    public function test_systemRows_shows_matched_statement_amount_and_unmatched_document(): void
+    {
+        $receipt = $this->submittedReceipt('2026-09-01', 1500000);
+        $this->submittedPayment('2026-09-01', 900901);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
+        ]);
+        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+
+        $rows = collect($this->service->systemRows($this->bankAccount->id, '2026-09-01'));
+
+        $matchedRow = $rows->firstWhere('id', $receipt->id);
+        $this->assertSame('Acme', $matchedRow['customer']);
+        $this->assertSame(1500000.0, $matchedRow['statement_amount']);
+        $this->assertSame(0.0, $matchedRow['selisih']);
+        $this->assertSame('matched', $matchedRow['status']);
+
+        $unmatchedRow = $rows->firstWhere('statement_amount', null);
+        $this->assertSame(900901.0, $unmatchedRow['system_amount']);
+        $this->assertSame('unmatched', $unmatchedRow['status']);
+    }
 }

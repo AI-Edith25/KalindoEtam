@@ -1,10 +1,11 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiResponse } from '@/shared/types/api'
 import type {
+  BankReconciliationDetailRow,
+  BankReconciliationDetailView,
   BankReconciliationSummary,
   BankStatement,
   BankStatementFormatTemplate,
-  BankStatementLine,
   BankStatementPreviewRow,
 } from '../types'
 
@@ -51,9 +52,14 @@ export async function fetchDailyBalancingSummary(params: DailyBalancingParams): 
   return data.data
 }
 
-export async function fetchBankStatementLines(bankAccountId: string, date: string): Promise<BankStatementLine[]> {
-  const { data } = await apiClient.get<ApiResponse<BankStatementLine[]>>('/bank-reconciliation/lines', {
-    params: { bank_account_id: bankAccountId, date },
+/** `view` picks which side to browse from -- see BankReconciliationDetailRow. Defaults to 'import'. */
+export async function fetchBankReconciliationDetailRows(
+  bankAccountId: string,
+  date: string,
+  view: BankReconciliationDetailView = 'import',
+): Promise<BankReconciliationDetailRow[]> {
+  const { data } = await apiClient.get<ApiResponse<BankReconciliationDetailRow[]>>('/bank-reconciliation/lines', {
+    params: { bank_account_id: bankAccountId, date, view },
   })
   return data.data
 }
@@ -69,10 +75,9 @@ export async function recomputeReconciliation(payload: RecomputeReconciliationPa
   await apiClient.post('/bank-reconciliation/recompute', payload)
 }
 
-export async function manualMatchBankStatementLine(lineId: string, documentType: string, documentId: string): Promise<BankStatementLine> {
-  const { data } = await apiClient.post<ApiResponse<BankStatementLine>>(`/bank-statement-lines/${lineId}/manual-match`, {
+export async function manualMatchBankStatementLine(lineId: string, documentType: string, documentId: string): Promise<void> {
+  await apiClient.post(`/bank-statement-lines/${lineId}/manual-match`, {
     document_type: documentType,
     document_id: documentId,
   })
-  return data.data
 }

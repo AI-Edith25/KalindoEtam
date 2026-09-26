@@ -19,19 +19,24 @@ import { fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
 import { fetchPaymentEntries } from '@/features/payment/api/paymentEntryApi'
 import { fetchReceiptEntries } from '@/features/payment/api/receiptEntryApi'
 import {
-  fetchBankStatementLines,
+  fetchBankReconciliationDetailRows,
   fetchDailyBalancingSummary,
   manualMatchBankStatementLine,
   recomputeReconciliation,
 } from '../api/bankReconciliationApi'
-import type { BankReconciliationSummary, BankReconciliationStatus, BankStatementLine } from '../types'
+import type { BankReconciliationDetailRow, BankReconciliationDetailView, BankReconciliationSummary, BankReconciliationStatus } from '../types'
+
+const VIEW_LABEL: Record<BankReconciliationDetailView, string> = {
+  import: 'Data Import',
+  system: 'Data Sistem',
+}
 
 /** Payment Voucher/Official Receipt list endpoints already support server-side `search` — reused here instead of a new lookup endpoint. */
-function ManualMatchPicker({ line, onMatched }: { line: BankStatementLine; onMatched: () => void }) {
-  const [documentType, setDocumentType] = useState<'payment_entry' | 'receipt_entry'>(line.credit_amount > 0 ? 'payment_entry' : 'receipt_entry')
+function ManualMatchPicker({ row, onMatched }: { row: BankReconciliationDetailRow; onMatched: () => void }) {
+  const [documentType, setDocumentType] = useState<'payment_entry' | 'receipt_entry'>(row.direction === 'credit' ? 'payment_entry' : 'receipt_entry')
 
   const mutation = useMutation({
-    mutationFn: (documentId: string) => manualMatchBankStatementLine(line.id, documentType, documentId),
+    mutationFn: (documentId: string) => manualMatchBankStatementLine(row.bank_statement_line_id!, documentType, documentId),
     onSuccess: () => { toast.success('Line matched.'); onMatched() },
     onError: (error) => toastApiError(error),
   })
@@ -94,6 +99,7 @@ export function BankReconciliationDetailPage() {
   const [dateFrom, setDateFrom] = useState(() => todayIso())
   const [dateTo, setDateTo] = useState(() => todayIso())
   const [selectedRow, setSelectedRow] = useState<BankReconciliationSummary | null>(null)
+  const [detailView, setDetailView] = useState<BankReconciliationDetailView>('import')
 
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
   const bankAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
@@ -103,9 +109,9 @@ export function BankReconciliationDetailPage() {
     queryFn: () => fetchDailyBalancingSummary({ bank_account_id: bankAccountId || undefined, date_from: dateFrom, date_to: dateTo }),
   })
 
-  const linesQuery = useQuery({
-    queryKey: ['bank-statement-lines', selectedRow?.bank_account_id, selectedRow?.date],
-    queryFn: () => fetchBankStatementLines(selectedRow!.bank_account_id, selectedRow!.date),
+  const detailRowsQuery = useQuery({
+    queryKey: ['bank-reconciliation-detail-rows', selectedRow?.bank_account_id, selectedRow?.date, detailView],
+    queryFn: () => fetchBankReconciliationDetailRows(selectedRow!.bank_account_id, selectedRow!.date, detailView),
     enabled: selectedRow !== null && selectedRow.status !== 'not_uploaded',
   })
 
@@ -114,7 +120,7 @@ export function BankReconciliationDetailPage() {
     onSuccess: () => {
       toast.success('Reconciliation recomputed.')
       queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-summary'] })
-      queryClient.invalidateQueries({ queryKey: ['bank-statement-lines'] })
+      queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-detail-rows'] })
     },
     onError: (error) => toastApiError(error),
   })
@@ -206,44 +212,54 @@ export function BankReconciliationDetailPage() {
 
       {selectedRow && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">
               {selectedRow.bank_account_name} &mdash; {formatDate(selectedRow.date)}
             </CardTitle>
+            {selectedRow.status !== 'not_uploaded' && (
+              <Select value={detailView} onValueChange={(value) => setDetailView(value as BankReconciliationDetailView)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="import">{VIEW_LABEL.import}</SelectItem>
+                  <SelectItem value="system">{VIEW_LABEL.system}</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </CardHeader>
           <CardContent>
             {selectedRow.status === 'not_uploaded' ? (
               <p className="text-sm text-muted-foreground">{STATUS_LABEL.not_uploaded}</p>
-            ) : linesQuery.isLoading ? (
+            ) : detailRowsQuery.isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <div className="overflow-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-left">
                     <tr>
-                      <th className="p-2">Description</th>
-                      <th className="p-2 text-right">Debit</th>
-                      <th className="p-2 text-right">Credit</th>
-                      <th className="p-2">Match</th>
-                      <th className="p-2">Matched Document</th>
+                      <th className="p-2">Date</th>
+                      <th className="p-2">Customer</th>
+                      <th className="p-2 text-right">System</th>
+                      <th className="p-2 text-right">Statement</th>
+                      <th className="p-2 text-right">Selisih</th>
+                      <th className="p-2">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(linesQuery.data ?? []).map((line) => (
-                      <tr key={line.id} className="border-t">
-                        <td className="max-w-xs truncate p-2">{line.description}</td>
-                        <td className="p-2 text-right">{line.debit_amount > 0 ? formatCurrency(line.debit_amount) : '-'}</td>
-                        <td className="p-2 text-right">{line.credit_amount > 0 ? formatCurrency(line.credit_amount) : '-'}</td>
+                    {(detailRowsQuery.data ?? []).map((row) => (
+                      <tr key={row.id} className="border-t align-top">
+                        <td className="p-2">{formatDate(row.date)}</td>
+                        <td className="p-2">{row.customer ?? '-'}</td>
+                        <td className="p-2 text-right">{row.system_amount !== null ? formatCurrency(row.system_amount) : '-'}</td>
+                        <td className="p-2 text-right">{row.statement_amount !== null ? formatCurrency(row.statement_amount) : '-'}</td>
+                        <td className="p-2 text-right">{formatCurrency(row.selisih)}</td>
                         <td className="p-2">
-                          <Badge variant={line.match_status === 'unmatched' ? 'destructive' : 'default'}>{line.match_status}</Badge>
-                        </td>
-                        <td className="p-2">
-                          {line.matched_document ? (
-                            line.matched_document.document_number
-                          ) : canUpdate ? (
-                            <ManualMatchPicker line={line} onMatched={() => queryClient.invalidateQueries({ queryKey: ['bank-statement-lines'] })} />
-                          ) : (
-                            '-'
+                          <Badge variant={row.status === 'unmatched' ? 'destructive' : 'default'}>{row.status}</Badge>
+                          {detailView === 'import' && row.status === 'unmatched' && canUpdate && (
+                            <div className="mt-1">
+                              <ManualMatchPicker row={row} onMatched={() => queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-detail-rows'] })} />
+                            </div>
                           )}
                         </td>
                       </tr>
