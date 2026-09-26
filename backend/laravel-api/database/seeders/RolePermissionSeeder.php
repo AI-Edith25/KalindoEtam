@@ -78,6 +78,7 @@ class RolePermissionSeeder extends Seeder
         'finance.accounts_receivable' => ['view'],
         'finance.payment_allocation' => ['create', 'update'],
         'finance.ap_payment_allocation' => ['create', 'update'],
+        'finance.bank_reconciliation' => ['view', 'create', 'update'],
         'accounting.journal_entries' => ['view', 'create', 'update', 'delete', 'approve'],
         'accounting.journal_list' => ['view', 'import'],
         'accounting.general_ledger' => ['view', 'import'],

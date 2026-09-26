@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BalanceSheetController;
 use App\Http\Controllers\Api\V1\BalanceSheetImportController;
+use App\Http\Controllers\Api\V1\BankStatementController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CashBookController;
 use App\Http\Controllers\Api\V1\CashBookImportController;
@@ -492,6 +493,13 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Official Receipt smart import — one click, no mapping/preview wizard. See OfficialReceiptImportService.
     Route::post('receipt-entries/import', [OfficialReceiptImportController::class, 'store'])->middleware('permission:finance.incoming_payment.import');
     Route::get('receipt-entries/import/{batch}', [OfficialReceiptImportController::class, 'show'])->middleware('permission:finance.incoming_payment.import');
+
+    // Bank Reconciliation: upload a bank statement (mutasi rekening koran), preview
+    // its parsed rows, then confirm to persist + auto-match against Payment
+    // Voucher/Official Receipt. See BankStatementService / BankReconciliationService.
+    Route::post('bank-statements', [BankStatementController::class, 'store'])->middleware('permission:finance.bank_reconciliation.create');
+    Route::get('bank-statements/{bankStatement}', [BankStatementController::class, 'show'])->middleware('permission:finance.bank_reconciliation.view');
+    Route::post('bank-statements/{bankStatement}/confirm', [BankStatementController::class, 'confirm'])->middleware('permission:finance.bank_reconciliation.create');
 
     // Payment Allocation (Sprint 12): applies an already-received Receipt Entry to one or more
     // outstanding Invoices' receivables — a separate step from receiving the money itself.
