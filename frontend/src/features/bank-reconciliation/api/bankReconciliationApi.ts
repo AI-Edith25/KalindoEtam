@@ -3,6 +3,7 @@ import type { ApiResponse } from '@/shared/types/api'
 import type {
   BankReconciliationDetailRow,
   BankReconciliationDetailView,
+  BankReconciliationSummary,
   BankStatement,
   BankStatementFormatTemplate,
   BankStatementPreviewRow,
@@ -37,6 +38,18 @@ export async function confirmBankStatement(batchId: string): Promise<BankStateme
 
 export async function fetchBankStatement(batchId: string): Promise<BankStatement> {
   const { data } = await apiClient.get<ApiResponse<BankStatement>>(`/bank-statements/${batchId}`)
+  return data.data
+}
+
+export interface DailyBalancingParams {
+  bank_account_id?: string
+  date_from: string
+  date_to: string
+}
+
+/** One row per bank account per day -- the page's main table. */
+export async function fetchDailyBalancingSummary(params: DailyBalancingParams): Promise<BankReconciliationSummary[]> {
+  const { data } = await apiClient.get<ApiResponse<BankReconciliationSummary[]>>('/bank-reconciliation', { params })
   return data.data
 }
 
