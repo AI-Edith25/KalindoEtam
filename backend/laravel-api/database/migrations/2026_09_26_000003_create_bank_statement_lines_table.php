@@ -27,7 +27,9 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['bank_statement_id', 'transaction_date']);
-            $table->index(['matched_document_type', 'matched_document_id']);
+            // Explicit short name -- the auto-generated one (with table+both column
+            // names) exceeds MySQL's 64-char identifier limit.
+            $table->index(['matched_document_type', 'matched_document_id'], 'bank_statement_lines_matched_doc_index');
         });
     }
 
