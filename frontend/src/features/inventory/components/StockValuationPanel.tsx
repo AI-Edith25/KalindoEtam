@@ -58,7 +58,7 @@ export function StockValuationPanel() {
 
   const columns: DataTableColumn<StockValuationRow>[] = [
     { header: 'Item', accessor: (row) => `${row.item_code} — ${row.item_name}` },
-    { header: 'Warehouse', accessor: (row) => row.warehouse_name },
+    { header: 'Location', accessor: (row) => row.warehouse_name },
     { header: 'Opening Qty', accessor: (row) => formatNumber(row.opening_qty), className: 'text-right' },
     { header: 'Opening Value', accessor: (row) => formatCurrency(row.opening_value), className: 'text-right text-muted-foreground' },
     { header: 'Qty In', accessor: (row) => formatNumber(row.qty_in), className: 'text-right' },

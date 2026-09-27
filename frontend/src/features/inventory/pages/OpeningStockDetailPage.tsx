@@ -122,7 +122,7 @@ export function OpeningStockDetailPage() {
         <CardContent>
           <DetailSection>
             <DetailField label="Document Number" value={openingStock.document_number ?? '—'} />
-            <DetailField label="Warehouse" value={openingStock.warehouse?.name ?? '—'} />
+            <DetailField label="Location" value={openingStock.warehouse?.name ?? '—'} />
             <DetailField label="Cutoff Date" value={formatDate(openingStock.cutoff_date)} />
             <DetailField label="Notes" value={openingStock.remarks || '—'} />
           </DetailSection>

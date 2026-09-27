@@ -81,7 +81,7 @@ export function SmartOpeningStockImportDialog({ open, onClose }: SmartOpeningSto
         <DialogHeader>
           <DialogTitle>Smart Import — Opening Stock</DialogTitle>
           <DialogDescription>
-            {step === 'setup' && 'Upload file export lama apa adanya — header, kolom, dan warehouse terdeteksi otomatis.'}
+            {step === 'setup' && 'Upload file export lama apa adanya — header, kolom, dan lokasi terdeteksi otomatis.'}
             {step === 'preview' && 'Ringkasan sebelum import — periksa dulu sebelum melanjutkan.'}
             {step === 'result' && (batch?.status === 'completed' ? 'Import selesai.' : 'Import gagal.')}
           </DialogDescription>
@@ -119,7 +119,7 @@ export function SmartOpeningStockImportDialog({ open, onClose }: SmartOpeningSto
               </div>
               <div className="flex items-center justify-between gap-2 text-muted-foreground">
                 <span>Akan diimpor menjadi</span>
-                <span>{preview.groups.length} dokumen ({Object.keys(preview.warehouses_detected).length} warehouse)</span>
+                <span>{preview.groups.length} dokumen ({Object.keys(preview.warehouses_detected).length} lokasi)</span>
               </div>
             </div>
 
@@ -127,7 +127,7 @@ export function SmartOpeningStockImportDialog({ open, onClose }: SmartOpeningSto
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-left">
                   <tr>
-                    <th className="p-2">Warehouse</th>
+                    <th className="p-2">Location</th>
                     <th className="p-2">Cutoff Date</th>
                     <th className="p-2 text-right">Baris</th>
                     <th className="p-2 text-right">Total Qty</th>
@@ -162,7 +162,7 @@ export function SmartOpeningStockImportDialog({ open, onClose }: SmartOpeningSto
                     {preview.unmatched_warehouses.length > 0 && (
                       <p>
                         <Badge variant="secondary" className="mr-1.5">{preview.unmatched_warehouses.length}</Badge>
-                        Warehouse tidak ditemukan: {preview.unmatched_warehouses.map((u) => u.warehouse_code).join(', ')}
+                        Lokasi tidak ditemukan: {preview.unmatched_warehouses.map((u) => u.warehouse_code).join(', ')}
                       </p>
                     )}
                     {preview.price_conflicts.length > 0 && (
@@ -191,7 +191,7 @@ export function SmartOpeningStockImportDialog({ open, onClose }: SmartOpeningSto
                 <CheckCircle2 className="size-4" />
                 <AlertTitle>{result.documents_created} dokumen Opening Stock dibuat</AlertTitle>
                 <AlertDescription>
-                  Warehouse: {result.warehouses.join(', ') || '-'}. Total qty: {formatNumber(result.total_qty)}.
+                  Lokasi: {result.warehouses.join(', ') || '-'}. Total qty: {formatNumber(result.total_qty)}.
                 </AlertDescription>
               </Alert>
             )}

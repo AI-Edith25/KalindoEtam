@@ -163,7 +163,7 @@ export function StockTransferEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${transferQuery.data?.document_number ?? 'Stock Transfer'}` : 'New Stock Transfer'}
-        description="Move stock directly from one warehouse to another."
+        description="Move stock directly from one location to another."
       />
 
       <Form {...form}>
@@ -179,15 +179,15 @@ export function StockTransferEditorPage() {
                 name="source_warehouse_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Source Warehouse</FormLabel>
+                    <FormLabel>Source Location</FormLabel>
                     <SearchableSelect
                       options={warehouseOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={warehouses.isLoading}
                       clearable={false}
-                      placeholder="Select warehouse"
-                      aria-label="Source Warehouse"
+                      placeholder="Select location"
+                      aria-label="Source Location"
                     />
                     <FormMessage />
                   </FormItem>
@@ -198,15 +198,15 @@ export function StockTransferEditorPage() {
                 name="destination_warehouse_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Destination Warehouse</FormLabel>
+                    <FormLabel>Destination Location</FormLabel>
                     <SearchableSelect
                       options={destinationWarehouseOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={warehouses.isLoading}
                       clearable={false}
-                      placeholder="Select warehouse"
-                      aria-label="Destination Warehouse"
+                      placeholder="Select location"
+                      aria-label="Destination Location"
                     />
                     <FormMessage />
                   </FormItem>
@@ -247,7 +247,7 @@ export function StockTransferEditorPage() {
             </CardHeader>
             <CardContent>
               {!sourceWarehouseId && (
-                <p className="mb-3 text-sm text-muted-foreground">Select a source warehouse to see available quantities for each item.</p>
+                <p className="mb-3 text-sm text-muted-foreground">Select a source location to see available quantities for each item.</p>
               )}
               <StockTransferLineItemTable form={form} />
               {form.formState.errors.items?.message && (

@@ -132,7 +132,7 @@ export function GoodsReceiptDetailPage() {
               }
             />
             <DetailField label="Supplier" value={receipt.supplier?.supplier_name ?? '—'} />
-            <DetailField label="Warehouse" value={receipt.warehouse?.name ?? '—'} />
+            <DetailField label="Location" value={receipt.warehouse?.name ?? '—'} />
             <DetailField label="Receipt Date" value={formatDate(receipt.receipt_date)} />
             <DetailField label="Due Date" value={formatDate(receipt.due_date)} />
             <DetailField label="Notes" value={receipt.remarks || '—'} />

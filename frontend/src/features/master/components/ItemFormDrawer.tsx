@@ -234,7 +234,7 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
                     </FormControl>
                     {priceVaries ? (
                       <div className="rounded-md border bg-muted/50 p-2 text-xs text-muted-foreground">
-                        <p>Harga item ini berbeda per warehouse. Kelola harga di halaman Item Prices.</p>
+                        <p>Harga item ini berbeda per lokasi. Kelola harga di halaman Item Prices.</p>
                         <p className="mt-1">
                           {warehousePriceSummary.map((w) => `${w.warehouseCode}: ${formatCurrency(w.rate)}`).join(', ')}
                         </p>
@@ -244,7 +244,7 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
                           className="h-auto p-0 text-xs"
                           onClick={() => item && navigate(`/master/item-prices?item_code=${encodeURIComponent(item.item_code)}`)}
                         >
-                          Kelola harga per warehouse
+                          Kelola harga per lokasi
                         </Button>
                       </div>
                     ) : (

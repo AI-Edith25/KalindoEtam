@@ -228,7 +228,7 @@ export function PurchaseInvoiceDetailPage() {
                 <DetailField label="Department" value={invoice.department || '—'} />
               </>
             ) : (
-              <DetailField label="Warehouse" value={invoice.goods_receipt?.warehouse?.name || '—'} />
+              <DetailField label="Location" value={invoice.goods_receipt?.warehouse?.name || '—'} />
             )}
             <DetailField label="Notes" value={invoice.remarks || '—'} />
           </DetailSection>

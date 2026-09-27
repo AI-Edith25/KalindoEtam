@@ -103,8 +103,8 @@ export function StockTransferDetailPage() {
           <DetailSection>
             <DetailField label="Document Number" value={transfer.document_number ?? '—'} />
             <DetailField label="Transfer Date" value={formatDate(transfer.transfer_date)} />
-            <DetailField label="Source Warehouse" value={transfer.source_warehouse?.name ?? '—'} />
-            <DetailField label="Destination Warehouse" value={transfer.destination_warehouse?.name ?? '—'} />
+            <DetailField label="Source Location" value={transfer.source_warehouse?.name ?? '—'} />
+            <DetailField label="Destination Location" value={transfer.destination_warehouse?.name ?? '—'} />
             <DetailField label="Notes" value={transfer.remarks || '—'} />
           </DetailSection>
         </CardContent>

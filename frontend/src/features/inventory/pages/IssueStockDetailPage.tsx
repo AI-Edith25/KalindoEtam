@@ -123,7 +123,7 @@ export function IssueStockDetailPage() {
         <CardContent>
           <DetailSection>
             <DetailField label="Document Number" value={issueStock.document_number ?? '—'} />
-            <DetailField label="Warehouse" value={issueStock.warehouse?.name ?? '—'} />
+            <DetailField label="Location" value={issueStock.warehouse?.name ?? '—'} />
             <DetailField label="Date" value={formatDate(issueStock.issue_date)} />
             <DetailField label="Notes" value={issueStock.remarks || '—'} />
           </DetailSection>

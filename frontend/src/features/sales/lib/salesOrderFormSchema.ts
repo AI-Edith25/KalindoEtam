@@ -44,7 +44,7 @@ export const salesOrderFormSchema = z.object({
   customer_id: z.string().min(1, 'Customer is required'),
   sales_person_id: z.string().optional().or(z.literal('')),
   branch_id: z.string().min(1, 'Branch is required'),
-  warehouse_id: z.string().min(1, 'Warehouse is required'),
+  warehouse_id: z.string().min(1, 'Location is required'),
   order_date: z.string().min(1, 'Order date is required'),
   expected_delivery_date: z.string().optional().or(z.literal('')),
   remarks: z.string().optional().or(z.literal('')),

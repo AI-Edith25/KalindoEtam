@@ -159,7 +159,7 @@ export function PurchaseOrderEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${orderQuery.data?.document_number ?? 'Purchase Order'}` : 'New Purchase Order'}
-        description="Order goods from a supplier for later receipt into a warehouse."
+        description="Order goods from a supplier for later receipt into a location."
       />
 
       <Form {...form}>

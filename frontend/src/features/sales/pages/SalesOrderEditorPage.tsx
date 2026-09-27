@@ -268,7 +268,7 @@ export function SalesOrderEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${orderQuery.data?.document_number ?? 'Sales Order'}` : 'New Sales Order'}
-        description="Record a customer order. Stock availability is checked per warehouse; physical stock is not actually reduced until this order is delivered."
+        description="Record a customer order. Stock availability is checked per location; physical stock is not actually reduced until this order is delivered."
       />
 
       <Form {...form}>
@@ -387,15 +387,15 @@ export function SalesOrderEditorPage() {
                 name="warehouse_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Warehouse</FormLabel>
+                    <FormLabel>Location</FormLabel>
                     <SearchableSelect
                       options={warehouseOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={warehouses.isLoading}
                       clearable={false}
-                      placeholder="Select warehouse"
-                      aria-label="Warehouse"
+                      placeholder="Select location"
+                      aria-label="Location"
                     />
                     <FormMessage />
                   </FormItem>

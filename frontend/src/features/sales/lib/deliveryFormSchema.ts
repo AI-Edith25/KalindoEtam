@@ -50,7 +50,7 @@ export const deliveryLineRowSchema = z
   })
 
 export const deliveryFormSchema = z.object({
-  warehouse_id: z.string().min(1, 'Warehouse is required'),
+  warehouse_id: z.string().min(1, 'Location is required'),
   delivery_date: z.string().min(1, 'Delivery date is required'),
   due_date: z.string().min(1, 'Due date is required'),
   terms_of_payment_id: z.string().optional().or(z.literal('')),

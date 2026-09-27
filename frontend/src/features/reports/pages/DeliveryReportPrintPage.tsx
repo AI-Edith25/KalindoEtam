@@ -101,7 +101,7 @@ export function DeliveryReportPrintPage() {
               <th className="border-r-2 border-foreground/80 p-2">Customer</th>
               <th className="border-r-2 border-foreground/80 p-2">Item</th>
               <th className="border-r-2 border-foreground/80 p-2 text-right">Quantity</th>
-              <th className="border-r-2 border-foreground/80 p-2">Warehouse</th>
+              <th className="border-r-2 border-foreground/80 p-2">Location</th>
               <th className="p-2">Reference Document</th>
             </tr>
           </thead>

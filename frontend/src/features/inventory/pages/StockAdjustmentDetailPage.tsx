@@ -119,7 +119,7 @@ export function StockAdjustmentDetailPage() {
         <CardContent>
           <DetailSection>
             <DetailField label="Document Number" value={adjustment.document_number ?? '—'} />
-            <DetailField label="Warehouse" value={adjustment.warehouse?.name ?? '—'} />
+            <DetailField label="Location" value={adjustment.warehouse?.name ?? '—'} />
             <DetailField label="Adjustment Date" value={formatDate(adjustment.adjustment_date)} />
             <DetailField label="Notes" value={adjustment.remarks || '—'} />
           </DetailSection>

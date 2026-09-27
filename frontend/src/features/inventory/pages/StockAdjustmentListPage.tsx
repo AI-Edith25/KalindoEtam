@@ -123,7 +123,7 @@ export function StockAdjustmentListPage() {
 
   const columns: DataTableColumn<StockAdjustment>[] = [
     { header: 'Document Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
-    { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
+    { header: 'Location', accessor: (row) => row.warehouse?.name ?? '—' },
     { header: 'Adjustment Date', accessor: (row) => formatDate(row.adjustment_date), sortKey: 'adjustment_date' },
     {
       header: 'Physical / System',
@@ -190,7 +190,7 @@ export function StockAdjustmentListPage() {
             setSearch(value)
             setPage(1)
           }}
-          placeholder="Search document number or warehouse…"
+          placeholder="Search document number or location…"
         />
         <StockAdjustmentFiltersBar
           value={filters}

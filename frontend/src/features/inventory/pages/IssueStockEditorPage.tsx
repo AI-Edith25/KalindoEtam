@@ -122,7 +122,7 @@ export function IssueStockEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${issueStockQuery.data?.document_number ?? 'Issue Stock'}` : 'New Issue Stock'}
-        description="Record stock leaving the warehouse outside of a sale — internal use, damage, samples."
+        description="Record stock leaving the location outside of a sale — internal use, damage, samples."
       />
 
       <Form {...form}>
@@ -138,15 +138,15 @@ export function IssueStockEditorPage() {
                 name="warehouse_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Warehouse</FormLabel>
+                    <FormLabel>Location</FormLabel>
                     <SearchableSelect
                       options={warehouseOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={warehouses.isLoading}
                       clearable={false}
-                      placeholder="Select warehouse"
-                      aria-label="Warehouse"
+                      placeholder="Select location"
+                      aria-label="Location"
                     />
                     <FormMessage />
                   </FormItem>

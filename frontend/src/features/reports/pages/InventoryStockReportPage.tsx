@@ -45,7 +45,7 @@ export function InventoryStockReportPage() {
     <div className="flex flex-col gap-4">
       <SectionNav group="reports" />
 
-      <PageHeader title="Inventory Stock" description="Current on-hand quantity and every movement, across every item and warehouse." />
+      <PageHeader title="Inventory Stock" description="Current on-hand quantity and every movement, across every item and location." />
 
       <TooltipProvider>
         <div className="flex items-center gap-1 rounded-md border p-1">

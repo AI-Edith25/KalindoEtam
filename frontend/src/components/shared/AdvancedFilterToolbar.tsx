@@ -193,12 +193,12 @@ export function AdvancedFilterToolbar({
 
         {warehouseOptions && (
           <div className="flex w-44 flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Gudang</label>
+            <label className="text-xs text-muted-foreground">Lokasi</label>
             <SearchableSelect
               options={warehouseOptions}
               value={value.warehouse_id || undefined}
               onChange={(warehouseId) => onChange({ warehouse_id: warehouseId ?? '' })}
-              placeholder="Semua Gudang"
+              placeholder="Semua Lokasi"
             />
           </div>
         )}

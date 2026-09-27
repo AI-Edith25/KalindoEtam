@@ -123,7 +123,7 @@ export function AccountsPayableDetailReportPage() {
 
   const columns: DataTableColumn<AccountsPayable>[] = [
     { header: 'Supplier', accessor: (row) => row.supplier?.supplier_name ?? '—' },
-    { header: 'Warehouse', accessor: (row) => row.warehouse_name ?? '—' },
+    { header: 'Location', accessor: (row) => row.warehouse_name ?? '—' },
     { header: 'Invoice Number', accessor: (row) => row.invoice?.document_number ?? '—' },
     { header: 'Invoice Date', accessor: (row) => (row.invoice?.invoice_date ? formatDate(row.invoice.invoice_date) : '—') },
     { header: 'Umur', accessor: (row) => (row.age_in_days !== null ? `${row.age_in_days} hari` : '—') },
@@ -456,7 +456,7 @@ export function AccountsPayableDetailReportPage() {
                   <TableHeaderRow>
                     <TableRow>
                       <TableHead>Supplier</TableHead>
-                      <TableHead>Warehouse</TableHead>
+                      <TableHead>Location</TableHead>
                       <TableHead>Invoice Number</TableHead>
                       <TableHead>Invoice Date</TableHead>
                       <TableHead>Umur</TableHead>

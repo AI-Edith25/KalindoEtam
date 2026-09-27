@@ -148,7 +148,7 @@ export function StockTransferListPage() {
 
       <PageHeader
         title="Transfer Stock"
-        description="Move stock directly between warehouses."
+        description="Move stock directly between locations."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} transfers` : undefined}
         actions={
           <ActionBar

@@ -85,7 +85,7 @@ export function GoodsReceiptReportPage() {
         ),
     },
     { header: 'Supplier', accessor: (row) => row.supplier?.supplier_name ?? '—' },
-    { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
+    { header: 'Location', accessor: (row) => row.warehouse?.name ?? '—' },
     { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },
     {
       header: 'Received Qty',
@@ -110,7 +110,7 @@ export function GoodsReceiptReportPage() {
 
       <PageHeader
         title="Goods Receipt Report"
-        description="Goods received against purchase orders, across every warehouse."
+        description="Goods received against purchase orders, across every location."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} receipts` : undefined}
         actions={
           <ActionBar

@@ -336,15 +336,15 @@ function DeliveryForm({
                 name="warehouse_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Warehouse</FormLabel>
+                    <FormLabel>Location</FormLabel>
                     <SearchableSelect
                       options={warehouseOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={warehouses.isLoading}
                       clearable={false}
-                      placeholder="Select warehouse"
-                      aria-label="Warehouse"
+                      placeholder="Select location"
+                      aria-label="Location"
                     />
                     <FormMessage />
                   </FormItem>
@@ -442,7 +442,7 @@ function DeliveryForm({
             </CardHeader>
             <CardContent>
               {!warehouseId && (
-                <p className="mb-3 text-sm text-muted-foreground">Select a warehouse to see available stock for each item.</p>
+                <p className="mb-3 text-sm text-muted-foreground">Select a location to see available stock for each item.</p>
               )}
               <DeliveryLineItemTable form={form} />
               {form.formState.errors.items?.root && (

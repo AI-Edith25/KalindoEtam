@@ -130,7 +130,7 @@ export function IssueStockListPage() {
   const columns: DataTableColumn<IssueStock>[] = [
     { header: 'Document Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
     { header: 'Issue Date', accessor: (row) => formatDate(row.issue_date), sortKey: 'issue_date' },
-    { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
+    { header: 'Location', accessor: (row) => row.warehouse?.name ?? '—' },
     { header: 'Lines', accessor: (row) => formatNumber(row.line_count ?? 0), className: 'text-right' },
     { header: 'Total Value', accessor: (row) => (row.total_value === null ? '—' : formatCurrency(row.total_value)), className: 'text-right' },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
@@ -149,7 +149,7 @@ export function IssueStockListPage() {
 
       <PageHeader
         title="Issue Stock"
-        description="Record stock leaving the warehouse outside of a sale — internal use, damage, samples."
+        description="Record stock leaving the location outside of a sale — internal use, damage, samples."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} documents` : undefined}
         actions={
           <ActionBar

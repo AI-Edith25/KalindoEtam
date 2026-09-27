@@ -44,7 +44,7 @@ export function StockBalancePanel() {
 
   const columns: DataTableColumn<StockBalanceRow>[] = [
     { header: 'Item', accessor: (row) => `${row.item_code} — ${row.item_name}` },
-    { header: 'Warehouse', accessor: (row) => row.warehouse_name },
+    { header: 'Location', accessor: (row) => row.warehouse_name },
     { header: 'Current Qty', accessor: (row) => formatNumber(row.current_qty), className: 'text-right' },
     { header: 'Reserved Qty', accessor: (row) => (row.reserved_qty === null ? '—' : formatNumber(row.reserved_qty)), className: 'text-right text-muted-foreground' },
     { header: 'Available Qty', accessor: (row) => formatNumber(row.available_qty), className: 'text-right' },

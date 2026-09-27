@@ -189,13 +189,13 @@ export function PurchaseHistoryImportDialog({ open, onClose, expectedType }: Pur
 
             {config.needsWarehouse && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Warehouse Penerima</label>
+                <label className="text-sm font-medium">Lokasi Penerima</label>
                 <SearchableSelect
                   options={(warehousesQuery.data ?? []).map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` }))}
                   value={warehouseId}
                   onChange={(value) => setWarehouseId(value)}
                   loading={warehousesQuery.isLoading}
-                  placeholder="Pilih warehouse…"
+                  placeholder="Pilih lokasi…"
                   clearable={false}
                 />
               </div>

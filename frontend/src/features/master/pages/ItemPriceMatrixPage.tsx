@@ -333,7 +333,7 @@ export function ItemPriceMatrixPage() {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger className="underline decoration-dotted underline-offset-2">Align</TooltipTrigger>
-                    <TooltipContent>Samakan harga warehouse ini dengan Main Warehouse (SMD).</TooltipContent>
+                    <TooltipContent>Samakan harga lokasi ini dengan Main Location (SMD).</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
@@ -357,7 +357,7 @@ export function ItemPriceMatrixPage() {
 
       <PageHeader
         title="Item Prices"
-        description="Standard Rate and per-warehouse sale price overrides — an empty warehouse cell falls back to the item's Standard Rate."
+        description="Standard Rate and per-location sale price overrides — an empty location cell falls back to the item's Standard Rate."
         actions={
           <ActionBar
             actions={[
@@ -384,7 +384,7 @@ export function ItemPriceMatrixPage() {
       </div>
 
       {warehouses.length === 0 && !warehousesQuery.isLoading && (
-        <p className="text-sm text-muted-foreground">No warehouses yet — create one under Master &gt; Warehouse first.</p>
+        <p className="text-sm text-muted-foreground">No locations yet — create one under Master &gt; Location first.</p>
       )}
 
       <div className="max-h-[70vh] overflow-auto rounded-md border">

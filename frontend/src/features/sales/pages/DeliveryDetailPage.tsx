@@ -128,7 +128,7 @@ export function DeliveryDetailPage() {
             />
             <DetailField label="Customer" value={delivery.customer?.customer_name ?? '—'} />
             <DetailField label="Customer Code" value={delivery.customer?.customer_code ?? '—'} />
-            <DetailField label="Warehouse" value={delivery.warehouse?.name ?? '—'} />
+            <DetailField label="Location" value={delivery.warehouse?.name ?? '—'} />
             <DetailField label="Sales Person" value={delivery.sales_order?.sales_person?.name || '—'} />
             <DetailField label="Delivery Date" value={formatDate(delivery.delivery_date)} />
             <DetailField label="Due Date" value={formatDate(delivery.due_date)} />

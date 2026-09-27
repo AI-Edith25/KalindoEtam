@@ -180,15 +180,15 @@ export function StockAdjustmentEditorPage() {
                 name="warehouse_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Warehouse</FormLabel>
+                    <FormLabel>Location</FormLabel>
                     <SearchableSelect
                       options={warehouseOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={warehouses.isLoading}
                       clearable={false}
-                      placeholder="Select warehouse"
-                      aria-label="Warehouse"
+                      placeholder="Select location"
+                      aria-label="Location"
                     />
                     <FormMessage />
                   </FormItem>
@@ -229,7 +229,7 @@ export function StockAdjustmentEditorPage() {
             </CardHeader>
             <CardContent>
               {!warehouseId && (
-                <p className="mb-3 text-sm text-muted-foreground">Select a warehouse to see system quantities for each item.</p>
+                <p className="mb-3 text-sm text-muted-foreground">Select a location to see system quantities for each item.</p>
               )}
               <StockAdjustmentLineItemTable form={form} />
               {form.formState.errors.items?.message && (

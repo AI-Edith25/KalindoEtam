@@ -392,15 +392,15 @@ export function GoodsReceiptEditorPage() {
                   name="warehouse_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Warehouse</FormLabel>
+                      <FormLabel>Location</FormLabel>
                       <SearchableSelect
                         options={warehouseOptions}
                         value={field.value}
                         onChange={(value) => field.onChange(value ?? '')}
                         loading={warehouses.isLoading}
                         clearable={false}
-                        placeholder="Select warehouse"
-                        aria-label="Warehouse"
+                        placeholder="Select location"
+                        aria-label="Location"
                       />
                       <FormMessage />
                     </FormItem>
@@ -538,15 +538,15 @@ export function GoodsReceiptEditorPage() {
                 name="warehouse_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Warehouse</FormLabel>
+                    <FormLabel>Location</FormLabel>
                     <SearchableSelect
                       options={warehouseOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={warehouses.isLoading}
                       clearable={false}
-                      placeholder="Select warehouse"
-                      aria-label="Warehouse"
+                      placeholder="Select location"
+                      aria-label="Location"
                     />
                     <FormMessage />
                   </FormItem>

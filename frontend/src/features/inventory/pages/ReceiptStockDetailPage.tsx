@@ -122,7 +122,7 @@ export function ReceiptStockDetailPage() {
         <CardContent>
           <DetailSection>
             <DetailField label="Document Number" value={receiptStock.document_number ?? '—'} />
-            <DetailField label="Warehouse" value={receiptStock.warehouse?.name ?? '—'} />
+            <DetailField label="Location" value={receiptStock.warehouse?.name ?? '—'} />
             <DetailField label="Date" value={formatDate(receiptStock.receipt_date)} />
             <DetailField label="Notes" value={receiptStock.remarks || '—'} />
           </DetailSection>

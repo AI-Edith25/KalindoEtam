@@ -48,7 +48,7 @@ const goodsReceiptColumns = (onNavigate: (id: string) => void): DataTableColumn<
     ),
   },
   { header: 'Receipt Date', accessor: (row) => formatDate(row.receipt_date) },
-  { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
+  { header: 'Location', accessor: (row) => row.warehouse?.name ?? '—' },
   { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
   { header: 'Qty Received', accessor: (row) => formatNumber(goodsReceiptQty(row)), className: 'text-right' },
 ]

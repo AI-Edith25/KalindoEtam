@@ -170,7 +170,7 @@ export function OpeningStockListPage() {
   const columns: DataTableColumn<OpeningStock>[] = [
     { header: 'Document Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
     { header: 'Cutoff Date', accessor: (row) => formatDate(row.cutoff_date), sortKey: 'cutoff_date' },
-    { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
+    { header: 'Location', accessor: (row) => row.warehouse?.name ?? '—' },
     {
       header: 'Batch',
       accessor: (row) =>

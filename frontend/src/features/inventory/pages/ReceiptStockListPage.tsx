@@ -130,7 +130,7 @@ export function ReceiptStockListPage() {
   const columns: DataTableColumn<ReceiptStock>[] = [
     { header: 'Document Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
     { header: 'Receipt Date', accessor: (row) => formatDate(row.receipt_date), sortKey: 'receipt_date' },
-    { header: 'Warehouse', accessor: (row) => row.warehouse?.name ?? '—' },
+    { header: 'Location', accessor: (row) => row.warehouse?.name ?? '—' },
     { header: 'Lines', accessor: (row) => formatNumber(row.line_count ?? 0), className: 'text-right' },
     { header: 'Total Value', accessor: (row) => formatCurrency(row.total_value ?? 0), className: 'text-right' },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },

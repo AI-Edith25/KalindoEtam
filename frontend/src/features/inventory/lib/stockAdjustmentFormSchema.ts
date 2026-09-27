@@ -44,7 +44,7 @@ export const stockAdjustmentLineRowSchema = z
   })
 
 export const stockAdjustmentFormSchema = z.object({
-  warehouse_id: z.string().min(1, 'Warehouse is required'),
+  warehouse_id: z.string().min(1, 'Location is required'),
   adjustment_date: z.string().min(1, 'Adjustment date is required'),
   remarks: z.string().optional().or(z.literal('')),
   items: z.array(stockAdjustmentLineRowSchema).min(1, 'Add at least one line item'),

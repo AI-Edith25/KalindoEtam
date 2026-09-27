@@ -29,15 +29,15 @@ export function StockBalanceFiltersBar({ value, onChange }: StockBalanceFiltersB
   return (
     <FilterPanel onClear={() => onChange(emptyStockBalanceFilters)} hasActiveFilters={hasActiveStockBalanceFilters(value)}>
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Warehouse</span>
+        <span className="text-xs text-muted-foreground">Location</span>
         <SearchableSelect
           options={warehouseOptions}
           value={value.warehouse_id || undefined}
           onChange={(next) => onChange({ ...value, warehouse_id: next ?? '' })}
           loading={warehouses.isLoading}
           className="w-44"
-          placeholder="All warehouses"
-          aria-label="Warehouse"
+          placeholder="All locations"
+          aria-label="Location"
         />
       </div>
       <div className="flex flex-col gap-1.5">

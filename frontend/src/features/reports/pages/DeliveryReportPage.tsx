@@ -95,7 +95,7 @@ export function DeliveryReportPage() {
     { header: 'Customer', accessor: (row) => row.customer_name },
     { header: 'Item', accessor: (row) => row.item_name ?? row.item_code ?? '—' },
     { header: 'Quantity', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
-    { header: 'Warehouse', accessor: (row) => row.warehouse_name },
+    { header: 'Location', accessor: (row) => row.warehouse_name },
     {
       header: 'Reference Document',
       accessor: (row) => (
@@ -137,7 +137,7 @@ export function DeliveryReportPage() {
 
       <PageHeader
         title="Delivery Report"
-        description="Goods delivered against sales orders, across every warehouse."
+        description="Goods delivered against sales orders, across every location."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} deliveries` : undefined}
         actions={
           <ActionBar

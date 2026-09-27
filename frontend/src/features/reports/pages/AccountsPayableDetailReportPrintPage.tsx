@@ -88,7 +88,7 @@ export function AccountsPayableDetailReportPrintPage() {
           <thead>
             <tr className="border-b-2 border-foreground/80 text-left">
               <th className="border-r-2 border-foreground/80 p-2">Supplier</th>
-              <th className="border-r-2 border-foreground/80 p-2">Warehouse</th>
+              <th className="border-r-2 border-foreground/80 p-2">Location</th>
               <th className="border-r-2 border-foreground/80 p-2">Invoice Number</th>
               <th className="border-r-2 border-foreground/80 p-2">Invoice Date</th>
               <th className="border-r-2 border-foreground/80 p-2">Umur</th>

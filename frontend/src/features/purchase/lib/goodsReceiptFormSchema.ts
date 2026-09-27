@@ -68,7 +68,7 @@ export const directGoodsReceiptLineRowSchema = z
   })
 
 export const goodsReceiptFormSchema = z.object({
-  warehouse_id: z.string().min(1, 'Warehouse is required'),
+  warehouse_id: z.string().min(1, 'Location is required'),
   receipt_date: z.string().min(1, 'Receipt date is required'),
   due_date: z.string().optional().or(z.literal('')),
   remarks: z.string().optional().or(z.literal('')),
@@ -121,7 +121,7 @@ export const goodsReceiptFormSchema = z.object({
 
 export const directGoodsReceiptFormSchema = z.object({
   supplier_id: z.string().min(1, 'Supplier is required'),
-  warehouse_id: z.string().min(1, 'Warehouse is required'),
+  warehouse_id: z.string().min(1, 'Location is required'),
   receipt_date: z.string().min(1, 'Receipt date is required'),
   due_date: z.string().optional().or(z.literal('')),
   remarks: z.string().optional().or(z.literal('')),

@@ -34,7 +34,7 @@ function InsufficientStockIcon() {
         <TooltipTrigger>
           <AlertTriangle className="size-3.5 text-destructive" />
         </TooltipTrigger>
-        <TooltipContent>Qty melebihi stok tersedia di warehouse ini</TooltipContent>
+        <TooltipContent>Qty melebihi stok tersedia di lokasi ini</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )

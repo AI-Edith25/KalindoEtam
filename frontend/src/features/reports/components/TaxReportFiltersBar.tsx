@@ -132,14 +132,14 @@ export function TaxReportFiltersBar({ value, onChange, mode }: TaxReportFiltersB
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">Warehouse</span>
+            <span className="text-xs text-muted-foreground">Location</span>
             <SearchableSelect
               options={warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []}
               value={value.warehouse_id || undefined}
               onChange={(next) => onChange({ ...value, warehouse_id: next ?? '' })}
               loading={warehouses.isLoading}
-              placeholder="All warehouses"
-              aria-label="Warehouse"
+              placeholder="All locations"
+              aria-label="Location"
               className="w-44"
             />
           </div>

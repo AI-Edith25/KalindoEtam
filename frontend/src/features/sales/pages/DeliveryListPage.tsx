@@ -229,7 +229,7 @@ export function DeliveryListPage() {
     },
     urlFilters.warehouse_id && {
       key: 'warehouse',
-      label: `Gudang: ${warehouseOptions.find((option) => option.value === urlFilters.warehouse_id)?.label ?? '—'}`,
+      label: `Lokasi: ${warehouseOptions.find((option) => option.value === urlFilters.warehouse_id)?.label ?? '—'}`,
       onRemove: () => removeFilter({ warehouse_id: '' }),
     },
     urlFilters.sales_order_number && {
@@ -299,7 +299,7 @@ export function DeliveryListPage() {
 
       <PageHeader
         title="Deliveries"
-        description="Deliver ordered goods from a warehouse against an approved Sales Order."
+        description="Deliver ordered goods from a location against an approved Sales Order."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} deliveries` : undefined}
         actions={
           <>
