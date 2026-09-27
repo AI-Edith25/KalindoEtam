@@ -147,10 +147,8 @@ export function SalesOrderPrintLayout({
             rows={[
               { label: 'NO', value: salesOrder.document_number ?? '—', bold: true, size: FONT_PT.metaNo },
               { label: 'Date', value: formatDdMmYyyy(salesOrder.order_date) },
-              { label: 'Reference 1 #', value: salesOrder.reference ?? '' },
-              { label: 'Reference 2 #', value: '' },
               { label: 'Payment Terms', value: salesOrder.terms_of_payment?.name ?? '' },
-              { label: 'Customer #', value: salesOrder.customer?.customer_code ?? '' },
+              { label: 'Customer', value: salesOrder.customer?.customer_code ?? '' },
               { label: 'Sales Person', value: salesOrder.sales_person?.name ?? '' },
               { label: 'Page', value: '1 of 1' },
             ]}
