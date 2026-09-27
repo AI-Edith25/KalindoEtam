@@ -215,9 +215,12 @@ function BankReconciliationPinLock({ onUnlock }: { onUnlock: () => void }) {
   )
 }
 
-/** Daily balancing table -- one row per bank account (only one exists) + day, in a "Ringkasan" tab.
- * The "⋮" menu's "View" switches to a "Detail" tab showing that row's Cash Book vs bank statement
- * comparison; "See the file" opens that day's uploaded file(s) in a dialog. Row click does nothing.
+/** Daily balancing table -- one row per bank account that has ever had a statement uploaded
+ * through this feature (see BankReconciliationService::getDailyBalancingSummary()'s own docblock
+ * -- a chart_of_accounts row flagged is_cash_bank isn't the same thing as one that's actually
+ * been reconciled here) + day, in a "Ringkasan" tab. The "⋮" menu's "View" switches to a "Detail"
+ * tab showing that row's Cash Book vs bank statement comparison; "See the file" opens that day's
+ * uploaded file(s) in a dialog. Row click does nothing.
  */
 export function BankReconciliationDetailPage() {
   const [unlocked, setUnlocked] = useState(false)

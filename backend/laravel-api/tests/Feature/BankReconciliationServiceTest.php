@@ -202,21 +202,34 @@ class BankReconciliationServiceTest extends TestCase
      * BankReconciliationSummary row at all -- that must still surface as not_uploaded for every
      * is_cash_bank account, not be silently missing from the Dashboard's daily table.
      */
-    public function test_getDailyBalancingSummary_synthesizes_not_uploaded_for_every_bank_account_with_no_recomputed_row(): void
+    public function test_getDailyBalancingSummary_synthesizes_not_uploaded_only_for_a_day_this_tracked_account_has_no_recomputed_row(): void
     {
-        $secondBankAccount = ChartOfAccount::query()->create([
+        // Tracked -- has had a statement uploaded at least once (any date), so it belongs in the
+        // table even on a day with no recomputed row.
+        $this->statementWithLines('2026-01-01', []);
+
+        $rows = $this->service->getDailyBalancingSummary(null, '2026-09-26', '2026-09-26');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(BankReconciliationStatus::NOT_UPLOADED, $rows->first()->status);
+        $this->assertSame($this->bankAccount->id, $rows->first()->bank_account_id);
+    }
+
+    public function test_getDailyBalancingSummary_excludes_cash_bank_accounts_that_have_never_had_a_statement_uploaded(): void
+    {
+        // Real Payment Voucher/Official Receipt history, but never reconciled through this
+        // feature -- must not clutter the default (no bank_account_id filter) view with a
+        // synthesized row every day, per the confirmed fix for the 9-duplicate-rows-per-date bug.
+        $this->submittedPayment('2026-09-26', 500000);
+
+        ChartOfAccount::query()->create([
             'code' => '1102', 'name' => 'BANK MANDIRI SMD', 'account_type' => 'asset',
             'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
         ]);
 
         $rows = $this->service->getDailyBalancingSummary(null, '2026-09-26', '2026-09-26');
 
-        $this->assertCount(2, $rows);
-        $this->assertTrue($rows->every(fn ($row) => $row->status === BankReconciliationStatus::NOT_UPLOADED));
-        $this->assertEqualsCanonicalizing(
-            [$this->bankAccount->id, $secondBankAccount->id],
-            $rows->pluck('bank_account_id')->all(),
-        );
+        $this->assertCount(0, $rows);
     }
 
     public function test_getDailyBalancingSummary_filters_synthesized_rows_by_bank_account_id(): void

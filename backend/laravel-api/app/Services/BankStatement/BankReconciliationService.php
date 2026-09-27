@@ -162,13 +162,24 @@ class BankReconciliationService
     }
 
     /**
-     * Every is_cash_bank account gets a row for every day in range -- a day no write path has
-     * ever recomputed (no PV/OR submitted, no statement uploaded, nothing to trigger
-     * recomputeSummary()) has no persisted BankReconciliationSummary row at all, but that's
-     * itself a "not_uploaded" day, not nothing to show. Missing (account, date) pairs are
-     * synthesized here at read time rather than requiring some scheduled job to have pre-created
-     * them -- exactly the gap that would otherwise hide the Dashboard's whole "you forgot to
-     * upload today's statement" alert on a day with zero other activity on that account.
+     * Every is_cash_bank account *that has ever had a statement uploaded* gets a row for every
+     * day in range -- a day no write path has ever recomputed (no PV/OR submitted, no statement
+     * uploaded, nothing to trigger recomputeSummary()) has no persisted BankReconciliationSummary
+     * row at all, but that's itself a "not_uploaded" day, not nothing to show. Missing (account,
+     * date) pairs are synthesized here at read time rather than requiring some scheduled job to
+     * have pre-created them -- exactly the gap that would otherwise hide the Dashboard's whole
+     * "you forgot to upload today's statement" alert on a day with zero other activity on that
+     * account.
+     *
+     * The "has ever had a statement" filter (mirrors recomputeIfTracked()'s own gate) only
+     * applies when $bankAccountId is null -- an explicit request for one specific account always
+     * shows it, tracked or not. Without this filter, every is_cash_bank chart_of_accounts row
+     * (this company has 10, only one of which has ever actually been reconciled through this
+     * feature -- the other 9 were paid/received through directly but reconciled the old way, via
+     * a manually-assembled mutasi/journal comparison outside this app) would get a synthesized
+     * "not_uploaded" row for every single day, every time -- a bank account with real Payment
+     * Voucher/Official Receipt history is not the same thing as one that's ever been reconciled
+     * here, and only the latter belongs in this table.
      */
     public function getDailyBalancingSummary(?string $bankAccountId, string $dateFrom, string $dateTo): Collection
     {
@@ -181,7 +192,13 @@ class BankReconciliationService
 
         $bankAccounts = ChartOfAccount::query()
             ->where('is_cash_bank', true)
-            ->when($bankAccountId, fn ($q) => $q->where('id', $bankAccountId))
+            ->when(
+                $bankAccountId,
+                fn ($q) => $q->where('id', $bankAccountId),
+                fn ($q) => $q->whereExists(
+                    fn ($sub) => $sub->selectRaw('1')->from('bank_statements')->whereColumn('bank_statements.bank_account_id', 'chart_of_accounts.id')
+                ),
+            )
             ->get();
 
         $existingKeys = $existing->map(fn ($s) => $s->bank_account_id.'|'.$s->date->format('Y-m-d'))->flip();
