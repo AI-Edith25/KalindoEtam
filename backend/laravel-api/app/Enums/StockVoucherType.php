@@ -14,4 +14,5 @@ enum StockVoucherType: string
     case OPENING_STOCK = 'opening_stock';
     case ISSUE_STOCK = 'issue_stock';
     case RECEIPT_STOCK = 'receipt_stock';
+    case DIRECT_INVOICE = 'direct_invoice';
 }

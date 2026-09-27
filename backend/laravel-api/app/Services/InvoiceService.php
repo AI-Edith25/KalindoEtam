@@ -6,9 +6,11 @@ use App\Enums\DeliveryStatus;
 use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
+use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
 use App\Models\Invoice;
+use App\Models\Item;
 use App\Repositories\AccountsReceivableRepository;
 use App\Repositories\DeliveryRepository;
 use App\Repositories\InvoiceItemRepository;
@@ -20,7 +22,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
+    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'warehouse', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
@@ -33,6 +35,7 @@ class InvoiceService
         protected TaxService $taxService,
         protected AuditLogService $auditLogService,
         protected FifoLayerService $fifoLayerService,
+        protected StockLedgerService $stockLedgerService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -62,6 +65,10 @@ class InvoiceService
     {
         if (($data['invoice_type'] ?? InvoiceType::GOODS->value) === InvoiceType::TRANSPORTATION->value) {
             return $this->createTransportation($data);
+        }
+
+        if (! empty($data['warehouse_id'])) {
+            return $this->createDirectGoods($data);
         }
 
         return $this->createGoods($data);
@@ -240,6 +247,103 @@ class InvoiceService
         });
     }
 
+    /**
+     * "Goods (Direct)" — Jumbo & Curah billed straight to a Customer, no Sales Order/Delivery.
+     * Still real, physical-goods lines resolved against the Item master (unlike Transportation's
+     * free-text description), so unlike Goods/Transportation this is the one Invoice flow that
+     * itself reduces stock — but not here: matching every other stock-moving document in this
+     * codebase (DeliveryService::complete(), GoodsReceiptService::submit()), the actual
+     * StockLedger/FIFO posting happens at submit() (see postDirectGoodsStock()), never at create.
+     * invoice_type stays 'goods' on purpose — Invoice::isDirectGoods() (warehouse_id presence)
+     * is what distinguishes it from a Delivery-based Goods invoice, so both share the exact same
+     * invoice_goods Naming Series.
+     */
+    protected function createDirectGoods(array $data): Invoice
+    {
+        return DB::transaction(function () use ($data) {
+            $itemsById = Item::query()->with('uom')->whereIn('id', collect($data['items'])->pluck('item_id'))->get()->keyBy('id');
+
+            $subtotal = 0.0;
+            $taxAmountTotal = 0.0;
+            $lines = [];
+
+            foreach ($data['items'] as $line) {
+                $item = $itemsById->get($line['item_id']);
+
+                if ($item === null) {
+                    throw new BusinessException("Item not found for one of the selected lines.");
+                }
+
+                $qty = (float) $line['qty'];
+                $rate = (float) $line['rate'];
+                $amount = $qty * $rate;
+                [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $item, 'sales_tax_id', $amount);
+
+                $subtotal += $amount;
+                $taxAmountTotal += $taxAmount;
+                $lines[] = ['item' => $item, 'qty' => $qty, 'rate' => $rate, 'amount' => $amount, 'tax_id' => $taxId, 'tax_amount' => $taxAmount];
+            }
+
+            $taxAmountTotal = round($taxAmountTotal, 2);
+            [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
+            $grandTotal = $subtotal - $discountAmount + $taxAmountTotal;
+
+            if ($grandTotal < 0) {
+                throw new BusinessException('Grand total cannot be negative.');
+            }
+
+            $invoice = $this->invoiceRepository->create([
+                'delivery_id' => null,
+                'sales_order_id' => null,
+                'warehouse_id' => $data['warehouse_id'],
+                'branch_id' => $data['branch_id'] ?? null,
+                'customer_id' => $data['customer_id'],
+                'sales_person_id' => $data['sales_person_id'] ?? null,
+                'invoice_type' => InvoiceType::GOODS->value,
+                'invoice_date' => $data['invoice_date'],
+                'due_date' => $data['due_date'],
+                'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
+                'subtotal' => $subtotal,
+                'discount_amount' => $discountAmount,
+                'discount_type' => $discountType->value,
+                'discount_percentage' => $discountPercentage,
+                // Header tax_id has no single meaningful value once tax is per-line — same
+                // convention as Delivery-based Goods invoices, see createGoods() above.
+                'tax_id' => null,
+                'tax_amount' => $taxAmountTotal,
+                'grand_total' => $grandTotal,
+                'remarks' => $data['remarks'] ?? null,
+                'reference_1' => $data['reference_1'] ?? null,
+                'reference_2' => $data['reference_2'] ?? null,
+            ]);
+
+            foreach ($lines as $line) {
+                $item = $line['item'];
+
+                // unit_cost/cost_amount stay unset until submit() — this item's stock hasn't
+                // been consumed from any FIFO layer yet, so no cost exists to snapshot.
+                $this->invoiceItemRepository->create([
+                    'invoice_id' => $invoice->id,
+                    'delivery_item_id' => null,
+                    'item_id' => $item->id,
+                    'item_code' => $item->item_code,
+                    'item_name' => $item->item_name,
+                    'uom' => $item->uom?->name,
+                    'rate' => $line['rate'],
+                    'qty' => $line['qty'],
+                    'amount' => $line['amount'],
+                    'tax_id' => $line['tax_id'],
+                    'tax_amount' => $line['tax_amount'],
+                ]);
+            }
+
+            $invoice = $invoice->fresh(self::EAGER);
+            $this->auditLogService->record('created', 'invoice', "Created Invoice \"{$invoice->document_number}\".");
+
+            return $invoice;
+        });
+    }
+
     /** Only header fields are editable — never delivery_id, never items. */
     public function update(Invoice $invoice, array $data): Invoice
     {
@@ -367,6 +471,10 @@ class InvoiceService
         return DB::transaction(function () use ($invoice) {
             $invoice->submit();
 
+            if ($invoice->isDirectGoods()) {
+                $this->postDirectGoodsStock($invoice);
+            }
+
             $this->accountsReceivableService->createFromInvoice($invoice);
             $this->accountingService->postForDocument($invoice, $invoice->journalLines(), "Invoice {$invoice->document_number}", $invoice->invoice_date->toDateString());
 
@@ -401,11 +509,90 @@ class InvoiceService
                 $this->accountsReceivableRepository->delete($accountsReceivable);
             }
 
+            if ($invoice->isDirectGoods()) {
+                $this->reverseDirectGoodsStock($invoice);
+            }
+
             $invoice = $invoice->fresh(self::EAGER);
             $this->auditLogService->record('cancelled', 'invoice', "Cancelled Invoice \"{$invoice->document_number}\".");
 
             return $invoice;
         });
+    }
+
+    /**
+     * Direct Goods only — the one Invoice flow that itself moves stock. Mirrors
+     * DeliveryService::complete()'s shape: validate every line first (all-or-nothing, matching
+     * its "block, don't silently corrupt" philosophy), then record. Called from submit(), which
+     * has already flipped status to Submitted — Invoice::cancel()'s own guard (only a Submitted
+     * document can reach cancel(), see Documentable::cancellableStatuses()) means this always
+     * runs exactly once per invoice, never on one that never had stock deducted.
+     */
+    protected function postDirectGoodsStock(Invoice $invoice): void
+    {
+        $invoice->load('items');
+
+        foreach ($invoice->items as $line) {
+            $this->assertSufficientStock($invoice->warehouse_id, $line->item_id, (float) $line->qty);
+        }
+
+        foreach ($invoice->items as $line) {
+            $this->stockLedgerService->record(
+                itemId: $line->item_id,
+                warehouseId: $invoice->warehouse_id,
+                transactionType: StockTransactionType::OUT,
+                voucherType: StockVoucherType::DIRECT_INVOICE,
+                voucherId: $invoice->id,
+                qtyChange: -$line->qty,
+                postingDatetime: $invoice->invoice_date,
+                referenceNo: $invoice->document_number,
+                remarks: "Direct Invoice {$invoice->document_number}",
+            );
+
+            $result = $this->fifoLayerService->consume($line->item_id, $invoice->warehouse_id, (float) $line->qty, StockVoucherType::DIRECT_INVOICE, $invoice->id);
+
+            $this->invoiceItemRepository->update($line, [
+                'unit_cost' => $result->weightedAverageUnitCost,
+                'cost_amount' => round($result->totalCost, 2),
+            ]);
+        }
+    }
+
+    /**
+     * Undoes postDirectGoodsStock() exactly — mirrors PurchaseReturnService::reverse()'s shape:
+     * a reversing IN ledger entry per line (same voucherType/voucherId, the original invoice_date
+     * per that same precedent, not now()), then one exact-layer-restore call. See
+     * FifoLayerService::reverseConsumption()'s own docblock for why this is safe/idempotent.
+     */
+    protected function reverseDirectGoodsStock(Invoice $invoice): void
+    {
+        $invoice->load('items');
+
+        foreach ($invoice->items as $line) {
+            $this->stockLedgerService->record(
+                itemId: $line->item_id,
+                warehouseId: $invoice->warehouse_id,
+                transactionType: StockTransactionType::IN,
+                voucherType: StockVoucherType::DIRECT_INVOICE,
+                voucherId: $invoice->id,
+                qtyChange: $line->qty,
+                postingDatetime: $invoice->invoice_date,
+                referenceNo: $invoice->document_number,
+                remarks: "Reversal of Direct Invoice {$invoice->document_number}",
+            );
+        }
+
+        $this->fifoLayerService->reverseConsumption(StockVoucherType::DIRECT_INVOICE, $invoice->id);
+    }
+
+    /** Same shape/message as DeliveryService::assertSufficientStock() — a deliberate small duplication rather than a shared trait for one 5-line check used twice. */
+    protected function assertSufficientStock(string $warehouseId, string $itemId, float $qty): void
+    {
+        $available = $this->stockLedgerService->getCurrentBalance($itemId, $warehouseId);
+
+        if ($qty > $available) {
+            throw new BusinessException("Insufficient stock: requested {$qty}, available {$available} in this warehouse.");
+        }
     }
 
     /**

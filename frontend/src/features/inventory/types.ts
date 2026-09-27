@@ -13,6 +13,7 @@ export type VoucherType =
   | 'opening_stock'
   | 'issue_stock'
   | 'receipt_stock'
+  | 'direct_invoice'
 
 export interface StockLedgerEntry {
   id: string

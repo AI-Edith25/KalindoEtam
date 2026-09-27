@@ -241,6 +241,9 @@ export interface Invoice {
   delivery_id: string | null
   delivery: { id: string; document_number: string | null; warehouse: { id: string; name: string; code: string } | null } | null
   deliveries: { id: string; document_number: string | null }[]
+  // Goods (Direct) only — captured directly at creation (no Delivery to inherit it from). Null for every other flow.
+  warehouse_id: string | null
+  warehouse: { id: string; name: string; code: string } | null
   sales_order_id: string | null
   sales_orders: { id: string; document_number: string | null }[]
   sales_order: {
@@ -289,14 +292,19 @@ export interface Invoice {
 }
 
 export interface InvoiceFormValues {
-  // Goods only.
+  // Delivery-based Goods only.
   delivery_ids?: string[]
-  // Transportation only — picked directly instead of derived from a Delivery, with
-  // manual freestanding line items (no Item/inventory link).
+  // Transportation and Goods (Direct) only — picked directly instead of derived from a Delivery.
   customer_id?: string
-  items?: { description: string; qty: number; rate: number }[]
-  // Transportation only, create-only — no Sales Order to derive Branch from.
+  // Transportation: manual freestanding lines (no Item/inventory link). Goods (Direct): real
+  // Item-backed lines, same master data a Sales Order line resolves against.
+  items?: { description: string; qty: number; rate: number }[] | { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
+  // Transportation and Goods (Direct), create-only — no Sales Order to derive Branch from.
   branch_id?: string
+  // Goods (Direct) only — no Delivery to inherit a Location from. invoice_type stays 'goods'
+  // either way (see Invoice::isDirectGoods()); this field alone is what the backend uses to
+  // route to the Direct sub-flow.
+  warehouse_id?: string
   invoice_type?: InvoiceType
   invoice_date: string
   due_date: string

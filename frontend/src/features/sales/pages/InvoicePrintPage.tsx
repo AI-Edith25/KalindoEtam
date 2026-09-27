@@ -181,7 +181,9 @@ export function InvoicePrintPage() {
   const attn = invoice.sales_order?.attention ?? ''
   const tel = invoice.sales_order?.tel ?? invoice.customer?.phone ?? ''
   const fax = invoice.sales_order?.fax ?? ''
-  const location = invoice.delivery?.warehouse?.name ?? ''
+  // Goods (Direct) has its own warehouse_id (no Delivery to source it from) — Transportation
+  // still renders blank, unaffected (see this file's own docblock).
+  const location = invoice.delivery?.warehouse?.name ?? invoice.warehouse?.name ?? ''
   const paperKey = printOptions.paperType === 'half' || isDotMatrix ? 'half' : printOptions.paperType === 'continuous' ? 'continuous' : 'a4'
   const paperSize = PAPER_SIZES[paperKey]
   const dotMatrixHeightMm = printOptions.dotMatrixHeightMm ?? DOTMATRIX_HALF_DEFAULTS.heightMm

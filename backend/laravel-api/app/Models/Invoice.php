@@ -28,6 +28,7 @@ class Invoice extends Model
         'cancelled_at',
         'delivery_id',
         'sales_order_id',
+        'warehouse_id',
         'branch_id',
         'customer_id',
         'sales_person_id',
@@ -97,6 +98,18 @@ class Invoice extends Model
     public function salesOrders(): BelongsToMany
     {
         return $this->belongsToMany(SalesOrder::class, 'invoice_sales_orders');
+    }
+
+    /** Direct Goods only — captured directly at creation, since there's no Delivery to inherit it from. Null for every other flow. */
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    /** A Goods invoice with no Delivery behind it (Jumbo & Curah billed straight to a Customer) — the one Invoice flow that itself reduces stock at submit()/cancel(), rather than inheriting an already-moved Delivery. */
+    public function isDirectGoods(): bool
+    {
+        return $this->invoice_type === InvoiceType::GOODS && $this->warehouse_id !== null;
     }
 
     /** Transportation only — captured directly at creation, since there's no Sales Order to derive it from. Null for Goods. */

@@ -295,7 +295,7 @@ export function InvoiceDetailPage() {
                 }
               />
             )}
-            <DetailField label="Location" value={invoice.delivery?.warehouse?.name || '—'} />
+            <DetailField label="Location" value={invoice.delivery?.warehouse?.name || invoice.warehouse?.name || '—'} />
             <DetailField label="Attention" value={invoice.sales_order?.attention || '—'} />
             <DetailField label="Tel" value={invoice.sales_order?.tel || '—'} />
             <DetailField label="Fax" value={invoice.sales_order?.fax || '—'} />
