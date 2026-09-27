@@ -17,6 +17,7 @@ use App\Services\ReceiptEntryService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -224,6 +225,51 @@ class BankReconciliationServiceTest extends TestCase
         $detail = $this->service->dayDetail('2026-09-01');
 
         $this->assertSame([], $detail['files']);
+    }
+
+    public function test_deleteStatementsForDate_removes_the_statement_and_reverts_the_day_to_not_uploaded(): void
+    {
+        Storage::fake('local');
+        $this->submittedReceipt('2026-09-01', 1500000);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'masuk', 'debit_amount' => 0, 'credit_amount' => 1500000],
+        ]);
+        $this->service->recomputeSummary('2026-09-01', '2026-09-01');
+        $this->assertSame(BankReconciliationStatus::BALANCED, BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail()->status);
+
+        $this->service->deleteStatementsForDate('2026-09-01');
+
+        $this->assertSame(0, BankStatement::query()->count());
+        $this->assertSame(BankReconciliationStatus::NOT_UPLOADED, BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail()->status);
+    }
+
+    public function test_deleteStatementsForDate_only_deletes_statements_covering_that_date(): void
+    {
+        Storage::fake('local');
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'day one', 'debit_amount' => 0, 'credit_amount' => 100000],
+        ]);
+        $this->statementWithLines('2026-09-02', [
+            ['description' => 'day two', 'debit_amount' => 0, 'credit_amount' => 200000],
+        ]);
+
+        $this->service->deleteStatementsForDate('2026-09-01');
+
+        $this->assertSame(1, BankStatement::query()->count());
+        $this->assertSame('2026-09-02', BankStatement::query()->firstOrFail()->period_start->format('Y-m-d'));
+    }
+
+    public function test_deleteStatementsForDate_never_touches_cash_book_data(): void
+    {
+        Storage::fake('local');
+        $receipt = $this->submittedReceipt('2026-09-01', 1500000);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'masuk', 'debit_amount' => 0, 'credit_amount' => 1500000],
+        ]);
+
+        $this->service->deleteStatementsForDate('2026-09-01');
+
+        $this->assertNotNull($receipt->fresh());
     }
 
     public function test_comparisonRows_returns_cash_book_rows_from_journal_with_totals(): void

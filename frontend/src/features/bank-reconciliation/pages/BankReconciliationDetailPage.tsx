@@ -14,10 +14,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import {
+  deleteBankReconciliationForDate,
   fetchBankReconciliationComparisonRows,
   fetchBankReconciliationDayDetail,
   fetchBankStatementFileObjectUrl,
@@ -220,11 +222,13 @@ export function BankReconciliationDetailPage() {
   const queryClient = useQueryClient()
   const canUpdate = useHasPermission('finance.bank_reconciliation.update')
   const canCreate = useHasPermission('finance.bank_reconciliation.create')
+  const canDelete = useHasPermission('finance.bank_reconciliation.delete')
 
   const [date, setDate] = useState(() => todayIso())
   const [activeTab, setActiveTab] = useState<'summary' | 'detail'>('summary')
   const [detailRow, setDetailRow] = useState<BankReconciliationSummary | null>(null)
   const [viewRow, setViewRow] = useState<BankReconciliationSummary | null>(null)
+  const [deletingRow, setDeletingRow] = useState<BankReconciliationSummary | null>(null)
 
   const summaryQuery = useQuery({
     queryKey: ['bank-reconciliation-summary', date],
@@ -238,6 +242,16 @@ export function BankReconciliationDetailPage() {
       toast.success('Reconciliation recomputed.')
       queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-summary'] })
       queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-comparison'] })
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (row: BankReconciliationSummary) => deleteBankReconciliationForDate(row.date),
+    onSuccess: () => {
+      toast.success('Mutasi bank deleted.')
+      setDeletingRow(null)
+      queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-summary'] })
     },
     onError: (error) => toastApiError(error),
   })
@@ -276,13 +290,18 @@ export function BankReconciliationDetailPage() {
               <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                 <DropdownMenuItem onClick={() => { setDetailRow(row); setActiveTab('detail') }}>View</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setViewRow(row)}>See the file</DropdownMenuItem>
+                {canDelete && (
+                  <DropdownMenuItem variant="destructive" onClick={() => setDeletingRow(row)}>
+                    Delete
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         ),
       },
     ],
-    [canUpdate, recomputeMutation],
+    [canUpdate, canDelete, recomputeMutation],
   )
 
   return (
@@ -361,6 +380,19 @@ export function BankReconciliationDetailPage() {
       </Tabs>
 
       {viewRow && <DayDetailDialog row={viewRow} onClose={() => setViewRow(null)} />}
+
+      {deletingRow && (
+        <ConfirmationDialog
+          open
+          onOpenChange={(open) => !open && setDeletingRow(null)}
+          title={`Hapus mutasi bank untuk tanggal ${formatDate(deletingRow.date)}?`}
+          description="Data yang sudah di-upload akan hilang dan tidak bisa dikembalikan."
+          confirmLabel="Hapus"
+          cancelLabel="Batal"
+          variant="destructive"
+          onConfirm={() => deleteMutation.mutate(deletingRow)}
+        />
+      )}
     </div>
   )
 }

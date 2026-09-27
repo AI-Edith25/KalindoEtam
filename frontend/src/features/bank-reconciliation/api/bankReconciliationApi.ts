@@ -56,6 +56,11 @@ export async function recomputeReconciliation(payload: RecomputeReconciliationPa
   await apiClient.post('/bank-reconciliation/recompute', payload)
 }
 
+/** "Delete" (⋮ menu) -- removes the uploaded mutasi file(s) for this date; Cash Book (OR/PV) is untouched. */
+export async function deleteBankReconciliationForDate(date: string): Promise<void> {
+  await apiClient.delete('/bank-reconciliation', { params: { date } })
+}
+
 export interface BankReconciliationDayDetail {
   files: BankReconciliationFile[]
 }

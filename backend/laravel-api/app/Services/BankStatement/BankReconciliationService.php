@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -155,6 +156,29 @@ class BankReconciliationService
             ->all();
 
         return ['files' => $files];
+    }
+
+    /**
+     * Menu "Delete" on a Ringkasan row -- removes every uploaded mutasi file (and its parsed
+     * lines, via bank_statement_lines' cascadeOnDelete) covering this date, then recomputes so
+     * the day reverts to `not_uploaded`. Uploads are always one day at a time (confirmed with the
+     * user), but more than one account's file can cover the same date, so this can delete more
+     * than one BankStatement. Cash Book (Official Receipt/Payment Voucher) is a separate module's
+     * own transaction data and is never touched here.
+     */
+    public function deleteStatementsForDate(string $date): void
+    {
+        $statements = BankStatement::query()
+            ->whereDate('period_start', '<=', $date)
+            ->whereDate('period_end', '>=', $date)
+            ->get();
+
+        foreach ($statements as $statement) {
+            Storage::disk($statement->disk)->delete($statement->file_path);
+            $statement->delete();
+        }
+
+        $this->recomputeSummary($date, $date);
     }
 
     /**

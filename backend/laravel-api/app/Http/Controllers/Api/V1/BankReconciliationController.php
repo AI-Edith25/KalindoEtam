@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\DestroyBankReconciliationForDateRequest;
 use App\Http\Requests\IndexBankReconciliationDayDetailRequest;
 use App\Http\Requests\IndexBankReconciliationSummaryRequest;
 use App\Http\Requests\RecomputeBankReconciliationRequest;
@@ -49,5 +50,14 @@ class BankReconciliationController extends Controller
         $this->bankReconciliationService->recomputeSummary($data['date_from'], $data['date_to']);
 
         return $this->success(null, 'Reconciliation recomputed.');
+    }
+
+    /** "Delete" (⋮ menu) on a summary row -- removes the uploaded mutasi file(s) for this date; Cash Book (OR/PV) is untouched. */
+    public function destroyForDate(DestroyBankReconciliationForDateRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+        $this->bankReconciliationService->deleteStatementsForDate($data['date']);
+
+        return $this->success(null, 'Mutasi bank deleted.');
     }
 }
