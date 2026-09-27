@@ -131,7 +131,10 @@ export function OutgoingPaymentListPage() {
     { header: 'Document', accessor: (row) => row.document_number ?? '—' },
     { header: 'Type', accessor: (row) => <StatusBadge status={row.payment_type} /> },
     {
-      header: 'Reference',
+      // What this payment was applied to (an allocation/expense label) — was named
+      // "Reference" but that name is now taken by the voucher's own Reference Number
+      // column below, which this data never was.
+      header: 'Paid For',
       accessor: (row) => {
         if (row.payment_type === 'general_expense') {
           return <span className="text-muted-foreground">General Expense</span>
@@ -182,6 +185,9 @@ export function OutgoingPaymentListPage() {
         return row.items.map((line) => line.accounts_payable.reference_number).join(', ')
       },
     },
+    // The voucher's own Reference Number field (same one shown on the Detail page) — distinct
+    // from "Paid For" above, which is allocation/expense data, never this field.
+    { header: 'Reference', accessor: (row) => row.reference_number || '—' },
     {
       header: 'Supplier',
       accessor: (row) => {
