@@ -62,21 +62,86 @@ class StockLedgerRepository extends BaseRepository
     /** All ledger entries across every item/warehouse — the report view. Same filtering shape as GoodsReceiptRepository::search(), applied to posting_datetime. */
     public function search(array $filters, int $perPage = 15)
     {
-        return $this->withRunningBalance($this->model->query())
-            ->with(['item', 'warehouse'])
-            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
-            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
-            ->when($filters['voucher_type'] ?? null, fn ($query, $voucherType) => $query->where('voucher_type', $voucherType))
-            ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('posting_datetime', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('posting_datetime', '<=', $date))
-            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
-                fn ($q) => $q->where('reference_no', 'like', "%{$search}%")
-                    ->orWhereHas('item', fn ($sq) => $sq->where('item_code', 'like', "%{$search}%")
-                        ->orWhere('item_name', 'like', "%{$search}%"))
-            ))
+        return $this->applyListFilters($this->withRunningBalance($this->model->query())->with(['item', 'warehouse']), $filters)
             ->orderByDesc('posting_datetime')
             ->orderByDesc('created_at')
             ->paginate($perPage);
+    }
+
+    /** Same filtering/eager-loads as search(), unpaginated — the Stock Ledger export's Detail sheet (every filtered row, not just one page). */
+    public function searchAll(array $filters): Collection
+    {
+        return $this->applyListFilters($this->withRunningBalance($this->model->query())->with(['item.uom', 'warehouse']), $filters)
+            ->orderBy('posting_datetime')
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    /**
+     * Transactions within [from, to] (inclusive), Location/Item filters only — deliberately NOT
+     * voucher_type/search, since the Stock Ledger export's Summary sheet must roll forward a
+     * complete running balance regardless of those two filters (a filtered-out voucher would
+     * otherwise leave the running balance "holey"). Ascending posting order so the export can
+     * accumulate the running balance in a single pass instead of a correlated subquery.
+     */
+    public function summaryTransactions(array $filters, string $from, string $to): Collection
+    {
+        return $this->model->query()
+            ->with(['item.itemGroup', 'item.uom', 'warehouse'])
+            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->whereBetween('posting_datetime', ["{$from} 00:00:00", "{$to} 23:59:59"])
+            ->orderBy('posting_datetime')
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    /**
+     * SUM(qty_change) per item+warehouse for every posting strictly before $before — the Stock
+     * Ledger export's Summary sheet Brought-Forward opening balance. One grouped query regardless
+     * of how many items/locations are in scope, not a per-item requery.
+     *
+     * @return array<string, float> keyed by "item_id|warehouse_id"
+     */
+    public function openingBalances(array $filters, string $before): array
+    {
+        return $this->model->query()
+            ->select('item_id', 'warehouse_id')
+            ->selectRaw('SUM(qty_change) as opening_qty')
+            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->where('posting_datetime', '<', "{$before} 00:00:00")
+            ->groupBy('item_id', 'warehouse_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => ["{$row->item_id}|{$row->warehouse_id}" => (float) $row->opening_qty])
+            ->all();
+    }
+
+    /** Earliest/latest posting_datetime in scope (Location/Item filters only) — the Stock Ledger export's fallback period when Date From/To are left empty. Null/null when there's no data at all. */
+    public function dateRange(array $filters): array
+    {
+        $row = $this->model->query()
+            ->selectRaw('MIN(posting_datetime) as first_date, MAX(posting_datetime) as last_date')
+            ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->first();
+
+        return ['from' => $row?->first_date, 'to' => $row?->last_date];
+    }
+
+    private function applyListFilters($query, array $filters)
+    {
+        return $query
+            ->when($filters['warehouse_id'] ?? null, fn ($q, $warehouseId) => $q->where('warehouse_id', $warehouseId))
+            ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->where('item_id', $itemId))
+            ->when($filters['voucher_type'] ?? null, fn ($q, $voucherType) => $q->where('voucher_type', $voucherType))
+            ->when($filters['date_from'] ?? null, fn ($q, $date) => $q->whereDate('posting_datetime', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($q, $date) => $q->whereDate('posting_datetime', '<=', $date))
+            ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(
+                fn ($sq) => $sq->where('reference_no', 'like', "%{$search}%")
+                    ->orWhereHas('item', fn ($isq) => $isq->where('item_code', 'like', "%{$search}%")
+                        ->orWhere('item_name', 'like', "%{$search}%"))
+            ));
     }
 
     /** Item.current_stock: the item's net on-hand qty across every warehouse. */

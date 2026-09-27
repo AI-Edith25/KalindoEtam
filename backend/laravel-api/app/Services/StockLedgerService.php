@@ -174,8 +174,15 @@ class StockLedgerService
         return $paginator;
     }
 
-    /** @param  Collection<int, string>  $itemWarehousePairs  "item_id|warehouse_id" keys */
-    private function currentAverageCostsFor($itemWarehousePairs): array
+    /**
+     * @param  Collection<int, string>  $itemWarehousePairs  "item_id|warehouse_id" keys
+     *
+     * Public — also called directly by StockLedgerExportService for the Stock Ledger export's
+     * Summary sheet, which computes its own running BALANCE QTY (seeded from a B/F opening
+     * balance) rather than reusing attachCostInfo()'s balance_value, so it needs this cost lookup
+     * on its own.
+     */
+    public function currentAverageCostsFor($itemWarehousePairs): array
     {
         $itemIds = $itemWarehousePairs->map(fn ($pair) => explode('|', $pair)[0])->unique()->values()->all();
         $warehouseIds = $itemWarehousePairs->map(fn ($pair) => explode('|', $pair)[1])->unique()->values()->all();

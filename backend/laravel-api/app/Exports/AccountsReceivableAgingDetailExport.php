@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Exports\Concerns\StylesAccountsReceivableAgingSheet;
+use App\Exports\Concerns\StylesMetaDrivenSheet;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
 use Maatwebsite\Excel\Concerns\WithEvents;
@@ -21,7 +21,7 @@ use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
  */
 class AccountsReceivableAgingDetailExport implements FromArray, WithCustomCsvSettings, WithEvents, WithStrictNullComparison
 {
-    use StylesAccountsReceivableAgingSheet;
+    use StylesMetaDrivenSheet;
 
     /** @param array<int, mixed> $meta see AccountsReceivableAgingReportService::detailReport()'s return shape */
     public function __construct(protected array $rows, protected array $meta = []) {}

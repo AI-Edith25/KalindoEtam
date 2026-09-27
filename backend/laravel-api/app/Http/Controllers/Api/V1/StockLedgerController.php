@@ -2,22 +2,30 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exports\StockLedgerExport;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ExportStockLedgerRequest;
 use App\Http\Requests\IndexStockBalanceReportRequest;
 use App\Http\Requests\IndexStockBalanceRequest;
 use App\Http\Requests\IndexStockLedgerRequest;
 use App\Http\Resources\StockBalanceResource;
 use App\Http\Resources\StockLedgerResource;
 use App\Models\Item;
+use App\Services\StockLedgerExportService;
 use App\Services\StockLedgerService;
 use Illuminate\Http\JsonResponse;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class StockLedgerController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(protected StockLedgerService $stockLedgerService) {}
+    public function __construct(
+        protected StockLedgerService $stockLedgerService,
+        protected StockLedgerExportService $stockLedgerExportService,
+    ) {}
 
     public function index(Item $item): JsonResponse
     {
@@ -37,6 +45,17 @@ class StockLedgerController extends Controller
         );
 
         return $this->success(StockLedgerResource::collection($rows));
+    }
+
+    /** Summary + Detail workbook — see StockLedgerExportService's own docblock for the two sheets' shape. */
+    public function export(ExportStockLedgerRequest $request): BinaryFileResponse
+    {
+        $filters = $request->validated();
+
+        return Excel::download(
+            new StockLedgerExport($this->stockLedgerExportService, $filters),
+            $this->stockLedgerExportService->fileName($filters),
+        );
     }
 
     /**

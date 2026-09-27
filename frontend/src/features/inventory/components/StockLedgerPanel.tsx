@@ -9,10 +9,12 @@ import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { fetchStockLedgerEntries } from '../api/stockLedgerApi'
+import { exportStockLedger, fetchStockLedgerEntries } from '../api/stockLedgerApi'
 import { StockLedgerFiltersBar } from './StockLedgerFiltersBar'
 import { resolveVoucherLink } from '../lib/voucherLinks'
 import { emptyStockLedgerFilters } from '../lib/stockLedgerFilters'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { toastApiError } from '@/shared/services/errorHandler'
 import type { StockLedgerEntry, StockLedgerFilterValues } from '../types'
 
 /**
@@ -28,11 +30,21 @@ export function StockLedgerPanel() {
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [isExporting, setIsExporting] = useState(false)
   const [filters, setFilters] = useState<StockLedgerFilterValues>(() => ({
     ...emptyStockLedgerFilters,
     item_id: searchParams.get('item_id') ?? '',
     warehouse_id: searchParams.get('warehouse_id') ?? '',
   }))
+
+  const activeParams = {
+    ...(search ? { search } : {}),
+    ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
+    ...(filters.item_id ? { item_id: filters.item_id } : {}),
+    ...(filters.voucher_type ? { voucher_type: filters.voucher_type } : {}),
+    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+  }
 
   const listQuery = useQuery({
     queryKey: [
@@ -45,20 +57,23 @@ export function StockLedgerPanel() {
       filters.dateFrom,
       filters.dateTo,
     ],
-    queryFn: () =>
-      fetchStockLedgerEntries({
-        page,
-        ...(search ? { search } : {}),
-        ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
-        ...(filters.item_id ? { item_id: filters.item_id } : {}),
-        ...(filters.voucher_type ? { voucher_type: filters.voucher_type } : {}),
-        ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
-        ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-      }),
+    queryFn: () => fetchStockLedgerEntries({ page, ...activeParams }),
     placeholderData: (previous) => previous,
   })
 
   const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
+
+  const exportReport = async () => {
+    setIsExporting(true)
+    try {
+      const { blob, filename } = await exportStockLedger(activeParams)
+      downloadBlob(filename, blob)
+    } catch (error) {
+      toastApiError(error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const columns: DataTableColumn<StockLedgerEntry>[] = [
     { header: 'Date', accessor: (row) => formatDate(row.posting_datetime) },
@@ -114,7 +129,7 @@ export function StockLedgerPanel() {
         <ActionBar
           actions={[
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-            { label: 'Export', icon: Download, disabled: true },
+            { label: 'Export', icon: Download, onClick: exportReport, disabled: isExporting },
             { label: 'Import', icon: Upload, disabled: true },
           ]}
         />

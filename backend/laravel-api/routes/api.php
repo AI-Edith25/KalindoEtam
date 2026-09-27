@@ -236,6 +236,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Both read-only, both additive, both reuse StockLedgerService — no new business logic.
     Route::get('stock-ledger', [StockLedgerController::class, 'list'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view|reports.inventory_stock.view');
     Route::get('stock-ledger/balances/report', [StockLedgerController::class, 'balancesReport'])->middleware('permission:inventory.stock_balance.view|reports.inventory_balance.view|reports.inventory_stock.view');
+    Route::get('stock-ledger/export', [StockLedgerController::class, 'export'])->middleware('permission:inventory.stock_ledger.view|reports.inventory_movement.view|reports.inventory_stock.view');
     Route::post('stock-in', [StockInController::class, 'store'])->middleware('permission:inventory.stock_ledger.create');
     Route::get('fifo-layers/export', [FifoValuationController::class, 'export'])->middleware('permission:inventory.fifo_layers.view');
     Route::get('fifo-layers', [FifoValuationController::class, 'index'])->middleware('permission:inventory.fifo_layers.view');
