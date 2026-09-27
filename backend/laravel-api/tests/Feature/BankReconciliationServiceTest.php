@@ -20,18 +20,21 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Bank Reconciliation combines every cash/bank account into one bucket -- confirmed with the
- * user, since the mutasi/journal-list files it compares have no reliable structured "which
+ * Bank Reconciliation combines every cash/bank account into one bucket for its own totals --
+ * confirmed with the user, since the mutasi files it compares have no reliable structured "which
  * account" field to split on (see 2026_09_27_000003_drop_bank_account_id_from_bank_reconciliation.php).
+ * Its Detail tab does show a "Bank Account" column, but only as a display field sourced straight
+ * from ReceiptEntry/PaymentEntry.cash_account_id -- never a reconciliation dimension.
  *
- * The "system side" is sourced from real Cash Book Transaction journal entries (via
- * BankReconciliationRepository::cashBookRows(), reusing JournalListRepository), not raw
- * receipt_entries/payment_entries rows -- so fixtures here go through ReceiptEntryService/
- * PaymentEntryService::submit() (which post the journal entry), same as JournalListExportTest,
- * rather than calling the model's own ->submit() directly.
+ * The "system side" is read directly from receipt_entries/payment_entries
+ * (BankReconciliationRepository::cashBookRows()), not via journal_entries -- every field the
+ * Detail tab needs (document number, date, reference number, cash/bank account) is already a
+ * plain column on those two documents. Fixtures still go through ReceiptEntryService/
+ * PaymentEntryService::submit() (same as JournalListExportTest) so recomputeSummary()'s
+ * statement-vs-system comparison exercises real submitted documents.
  *
  * Amount convention is bank-statement style (debit = uang keluar, credit = uang masuk): a
- * Payment Voucher's cash leg lands in 'debit'/'kredit'=0, an Official Receipt's in 'kredit'.
+ * Payment Voucher lands in 'debit'/'kredit'=0, an Official Receipt in 'kredit'.
  */
 class BankReconciliationServiceTest extends TestCase
 {
@@ -236,27 +239,33 @@ class BankReconciliationServiceTest extends TestCase
         $this->assertSame($receipt->document_number, $receiptRow['document_number']);
         $this->assertSame(1500000.0, $receiptRow['kredit']);
         $this->assertSame(0.0, $receiptRow['debit']);
-        $this->assertStringContainsString('Acme', $receiptRow['keterangan']);
+        $this->assertSame($this->bankAccount->name, $receiptRow['bank_account']);
 
         $paymentRow = collect($result['rows'])->firstWhere('tipe', 'keluar');
         $this->assertSame($payment->document_number, $paymentRow['document_number']);
         $this->assertSame(200000.0, $paymentRow['debit']);
         $this->assertSame(0.0, $paymentRow['kredit']);
+        $this->assertSame($this->bankAccount->name, $paymentRow['bank_account']);
 
         $this->assertSame(200000.0, $result['totals']['debit']);
         $this->assertSame(1500000.0, $result['totals']['kredit']);
         $this->assertSame(1300000.0, $result['totals']['selisih']);
     }
 
-    public function test_comparisonRows_only_includes_the_cash_bank_leg_not_the_contra_account(): void
+    public function test_comparisonRows_includes_reference_number(): void
     {
-        $this->submittedReceipt('2026-09-01', 1500000);
+        $receipt = $this->receiptEntryService->create([
+            'customer_id' => $this->customer->id,
+            'receipt_date' => '2026-09-01',
+            'cash_account_id' => $this->bankAccount->id,
+            'reference_number' => 'BCA KE',
+            'total_amount' => 1500000,
+        ]);
+        $this->receiptEntryService->submit($receipt);
 
         $result = $this->service->comparisonRows('2026-09-01');
 
-        // Two journal lines exist for the receipt (bank leg + Unapplied Customer Payments contra
-        // leg), but only the is_cash_bank one is surfaced here.
-        $this->assertCount(1, $result['rows']);
+        $this->assertSame('BCA KE', $result['rows'][0]['reference_number']);
     }
 
     public function test_comparisonRows_bank_mutasi_summary_uses_saldo_from_surrounding_lines(): void

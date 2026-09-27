@@ -30,11 +30,16 @@ export interface BankReconciliationFile {
   uploaded_by: string | null
 }
 
-/** Detail tab: one row per Cash Book (Official Receipt/Payment Voucher) journal entry for the day, reduced to its cash/bank leg. */
+/**
+ * Detail tab: one row per Official Receipt (masuk)/Payment Voucher (keluar) for the day, read
+ * straight from those documents' own fields -- bank_account is a display field only (for
+ * cross-checking against whichever mutasi file), not a reconciliation dimension.
+ */
 export interface BankReconciliationComparisonRow {
   document_number: string | null
   date: string
-  keterangan: string | null
+  reference_number: string | null
+  bank_account: string | null
   tipe: 'masuk' | 'keluar'
   debit: number
   kredit: number

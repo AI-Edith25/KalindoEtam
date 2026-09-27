@@ -158,11 +158,11 @@ class BankReconciliationService
     }
 
     /**
-     * Detail tab: Cash Book (Official Receipt/Payment Voucher journal entries, via
+     * Detail tab: Cash Book (Official Receipt/Payment Voucher, via
      * BankReconciliationRepository::cashBookRows() -- the same read recomputeSummary() uses) for
      * one day, compared against that day's uploaded bank statement at the aggregate level only.
      * Deliberately never row-by-row: a transfer's sender name never matches the customer/supplier
-     * name in the journal, so per-line matching only ever produced false "Unbalanced" results.
+     * name in the system, so per-line matching only ever produced false "Unbalanced" results.
      * Balanced within Rp 1.000 per category (admin fees/rounding), not just exact-zero.
      */
     public function comparisonRows(string $date): array

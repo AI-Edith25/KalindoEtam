@@ -2,65 +2,71 @@
 
 namespace App\Repositories;
 
-use App\Models\JournalEntry;
-use App\Models\JournalEntryLine;
+use App\Enums\DocumentStatus;
+use App\Models\PaymentEntry;
+use App\Models\ReceiptEntry;
 use Illuminate\Support\Collection;
 
 /**
- * "System side" of the reconciliation -- every Cash Book Transaction (Official Receipt/Payment
- * Voucher) journal entry, grouped by day, regardless of which cash/bank account they were paid
- * from/received into (Bank Reconciliation combines every account into one bucket -- see the
- * migration that dropped bank_account_id from this feature). Reuses
- * JournalListRepository::cashBookJournalEntries() -- the same read xlsJournalList*.xlsx exports
- * from -- rather than reading receipt_entries/payment_entries directly, so this and the Journal
- * List/General Ledger reports can never disagree, and so this correctly reflects what actually
- * posted (status=SUBMITTED via the Accounting Engine), not just what was saved.
+ * "System side" of the reconciliation -- every submitted Official Receipt/Payment Voucher,
+ * grouped by day, regardless of which cash/bank account they were paid from/received into (Bank
+ * Reconciliation combines every account into one bucket for its own totals -- see the migration
+ * that dropped bank_account_id from this feature). Reads receipt_entries/payment_entries
+ * directly rather than via journal_entries: every field the Detail tab needs (document number,
+ * date, reference number, cash/bank account) is already a plain column on these two documents,
+ * so there is no journal join, no "which line is the bank leg", and no particulars/description
+ * reconstruction needed at all.
  *
  * Amounts use bank-statement convention (debit = uang keluar, credit = uang masuk -- see
  * BcaStatementParser/MandiriStatementParser), the opposite of ledger/asset convention, so a
- * Payment Voucher's cash leg (a ledger credit) lands in 'debit' here and an Official Receipt's
- * cash leg (a ledger debit) lands in 'credit' -- this is what makes these totals directly
- * comparable to BankStatementLine's debit_amount/credit_amount without inversion.
+ * Payment Voucher lands in 'debit' here and an Official Receipt lands in 'credit' -- this is
+ * what makes these totals directly comparable to BankStatementLine's debit_amount/credit_amount
+ * without inversion.
  */
 class BankReconciliationRepository
 {
-    public function __construct(private JournalListRepository $journalListRepository) {}
-
     /**
-     * One row per Cash Book journal entry in range, reduced to its cash/bank leg only (the
-     * contra Piutang/Hutang/expense leg is dropped -- it doesn't represent bank movement).
+     * One row per submitted Official Receipt/Payment Voucher in range. 'bank_account' is a
+     * display field only (see the migration above) -- for the human cross-checking against
+     * whichever mutasi file when more than one account's statement was uploaded for the same day.
      *
-     * @return array<int, array{document_number: ?string, date: string, keterangan: ?string, tipe: 'masuk'|'keluar', debit: float, kredit: float}>
+     * @return array<int, array{document_number: ?string, date: string, reference_number: ?string, bank_account: ?string, tipe: 'masuk'|'keluar', debit: float, kredit: float}>
      */
     public function cashBookRows(string $dateFrom, string $dateTo): array
     {
-        $entries = $this->journalListRepository
-            ->cashBookJournalEntries(['date_from' => $dateFrom, 'date_to' => $dateTo], 'all')
-            ->get();
+        $receipts = ReceiptEntry::query()
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->whereDate('receipt_date', '>=', $dateFrom)
+            ->whereDate('receipt_date', '<=', $dateTo)
+            ->with('cashAccount')
+            ->get()
+            ->map(fn (ReceiptEntry $receipt) => [
+                'document_number' => $receipt->document_number,
+                'date' => $receipt->receipt_date->format('Y-m-d'),
+                'reference_number' => $receipt->reference_number,
+                'bank_account' => $receipt->cashAccount?->name,
+                'tipe' => 'masuk',
+                'debit' => 0.0,
+                'kredit' => (float) $receipt->total_amount,
+            ]);
 
-        return $entries
-            ->map(function (JournalEntry $entry) {
-                $bankLine = $entry->lines->first(fn (JournalEntryLine $line) => $line->chartOfAccount?->is_cash_bank);
+        $payments = PaymentEntry::query()
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->whereDate('payment_date', '>=', $dateFrom)
+            ->whereDate('payment_date', '<=', $dateTo)
+            ->with('cashAccount')
+            ->get()
+            ->map(fn (PaymentEntry $payment) => [
+                'document_number' => $payment->document_number,
+                'date' => $payment->payment_date->format('Y-m-d'),
+                'reference_number' => $payment->reference_number,
+                'bank_account' => $payment->cashAccount?->name,
+                'tipe' => 'keluar',
+                'debit' => (float) $payment->total_amount,
+                'kredit' => 0.0,
+            ]);
 
-                if ($bankLine === null) {
-                    return null; // shouldn't happen for a real Cash Book entry, but never fabricate a row without one
-                }
-
-                $isReceipt = $entry->reference_type === 'receipt_entry';
-                $amount = $isReceipt ? (float) $bankLine->debit : (float) $bankLine->credit;
-
-                return [
-                    'document_number' => $entry->resolved_document_number,
-                    'date' => $entry->posting_date->format('Y-m-d'),
-                    'keterangan' => $this->remark($bankLine, $entry->lines),
-                    'tipe' => $isReceipt ? 'masuk' : 'keluar',
-                    'debit' => $isReceipt ? 0.0 : $amount,
-                    'kredit' => $isReceipt ? $amount : 0.0,
-                ];
-            })
-            ->filter()
-            ->values()
-            ->all();
+        return $receipts->concat($payments)->sortBy('date')->values()->all();
     }
 
     /** @return array<string, array{debit: float, credit: float}> keyed by Y-m-d */
@@ -73,24 +79,5 @@ class BankReconciliationRepository
                 'credit' => $rows->sum('kredit'),
             ])
             ->all();
-    }
-
-    /**
-     * The bank leg's own description, falling back to summarizing sibling lines -- same
-     * "who/what is this cash movement for" reconstruction JournalListExport::particulars() uses,
-     * minus its "{code} - {name} -" prefix (not needed here, only the remark itself).
-     */
-    private function remark(JournalEntryLine $line, Collection $siblings): ?string
-    {
-        if ($line->description) {
-            return $line->description;
-        }
-
-        $summary = $siblings
-            ->reject(fn (JournalEntryLine $sibling) => $sibling->id === $line->id)
-            ->map(fn (JournalEntryLine $sibling) => $sibling->chartOfAccount->name.($sibling->description ? " ({$sibling->description})" : ''))
-            ->implode('; ');
-
-        return $summary !== '' ? $summary : null;
     }
 }

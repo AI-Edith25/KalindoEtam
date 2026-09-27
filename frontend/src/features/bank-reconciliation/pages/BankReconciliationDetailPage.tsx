@@ -46,8 +46,6 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
-const TIPE_LABEL = { masuk: 'Masuk', keluar: 'Keluar' } as const
-
 function formatSaldo(value: number | null): string {
   return value === null ? '-' : formatCurrency(value)
 }
@@ -69,9 +67,10 @@ function CategoryComparisonRow({ label, comparison }: { label: string; compariso
 }
 
 /**
- * Detail tab: Cash Book (Official Receipt/Payment Voucher journal entries) for one day, compared
- * against that day's uploaded bank statement at the aggregate level only -- never row-by-row,
- * since a transfer's sender name never matches the customer/supplier name in the journal.
+ * Detail tab: Cash Book (Official Receipt/Payment Voucher, read straight from those documents'
+ * own fields) for one day, compared against that day's uploaded bank statement at the aggregate
+ * level only -- never row-by-row, since a transfer's sender name never matches the
+ * customer/supplier name in the system.
  */
 function ComparisonSubTable({ date }: { date: string }) {
   const comparisonQuery = useQuery({
@@ -94,12 +93,12 @@ function ComparisonSubTable({ date }: { date: string }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>No. Voucher</TableHead>
-            <TableHead>Tanggal</TableHead>
-            <TableHead>Keterangan</TableHead>
-            <TableHead>Tipe</TableHead>
+            <TableHead>Transaction</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Reference</TableHead>
+            <TableHead>Bank Account</TableHead>
             <TableHead className="text-right">Debit</TableHead>
-            <TableHead className="text-right">Kredit</TableHead>
+            <TableHead className="text-right">Credit</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -114,8 +113,8 @@ function ComparisonSubTable({ date }: { date: string }) {
               <TableRow key={row.document_number ?? index}>
                 <TableCell>{row.document_number ?? '-'}</TableCell>
                 <TableCell>{formatDate(row.date)}</TableCell>
-                <TableCell>{row.keterangan ?? '-'}</TableCell>
-                <TableCell>{TIPE_LABEL[row.tipe]}</TableCell>
+                <TableCell>{row.reference_number ?? '-'}</TableCell>
+                <TableCell>{row.bank_account ?? '-'}</TableCell>
                 <TableCell className="text-right">{row.debit > 0 ? formatCurrency(row.debit) : '-'}</TableCell>
                 <TableCell className="text-right">{row.kredit > 0 ? formatCurrency(row.kredit) : '-'}</TableCell>
               </TableRow>
