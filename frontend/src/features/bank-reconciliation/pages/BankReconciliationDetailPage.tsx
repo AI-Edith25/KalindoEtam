@@ -25,7 +25,7 @@ import {
   recomputeReconciliation,
 } from '../api/bankReconciliationApi'
 import type {
-  BankReconciliationComparisonStatus,
+  BankReconciliationCategoryComparison,
   BankReconciliationFile,
   BankReconciliationSummary,
   BankReconciliationStatus,
@@ -46,19 +46,33 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
-const COMPARISON_STATUS_LABEL: Record<BankReconciliationComparisonStatus, string> = {
-  match: 'Match',
-  not_in_bank: 'Tidak ada di bank',
-  not_in_cash_book: 'Tidak ada di cash book',
+const TIPE_LABEL = { masuk: 'Masuk', keluar: 'Keluar' } as const
+
+function formatSaldo(value: number | null): string {
+  return value === null ? '-' : formatCurrency(value)
 }
 
-/** Shows whichever side (debit/credit) is actually populated -- a document/line is never both. */
-function formatSide(debit: number | null, credit: number | null): string {
-  if (debit === null && credit === null) return '-'
-  return formatCurrency((debit ?? 0) > 0 ? (debit as number) : (credit ?? 0))
+/** One category (Debit/Kredit) of the aggregate Cash Book vs Mutasi Bank comparison. */
+function CategoryComparisonRow({ label, comparison }: { label: string; comparison: BankReconciliationCategoryComparison }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded border p-3 text-sm">
+      <div>
+        <p className="font-medium">{label}</p>
+        <p className="text-muted-foreground">
+          Cash Book {formatCurrency(comparison.cash_book)} vs Mutasi Bank {formatCurrency(comparison.bank)}
+          {comparison.status === 'unbalanced' && <> &middot; Selisih {formatCurrency(comparison.variance)}</>}
+        </p>
+      </div>
+      <StatusPill status={comparison.status} />
+    </div>
+  )
 }
 
-/** Point 3: row-per-transaction comparison, Cash Book (system) vs uploaded bank statement, for one day. */
+/**
+ * Detail tab: Cash Book (Official Receipt/Payment Voucher journal entries) for one day, compared
+ * against that day's uploaded bank statement at the aggregate level only -- never row-by-row,
+ * since a transfer's sender name never matches the customer/supplier name in the journal.
+ */
 function ComparisonSubTable({ date }: { date: string }) {
   const comparisonQuery = useQuery({
     queryKey: ['bank-reconciliation-comparison', date],
@@ -71,40 +85,72 @@ function ComparisonSubTable({ date }: { date: string }) {
   if (comparisonQuery.isError) {
     return <p className="p-4 text-sm text-destructive">Failed to load comparison.</p>
   }
-  if (!comparisonQuery.data?.length) {
-    return <p className="p-4 text-sm text-muted-foreground">No transactions for this day.</p>
-  }
+
+  const data = comparisonQuery.data
+  if (!data) return null
 
   return (
-    <div className="bg-muted/30 p-4">
+    <div className="space-y-4 bg-muted/30 p-4">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>No. Voucher</TableHead>
             <TableHead>Tanggal</TableHead>
-            <TableHead>Keterangan / No. Voucher (Cash Book)</TableHead>
-            <TableHead className="text-right">Debit/Kredit Cash Book</TableHead>
-            <TableHead>Keterangan Mutasi Bank</TableHead>
-            <TableHead className="text-right">Debit/Kredit Mutasi</TableHead>
-            <TableHead className="text-right">Selisih</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>Keterangan</TableHead>
+            <TableHead>Tipe</TableHead>
+            <TableHead className="text-right">Debit</TableHead>
+            <TableHead className="text-right">Kredit</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {comparisonQuery.data.map((row) => (
-            <TableRow key={row.id}>
-              <TableCell>{formatDate(row.date)}</TableCell>
-              <TableCell>{row.cash_book_label ?? '-'}</TableCell>
-              <TableCell className="text-right">{formatSide(row.cash_book_debit, row.cash_book_credit)}</TableCell>
-              <TableCell>{row.statement_label ?? '-'}</TableCell>
-              <TableCell className="text-right">{formatSide(row.statement_debit, row.statement_credit)}</TableCell>
-              <TableCell className="text-right">{formatCurrency(row.selisih)}</TableCell>
-              <TableCell>
-                <Badge variant={row.status === 'match' ? 'default' : 'destructive'}>{COMPARISON_STATUS_LABEL[row.status]}</Badge>
+          {data.rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                No transactions for this day.
               </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            data.rows.map((row, index) => (
+              <TableRow key={row.document_number ?? index}>
+                <TableCell>{row.document_number ?? '-'}</TableCell>
+                <TableCell>{formatDate(row.date)}</TableCell>
+                <TableCell>{row.keterangan ?? '-'}</TableCell>
+                <TableCell>{TIPE_LABEL[row.tipe]}</TableCell>
+                <TableCell className="text-right">{row.debit > 0 ? formatCurrency(row.debit) : '-'}</TableCell>
+                <TableCell className="text-right">{row.kredit > 0 ? formatCurrency(row.kredit) : '-'}</TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
+        <tfoot>
+          <TableRow className="font-medium">
+            <TableCell colSpan={4}>Total</TableCell>
+            <TableCell className="text-right">{formatCurrency(data.totals.debit)}</TableCell>
+            <TableCell className="text-right">{formatCurrency(data.totals.kredit)}</TableCell>
+          </TableRow>
+        </tfoot>
       </Table>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2 rounded border bg-background p-3 text-sm">
+          <p className="font-medium">Ringkasan Mutasi Bank</p>
+          <div className="grid grid-cols-2 gap-1 text-muted-foreground">
+            <span>Saldo awal</span>
+            <span className="text-right">{formatSaldo(data.bank_mutasi.saldo_awal)}</span>
+            <span>Total masuk (kredit)</span>
+            <span className="text-right">{formatCurrency(data.bank_mutasi.total_masuk)}</span>
+            <span>Total keluar (debit)</span>
+            <span className="text-right">{formatCurrency(data.bank_mutasi.total_keluar)}</span>
+            <span>Saldo akhir</span>
+            <span className="text-right">{formatSaldo(data.bank_mutasi.saldo_akhir)}</span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <CategoryComparisonRow label="Debit (Keluar)" comparison={data.comparison.debit} />
+          <CategoryComparisonRow label="Kredit (Masuk)" comparison={data.comparison.kredit} />
+        </div>
+      </div>
     </div>
   )
 }

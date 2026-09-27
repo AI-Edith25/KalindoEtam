@@ -2,52 +2,95 @@
 
 namespace App\Repositories;
 
-use App\Enums\DocumentStatus;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use App\Models\JournalEntry;
+use App\Models\JournalEntryLine;
+use Illuminate\Support\Collection;
 
 /**
- * "System side" of the reconciliation -- every Payment Voucher (outflow, credit) and
- * Official Receipt (inflow, debit), grouped by day, regardless of which cash/bank
- * account they were paid from/received into (Bank Reconciliation combines every
- * account into one bucket -- see the migration that dropped bank_account_id from
- * this feature). Reads payment_entries/receipt_entries directly, same precedent as
- * CashBookRepository, not journal_entries -- matches the ticket's own framing
- * of PV/OR as the "system side", not the full general ledger.
+ * "System side" of the reconciliation -- every Cash Book Transaction (Official Receipt/Payment
+ * Voucher) journal entry, grouped by day, regardless of which cash/bank account they were paid
+ * from/received into (Bank Reconciliation combines every account into one bucket -- see the
+ * migration that dropped bank_account_id from this feature). Reuses
+ * JournalListRepository::cashBookJournalEntries() -- the same read xlsJournalList*.xlsx exports
+ * from -- rather than reading receipt_entries/payment_entries directly, so this and the Journal
+ * List/General Ledger reports can never disagree, and so this correctly reflects what actually
+ * posted (status=SUBMITTED via the Accounting Engine), not just what was saved.
+ *
+ * Amounts use bank-statement convention (debit = uang keluar, credit = uang masuk -- see
+ * BcaStatementParser/MandiriStatementParser), the opposite of ledger/asset convention, so a
+ * Payment Voucher's cash leg (a ledger credit) lands in 'debit' here and an Official Receipt's
+ * cash leg (a ledger debit) lands in 'credit' -- this is what makes these totals directly
+ * comparable to BankStatementLine's debit_amount/credit_amount without inversion.
  */
 class BankReconciliationRepository
 {
+    public function __construct(private JournalListRepository $journalListRepository) {}
+
+    /**
+     * One row per Cash Book journal entry in range, reduced to its cash/bank leg only (the
+     * contra Piutang/Hutang/expense leg is dropped -- it doesn't represent bank movement).
+     *
+     * @return array<int, array{document_number: ?string, date: string, keterangan: ?string, tipe: 'masuk'|'keluar', debit: float, kredit: float}>
+     */
+    public function cashBookRows(string $dateFrom, string $dateTo): array
+    {
+        $entries = $this->journalListRepository
+            ->cashBookJournalEntries(['date_from' => $dateFrom, 'date_to' => $dateTo], 'all')
+            ->get();
+
+        return $entries
+            ->map(function (JournalEntry $entry) {
+                $bankLine = $entry->lines->first(fn (JournalEntryLine $line) => $line->chartOfAccount?->is_cash_bank);
+
+                if ($bankLine === null) {
+                    return null; // shouldn't happen for a real Cash Book entry, but never fabricate a row without one
+                }
+
+                $isReceipt = $entry->reference_type === 'receipt_entry';
+                $amount = $isReceipt ? (float) $bankLine->debit : (float) $bankLine->credit;
+
+                return [
+                    'document_number' => $entry->resolved_document_number,
+                    'date' => $entry->posting_date->format('Y-m-d'),
+                    'keterangan' => $this->remark($bankLine, $entry->lines),
+                    'tipe' => $isReceipt ? 'masuk' : 'keluar',
+                    'debit' => $isReceipt ? 0.0 : $amount,
+                    'kredit' => $isReceipt ? $amount : 0.0,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
     /** @return array<string, array{debit: float, credit: float}> keyed by Y-m-d */
     public function systemTotalsByDate(string $dateFrom, string $dateTo): array
     {
-        // whereDate(), not whereBetween() with plain 'Y-m-d' bounds -- a 'date'-cast
-        // column is still stored as a full "Y-m-d 00:00:00" string on sqlite, which
-        // sorts *after* a same-day 'Y-m-d' upper bound and silently drops same-day rows.
-        $receipts = DB::table('receipt_entries')
-            ->where('status', DocumentStatus::SUBMITTED->value)
-            ->whereDate('receipt_date', '>=', $dateFrom)
-            ->whereDate('receipt_date', '<=', $dateTo)
-            ->whereNull('deleted_at')
-            ->selectRaw('receipt_date as date, SUM(total_amount) as total')
-            ->groupBy('receipt_date')
-            ->get()
-            ->keyBy(fn ($row) => Carbon::parse($row->date)->format('Y-m-d'));
+        return collect($this->cashBookRows($dateFrom, $dateTo))
+            ->groupBy('date')
+            ->map(fn (Collection $rows) => [
+                'debit' => $rows->sum('debit'),
+                'credit' => $rows->sum('kredit'),
+            ])
+            ->all();
+    }
 
-        $payments = DB::table('payment_entries')
-            ->where('status', DocumentStatus::SUBMITTED->value)
-            ->whereDate('payment_date', '>=', $dateFrom)
-            ->whereDate('payment_date', '<=', $dateTo)
-            ->whereNull('deleted_at')
-            ->selectRaw('payment_date as date, SUM(total_amount) as total')
-            ->groupBy('payment_date')
-            ->get()
-            ->keyBy(fn ($row) => Carbon::parse($row->date)->format('Y-m-d'));
+    /**
+     * The bank leg's own description, falling back to summarizing sibling lines -- same
+     * "who/what is this cash movement for" reconstruction JournalListExport::particulars() uses,
+     * minus its "{code} - {name} -" prefix (not needed here, only the remark itself).
+     */
+    private function remark(JournalEntryLine $line, Collection $siblings): ?string
+    {
+        if ($line->description) {
+            return $line->description;
+        }
 
-        $dates = $receipts->keys()->merge($payments->keys())->unique();
+        $summary = $siblings
+            ->reject(fn (JournalEntryLine $sibling) => $sibling->id === $line->id)
+            ->map(fn (JournalEntryLine $sibling) => $sibling->chartOfAccount->name.($sibling->description ? " ({$sibling->description})" : ''))
+            ->implode('; ');
 
-        return $dates->mapWithKeys(fn ($date) => [$date => [
-            'debit' => (float) ($receipts[$date]->total ?? 0),
-            'credit' => (float) ($payments[$date]->total ?? 0),
-        ]])->all();
+        return $summary !== '' ? $summary : null;
     }
 }

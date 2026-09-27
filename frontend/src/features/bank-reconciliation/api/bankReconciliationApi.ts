@@ -1,9 +1,7 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiResponse } from '@/shared/types/api'
 import type {
-  BankReconciliationComparisonRow,
-  BankReconciliationDetailRow,
-  BankReconciliationDetailView,
+  BankReconciliationComparison,
   BankReconciliationFile,
   BankReconciliationSummary,
   BankStatement,
@@ -49,33 +47,13 @@ export async function fetchDailyBalancingSummary(params: DailyBalancingParams): 
   return data.data
 }
 
-export interface BankReconciliationDetailParams {
-  date_from: string
-  date_to: string
-  view?: BankReconciliationDetailView
-}
-
-/** `view` picks which side to browse from -- see BankReconciliationDetailRow. Defaults to 'import'. */
-export async function fetchBankReconciliationDetailRows(params: BankReconciliationDetailParams): Promise<BankReconciliationDetailRow[]> {
-  const { data } = await apiClient.get<ApiResponse<BankReconciliationDetailRow[]>>('/bank-reconciliation/lines', { params })
-  return data.data
-}
-
 export interface RecomputeReconciliationPayload {
   date_from: string
   date_to: string
-  tolerance_days?: number
 }
 
 export async function recomputeReconciliation(payload: RecomputeReconciliationPayload): Promise<void> {
   await apiClient.post('/bank-reconciliation/recompute', payload)
-}
-
-export async function manualMatchBankStatementLine(lineId: string, documentType: string, documentId: string): Promise<void> {
-  await apiClient.post(`/bank-statement-lines/${lineId}/manual-match`, {
-    document_type: documentType,
-    document_id: documentId,
-  })
 }
 
 export interface BankReconciliationDayDetail {
@@ -90,9 +68,9 @@ export async function fetchBankReconciliationDayDetail(date: string): Promise<Ba
   return data.data
 }
 
-/** Point 3's row-click sub-table: Cash Book vs uploaded statement, one row per document/unmatched line. */
-export async function fetchBankReconciliationComparisonRows(date: string): Promise<BankReconciliationComparisonRow[]> {
-  const { data } = await apiClient.get<ApiResponse<BankReconciliationComparisonRow[]>>('/bank-reconciliation/comparison', {
+/** Detail tab: Cash Book (Official Receipt/Payment Voucher journal entries) vs uploaded statement for one day, compared at the aggregate level. */
+export async function fetchBankReconciliationComparisonRows(date: string): Promise<BankReconciliationComparison> {
+  const { data } = await apiClient.get<ApiResponse<BankReconciliationComparison>>('/bank-reconciliation/comparison', {
     params: { date },
   })
   return data.data

@@ -3,14 +3,10 @@
 namespace App\Services\BankStatement;
 
 use App\Enums\BankReconciliationStatus;
-use App\Enums\BankStatementLineMatchStatus;
 use App\Enums\BankStatementStatus;
-use App\Enums\DocumentStatus;
 use App\Models\BankReconciliationSummary;
 use App\Models\BankStatement;
 use App\Models\BankStatementLine;
-use App\Models\PaymentEntry;
-use App\Models\ReceiptEntry;
 use App\Repositories\BankReconciliationRepository;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -32,10 +28,9 @@ class BankReconciliationService
     public function recomputeForStatement(BankStatement $statement): void
     {
         if ($statement->period_start === null || $statement->period_end === null) {
-            return; // empty statement, nothing to match/summarize
+            return; // empty statement, nothing to summarize
         }
 
-        $this->match($statement->period_start->format('Y-m-d'), $statement->period_end->format('Y-m-d'));
         $this->recomputeSummary($statement->period_start->format('Y-m-d'), $statement->period_end->format('Y-m-d'));
     }
 
@@ -46,75 +41,7 @@ class BankReconciliationService
             return;
         }
 
-        $this->match($date, $date);
         $this->recomputeSummary($date, $date);
-    }
-
-    /**
-     * Exact date + exact amount match against an unclaimed Payment Voucher (credit
-     * side) or Official Receipt (debit side), any cash/bank account. Tolerance
-     * widens the date window without loosening the amount match.
-     */
-    public function match(string $dateFrom, string $dateTo, int $toleranceDays = 0): void
-    {
-        $lines = BankStatementLine::query()
-            ->where('match_status', BankStatementLineMatchStatus::UNMATCHED)
-            ->whereDate('transaction_date', '>=', $dateFrom)
-            ->whereDate('transaction_date', '<=', $dateTo)
-            ->get();
-
-        foreach ($lines as $line) {
-            $document = $this->findCandidate($line, $toleranceDays);
-
-            if ($document !== null) {
-                $line->update([
-                    'matched_document_type' => $document->getMorphClass(),
-                    'matched_document_id' => $document->id,
-                    'match_status' => BankStatementLineMatchStatus::MATCHED,
-                ]);
-            }
-        }
-    }
-
-    public function manualMatch(BankStatementLine $line, string $documentType, string $documentId): void
-    {
-        $line->update([
-            'matched_document_type' => $documentType,
-            'matched_document_id' => $documentId,
-            'match_status' => BankStatementLineMatchStatus::MANUAL_MATCHED,
-        ]);
-    }
-
-    private function findCandidate(BankStatementLine $line, int $toleranceDays): PaymentEntry|ReceiptEntry|null
-    {
-        $from = Carbon::parse($line->transaction_date)->subDays($toleranceDays)->format('Y-m-d');
-        $to = Carbon::parse($line->transaction_date)->addDays($toleranceDays)->format('Y-m-d');
-
-        if ((float) $line->credit_amount > 0) {
-            $claimed = BankStatementLine::query()->where('matched_document_type', (new PaymentEntry())->getMorphClass())->pluck('matched_document_id');
-
-            return PaymentEntry::query()
-                ->where('status', DocumentStatus::SUBMITTED)
-                ->whereDate('payment_date', '>=', $from)
-                ->whereDate('payment_date', '<=', $to)
-                ->where('total_amount', $line->credit_amount)
-                ->whereNotIn('id', $claimed)
-                ->first();
-        }
-
-        if ((float) $line->debit_amount > 0) {
-            $claimed = BankStatementLine::query()->where('matched_document_type', (new ReceiptEntry())->getMorphClass())->pluck('matched_document_id');
-
-            return ReceiptEntry::query()
-                ->where('status', DocumentStatus::SUBMITTED)
-                ->whereDate('receipt_date', '>=', $from)
-                ->whereDate('receipt_date', '<=', $to)
-                ->where('total_amount', $line->debit_amount)
-                ->whereNotIn('id', $claimed)
-                ->first();
-        }
-
-        return null;
     }
 
     /**
@@ -231,184 +158,67 @@ class BankReconciliationService
     }
 
     /**
-     * Point 3's row-click sub-table: Cash Book (PV/OR, point 2b's same system side) vs uploaded
-     * bank statement lines for one day. Unlike importRows()/systemRows() below (each shows every
-     * row from its own side, the other side null if unmatched -- built for browsing "from" one
-     * side), this never repeats a matched pair: one comparison row per Cash Book document, plus
-     * one per statement line that has no matching document at all.
+     * Detail tab: Cash Book (Official Receipt/Payment Voucher journal entries, via
+     * BankReconciliationRepository::cashBookRows() -- the same read recomputeSummary() uses) for
+     * one day, compared against that day's uploaded bank statement at the aggregate level only.
+     * Deliberately never row-by-row: a transfer's sender name never matches the customer/supplier
+     * name in the journal, so per-line matching only ever produced false "Unbalanced" results.
+     * Balanced within Rp 1.000 per category (admin fees/rounding), not just exact-zero.
      */
     public function comparisonRows(string $date): array
     {
-        $lines = BankStatementLine::query()
+        $rows = $this->repository->cashBookRows($date, $date);
+        $totalDebit = round(array_sum(array_column($rows, 'debit')), 2);
+        $totalKredit = round(array_sum(array_column($rows, 'kredit')), 2);
+
+        // orderBy(id) tie-breaks same-timestamp lines (Mandiri has no intraday time) by insertion
+        // order -- HasUuids' ordered UUIDs sort the same way the source file's rows were parsed.
+        $dayLines = BankStatementLine::query()
             ->whereDate('transaction_date', $date)
-            ->get();
-
-        $matchedLinesByDocKey = $lines
-            ->filter(fn (BankStatementLine $line) => $line->matched_document_id !== null)
-            ->keyBy(fn (BankStatementLine $line) => $line->matched_document_type.'|'.$line->matched_document_id);
-
-        $receipts = ReceiptEntry::query()
-            ->where('status', DocumentStatus::SUBMITTED)
-            ->whereDate('receipt_date', $date)
-            ->with('customer')
-            ->get();
-
-        $payments = PaymentEntry::query()
-            ->where('status', DocumentStatus::SUBMITTED)
-            ->whereDate('payment_date', $date)
-            ->with('supplier', 'expenseAccount')
-            ->get();
-
-        $rows = collect();
-
-        $addCashBookRow = function (PaymentEntry|ReceiptEntry $document, Carbon $date, ?string $partyName, bool $isReceipt) use (&$rows, $matchedLinesByDocKey) {
-            $matchedLine = $matchedLinesByDocKey->get($document->getMorphClass().'|'.$document->id);
-            $documentAmount = (float) $document->total_amount;
-            $statementAmount = $matchedLine !== null
-                ? (float) ((float) $matchedLine->credit_amount > 0 ? $matchedLine->credit_amount : $matchedLine->debit_amount)
-                : null;
-
-            $rows->push([
-                'id' => 'doc-'.$document->id,
-                'date' => $date->format('Y-m-d'),
-                'cash_book_label' => trim(($document->document_number ?? '').' - '.($partyName ?? '')),
-                'cash_book_debit' => $isReceipt ? $documentAmount : 0.0,
-                'cash_book_credit' => $isReceipt ? 0.0 : $documentAmount,
-                'statement_label' => $matchedLine?->description,
-                'statement_debit' => $matchedLine !== null ? (float) $matchedLine->debit_amount : null,
-                'statement_credit' => $matchedLine !== null ? (float) $matchedLine->credit_amount : null,
-                'selisih' => $statementAmount !== null ? round($documentAmount - $statementAmount, 2) : $documentAmount,
-                'status' => $matchedLine !== null ? 'match' : 'not_in_bank',
-            ]);
-        };
-
-        foreach ($receipts as $receipt) {
-            $addCashBookRow($receipt, $receipt->receipt_date, $receipt->customer?->customer_name, true);
-        }
-        foreach ($payments as $payment) {
-            $addCashBookRow($payment, $payment->payment_date, $payment->supplier?->supplier_name ?? $payment->expenseAccount?->name, false);
-        }
-
-        foreach ($lines->where('matched_document_id', null) as $line) {
-            $rows->push([
-                'id' => 'line-'.$line->id,
-                'date' => $line->transaction_date->format('Y-m-d'),
-                'cash_book_label' => null,
-                'cash_book_debit' => null,
-                'cash_book_credit' => null,
-                'statement_label' => $line->description,
-                'statement_debit' => (float) $line->debit_amount,
-                'statement_credit' => (float) $line->credit_amount,
-                'selisih' => (float) $line->credit_amount > 0 ? (float) $line->credit_amount : (float) $line->debit_amount,
-                'status' => 'not_in_cash_book',
-            ]);
-        }
-
-        return $rows->sortBy('date')->values()->all();
-    }
-
-    /**
-     * Import view: one row per uploaded statement line in range, "System" = its matched
-     * document's amount (null if unmatched).
-     *
-     * @return array<int, array>
-     */
-    public function importRows(string $dateFrom, string $dateTo): array
-    {
-        $lines = BankStatementLine::query()
-            ->whereDate('transaction_date', '>=', $dateFrom)
-            ->whereDate('transaction_date', '<=', $dateTo)
-            ->with(['matchedDocument' => function ($morphTo) {
-                $morphTo->morphWith([
-                    ReceiptEntry::class => ['customer'],
-                    PaymentEntry::class => ['supplier', 'expenseAccount'],
-                ]);
-            }])
             ->orderBy('transaction_date')
+            ->orderBy('id')
             ->get();
 
-        return $lines->map(function (BankStatementLine $line) {
-            $statementAmount = (float) $line->credit_amount > 0 ? (float) $line->credit_amount : (float) $line->debit_amount;
-            $document = $line->matchedDocument;
-            $systemAmount = $document?->total_amount !== null ? (float) $document->total_amount : null;
+        $totalKeluar = round((float) $dayLines->sum('debit_amount'), 2);
+        $totalMasuk = round((float) $dayLines->sum('credit_amount'), 2);
 
-            return [
-                'id' => $line->id,
-                'date' => $line->transaction_date->format('Y-m-d'),
-                'customer' => $this->partyNameForDocument($document),
-                'system_amount' => $systemAmount,
-                'statement_amount' => $statementAmount,
-                'selisih' => $systemAmount !== null ? round($systemAmount - $statementAmount, 2) : $statementAmount,
-                'status' => $line->match_status->value,
-                'description' => $line->description,
-                'bank_statement_line_id' => $line->id,
-                // Credit line -> Payment Voucher (outflow), debit line -> Official Receipt (inflow) --
-                // same direction findCandidate() itself matches on. Lets the manual-match picker
-                // default to the right document type instead of always guessing Payment Voucher.
-                'direction' => (float) $line->credit_amount > 0 ? 'credit' : 'debit',
-            ];
-        })->all();
-    }
-
-    /**
-     * System view: one row per Payment Voucher (credit)/Official Receipt (debit) in range,
-     * "Statement" = the statement line it's matched to (null if unmatched) -- the mirror image
-     * of importRows(), same six-column shape, browsing from the other side.
-     *
-     * @return array<int, array>
-     */
-    public function systemRows(string $dateFrom, string $dateTo): array
-    {
-        $receipts = ReceiptEntry::query()
-            ->where('status', DocumentStatus::SUBMITTED)
-            ->whereDate('receipt_date', '>=', $dateFrom)
-            ->whereDate('receipt_date', '<=', $dateTo)
-            ->with('customer')
-            ->get();
-
-        $payments = PaymentEntry::query()
-            ->where('status', DocumentStatus::SUBMITTED)
-            ->whereDate('payment_date', '>=', $dateFrom)
-            ->whereDate('payment_date', '<=', $dateTo)
-            ->with('supplier', 'expenseAccount')
-            ->get();
-
-        $rows = $receipts->map(fn (ReceiptEntry $r) => $this->systemRow($r, $r->receipt_date, $r->customer?->customer_name))
-            ->concat($payments->map(fn (PaymentEntry $p) => $this->systemRow($p, $p->payment_date, $p->supplier?->supplier_name ?? $p->expenseAccount?->name)));
-
-        return $rows->sortBy('date')->values()->all();
-    }
-
-    private function systemRow(PaymentEntry|ReceiptEntry $document, Carbon $date, ?string $partyName): array
-    {
-        $matchedLine = BankStatementLine::query()
-            ->where('matched_document_type', $document->getMorphClass())
-            ->where('matched_document_id', $document->id)
+        $previousLine = BankStatementLine::query()
+            ->whereDate('transaction_date', '<', $date)
+            ->orderByDesc('transaction_date')
+            ->orderByDesc('id')
             ->first();
-        $statementAmount = $matchedLine !== null
-            ? (float) ((float) $matchedLine->credit_amount > 0 ? $matchedLine->credit_amount : $matchedLine->debit_amount)
-            : null;
-        $systemAmount = (float) $document->total_amount;
 
         return [
-            'id' => $document->id,
-            'date' => $date->format('Y-m-d'),
-            'customer' => $partyName,
-            'system_amount' => $systemAmount,
-            'statement_amount' => $statementAmount,
-            'selisih' => $statementAmount !== null ? round($systemAmount - $statementAmount, 2) : $systemAmount,
-            'status' => $matchedLine?->match_status->value ?? 'unmatched',
-            'document_number' => $document->document_number,
+            'rows' => $rows,
+            'totals' => [
+                'debit' => $totalDebit,
+                'kredit' => $totalKredit,
+                'selisih' => round($totalKredit - $totalDebit, 2),
+            ],
+            'bank_mutasi' => [
+                'saldo_awal' => $previousLine?->running_balance !== null ? (float) $previousLine->running_balance : null,
+                'total_masuk' => $totalMasuk,
+                'total_keluar' => $totalKeluar,
+                'saldo_akhir' => $dayLines->last()?->running_balance !== null ? (float) $dayLines->last()->running_balance : null,
+            ],
+            'comparison' => [
+                'debit' => $this->categoryComparison($totalDebit, $totalKeluar),
+                'kredit' => $this->categoryComparison($totalKredit, $totalMasuk),
+            ],
         ];
     }
 
-    private function partyNameForDocument(PaymentEntry|ReceiptEntry|null $document): ?string
+    /** @return array{cash_book: float, bank: float, variance: float, status: BankReconciliationStatus} */
+    private function categoryComparison(float $cashBook, float $bank): array
     {
-        return match (true) {
-            $document instanceof ReceiptEntry => $document->customer?->customer_name,
-            $document instanceof PaymentEntry => $document->supplier?->supplier_name ?? $document->expenseAccount?->name,
-            default => null,
-        };
+        $variance = round($cashBook - $bank, 2);
+
+        return [
+            'cash_book' => $cashBook,
+            'bank' => $bank,
+            'variance' => $variance,
+            'status' => abs($variance) <= 1000 ? BankReconciliationStatus::BALANCED : BankReconciliationStatus::UNBALANCED,
+        ];
     }
 
     /** @return array<string, true> Y-m-d dates covered by at least one PROCESSED statement. */

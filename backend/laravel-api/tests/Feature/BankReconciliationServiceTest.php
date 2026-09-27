@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\BankReconciliationStatus;
-use App\Enums\BankStatementLineMatchStatus;
 use App\Enums\BankStatementStatus;
 use App\Models\BankReconciliationSummary;
 use App\Models\BankStatement;
@@ -13,6 +12,9 @@ use App\Models\PaymentEntry;
 use App\Models\ReceiptEntry;
 use App\Models\User;
 use App\Services\BankStatement\BankReconciliationService;
+use App\Services\PaymentEntryService;
+use App\Services\ReceiptEntryService;
+use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -21,15 +23,25 @@ use Tests\TestCase;
  * Bank Reconciliation combines every cash/bank account into one bucket -- confirmed with the
  * user, since the mutasi/journal-list files it compares have no reliable structured "which
  * account" field to split on (see 2026_09_27_000003_drop_bank_account_id_from_bank_reconciliation.php).
- * $this->bankAccount below is still a real chart_of_accounts row -- PaymentEntry/ReceiptEntry
- * still require a cash_account_id -- it's just no longer read by anything reconciliation-side.
+ *
+ * The "system side" is sourced from real Cash Book Transaction journal entries (via
+ * BankReconciliationRepository::cashBookRows(), reusing JournalListRepository), not raw
+ * receipt_entries/payment_entries rows -- so fixtures here go through ReceiptEntryService/
+ * PaymentEntryService::submit() (which post the journal entry), same as JournalListExportTest,
+ * rather than calling the model's own ->submit() directly.
+ *
+ * Amount convention is bank-statement style (debit = uang keluar, credit = uang masuk): a
+ * Payment Voucher's cash leg lands in 'debit'/'kredit'=0, an Official Receipt's in 'kredit'.
  */
 class BankReconciliationServiceTest extends TestCase
 {
     use RefreshDatabase;
 
     private BankReconciliationService $service;
+    private ReceiptEntryService $receiptEntryService;
+    private PaymentEntryService $paymentEntryService;
     private ChartOfAccount $bankAccount;
+    private ChartOfAccount $expenseAccount;
     private Customer $customer;
 
     protected function setUp(): void
@@ -37,35 +49,43 @@ class BankReconciliationServiceTest extends TestCase
         parent::setUp();
 
         $this->seed(DocumentEngineSeeder::class);
-        $this->service = app(BankReconciliationService::class);
+        $this->seed(ChartOfAccountsSeeder::class);
 
-        $this->bankAccount = ChartOfAccount::query()->create([
-            'code' => '1101', 'name' => 'BANK BCA SMD 1312', 'account_type' => 'asset',
-            'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
-        ]);
+        $this->service = app(BankReconciliationService::class);
+        $this->receiptEntryService = app(ReceiptEntryService::class);
+        $this->paymentEntryService = app(PaymentEntryService::class);
+
+        $this->bankAccount = ChartOfAccount::query()->where('code', '1100')->firstOrFail();
+        $this->expenseAccount = ChartOfAccount::query()->where('code', '6000')->firstOrFail();
         $this->customer = Customer::query()->create(['customer_code' => 'C001', 'customer_name' => 'Acme']);
     }
 
     private function submittedReceipt(string $date, float $amount): ReceiptEntry
     {
-        return ReceiptEntry::query()->create([
+        $receipt = $this->receiptEntryService->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => $date,
             'cash_account_id' => $this->bankAccount->id,
             'total_amount' => $amount,
-            'allocated_amount' => 0,
-        ])->submit();
+        ]);
+        $this->receiptEntryService->submit($receipt);
+
+        return $receipt->fresh();
     }
 
     private function submittedPayment(string $date, float $amount): PaymentEntry
     {
-        return PaymentEntry::query()->create([
+        $payment = $this->paymentEntryService->create([
             'payment_type' => 'general_expense',
+            'expense_account_id' => $this->expenseAccount->id,
+            'description' => 'Biaya operasional',
             'payment_date' => $date,
-            'payment_method' => 'bank_transfer',
             'cash_account_id' => $this->bankAccount->id,
-            'total_amount' => $amount,
-        ])->submit();
+            'amount' => $amount,
+        ]);
+        $this->paymentEntryService->submit($payment);
+
+        return $payment->fresh();
     }
 
     private function statementWithLines(string $date, array $lines): BankStatement
@@ -87,48 +107,6 @@ class BankReconciliationServiceTest extends TestCase
         return $statement;
     }
 
-    public function test_match_links_line_to_exact_amount_receipt_entry(): void
-    {
-        $receipt = $this->submittedReceipt('2026-09-01', 1500000);
-        $statement = $this->statementWithLines('2026-09-01', [
-            ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
-        ]);
-
-        $this->service->match('2026-09-01', '2026-09-01');
-
-        $line = $statement->lines()->first();
-        $this->assertSame(BankStatementLineMatchStatus::MATCHED, $line->match_status);
-        $this->assertSame($receipt->id, $line->matched_document_id);
-        $this->assertSame($receipt->getMorphClass(), $line->matched_document_type);
-    }
-
-    public function test_match_links_line_to_exact_amount_payment_entry(): void
-    {
-        $payment = $this->submittedPayment('2026-09-01', 32000);
-        $statement = $this->statementWithLines('2026-09-01', [
-            ['description' => 'biaya admin', 'debit_amount' => 32000, 'credit_amount' => 0],
-        ]);
-        // Payment Voucher = outflow = credit to bank; flip the fixture line to credit-side to match it.
-        $statement->lines()->update(['debit_amount' => 0, 'credit_amount' => 32000]);
-
-        $this->service->match('2026-09-01', '2026-09-01');
-
-        $line = $statement->lines()->first();
-        $this->assertSame(BankStatementLineMatchStatus::MATCHED, $line->match_status);
-        $this->assertSame($payment->id, $line->matched_document_id);
-    }
-
-    public function test_line_with_no_matching_document_stays_unmatched(): void
-    {
-        $statement = $this->statementWithLines('2026-09-01', [
-            ['description' => 'biaya admin', 'debit_amount' => 25000, 'credit_amount' => 0],
-        ]);
-
-        $this->service->match('2026-09-01', '2026-09-01');
-
-        $this->assertSame(BankStatementLineMatchStatus::UNMATCHED, $statement->lines()->first()->match_status);
-    }
-
     public function test_recompute_summary_marks_not_uploaded_when_no_statement_covers_the_date(): void
     {
         $this->submittedReceipt('2026-09-05', 500000);
@@ -142,15 +120,17 @@ class BankReconciliationServiceTest extends TestCase
     public function test_recompute_summary_is_balanced_when_system_and_statement_totals_agree(): void
     {
         $this->submittedReceipt('2026-09-01', 1500000);
+        // Official Receipt = uang masuk -> statement's credit_amount (bank-statement convention).
         $this->statementWithLines('2026-09-01', [
-            ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
+            ['description' => 'transfer masuk', 'debit_amount' => 0, 'credit_amount' => 1500000],
         ]);
 
         $this->service->recomputeSummary('2026-09-01', '2026-09-01');
 
         $summary = BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail();
         $this->assertSame(BankReconciliationStatus::BALANCED, $summary->status);
-        $this->assertEquals(0, (float) $summary->variance_debit);
+        $this->assertEquals(1500000, (float) $summary->system_credit_total);
+        $this->assertEquals(0, (float) $summary->variance_credit);
     }
 
     /**
@@ -163,14 +143,14 @@ class BankReconciliationServiceTest extends TestCase
     {
         $this->submittedReceipt('2026-09-01', 23429612);
         $this->statementWithLines('2026-09-01', [
-            ['description' => 'transfer 1', 'transaction_date' => '2026-09-01 14:24:27', 'debit_amount' => 18429612, 'credit_amount' => 0],
-            ['description' => 'transfer 2', 'transaction_date' => '2026-09-01 15:27:32', 'debit_amount' => 5000000, 'credit_amount' => 0],
+            ['description' => 'transfer 1', 'transaction_date' => '2026-09-01 14:24:27', 'debit_amount' => 0, 'credit_amount' => 18429612],
+            ['description' => 'transfer 2', 'transaction_date' => '2026-09-01 15:27:32', 'debit_amount' => 0, 'credit_amount' => 5000000],
         ]);
 
         $this->service->recomputeSummary('2026-09-01', '2026-09-01');
 
         $summary = BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail();
-        $this->assertEquals(23429612, (float) $summary->statement_debit_total);
+        $this->assertEquals(23429612, (float) $summary->statement_credit_total);
         $this->assertSame(BankReconciliationStatus::BALANCED, $summary->status);
     }
 
@@ -178,29 +158,14 @@ class BankReconciliationServiceTest extends TestCase
     {
         $this->submittedReceipt('2026-09-01', 1500000);
         $this->statementWithLines('2026-09-01', [
-            ['description' => 'transfer masuk', 'debit_amount' => 1000000, 'credit_amount' => 0],
+            ['description' => 'transfer masuk', 'debit_amount' => 0, 'credit_amount' => 1000000],
         ]);
 
         $this->service->recomputeSummary('2026-09-01', '2026-09-01');
 
         $summary = BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail();
         $this->assertSame(BankReconciliationStatus::UNBALANCED, $summary->status);
-        $this->assertEquals(500000, (float) $summary->variance_debit);
-    }
-
-    public function test_manual_match_sets_manual_matched_status(): void
-    {
-        $receipt = $this->submittedReceipt('2026-09-01', 999999);
-        $statement = $this->statementWithLines('2026-09-01', [
-            ['description' => 'unrecognized', 'debit_amount' => 123456, 'credit_amount' => 0],
-        ]);
-        $line = $statement->lines()->first();
-
-        $this->service->manualMatch($line, $receipt->getMorphClass(), $receipt->id);
-
-        $line->refresh();
-        $this->assertSame(BankStatementLineMatchStatus::MANUAL_MATCHED, $line->match_status);
-        $this->assertSame($receipt->id, $line->matched_document_id);
+        $this->assertEquals(500000, (float) $summary->variance_credit);
     }
 
     /**
@@ -224,139 +189,6 @@ class BankReconciliationServiceTest extends TestCase
         $this->assertSame(['2026-09-01', '2026-09-02', '2026-09-03'], $rows->map(fn ($r) => $r->date->format('Y-m-d'))->all());
     }
 
-    public function test_importRows_shows_matched_documents_customer_and_system_amount(): void
-    {
-        $receipt = $this->submittedReceipt('2026-09-01', 1500000);
-        $this->statementWithLines('2026-09-01', [
-            ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
-        ]);
-        $this->service->match('2026-09-01', '2026-09-01');
-
-        $rows = $this->service->importRows('2026-09-01', '2026-09-01');
-
-        $this->assertCount(1, $rows);
-        $this->assertSame('Acme', $rows[0]['customer']);
-        $this->assertSame(1500000.0, $rows[0]['system_amount']);
-        $this->assertSame(1500000.0, $rows[0]['statement_amount']);
-        $this->assertSame(0.0, $rows[0]['selisih']);
-        $this->assertSame('matched', $rows[0]['status']);
-    }
-
-    public function test_importRows_leaves_customer_and_system_amount_null_when_unmatched(): void
-    {
-        $this->statementWithLines('2026-09-01', [
-            ['description' => 'biaya admin', 'debit_amount' => 25000, 'credit_amount' => 0],
-        ]);
-
-        $rows = $this->service->importRows('2026-09-01', '2026-09-01');
-
-        $this->assertCount(1, $rows);
-        $this->assertNull($rows[0]['customer']);
-        $this->assertNull($rows[0]['system_amount']);
-        $this->assertSame(25000.0, $rows[0]['selisih']);
-        $this->assertSame('unmatched', $rows[0]['status']);
-    }
-
-    public function test_systemRows_shows_matched_statement_amount_and_unmatched_document(): void
-    {
-        $receipt = $this->submittedReceipt('2026-09-01', 1500000);
-        $this->submittedPayment('2026-09-01', 900901);
-        $this->statementWithLines('2026-09-01', [
-            ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
-        ]);
-        $this->service->match('2026-09-01', '2026-09-01');
-
-        $rows = collect($this->service->systemRows('2026-09-01', '2026-09-01'));
-
-        $matchedRow = $rows->firstWhere('id', $receipt->id);
-        $this->assertSame('Acme', $matchedRow['customer']);
-        $this->assertSame(1500000.0, $matchedRow['statement_amount']);
-        $this->assertSame(0.0, $matchedRow['selisih']);
-        $this->assertSame('matched', $matchedRow['status']);
-
-        $unmatchedRow = $rows->firstWhere('statement_amount', null);
-        $this->assertSame(900901.0, $unmatchedRow['system_amount']);
-        $this->assertSame('unmatched', $unmatchedRow['status']);
-    }
-
-    public function test_importRows_spans_the_whole_date_range_not_just_one_day(): void
-    {
-        $this->statementWithLines('2026-09-01', [
-            ['description' => 'day one', 'debit_amount' => 10000, 'credit_amount' => 0],
-        ]);
-        $this->statementWithLines('2026-09-03', [
-            ['description' => 'day three', 'debit_amount' => 20000, 'credit_amount' => 0],
-        ]);
-
-        $rows = $this->service->importRows('2026-09-01', '2026-09-03');
-
-        $this->assertCount(2, $rows);
-    }
-
-    public function test_importRows_includes_lines_from_every_uploaded_statement(): void
-    {
-        $this->statementWithLines('2026-09-01', [
-            ['description' => 'statement one', 'debit_amount' => 10000, 'credit_amount' => 0],
-        ]);
-        $this->statementWithLines('2026-09-01', [
-            ['description' => 'statement two', 'debit_amount' => 20000, 'credit_amount' => 0],
-        ]);
-
-        $rows = $this->service->importRows('2026-09-01', '2026-09-01');
-
-        $this->assertCount(2, $rows);
-    }
-
-    public function test_comparisonRows_marks_matched_pair_as_match(): void
-    {
-        $this->submittedReceipt('2026-09-01', 1500000);
-        $this->statementWithLines('2026-09-01', [
-            ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
-        ]);
-        $this->service->match('2026-09-01', '2026-09-01');
-
-        $rows = collect($this->service->comparisonRows('2026-09-01'));
-
-        $this->assertCount(1, $rows);
-        $row = $rows->first();
-        $this->assertSame('match', $row['status']);
-        $this->assertSame(1500000.0, $row['cash_book_debit']);
-        $this->assertSame(1500000.0, $row['statement_debit']);
-        $this->assertSame(0.0, $row['selisih']);
-    }
-
-    public function test_comparisonRows_marks_unmatched_document_as_not_in_bank(): void
-    {
-        $this->submittedPayment('2026-09-01', 900901);
-
-        $rows = collect($this->service->comparisonRows('2026-09-01'));
-
-        $this->assertCount(1, $rows);
-        $row = $rows->first();
-        $this->assertSame('not_in_bank', $row['status']);
-        $this->assertSame(900901.0, $row['cash_book_credit']);
-        $this->assertNull($row['statement_debit']);
-        $this->assertNull($row['statement_credit']);
-        $this->assertSame(900901.0, $row['selisih']);
-    }
-
-    public function test_comparisonRows_marks_unmatched_statement_line_as_not_in_cash_book(): void
-    {
-        $this->statementWithLines('2026-09-01', [
-            ['description' => 'biaya admin', 'debit_amount' => 0, 'credit_amount' => 25000],
-        ]);
-
-        $rows = collect($this->service->comparisonRows('2026-09-01'));
-
-        $this->assertCount(1, $rows);
-        $row = $rows->first();
-        $this->assertSame('not_in_cash_book', $row['status']);
-        $this->assertSame(25000.0, $row['statement_credit']);
-        $this->assertNull($row['cash_book_debit']);
-        $this->assertNull($row['cash_book_credit']);
-        $this->assertSame(25000.0, $row['selisih']);
-    }
-
     public function test_dayDetail_returns_uploaded_files(): void
     {
         $uploader = User::factory()->create(['name' => 'Budi']);
@@ -373,8 +205,8 @@ class BankReconciliationServiceTest extends TestCase
         $statement->lines()->create([
             'transaction_date' => '2026-09-01',
             'description' => 'transfer masuk',
-            'debit_amount' => 1500000,
-            'credit_amount' => 0,
+            'debit_amount' => 0,
+            'credit_amount' => 1500000,
         ]);
 
         $detail = $this->service->dayDetail('2026-09-01');
@@ -389,5 +221,96 @@ class BankReconciliationServiceTest extends TestCase
         $detail = $this->service->dayDetail('2026-09-01');
 
         $this->assertSame([], $detail['files']);
+    }
+
+    public function test_comparisonRows_returns_cash_book_rows_from_journal_with_totals(): void
+    {
+        $receipt = $this->submittedReceipt('2026-09-01', 1500000);
+        $payment = $this->submittedPayment('2026-09-01', 200000);
+
+        $result = $this->service->comparisonRows('2026-09-01');
+
+        $this->assertCount(2, $result['rows']);
+
+        $receiptRow = collect($result['rows'])->firstWhere('tipe', 'masuk');
+        $this->assertSame($receipt->document_number, $receiptRow['document_number']);
+        $this->assertSame(1500000.0, $receiptRow['kredit']);
+        $this->assertSame(0.0, $receiptRow['debit']);
+        $this->assertStringContainsString('Acme', $receiptRow['keterangan']);
+
+        $paymentRow = collect($result['rows'])->firstWhere('tipe', 'keluar');
+        $this->assertSame($payment->document_number, $paymentRow['document_number']);
+        $this->assertSame(200000.0, $paymentRow['debit']);
+        $this->assertSame(0.0, $paymentRow['kredit']);
+
+        $this->assertSame(200000.0, $result['totals']['debit']);
+        $this->assertSame(1500000.0, $result['totals']['kredit']);
+        $this->assertSame(1300000.0, $result['totals']['selisih']);
+    }
+
+    public function test_comparisonRows_only_includes_the_cash_bank_leg_not_the_contra_account(): void
+    {
+        $this->submittedReceipt('2026-09-01', 1500000);
+
+        $result = $this->service->comparisonRows('2026-09-01');
+
+        // Two journal lines exist for the receipt (bank leg + Unapplied Customer Payments contra
+        // leg), but only the is_cash_bank one is surfaced here.
+        $this->assertCount(1, $result['rows']);
+    }
+
+    public function test_comparisonRows_bank_mutasi_summary_uses_saldo_from_surrounding_lines(): void
+    {
+        $this->statementWithLines('2026-08-31', [
+            ['description' => 'prev', 'debit_amount' => 0, 'credit_amount' => 100000, 'running_balance' => 5000000],
+        ]);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'masuk', 'debit_amount' => 0, 'credit_amount' => 1500000, 'running_balance' => 6500000],
+            ['description' => 'keluar', 'debit_amount' => 200000, 'credit_amount' => 0, 'running_balance' => 6300000],
+        ]);
+
+        $result = $this->service->comparisonRows('2026-09-01');
+
+        $this->assertEquals(5000000, $result['bank_mutasi']['saldo_awal']);
+        $this->assertEquals(1500000, $result['bank_mutasi']['total_masuk']);
+        $this->assertEquals(200000, $result['bank_mutasi']['total_keluar']);
+        $this->assertEquals(6300000, $result['bank_mutasi']['saldo_akhir']);
+    }
+
+    public function test_comparisonRows_saldo_awal_is_null_when_no_earlier_statement_exists(): void
+    {
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'masuk', 'debit_amount' => 0, 'credit_amount' => 100000, 'running_balance' => 100000],
+        ]);
+
+        $result = $this->service->comparisonRows('2026-09-01');
+
+        $this->assertNull($result['bank_mutasi']['saldo_awal']);
+    }
+
+    public function test_comparisonRows_marks_kredit_balanced_within_rp1000_tolerance(): void
+    {
+        $this->submittedReceipt('2026-09-01', 1500000);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'masuk dipotong biaya admin', 'debit_amount' => 0, 'credit_amount' => 1499500],
+        ]);
+
+        $result = $this->service->comparisonRows('2026-09-01');
+
+        $this->assertSame(BankReconciliationStatus::BALANCED, $result['comparison']['kredit']['status']);
+        $this->assertEquals(500, $result['comparison']['kredit']['variance']);
+    }
+
+    public function test_comparisonRows_marks_debit_unbalanced_beyond_rp1000_tolerance(): void
+    {
+        $this->submittedPayment('2026-09-01', 200000);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'keluar', 'debit_amount' => 195000, 'credit_amount' => 0],
+        ]);
+
+        $result = $this->service->comparisonRows('2026-09-01');
+
+        $this->assertSame(BankReconciliationStatus::UNBALANCED, $result['comparison']['debit']['status']);
+        $this->assertEquals(5000, $result['comparison']['debit']['variance']);
     }
 }

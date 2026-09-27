@@ -5,13 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexBankReconciliationDayDetailRequest;
-use App\Http\Requests\IndexBankReconciliationDetailRequest;
 use App\Http\Requests\IndexBankReconciliationSummaryRequest;
-use App\Http\Requests\ManualMatchBankStatementLineRequest;
 use App\Http\Requests\RecomputeBankReconciliationRequest;
 use App\Http\Resources\BankReconciliationSummaryResource;
-use App\Http\Resources\BankStatementLineResource;
-use App\Models\BankStatementLine;
 use App\Services\BankStatement\BankReconciliationService;
 use Illuminate\Http\JsonResponse;
 
@@ -30,23 +26,6 @@ class BankReconciliationController extends Controller
         return $this->success(BankReconciliationSummaryResource::collection($summaries));
     }
 
-    /**
-     * The detail page's main transaction list, either side: "import" (uploaded statement lines,
-     * System = their matched document if any) or "system" (Payment Voucher/Official Receipt in
-     * range, Statement = the line they're matched to if any). Same six-column shape either way.
-     */
-    public function lines(IndexBankReconciliationDetailRequest $request): JsonResponse
-    {
-        $data = $request->validated();
-        $view = $data['view'] ?? 'import';
-
-        $rows = $view === 'system'
-            ? $this->bankReconciliationService->systemRows($data['date_from'], $data['date_to'])
-            : $this->bankReconciliationService->importRows($data['date_from'], $data['date_to']);
-
-        return $this->success($rows);
-    }
-
     /** "View" action (⋮ menu) on a summary row -- uploaded file(s) for that day plus that day's Cash Book rows. */
     public function dayDetail(IndexBankReconciliationDayDetailRequest $request): JsonResponse
     {
@@ -55,7 +34,7 @@ class BankReconciliationController extends Controller
         return $this->success($this->bankReconciliationService->dayDetail($data['date']));
     }
 
-    /** Row-click sub-table: Cash Book vs uploaded bank statement, matched/unmatched either side, for one day. */
+    /** Detail tab: Cash Book vs uploaded bank statement, compared at the day-total level, for one day. */
     public function comparisonRows(IndexBankReconciliationDayDetailRequest $request): JsonResponse
     {
         $data = $request->validated();
@@ -63,21 +42,12 @@ class BankReconciliationController extends Controller
         return $this->success($this->bankReconciliationService->comparisonRows($data['date']));
     }
 
-    /** "Re-run reconciliation" — re-matches and rebuilds the summary for an explicit range. */
+    /** "Re-run reconciliation" — rebuilds the summary for an explicit range. */
     public function recompute(RecomputeBankReconciliationRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $this->bankReconciliationService->match($data['date_from'], $data['date_to'], $data['tolerance_days'] ?? 0);
         $this->bankReconciliationService->recomputeSummary($data['date_from'], $data['date_to']);
 
         return $this->success(null, 'Reconciliation recomputed.');
-    }
-
-    public function manualMatch(ManualMatchBankStatementLineRequest $request, BankStatementLine $bankStatementLine): JsonResponse
-    {
-        $data = $request->validated();
-        $this->bankReconciliationService->manualMatch($bankStatementLine, $data['document_type'], $data['document_id']);
-
-        return $this->success(new BankStatementLineResource($bankStatementLine->refresh()->load('matchedDocument')), 'Line matched.');
     }
 }

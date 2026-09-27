@@ -1,6 +1,5 @@
 export type BankStatementFormatTemplate = 'bca' | 'mandiri'
 export type BankStatementStatus = 'uploaded' | 'processed' | 'error'
-export type BankStatementLineMatchStatus = 'unmatched' | 'matched' | 'manual_matched'
 export type BankReconciliationStatus = 'balanced' | 'unbalanced' | 'not_uploaded'
 
 export interface BankStatement {
@@ -23,27 +22,6 @@ export interface BankStatementPreviewRow {
   running_balance: number | null
 }
 
-export type BankReconciliationDetailView = 'import' | 'system'
-
-/**
- * One row of the drill-down, either side: "import" (an uploaded statement line, system_amount =
- * its matched document's amount) or "system" (a Payment Voucher/Official Receipt, statement_amount
- * = the line it's matched to) -- same shape either way, browsing from the other side.
- */
-export interface BankReconciliationDetailRow {
-  id: string
-  date: string
-  customer: string | null
-  system_amount: number | null
-  statement_amount: number | null
-  selisih: number
-  status: BankStatementLineMatchStatus
-  description?: string
-  document_number?: string
-  bank_statement_line_id?: string
-  direction?: 'debit' | 'credit'
-}
-
 /** Point 2's "View" -- one uploaded file covering a summary row's day. */
 export interface BankReconciliationFile {
   id: string
@@ -52,20 +30,41 @@ export interface BankReconciliationFile {
   uploaded_by: string | null
 }
 
-/** Point 3's sub-table: one row per Cash Book document, plus one per statement line with no matching document. */
-export type BankReconciliationComparisonStatus = 'match' | 'not_in_bank' | 'not_in_cash_book'
-
+/** Detail tab: one row per Cash Book (Official Receipt/Payment Voucher) journal entry for the day, reduced to its cash/bank leg. */
 export interface BankReconciliationComparisonRow {
-  id: string
+  document_number: string | null
   date: string
-  cash_book_label: string | null
-  cash_book_debit: number | null
-  cash_book_credit: number | null
-  statement_label: string | null
-  statement_debit: number | null
-  statement_credit: number | null
-  selisih: number
-  status: BankReconciliationComparisonStatus
+  keterangan: string | null
+  tipe: 'masuk' | 'keluar'
+  debit: number
+  kredit: number
+}
+
+export interface BankReconciliationCategoryComparison {
+  cash_book: number
+  bank: number
+  variance: number
+  status: 'balanced' | 'unbalanced'
+}
+
+/** Detail tab's full response -- Cash Book rows + totals, compared against the bank statement at the aggregate level only, never row-by-row. */
+export interface BankReconciliationComparison {
+  rows: BankReconciliationComparisonRow[]
+  totals: {
+    debit: number
+    kredit: number
+    selisih: number
+  }
+  bank_mutasi: {
+    saldo_awal: number | null
+    total_masuk: number
+    total_keluar: number
+    saldo_akhir: number | null
+  }
+  comparison: {
+    debit: BankReconciliationCategoryComparison
+    kredit: BankReconciliationCategoryComparison
+  }
 }
 
 export interface BankReconciliationSummary {

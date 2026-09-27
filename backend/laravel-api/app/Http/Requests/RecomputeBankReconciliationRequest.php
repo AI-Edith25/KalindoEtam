@@ -16,7 +16,6 @@ class RecomputeBankReconciliationRequest extends FormRequest
         return [
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
-            'tolerance_days' => ['nullable', 'integer', 'min:0', 'max:7'],
         ];
     }
 }
