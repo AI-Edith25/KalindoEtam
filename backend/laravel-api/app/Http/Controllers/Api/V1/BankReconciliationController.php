@@ -25,8 +25,7 @@ class BankReconciliationController extends Controller
     public function index(IndexBankReconciliationSummaryRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $summaries = $this->bankReconciliationService
-            ->getDailyBalancingSummary($data['bank_account_id'] ?? null, $data['date_from'], $data['date_to']);
+        $summaries = $this->bankReconciliationService->getDailyBalancingSummary($data['date_from'], $data['date_to']);
 
         return $this->success(BankReconciliationSummaryResource::collection($summaries));
     }
@@ -40,11 +39,10 @@ class BankReconciliationController extends Controller
     {
         $data = $request->validated();
         $view = $data['view'] ?? 'import';
-        $bankAccountId = $data['bank_account_id'] ?? null;
 
         $rows = $view === 'system'
-            ? $this->bankReconciliationService->systemRows($bankAccountId, $data['date_from'], $data['date_to'])
-            : $this->bankReconciliationService->importRows($bankAccountId, $data['date_from'], $data['date_to']);
+            ? $this->bankReconciliationService->systemRows($data['date_from'], $data['date_to'])
+            : $this->bankReconciliationService->importRows($data['date_from'], $data['date_to']);
 
         return $this->success($rows);
     }
@@ -54,7 +52,7 @@ class BankReconciliationController extends Controller
     {
         $data = $request->validated();
 
-        return $this->success($this->bankReconciliationService->dayDetail($data['bank_account_id'], $data['date']));
+        return $this->success($this->bankReconciliationService->dayDetail($data['date']));
     }
 
     /** Row-click sub-table: Cash Book vs uploaded bank statement, matched/unmatched either side, for one day. */
@@ -62,15 +60,15 @@ class BankReconciliationController extends Controller
     {
         $data = $request->validated();
 
-        return $this->success($this->bankReconciliationService->comparisonRows($data['bank_account_id'], $data['date']));
+        return $this->success($this->bankReconciliationService->comparisonRows($data['date']));
     }
 
     /** "Re-run reconciliation" — re-matches and rebuilds the summary for an explicit range. */
     public function recompute(RecomputeBankReconciliationRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $this->bankReconciliationService->match($data['bank_account_id'], $data['date_from'], $data['date_to'], $data['tolerance_days'] ?? 0);
-        $this->bankReconciliationService->recomputeSummary($data['bank_account_id'], $data['date_from'], $data['date_to']);
+        $this->bankReconciliationService->match($data['date_from'], $data['date_to'], $data['tolerance_days'] ?? 0);
+        $this->bankReconciliationService->recomputeSummary($data['date_from'], $data['date_to']);
 
         return $this->success(null, 'Reconciliation recomputed.');
     }

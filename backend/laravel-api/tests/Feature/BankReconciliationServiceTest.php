@@ -17,6 +17,13 @@ use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * Bank Reconciliation combines every cash/bank account into one bucket -- confirmed with the
+ * user, since the mutasi/journal-list files it compares have no reliable structured "which
+ * account" field to split on (see 2026_09_27_000003_drop_bank_account_id_from_bank_reconciliation.php).
+ * $this->bankAccount below is still a real chart_of_accounts row -- PaymentEntry/ReceiptEntry
+ * still require a cash_account_id -- it's just no longer read by anything reconciliation-side.
+ */
 class BankReconciliationServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -64,7 +71,6 @@ class BankReconciliationServiceTest extends TestCase
     private function statementWithLines(string $date, array $lines): BankStatement
     {
         $statement = BankStatement::query()->create([
-            'bank_account_id' => $this->bankAccount->id,
             'format_template' => 'bca',
             'original_filename' => 'test.csv',
             'disk' => 'local',
@@ -88,7 +94,7 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
         ]);
 
-        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->match('2026-09-01', '2026-09-01');
 
         $line = $statement->lines()->first();
         $this->assertSame(BankStatementLineMatchStatus::MATCHED, $line->match_status);
@@ -105,7 +111,7 @@ class BankReconciliationServiceTest extends TestCase
         // Payment Voucher = outflow = credit to bank; flip the fixture line to credit-side to match it.
         $statement->lines()->update(['debit_amount' => 0, 'credit_amount' => 32000]);
 
-        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->match('2026-09-01', '2026-09-01');
 
         $line = $statement->lines()->first();
         $this->assertSame(BankStatementLineMatchStatus::MATCHED, $line->match_status);
@@ -118,7 +124,7 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'biaya admin', 'debit_amount' => 25000, 'credit_amount' => 0],
         ]);
 
-        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->match('2026-09-01', '2026-09-01');
 
         $this->assertSame(BankStatementLineMatchStatus::UNMATCHED, $statement->lines()->first()->match_status);
     }
@@ -127,7 +133,7 @@ class BankReconciliationServiceTest extends TestCase
     {
         $this->submittedReceipt('2026-09-05', 500000);
 
-        $this->service->recomputeSummary($this->bankAccount->id, '2026-09-05', '2026-09-05');
+        $this->service->recomputeSummary('2026-09-05', '2026-09-05');
 
         $summary = BankReconciliationSummary::query()->whereDate('date', '2026-09-05')->firstOrFail();
         $this->assertSame(BankReconciliationStatus::NOT_UPLOADED, $summary->status);
@@ -140,7 +146,7 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
         ]);
 
-        $this->service->recomputeSummary($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->recomputeSummary('2026-09-01', '2026-09-01');
 
         $summary = BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail();
         $this->assertSame(BankReconciliationStatus::BALANCED, $summary->status);
@@ -161,7 +167,7 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'transfer 2', 'transaction_date' => '2026-09-01 15:27:32', 'debit_amount' => 5000000, 'credit_amount' => 0],
         ]);
 
-        $this->service->recomputeSummary($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->recomputeSummary('2026-09-01', '2026-09-01');
 
         $summary = BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail();
         $this->assertEquals(23429612, (float) $summary->statement_debit_total);
@@ -175,7 +181,7 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'transfer masuk', 'debit_amount' => 1000000, 'credit_amount' => 0],
         ]);
 
-        $this->service->recomputeSummary($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->recomputeSummary('2026-09-01', '2026-09-01');
 
         $summary = BankReconciliationSummary::query()->whereDate('date', '2026-09-01')->firstOrFail();
         $this->assertSame(BankReconciliationStatus::UNBALANCED, $summary->status);
@@ -199,61 +205,34 @@ class BankReconciliationServiceTest extends TestCase
 
     /**
      * A day nothing ever recomputed for (no PV/OR, no statement upload) has no persisted
-     * BankReconciliationSummary row at all -- that must still surface as not_uploaded for every
-     * is_cash_bank account, not be silently missing from the Dashboard's daily table.
+     * BankReconciliationSummary row at all -- that must still surface as one not_uploaded row,
+     * not be silently missing from the Dashboard's daily table.
      */
-    public function test_getDailyBalancingSummary_synthesizes_not_uploaded_only_for_a_day_this_tracked_account_has_no_recomputed_row(): void
+    public function test_getDailyBalancingSummary_synthesizes_one_not_uploaded_row_for_a_day_with_no_recomputed_row(): void
     {
-        // Tracked -- has had a statement uploaded at least once (any date), so it belongs in the
-        // table even on a day with no recomputed row.
-        $this->statementWithLines('2026-01-01', []);
-
-        $rows = $this->service->getDailyBalancingSummary(null, '2026-09-26', '2026-09-26');
+        $rows = $this->service->getDailyBalancingSummary('2026-09-26', '2026-09-26');
 
         $this->assertCount(1, $rows);
         $this->assertSame(BankReconciliationStatus::NOT_UPLOADED, $rows->first()->status);
-        $this->assertSame($this->bankAccount->id, $rows->first()->bank_account_id);
     }
 
-    public function test_getDailyBalancingSummary_excludes_cash_bank_accounts_that_have_never_had_a_statement_uploaded(): void
+    public function test_getDailyBalancingSummary_spans_the_whole_date_range(): void
     {
-        // Real Payment Voucher/Official Receipt history, but never reconciled through this
-        // feature -- must not clutter the default (no bank_account_id filter) view with a
-        // synthesized row every day, per the confirmed fix for the 9-duplicate-rows-per-date bug.
-        $this->submittedPayment('2026-09-26', 500000);
+        $rows = $this->service->getDailyBalancingSummary('2026-09-01', '2026-09-03');
 
-        ChartOfAccount::query()->create([
-            'code' => '1102', 'name' => 'BANK MANDIRI SMD', 'account_type' => 'asset',
-            'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
-        ]);
-
-        $rows = $this->service->getDailyBalancingSummary(null, '2026-09-26', '2026-09-26');
-
-        $this->assertCount(0, $rows);
-    }
-
-    public function test_getDailyBalancingSummary_filters_synthesized_rows_by_bank_account_id(): void
-    {
-        ChartOfAccount::query()->create([
-            'code' => '1102', 'name' => 'BANK MANDIRI SMD', 'account_type' => 'asset',
-            'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
-        ]);
-
-        $rows = $this->service->getDailyBalancingSummary($this->bankAccount->id, '2026-09-26', '2026-09-26');
-
-        $this->assertCount(1, $rows);
-        $this->assertSame($this->bankAccount->id, $rows->first()->bank_account_id);
+        $this->assertCount(3, $rows);
+        $this->assertSame(['2026-09-01', '2026-09-02', '2026-09-03'], $rows->map(fn ($r) => $r->date->format('Y-m-d'))->all());
     }
 
     public function test_importRows_shows_matched_documents_customer_and_system_amount(): void
     {
         $receipt = $this->submittedReceipt('2026-09-01', 1500000);
-        $statement = $this->statementWithLines('2026-09-01', [
+        $this->statementWithLines('2026-09-01', [
             ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
         ]);
-        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->match('2026-09-01', '2026-09-01');
 
-        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $rows = $this->service->importRows('2026-09-01', '2026-09-01');
 
         $this->assertCount(1, $rows);
         $this->assertSame('Acme', $rows[0]['customer']);
@@ -269,7 +248,7 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'biaya admin', 'debit_amount' => 25000, 'credit_amount' => 0],
         ]);
 
-        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $rows = $this->service->importRows('2026-09-01', '2026-09-01');
 
         $this->assertCount(1, $rows);
         $this->assertNull($rows[0]['customer']);
@@ -285,9 +264,9 @@ class BankReconciliationServiceTest extends TestCase
         $this->statementWithLines('2026-09-01', [
             ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
         ]);
-        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->match('2026-09-01', '2026-09-01');
 
-        $rows = collect($this->service->systemRows($this->bankAccount->id, '2026-09-01', '2026-09-01'));
+        $rows = collect($this->service->systemRows('2026-09-01', '2026-09-01'));
 
         $matchedRow = $rows->firstWhere('id', $receipt->id);
         $this->assertSame('Acme', $matchedRow['customer']);
@@ -309,37 +288,21 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'day three', 'debit_amount' => 20000, 'credit_amount' => 0],
         ]);
 
-        $rows = $this->service->importRows($this->bankAccount->id, '2026-09-01', '2026-09-03');
+        $rows = $this->service->importRows('2026-09-01', '2026-09-03');
 
         $this->assertCount(2, $rows);
     }
 
-    public function test_importRows_with_no_bank_account_filter_includes_every_account(): void
+    public function test_importRows_includes_lines_from_every_uploaded_statement(): void
     {
-        $otherBankAccount = ChartOfAccount::query()->create([
-            'code' => '1102', 'name' => 'BANK MANDIRI SMD', 'account_type' => 'asset',
-            'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'statement one', 'debit_amount' => 10000, 'credit_amount' => 0],
         ]);
         $this->statementWithLines('2026-09-01', [
-            ['description' => 'account one', 'debit_amount' => 10000, 'credit_amount' => 0],
-        ]);
-        BankStatement::query()->create([
-            'bank_account_id' => $otherBankAccount->id,
-            'format_template' => 'bca',
-            'original_filename' => 'test.csv',
-            'disk' => 'local',
-            'file_path' => 'test.csv',
-            'status' => BankStatementStatus::PROCESSED,
-            'period_start' => '2026-09-01',
-            'period_end' => '2026-09-01',
-        ])->lines()->create([
-            'transaction_date' => '2026-09-01',
-            'description' => 'account two',
-            'debit_amount' => 20000,
-            'credit_amount' => 0,
+            ['description' => 'statement two', 'debit_amount' => 20000, 'credit_amount' => 0],
         ]);
 
-        $rows = $this->service->importRows(null, '2026-09-01', '2026-09-01');
+        $rows = $this->service->importRows('2026-09-01', '2026-09-01');
 
         $this->assertCount(2, $rows);
     }
@@ -350,9 +313,9 @@ class BankReconciliationServiceTest extends TestCase
         $this->statementWithLines('2026-09-01', [
             ['description' => 'transfer masuk', 'debit_amount' => 1500000, 'credit_amount' => 0],
         ]);
-        $this->service->match($this->bankAccount->id, '2026-09-01', '2026-09-01');
+        $this->service->match('2026-09-01', '2026-09-01');
 
-        $rows = collect($this->service->comparisonRows($this->bankAccount->id, '2026-09-01'));
+        $rows = collect($this->service->comparisonRows('2026-09-01'));
 
         $this->assertCount(1, $rows);
         $row = $rows->first();
@@ -366,7 +329,7 @@ class BankReconciliationServiceTest extends TestCase
     {
         $this->submittedPayment('2026-09-01', 900901);
 
-        $rows = collect($this->service->comparisonRows($this->bankAccount->id, '2026-09-01'));
+        $rows = collect($this->service->comparisonRows('2026-09-01'));
 
         $this->assertCount(1, $rows);
         $row = $rows->first();
@@ -383,7 +346,7 @@ class BankReconciliationServiceTest extends TestCase
             ['description' => 'biaya admin', 'debit_amount' => 0, 'credit_amount' => 25000],
         ]);
 
-        $rows = collect($this->service->comparisonRows($this->bankAccount->id, '2026-09-01'));
+        $rows = collect($this->service->comparisonRows('2026-09-01'));
 
         $this->assertCount(1, $rows);
         $row = $rows->first();
@@ -398,7 +361,6 @@ class BankReconciliationServiceTest extends TestCase
     {
         $uploader = User::factory()->create(['name' => 'Budi']);
         $statement = BankStatement::query()->create([
-            'bank_account_id' => $this->bankAccount->id,
             'format_template' => 'bca',
             'original_filename' => 'mutasi-september.csv',
             'disk' => 'local',
@@ -415,7 +377,7 @@ class BankReconciliationServiceTest extends TestCase
             'credit_amount' => 0,
         ]);
 
-        $detail = $this->service->dayDetail($this->bankAccount->id, '2026-09-01');
+        $detail = $this->service->dayDetail('2026-09-01');
 
         $this->assertCount(1, $detail['files']);
         $this->assertSame('mutasi-september.csv', $detail['files'][0]['original_filename']);
@@ -424,7 +386,7 @@ class BankReconciliationServiceTest extends TestCase
 
     public function test_dayDetail_files_empty_when_nothing_uploaded_for_that_day(): void
     {
-        $detail = $this->service->dayDetail($this->bankAccount->id, '2026-09-01');
+        $detail = $this->service->dayDetail('2026-09-01');
 
         $this->assertSame([], $detail['files']);
     }

@@ -14,7 +14,6 @@ class IndexBankReconciliationDayDetailRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'bank_account_id' => ['required', 'uuid', 'exists:chart_of_accounts,id'],
             'date' => ['required', 'date'],
         ];
     }

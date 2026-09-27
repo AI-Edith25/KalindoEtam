@@ -17,7 +17,6 @@ class BankStatement extends Model
     use HasUuids;
 
     protected $fillable = [
-        'bank_account_id',
         'format_template',
         'period_start',
         'period_end',
@@ -34,11 +33,6 @@ class BankStatement extends Model
         'period_start' => 'date',
         'period_end' => 'date',
     ];
-
-    public function bankAccount(): BelongsTo
-    {
-        return $this->belongsTo(ChartOfAccount::class, 'bank_account_id');
-    }
 
     public function creator(): BelongsTo
     {

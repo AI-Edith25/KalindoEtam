@@ -14,7 +14,6 @@ class RecomputeBankReconciliationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'bank_account_id' => ['required', 'uuid', 'exists:chart_of_accounts,id'],
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
             'tolerance_days' => ['nullable', 'integer', 'min:0', 'max:7'],

@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Enums\BankStatementStatus;
 use App\Models\BankStatement;
-use App\Models\ChartOfAccount;
 use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,8 +16,6 @@ class BankStatementControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    private ChartOfAccount $bankAccount;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -28,11 +25,6 @@ class BankStatementControllerTest extends TestCase
         $user = User::factory()->create();
         $user->givePermissionTo(['finance.bank_reconciliation.create', 'finance.bank_reconciliation.view']);
         Sanctum::actingAs($user);
-
-        $this->bankAccount = ChartOfAccount::query()->create([
-            'code' => '1101', 'name' => 'BANK BCA SMD 1312', 'account_type' => 'asset',
-            'is_active' => true, 'is_cash_bank' => true, 'cash_bank_category' => 'cash_book',
-        ]);
     }
 
     private const BCA_CSV = "AccountNo;Ccy;PostDate;Remarks;AdditionalDesc;Credit Amount;Debit Amount;Close Balance\n1234567890123;IDR;01 September 2026 14:24:27;Transfer masuk;Transfer masuk;18429612.00;0.00;130941712.79\n";
@@ -42,7 +34,6 @@ class BankStatementControllerTest extends TestCase
         $file = UploadedFile::fake()->createWithContent('statement.csv', self::BCA_CSV);
 
         $response = $this->postJson('/api/v1/bank-statements', [
-            'bank_account_id' => $this->bankAccount->id,
             'file' => $file,
         ]);
 
@@ -59,7 +50,6 @@ class BankStatementControllerTest extends TestCase
         $file = UploadedFile::fake()->createWithContent('statement.csv', "col1,col2\nfoo,bar\n");
 
         $response = $this->postJson('/api/v1/bank-statements', [
-            'bank_account_id' => $this->bankAccount->id,
             'file' => $file,
         ]);
 
@@ -70,7 +60,7 @@ class BankStatementControllerTest extends TestCase
     public function test_confirm_persists_lines_and_sets_period(): void
     {
         $file = UploadedFile::fake()->createWithContent('statement.csv', self::BCA_CSV);
-        $upload = $this->postJson('/api/v1/bank-statements', ['bank_account_id' => $this->bankAccount->id, 'file' => $file]);
+        $upload = $this->postJson('/api/v1/bank-statements', ['file' => $file]);
         $batchId = $upload->json('data.batch.id');
 
         $response = $this->postJson("/api/v1/bank-statements/{$batchId}/confirm");
@@ -87,7 +77,7 @@ class BankStatementControllerTest extends TestCase
     {
         Storage::fake('local');
         $file = UploadedFile::fake()->createWithContent('statement.csv', self::BCA_CSV);
-        $upload = $this->postJson('/api/v1/bank-statements', ['bank_account_id' => $this->bankAccount->id, 'file' => $file]);
+        $upload = $this->postJson('/api/v1/bank-statements', ['file' => $file]);
         $batchId = $upload->json('data.batch.id');
 
         $response = $this->get("/api/v1/bank-statements/{$batchId}/download");
@@ -102,7 +92,7 @@ class BankStatementControllerTest extends TestCase
         Sanctum::actingAs($unprivileged);
 
         $file = UploadedFile::fake()->createWithContent('statement.csv', self::BCA_CSV);
-        $response = $this->postJson('/api/v1/bank-statements', ['bank_account_id' => $this->bankAccount->id, 'file' => $file]);
+        $response = $this->postJson('/api/v1/bank-statements', ['file' => $file]);
 
         $response->assertStatus(403);
     }

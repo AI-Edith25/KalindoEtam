@@ -15,7 +15,6 @@ class IndexBankReconciliationDetailRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'bank_account_id' => ['nullable', 'uuid', 'exists:chart_of_accounts,id'],
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
             'view' => ['nullable', Rule::in(['import', 'system'])],

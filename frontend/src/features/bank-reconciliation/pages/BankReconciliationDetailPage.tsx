@@ -59,10 +59,10 @@ function formatSide(debit: number | null, credit: number | null): string {
 }
 
 /** Point 3: row-per-transaction comparison, Cash Book (system) vs uploaded bank statement, for one day. */
-function ComparisonSubTable({ bankAccountId, date }: { bankAccountId: string; date: string }) {
+function ComparisonSubTable({ date }: { date: string }) {
   const comparisonQuery = useQuery({
-    queryKey: ['bank-reconciliation-comparison', bankAccountId, date],
-    queryFn: () => fetchBankReconciliationComparisonRows(bankAccountId, date),
+    queryKey: ['bank-reconciliation-comparison', date],
+    queryFn: () => fetchBankReconciliationComparisonRows(date),
   })
 
   if (comparisonQuery.isLoading) {
@@ -112,8 +112,8 @@ function ComparisonSubTable({ bankAccountId, date }: { bankAccountId: string; da
 /** Point 2's "View" -- the day's uploaded file(s) ("folder" contents) plus its Cash Book Transaction rows. */
 function DayDetailDialog({ row, onClose }: { row: BankReconciliationSummary; onClose: () => void }) {
   const detailQuery = useQuery({
-    queryKey: ['bank-reconciliation-day-detail', row.bank_account_id, row.date],
-    queryFn: () => fetchBankReconciliationDayDetail(row.bank_account_id, row.date),
+    queryKey: ['bank-reconciliation-day-detail', row.date],
+    queryFn: () => fetchBankReconciliationDayDetail(row.date),
   })
 
   const handleDownload = async (file: BankReconciliationFile) => {
@@ -129,9 +129,7 @@ function DayDetailDialog({ row, onClose }: { row: BankReconciliationSummary; onC
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="w-[95vw] max-h-[85vh] max-w-lg overflow-y-auto rounded-lg p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="break-words pr-6">
-            {row.bank_account_name} &mdash; {formatDate(row.date)}
-          </DialogTitle>
+          <DialogTitle className="break-words pr-6">{formatDate(row.date)}</DialogTitle>
         </DialogHeader>
 
         <div>
@@ -215,12 +213,12 @@ function BankReconciliationPinLock({ onUnlock }: { onUnlock: () => void }) {
   )
 }
 
-/** Daily balancing table -- one row per bank account that has ever had a statement uploaded
- * through this feature (see BankReconciliationService::getDailyBalancingSummary()'s own docblock
- * -- a chart_of_accounts row flagged is_cash_bank isn't the same thing as one that's actually
- * been reconciled here) + day, in a "Ringkasan" tab. The "⋮" menu's "View" switches to a "Detail"
- * tab showing that row's Cash Book vs bank statement comparison; "See the file" opens that day's
- * uploaded file(s) in a dialog. Row click does nothing.
+/** Daily balancing table -- one combined row per day (every cash/bank account's Payment
+ * Voucher/Official Receipt activity vs every uploaded statement, all in one bucket -- see
+ * BankReconciliationService's own docblock for why there's no per-account split), in a
+ * "Ringkasan" tab. The "⋮" menu's "View" switches to a "Detail" tab showing that row's Cash Book
+ * vs bank statement comparison; "See the file" opens that day's uploaded file(s) in a dialog. Row
+ * click does nothing.
  */
 export function BankReconciliationDetailPage() {
   const [unlocked, setUnlocked] = useState(false)
@@ -250,7 +248,7 @@ function BankReconciliationDetailPageContent() {
   })
 
   const recomputeMutation = useMutation({
-    mutationFn: (row: BankReconciliationSummary) => recomputeReconciliation({ bank_account_id: row.bank_account_id, date_from: row.date, date_to: row.date }),
+    mutationFn: (row: BankReconciliationSummary) => recomputeReconciliation({ date_from: row.date, date_to: row.date }),
     onSuccess: () => {
       toast.success('Reconciliation recomputed.')
       queryClient.invalidateQueries({ queryKey: ['bank-reconciliation-summary'] })
@@ -358,11 +356,9 @@ function BankReconciliationDetailPageContent() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Kembali ke Ringkasan
                 </Button>
-                <span className="text-sm font-medium">
-                  {detailRow.bank_account_name} &mdash; {formatDate(detailRow.date)}
-                </span>
+                <span className="text-sm font-medium">{formatDate(detailRow.date)}</span>
               </div>
-              <ComparisonSubTable bankAccountId={detailRow.bank_account_id} date={detailRow.date} />
+              <ComparisonSubTable date={detailRow.date} />
             </>
           )}
         </TabsContent>

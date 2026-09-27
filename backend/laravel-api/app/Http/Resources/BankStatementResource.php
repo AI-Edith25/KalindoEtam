@@ -11,8 +11,6 @@ class BankStatementResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'bank_account_id' => $this->bank_account_id,
-            'bank_account_name' => $this->whenLoaded('bankAccount', fn () => $this->bankAccount->name),
             'format_template' => $this->format_template,
             'period_start' => $this->period_start,
             'period_end' => $this->period_end,

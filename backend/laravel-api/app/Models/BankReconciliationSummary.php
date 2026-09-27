@@ -5,14 +5,12 @@ namespace App\Models;
 use App\Enums\BankReconciliationStatus;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BankReconciliationSummary extends Model
 {
     use HasUuids;
 
     protected $fillable = [
-        'bank_account_id',
         'date',
         'system_debit_total',
         'system_credit_total',
@@ -35,9 +33,4 @@ class BankReconciliationSummary extends Model
         'status' => BankReconciliationStatus::class,
         'generated_at' => 'datetime',
     ];
-
-    public function bankAccount(): BelongsTo
-    {
-        return $this->belongsTo(ChartOfAccount::class, 'bank_account_id');
-    }
 }

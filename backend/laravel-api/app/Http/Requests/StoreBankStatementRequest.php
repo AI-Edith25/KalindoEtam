@@ -16,7 +16,6 @@ class StoreBankStatementRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'bank_account_id' => ['required', 'uuid', 'exists:chart_of_accounts,id'],
             // Omitted -> auto-detect from the file's structure (see BankStatementService::upload()).
             'format_template' => ['nullable', 'string', Rule::in(app(BankStatementParserRegistry::class)->codes())],
             'file' => ['required', 'file', 'max:20480', 'mimes:csv,txt'],

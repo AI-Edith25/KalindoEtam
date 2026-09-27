@@ -17,13 +17,8 @@ export interface UploadBankStatementResult {
 }
 
 /** Parses synchronously and returns a preview -- nothing is persisted until confirmBankStatement(). */
-export async function uploadBankStatement(
-  bankAccountId: string,
-  file: File,
-  formatTemplate?: BankStatementFormatTemplate,
-): Promise<UploadBankStatementResult> {
+export async function uploadBankStatement(file: File, formatTemplate?: BankStatementFormatTemplate): Promise<UploadBankStatementResult> {
   const formData = new FormData()
-  formData.append('bank_account_id', bankAccountId)
   formData.append('file', file)
   if (formatTemplate) formData.append('format_template', formatTemplate)
 
@@ -44,32 +39,29 @@ export async function fetchBankStatement(batchId: string): Promise<BankStatement
 }
 
 export interface DailyBalancingParams {
-  bank_account_id?: string
   date_from: string
   date_to: string
 }
 
-/** One row per bank account per day -- the page's main table. */
+/** One combined row per day -- the page's main table. */
 export async function fetchDailyBalancingSummary(params: DailyBalancingParams): Promise<BankReconciliationSummary[]> {
   const { data } = await apiClient.get<ApiResponse<BankReconciliationSummary[]>>('/bank-reconciliation', { params })
   return data.data
 }
 
 export interface BankReconciliationDetailParams {
-  bank_account_id?: string
   date_from: string
   date_to: string
   view?: BankReconciliationDetailView
 }
 
-/** `view` picks which side to browse from -- see BankReconciliationDetailRow. Defaults to 'import'. Omitting bank_account_id includes every bank account. */
+/** `view` picks which side to browse from -- see BankReconciliationDetailRow. Defaults to 'import'. */
 export async function fetchBankReconciliationDetailRows(params: BankReconciliationDetailParams): Promise<BankReconciliationDetailRow[]> {
   const { data } = await apiClient.get<ApiResponse<BankReconciliationDetailRow[]>>('/bank-reconciliation/lines', { params })
   return data.data
 }
 
 export interface RecomputeReconciliationPayload {
-  bank_account_id: string
   date_from: string
   date_to: string
   tolerance_days?: number
@@ -91,17 +83,17 @@ export interface BankReconciliationDayDetail {
 }
 
 /** "See the file" -- the day's uploaded file(s). */
-export async function fetchBankReconciliationDayDetail(bankAccountId: string, date: string): Promise<BankReconciliationDayDetail> {
+export async function fetchBankReconciliationDayDetail(date: string): Promise<BankReconciliationDayDetail> {
   const { data } = await apiClient.get<ApiResponse<BankReconciliationDayDetail>>('/bank-reconciliation/day-detail', {
-    params: { bank_account_id: bankAccountId, date },
+    params: { date },
   })
   return data.data
 }
 
 /** Point 3's row-click sub-table: Cash Book vs uploaded statement, one row per document/unmatched line. */
-export async function fetchBankReconciliationComparisonRows(bankAccountId: string, date: string): Promise<BankReconciliationComparisonRow[]> {
+export async function fetchBankReconciliationComparisonRows(date: string): Promise<BankReconciliationComparisonRow[]> {
   const { data } = await apiClient.get<ApiResponse<BankReconciliationComparisonRow[]>>('/bank-reconciliation/comparison', {
-    params: { bank_account_id: bankAccountId, date },
+    params: { date },
   })
   return data.data
 }

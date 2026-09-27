@@ -23,7 +23,6 @@ class BankStatementController extends Controller
     public function store(StoreBankStatementRequest $request): JsonResponse
     {
         $result = $this->bankStatementService->upload(
-            $request->validated('bank_account_id'),
             $request->validated('format_template'),
             $request->file('file'),
             Auth::id(),
@@ -49,7 +48,7 @@ class BankStatementController extends Controller
 
     public function show(BankStatement $bankStatement): JsonResponse
     {
-        return $this->success(new BankStatementResource($bankStatement->load('bankAccount')));
+        return $this->success(new BankStatementResource($bankStatement));
     }
 
     /** Point 2a's "View" -- the originally uploaded file, same StreamedResponse pattern as ImportController::failedRows(). */

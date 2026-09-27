@@ -48,12 +48,11 @@ class DashboardBankBalancingTest extends TestCase
         ])->submit();
 
         app(\App\Services\BankStatement\BankReconciliationService::class)
-            ->recomputeSummary($bankAccount->id, now()->toDateString(), now()->toDateString());
+            ->recomputeSummary(now()->toDateString(), now()->toDateString());
 
         $response = $this->getJson('/api/v1/dashboard/bank-balancing');
 
         $response->assertOk();
         $response->assertJsonPath('data.0.status', 'not_uploaded');
-        $response->assertJsonPath('data.0.bank_account_name', 'BANK BCA SMD 1312');
     }
 }

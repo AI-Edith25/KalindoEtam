@@ -70,7 +70,7 @@ class PaymentEntryController extends Controller
         // Best-effort: a stale bank reconciliation summary is fixable with "Re-run
         // reconciliation" later, so this must never fail an already-successful submit.
         try {
-            $this->bankReconciliationService->recomputeIfTracked($paymentEntry->cash_account_id, $paymentEntry->payment_date->format('Y-m-d'));
+            $this->bankReconciliationService->recomputeIfTracked($paymentEntry->payment_date->format('Y-m-d'));
         } catch (\Throwable $e) {
             Log::warning('Bank reconciliation recompute failed after Payment Entry submit', ['payment_entry_id' => $paymentEntry->id, 'error' => $e->getMessage()]);
         }

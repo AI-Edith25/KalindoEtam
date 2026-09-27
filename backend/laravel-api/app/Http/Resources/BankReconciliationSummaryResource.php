@@ -11,8 +11,6 @@ class BankReconciliationSummaryResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'bank_account_id' => $this->bank_account_id,
-            'bank_account_name' => $this->whenLoaded('bankAccount', fn () => $this->bankAccount->name),
             'date' => $this->date->format('Y-m-d'),
             'system_debit_total' => $this->system_debit_total,
             'system_credit_total' => $this->system_credit_total,

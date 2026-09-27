@@ -9,7 +9,6 @@ use App\Enums\DocumentStatus;
 use App\Models\BankReconciliationSummary;
 use App\Models\BankStatement;
 use App\Models\BankStatementLine;
-use App\Models\ChartOfAccount;
 use App\Models\PaymentEntry;
 use App\Models\ReceiptEntry;
 use App\Repositories\BankReconciliationRepository;
@@ -19,6 +18,13 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
+/**
+ * Combines every cash/bank account into one bucket, deliberately -- confirmed with the user that
+ * a per-account split doesn't match reality here: the mutasi/journal-list files this compares
+ * against have no reliable structured "which account" field to hang one on, and only one physical
+ * source has ever actually been reconciled through this feature. See the migration that dropped
+ * bank_account_id from bank_statements/bank_reconciliation_summaries for the full rationale.
+ */
 class BankReconciliationService
 {
     public function __construct(private BankReconciliationRepository $repository) {}
@@ -29,37 +35,36 @@ class BankReconciliationService
             return; // empty statement, nothing to match/summarize
         }
 
-        $this->match($statement->bank_account_id, $statement->period_start->format('Y-m-d'), $statement->period_end->format('Y-m-d'));
-        $this->recomputeSummary($statement->bank_account_id, $statement->period_start->format('Y-m-d'), $statement->period_end->format('Y-m-d'));
+        $this->match($statement->period_start->format('Y-m-d'), $statement->period_end->format('Y-m-d'));
+        $this->recomputeSummary($statement->period_start->format('Y-m-d'), $statement->period_end->format('Y-m-d'));
     }
 
-    /** Runs recompute only for bank accounts that have ever had a statement uploaded -- a no-op everywhere else. */
-    public function recomputeIfTracked(string $bankAccountId, string $date): void
+    /** Runs recompute only when at least one statement has ever been uploaded -- a no-op everywhere else. */
+    public function recomputeIfTracked(string $date): void
     {
-        if (! BankStatement::query()->where('bank_account_id', $bankAccountId)->exists()) {
+        if (! BankStatement::query()->exists()) {
             return;
         }
 
-        $this->match($bankAccountId, $date, $date);
-        $this->recomputeSummary($bankAccountId, $date, $date);
+        $this->match($date, $date);
+        $this->recomputeSummary($date, $date);
     }
 
     /**
      * Exact date + exact amount match against an unclaimed Payment Voucher (credit
-     * side) or Official Receipt (debit side) on the same bank account. Tolerance
+     * side) or Official Receipt (debit side), any cash/bank account. Tolerance
      * widens the date window without loosening the amount match.
      */
-    public function match(string $bankAccountId, string $dateFrom, string $dateTo, int $toleranceDays = 0): void
+    public function match(string $dateFrom, string $dateTo, int $toleranceDays = 0): void
     {
         $lines = BankStatementLine::query()
-            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
             ->where('match_status', BankStatementLineMatchStatus::UNMATCHED)
             ->whereDate('transaction_date', '>=', $dateFrom)
             ->whereDate('transaction_date', '<=', $dateTo)
             ->get();
 
         foreach ($lines as $line) {
-            $document = $this->findCandidate($bankAccountId, $line, $toleranceDays);
+            $document = $this->findCandidate($line, $toleranceDays);
 
             if ($document !== null) {
                 $line->update([
@@ -80,7 +85,7 @@ class BankReconciliationService
         ]);
     }
 
-    private function findCandidate(string $bankAccountId, BankStatementLine $line, int $toleranceDays): PaymentEntry|ReceiptEntry|null
+    private function findCandidate(BankStatementLine $line, int $toleranceDays): PaymentEntry|ReceiptEntry|null
     {
         $from = Carbon::parse($line->transaction_date)->subDays($toleranceDays)->format('Y-m-d');
         $to = Carbon::parse($line->transaction_date)->addDays($toleranceDays)->format('Y-m-d');
@@ -89,7 +94,6 @@ class BankReconciliationService
             $claimed = BankStatementLine::query()->where('matched_document_type', (new PaymentEntry())->getMorphClass())->pluck('matched_document_id');
 
             return PaymentEntry::query()
-                ->where('cash_account_id', $bankAccountId)
                 ->where('status', DocumentStatus::SUBMITTED)
                 ->whereDate('payment_date', '>=', $from)
                 ->whereDate('payment_date', '<=', $to)
@@ -102,7 +106,6 @@ class BankReconciliationService
             $claimed = BankStatementLine::query()->where('matched_document_type', (new ReceiptEntry())->getMorphClass())->pluck('matched_document_id');
 
             return ReceiptEntry::query()
-                ->where('cash_account_id', $bankAccountId)
                 ->where('status', DocumentStatus::SUBMITTED)
                 ->whereDate('receipt_date', '>=', $from)
                 ->whereDate('receipt_date', '<=', $to)
@@ -119,17 +122,16 @@ class BankReconciliationService
      * PROCESSED statement covering it is `not_uploaded`, regardless of whether the
      * system side has activity that day -- never fabricated as balanced/zero.
      */
-    public function recomputeSummary(string $bankAccountId, string $dateFrom, string $dateTo): void
+    public function recomputeSummary(string $dateFrom, string $dateTo): void
     {
-        $systemTotals = $this->repository->systemTotalsByDate($bankAccountId, $dateFrom, $dateTo);
-        $coveredDates = $this->coveredDates($bankAccountId, $dateFrom, $dateTo);
+        $systemTotals = $this->repository->systemTotalsByDate($dateFrom, $dateTo);
+        $coveredDates = $this->coveredDates($dateFrom, $dateTo);
 
         // GROUP BY DATE(transaction_date), not the raw column -- a bank statement line's date
         // carries a real time-of-day from the source file (e.g. BCA's PostDate), so two lines on
         // the same calendar day but different times would otherwise land in separate groups and
         // silently lose one one another once keyed by day below.
         $statementTotals = BankStatementLine::query()
-            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
             ->whereDate('transaction_date', '>=', $dateFrom)
             ->whereDate('transaction_date', '<=', $dateTo)
             ->selectRaw('DATE(transaction_date) as date, SUM(debit_amount) as debit_total, SUM(credit_amount) as credit_total')
@@ -141,7 +143,7 @@ class BankReconciliationService
             $key = $date->format('Y-m-d');
 
             if (! isset($coveredDates[$key])) {
-                $this->upsertSummary($bankAccountId, $key, 0, 0, 0, 0, BankReconciliationStatus::NOT_UPLOADED);
+                $this->upsertSummary($key, 0, 0, 0, 0, BankReconciliationStatus::NOT_UPLOADED);
 
                 continue;
             }
@@ -157,89 +159,57 @@ class BankReconciliationService
                 ? BankReconciliationStatus::BALANCED
                 : BankReconciliationStatus::UNBALANCED;
 
-            $this->upsertSummary($bankAccountId, $key, $system['debit'], $system['credit'], $statementDebit, $statementCredit, $status, $varianceDebit, $varianceCredit);
+            $this->upsertSummary($key, $system['debit'], $system['credit'], $statementDebit, $statementCredit, $status, $varianceDebit, $varianceCredit);
         }
     }
 
     /**
-     * Every is_cash_bank account *that has ever had a statement uploaded* gets a row for every
-     * day in range -- a day no write path has ever recomputed (no PV/OR submitted, no statement
-     * uploaded, nothing to trigger recomputeSummary()) has no persisted BankReconciliationSummary
-     * row at all, but that's itself a "not_uploaded" day, not nothing to show. Missing (account,
-     * date) pairs are synthesized here at read time rather than requiring some scheduled job to
-     * have pre-created them -- exactly the gap that would otherwise hide the Dashboard's whole
-     * "you forgot to upload today's statement" alert on a day with zero other activity on that
-     * account.
-     *
-     * The "has ever had a statement" filter (mirrors recomputeIfTracked()'s own gate) only
-     * applies when $bankAccountId is null -- an explicit request for one specific account always
-     * shows it, tracked or not. Without this filter, every is_cash_bank chart_of_accounts row
-     * (this company has 10, only one of which has ever actually been reconciled through this
-     * feature -- the other 9 were paid/received through directly but reconciled the old way, via
-     * a manually-assembled mutasi/journal comparison outside this app) would get a synthesized
-     * "not_uploaded" row for every single day, every time -- a bank account with real Payment
-     * Voucher/Official Receipt history is not the same thing as one that's ever been reconciled
-     * here, and only the latter belongs in this table.
+     * One row per day in range -- a day no write path has ever recomputed (no PV/OR submitted, no
+     * statement uploaded, nothing to trigger recomputeSummary()) has no persisted
+     * BankReconciliationSummary row at all, but that's itself a "not_uploaded" day, not nothing to
+     * show. Missing dates are synthesized here at read time rather than requiring some scheduled
+     * job to have pre-created them -- exactly the gap that would otherwise hide the Dashboard's
+     * whole "you forgot to upload today's statement" alert on a day with zero other activity.
      */
-    public function getDailyBalancingSummary(?string $bankAccountId, string $dateFrom, string $dateTo): Collection
+    public function getDailyBalancingSummary(string $dateFrom, string $dateTo): Collection
     {
         $existing = BankReconciliationSummary::query()
-            ->when($bankAccountId, fn ($q) => $q->where('bank_account_id', $bankAccountId))
             ->whereDate('date', '>=', $dateFrom)
             ->whereDate('date', '<=', $dateTo)
-            ->with('bankAccount')
             ->get();
 
-        $bankAccounts = ChartOfAccount::query()
-            ->where('is_cash_bank', true)
-            ->when(
-                $bankAccountId,
-                fn ($q) => $q->where('id', $bankAccountId),
-                fn ($q) => $q->whereExists(
-                    fn ($sub) => $sub->selectRaw('1')->from('bank_statements')->whereColumn('bank_statements.bank_account_id', 'chart_of_accounts.id')
-                ),
-            )
-            ->get();
-
-        $existingKeys = $existing->map(fn ($s) => $s->bank_account_id.'|'.$s->date->format('Y-m-d'))->flip();
+        $existingKeys = $existing->map(fn ($s) => $s->date->format('Y-m-d'))->flip();
 
         $synthesized = collect();
-        foreach ($bankAccounts as $account) {
-            foreach (CarbonPeriod::create($dateFrom, $dateTo) as $date) {
-                $key = $account->id.'|'.$date->format('Y-m-d');
+        foreach (CarbonPeriod::create($dateFrom, $dateTo) as $date) {
+            $key = $date->format('Y-m-d');
 
-                if ($existingKeys->has($key)) {
-                    continue;
-                }
-
-                $summary = new BankReconciliationSummary([
-                    'bank_account_id' => $account->id,
-                    'date' => $date->format('Y-m-d'),
-                    'system_debit_total' => 0,
-                    'system_credit_total' => 0,
-                    'statement_debit_total' => 0,
-                    'statement_credit_total' => 0,
-                    'variance_debit' => 0,
-                    'variance_credit' => 0,
-                    'status' => BankReconciliationStatus::NOT_UPLOADED,
-                    'generated_at' => now(),
-                ]);
-                $summary->id = (string) Str::uuid();
-                $summary->setRelation('bankAccount', $account);
-                $synthesized->push($summary);
+            if ($existingKeys->has($key)) {
+                continue;
             }
+
+            $summary = new BankReconciliationSummary([
+                'date' => $key,
+                'system_debit_total' => 0,
+                'system_credit_total' => 0,
+                'statement_debit_total' => 0,
+                'statement_credit_total' => 0,
+                'variance_debit' => 0,
+                'variance_credit' => 0,
+                'status' => BankReconciliationStatus::NOT_UPLOADED,
+                'generated_at' => now(),
+            ]);
+            $summary->id = (string) Str::uuid();
+            $synthesized->push($summary);
         }
 
-        return $existing->concat($synthesized)
-            ->sortBy([['bank_account_id', 'asc'], ['date', 'asc']])
-            ->values();
+        return $existing->concat($synthesized)->sortBy('date')->values();
     }
 
     /** "See the file" on a day's row -- the uploaded file(s) covering that day (the "folder" contents). */
-    public function dayDetail(string $bankAccountId, string $date): array
+    public function dayDetail(string $date): array
     {
         $statementIds = BankStatementLine::query()
-            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
             ->whereDate('transaction_date', $date)
             ->pluck('bank_statement_id')
             ->unique();
@@ -262,16 +232,14 @@ class BankReconciliationService
 
     /**
      * Point 3's row-click sub-table: Cash Book (PV/OR, point 2b's same system side) vs uploaded
-     * bank statement lines for one day, matched via BankStatementLine::matched_document_id.
-     * Unlike importRows()/systemRows() below (each shows every row from its own side, the other
-     * side null if unmatched -- built for browsing "from" one side), this never repeats a matched
-     * pair: one comparison row per Cash Book document, plus one per statement line that has no
-     * matching document at all.
+     * bank statement lines for one day. Unlike importRows()/systemRows() below (each shows every
+     * row from its own side, the other side null if unmatched -- built for browsing "from" one
+     * side), this never repeats a matched pair: one comparison row per Cash Book document, plus
+     * one per statement line that has no matching document at all.
      */
-    public function comparisonRows(string $bankAccountId, string $date): array
+    public function comparisonRows(string $date): array
     {
         $lines = BankStatementLine::query()
-            ->whereHas('bankStatement', fn ($q) => $q->where('bank_account_id', $bankAccountId))
             ->whereDate('transaction_date', $date)
             ->get();
 
@@ -280,14 +248,12 @@ class BankReconciliationService
             ->keyBy(fn (BankStatementLine $line) => $line->matched_document_type.'|'.$line->matched_document_id);
 
         $receipts = ReceiptEntry::query()
-            ->where('cash_account_id', $bankAccountId)
             ->where('status', DocumentStatus::SUBMITTED)
             ->whereDate('receipt_date', $date)
             ->with('customer')
             ->get();
 
         $payments = PaymentEntry::query()
-            ->where('cash_account_id', $bankAccountId)
             ->where('status', DocumentStatus::SUBMITTED)
             ->whereDate('payment_date', $date)
             ->with('supplier', 'expenseAccount')
@@ -343,14 +309,13 @@ class BankReconciliationService
 
     /**
      * Import view: one row per uploaded statement line in range, "System" = its matched
-     * document's amount (null if unmatched). Null $bankAccountId means every bank account.
+     * document's amount (null if unmatched).
      *
      * @return array<int, array>
      */
-    public function importRows(?string $bankAccountId, string $dateFrom, string $dateTo): array
+    public function importRows(string $dateFrom, string $dateTo): array
     {
         $lines = BankStatementLine::query()
-            ->when($bankAccountId, fn ($q) => $q->whereHas('bankStatement', fn ($q2) => $q2->where('bank_account_id', $bankAccountId)))
             ->whereDate('transaction_date', '>=', $dateFrom)
             ->whereDate('transaction_date', '<=', $dateTo)
             ->with(['matchedDocument' => function ($morphTo) {
@@ -388,15 +353,13 @@ class BankReconciliationService
     /**
      * System view: one row per Payment Voucher (credit)/Official Receipt (debit) in range,
      * "Statement" = the statement line it's matched to (null if unmatched) -- the mirror image
-     * of importRows(), same six-column shape, browsing from the other side. Null $bankAccountId
-     * means every bank account.
+     * of importRows(), same six-column shape, browsing from the other side.
      *
      * @return array<int, array>
      */
-    public function systemRows(?string $bankAccountId, string $dateFrom, string $dateTo): array
+    public function systemRows(string $dateFrom, string $dateTo): array
     {
         $receipts = ReceiptEntry::query()
-            ->when($bankAccountId, fn ($q) => $q->where('cash_account_id', $bankAccountId))
             ->where('status', DocumentStatus::SUBMITTED)
             ->whereDate('receipt_date', '>=', $dateFrom)
             ->whereDate('receipt_date', '<=', $dateTo)
@@ -404,7 +367,6 @@ class BankReconciliationService
             ->get();
 
         $payments = PaymentEntry::query()
-            ->when($bankAccountId, fn ($q) => $q->where('cash_account_id', $bankAccountId))
             ->where('status', DocumentStatus::SUBMITTED)
             ->whereDate('payment_date', '>=', $dateFrom)
             ->whereDate('payment_date', '<=', $dateTo)
@@ -450,10 +412,9 @@ class BankReconciliationService
     }
 
     /** @return array<string, true> Y-m-d dates covered by at least one PROCESSED statement. */
-    private function coveredDates(string $bankAccountId, string $dateFrom, string $dateTo): array
+    private function coveredDates(string $dateFrom, string $dateTo): array
     {
         $statements = BankStatement::query()
-            ->where('bank_account_id', $bankAccountId)
             ->where('status', BankStatementStatus::PROCESSED)
             ->whereNotNull('period_start')
             ->whereNotNull('period_end')
@@ -472,7 +433,6 @@ class BankReconciliationService
     }
 
     private function upsertSummary(
-        string $bankAccountId,
         string $date,
         float $systemDebit,
         float $systemCredit,
@@ -496,16 +456,13 @@ class BankReconciliationService
         // Not updateOrCreate(['date' => $date], ...) -- its lookup builds a raw where()
         // with $date as given ('Y-m-d'), but a 'date'-cast column is stored as a full
         // "Y-m-d 00:00:00" string, so that lookup would never match an existing row and
-        // would violate the (bank_account_id, date) unique constraint on the second run.
-        $existing = BankReconciliationSummary::query()
-            ->where('bank_account_id', $bankAccountId)
-            ->whereDate('date', $date)
-            ->first();
+        // would violate the date unique constraint on the second run.
+        $existing = BankReconciliationSummary::query()->whereDate('date', $date)->first();
 
         if ($existing !== null) {
             $existing->update($attributes);
         } else {
-            BankReconciliationSummary::query()->create(array_merge(['bank_account_id' => $bankAccountId, 'date' => $date], $attributes));
+            BankReconciliationSummary::query()->create(array_merge(['date' => $date], $attributes));
         }
     }
 }

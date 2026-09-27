@@ -83,10 +83,10 @@ class DashboardService
         return $this->accountsReceivableRepository->outstandingSummary();
     }
 
-    /** Today's row per bank account -- BankReconciliationService::getDailyBalancingSummary() is the same read the future WA automation will call. */
+    /** Today's combined row -- BankReconciliationService::getDailyBalancingSummary() is the same read the future WA automation will call. */
     public function bankBalancing(string $date): Collection
     {
-        return $this->bankReconciliationService->getDailyBalancingSummary(null, $date, $date);
+        return $this->bankReconciliationService->getDailyBalancingSummary($date, $date);
     }
 
     public function lowStockItems(int $threshold, int $perPage = 15): LengthAwarePaginator

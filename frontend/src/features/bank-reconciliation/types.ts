@@ -5,8 +5,6 @@ export type BankReconciliationStatus = 'balanced' | 'unbalanced' | 'not_uploaded
 
 export interface BankStatement {
   id: string
-  bank_account_id: string
-  bank_account_name: string | null
   format_template: BankStatementFormatTemplate
   period_start: string | null
   period_end: string | null
@@ -72,8 +70,6 @@ export interface BankReconciliationComparisonRow {
 
 export interface BankReconciliationSummary {
   id: string
-  bank_account_id: string
-  bank_account_name: string | null
   date: string
   system_debit_total: number
   system_credit_total: number

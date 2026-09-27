@@ -14,7 +14,6 @@ const STATUS_LABEL: Record<BankReconciliationStatus, string> = {
 }
 
 const columns: DataTableColumn<BankReconciliationSummary>[] = [
-  { header: 'Bank Account', accessor: (row) => row.bank_account_name ?? '-' },
   {
     header: 'System (Dr/Cr)',
     accessor: (row) => (row.status === 'not_uploaded' ? '-' : `${formatCurrency(row.system_debit_total)} / ${formatCurrency(row.system_credit_total)}`),
@@ -33,7 +32,7 @@ const columns: DataTableColumn<BankReconciliationSummary>[] = [
   },
 ]
 
-/** Today's per-bank-account balancing -- see BankReconciliationDetailPage for the full daily table + drill-down. */
+/** Today's combined balancing row (every cash/bank account in one bucket) -- see BankReconciliationDetailPage for the full daily table + drill-down. */
 export function BankBalancingCard() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard', 'bank-balancing'],
@@ -56,7 +55,7 @@ export function BankBalancingCard() {
           isLoading={isLoading}
           isError={isError}
           onRetry={() => refetch()}
-          emptyMessage="No bank accounts configured."
+          emptyMessage="No data for today."
         />
       </CardContent>
     </Card>
