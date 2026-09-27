@@ -126,7 +126,7 @@ export function SalesOrderPrintLayout({
       <div style={{ marginTop: '1mm', borderTop: '2.25pt solid #000' }} />
 
       {/* ---------- Dua kolom: customer (kiri) / meta (kanan) ---------- */}
-      <div style={{ display: 'grid', gridTemplateColumns: `${RIGHT_COL_START_MM}mm 1fr`, marginTop: '2.5mm' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `${RIGHT_COL_START_MM - 3}mm 1fr`, marginTop: '2.5mm' }}>
         <div>
           <p style={{ margin: 0, fontSize: `${FONT_PT.metaBody}pt`, fontWeight: 700 }}>{salesOrder.customer?.customer_name ?? '—'}</p>
           {salesOrder.customer?.address && <p style={{ margin: '2mm 0 0', fontSize: `${FONT_PT.metaBody}pt` }}>{salesOrder.customer.address}</p>}
