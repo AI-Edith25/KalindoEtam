@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -209,88 +209,28 @@ function DayDetailDialog({ row, onClose }: { row: BankReconciliationSummary; onC
   )
 }
 
-const LOCK_PIN = '2578'
-
-/** Blocks the whole page behind a PIN until the correct one is entered -- resets (re-locks) every
- * time this page is navigated to, since nothing persists `unlocked` across mounts. */
-function BankReconciliationPinLock({ onUnlock }: { onUnlock: () => void }) {
-  const [pin, setPin] = useState('')
-  const [error, setError] = useState(false)
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    if (pin === LOCK_PIN) {
-      onUnlock()
-      return
-    }
-    setError(true)
-    setPin('')
-  }
-
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <Card className="w-full max-w-sm">
-        <CardContent className="pt-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5 text-center">
-              <h2 className="text-lg font-semibold">Bank Reconciliation Terkunci</h2>
-              <p className="text-sm text-muted-foreground">Masukkan PIN untuk membuka halaman ini.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="bank-reconciliation-pin">PIN</Label>
-              <Input
-                id="bank-reconciliation-pin"
-                type="password"
-                inputMode="numeric"
-                autoFocus
-                value={pin}
-                onChange={(e) => { setPin(e.target.value); setError(false) }}
-              />
-              {error && <p className="text-sm text-destructive">PIN salah, coba lagi.</p>}
-            </div>
-            <Button type="submit" className="w-full" disabled={!pin}>
-              Buka
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-/** Daily balancing table -- one combined row per day (every cash/bank account's Payment
- * Voucher/Official Receipt activity vs every uploaded statement, all in one bucket -- see
- * BankReconciliationService's own docblock for why there's no per-account split), in a
- * "Ringkasan" tab. The "⋮" menu's "View" switches to a "Detail" tab showing that row's Cash Book
- * vs bank statement comparison; "See the file" opens that day's uploaded file(s) in a dialog. Row
- * click does nothing.
+/** Daily balancing row for one day (every cash/bank account's Payment Voucher/Official Receipt
+ * activity vs that day's uploaded statement, all in one bucket -- see BankReconciliationService's
+ * own docblock for why there's no per-account split), in a "Ringkasan" tab. The "⋮" menu's "View"
+ * switches to a "Detail" tab showing that row's Cash Book vs bank statement comparison; "See the
+ * file" opens that day's uploaded file(s) in a dialog. Row click does nothing.
  */
 export function BankReconciliationDetailPage() {
-  const [unlocked, setUnlocked] = useState(false)
-
-  if (!unlocked) {
-    return <BankReconciliationPinLock onUnlock={() => setUnlocked(true)} />
-  }
-
-  return <BankReconciliationDetailPageContent />
-}
-
-function BankReconciliationDetailPageContent() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const canUpdate = useHasPermission('finance.bank_reconciliation.update')
   const canCreate = useHasPermission('finance.bank_reconciliation.create')
 
-  const [dateFrom, setDateFrom] = useState(() => todayIso())
-  const [dateTo, setDateTo] = useState(() => todayIso())
+  const [date, setDate] = useState(() => todayIso())
   const [activeTab, setActiveTab] = useState<'summary' | 'detail'>('summary')
   const [detailRow, setDetailRow] = useState<BankReconciliationSummary | null>(null)
   const [viewRow, setViewRow] = useState<BankReconciliationSummary | null>(null)
 
   const summaryQuery = useQuery({
-    queryKey: ['bank-reconciliation-summary', dateFrom, dateTo],
-    queryFn: () => fetchDailyBalancingSummary({ date_from: dateFrom, date_to: dateTo }),
+    queryKey: ['bank-reconciliation-summary', date],
+    queryFn: () => fetchDailyBalancingSummary({ date_from: date, date_to: date }),
   })
+  const dayRow = summaryQuery.data?.[0] ?? null
 
   const recomputeMutation = useMutation({
     mutationFn: (row: BankReconciliationSummary) => recomputeReconciliation({ date_from: row.date, date_to: row.date }),
@@ -370,25 +310,36 @@ function BankReconciliationDetailPageContent() {
           <Card>
             <CardContent className="flex flex-wrap items-end gap-4 pt-6">
               <div className="space-y-1.5">
-                <Label>From</Label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>To</Label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <Label>Date</Label>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
             </CardContent>
           </Card>
 
-          <DataTable
-            columns={summaryColumns}
-            data={summaryQuery.data ?? []}
-            rowKey={(row) => row.id}
-            isLoading={summaryQuery.isLoading}
-            isError={summaryQuery.isError}
-            onRetry={() => summaryQuery.refetch()}
-            emptyMessage="No data for this range."
-          />
+          {!summaryQuery.isLoading && !summaryQuery.isError && (dayRow === null || dayRow.status === 'not_uploaded') ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                <p className="text-base font-medium">Mutasi bank belum di upload</p>
+                <p className="text-sm text-muted-foreground">{formatDate(date)}</p>
+                {canCreate && (
+                  <Button onClick={() => navigate('/finance/bank-reconciliation/upload')}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload Statement
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <DataTable
+              columns={summaryColumns}
+              data={summaryQuery.data ?? []}
+              rowKey={(row) => row.id}
+              isLoading={summaryQuery.isLoading}
+              isError={summaryQuery.isError}
+              onRetry={() => summaryQuery.refetch()}
+              emptyMessage="No data for this date."
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="detail" className="space-y-4">
