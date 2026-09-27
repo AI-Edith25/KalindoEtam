@@ -22,8 +22,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('bank_reconciliation_summaries', function (Blueprint $table) {
+            // FK constraint must go first -- MySQL uses the composite unique index (its
+            // leftmost column is bank_account_id) to satisfy the FK, and refuses to drop
+            // that index while the constraint still needs it.
+            $table->dropForeign(['bank_account_id']);
             $table->dropUnique(['bank_account_id', 'date']);
-            $table->dropConstrainedForeignId('bank_account_id');
+            $table->dropColumn('bank_account_id');
             $table->unique('date');
         });
 
