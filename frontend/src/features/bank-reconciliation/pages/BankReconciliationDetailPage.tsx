@@ -86,12 +86,20 @@ function MatchStatusBadge({ status, selisih }: { status: BankReconciliationMatch
   )
 }
 
+const MATCH_STATUS_FILTERS: { value: 'all' | BankReconciliationMatchStatus; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'cocok', label: 'Cocok' },
+  { value: 'tidak_cocok', label: 'Tidak Cocok' },
+]
+
 /**
  * Detail tab's row-level "Tabel Perbandingan" -- Cash Book (JL) vs mutasi bank, matched 1:1 by
  * nominal only (see BankStatementMatcher on the backend), scoped to one account+date. Tidak Cocok
  * rows sort first (backend order) so what needs checking is immediately visible.
  */
 function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAccountId: string }) {
+  const [statusFilter, setStatusFilter] = useState<'all' | BankReconciliationMatchStatus>('all')
+
   const matchingQuery = useQuery({
     queryKey: ['bank-reconciliation-matching', date, bankAccountId],
     queryFn: () => fetchBankReconciliationMatching(date, bankAccountId),
@@ -107,9 +115,20 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
   const data = matchingQuery.data
   if (!data) return null
 
+  const rows = data.rows.filter((row) => statusFilter === 'all' || row.status === statusFilter)
+
   return (
     <div className="space-y-2 rounded border bg-background p-3">
-      <p className="text-sm font-medium">Tabel Perbandingan</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-medium">Tabel Perbandingan</p>
+        <div className="flex items-center gap-1 rounded-md border p-1">
+          {MATCH_STATUS_FILTERS.map((option) => (
+            <Button key={option.value} size="sm" variant={statusFilter === option.value ? 'default' : 'ghost'} onClick={() => setStatusFilter(option.value)}>
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -128,14 +147,14 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.rows.length === 0 ? (
+            {rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                   No data for this account/day.
                 </TableCell>
               </TableRow>
             ) : (
-              data.rows.map((row, index) => (
+              rows.map((row, index) => (
                 <TableRow key={index}>
                   <TableCell>{row.jl?.transaction ?? '-'}</TableCell>
                   <TableCell>{row.jl?.reference ?? '-'}</TableCell>
@@ -154,15 +173,6 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
             )}
           </TableBody>
         </Table>
-      </div>
-      <div className="grid gap-1 pt-1 text-sm text-muted-foreground sm:grid-cols-2">
-        <span>Cocok: {data.totals.matched_count}</span>
-        <span>
-          Tidak Cocok: {data.totals.unmatched_jl_count + data.totals.unmatched_mutasi_count} (JL tanpa mutasi:{' '}
-          {data.totals.unmatched_jl_count}, mutasi tanpa JL: {data.totals.unmatched_mutasi_count})
-        </span>
-        <span>Total Tidak Cocok Debit: {formatCurrency(data.totals.unmatched_debit_total)}</span>
-        <span>Total Tidak Cocok Credit: {formatCurrency(data.totals.unmatched_credit_total)}</span>
       </div>
     </div>
   )
