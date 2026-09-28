@@ -114,16 +114,14 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead colSpan={4} className="border-r text-center">JL</TableHead>
-              <TableHead colSpan={3} className="border-r text-center">Mutasi Bank</TableHead>
+              <TableHead colSpan={3} className="border-r text-center">Report System</TableHead>
+              <TableHead colSpan={2} className="border-r text-center">Mutasi Bank</TableHead>
               <TableHead className="text-center">Status</TableHead>
             </TableRow>
             <TableRow>
               <TableHead>Transaction</TableHead>
-              <TableHead>Date</TableHead>
               <TableHead>Reference</TableHead>
               <TableHead className="border-r text-right">Debit / Credit</TableHead>
-              <TableHead>Date</TableHead>
               <TableHead>Keterangan</TableHead>
               <TableHead className="border-r text-right">Debit / Credit</TableHead>
               <TableHead />
@@ -132,7 +130,7 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
           <TableBody>
             {data.rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                   No data for this account/day.
                 </TableCell>
               </TableRow>
@@ -140,12 +138,10 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
               data.rows.map((row, index) => (
                 <TableRow key={index}>
                   <TableCell>{row.jl?.transaction ?? '-'}</TableCell>
-                  <TableCell>{row.jl ? formatDate(row.jl.date) : '-'}</TableCell>
                   <TableCell>{row.jl?.reference ?? '-'}</TableCell>
                   <TableCell className="border-r text-right">
                     {row.jl ? formatCurrency(row.jl.debit > 0 ? row.jl.debit : row.jl.kredit) : '-'}
                   </TableCell>
-                  <TableCell>{row.mutasi ? formatDate(row.mutasi.date) : '-'}</TableCell>
                   <TableCell className="max-w-[16rem] truncate">{row.mutasi?.keterangan ?? '-'}</TableCell>
                   <TableCell className="border-r text-right">
                     {row.mutasi ? formatCurrency(row.mutasi.debit > 0 ? row.mutasi.debit : row.mutasi.kredit) : '-'}
