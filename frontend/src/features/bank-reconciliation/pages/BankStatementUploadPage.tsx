@@ -14,25 +14,17 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
 import { confirmBankStatement, uploadBankStatement, type UploadBankStatementResult } from '../api/bankReconciliationApi'
-import type { BankStatementFormatTemplate } from '../types'
-
-const FORMAT_OPTIONS: { value: BankStatementFormatTemplate | 'auto'; label: string }[] = [
-  { value: 'auto', label: 'Auto-detect' },
-  { value: 'bca', label: 'BCA' },
-  { value: 'mandiri', label: 'Mandiri' },
-]
 
 /**
  * Upload -> preview (parsed, not yet saved) -> Confirm to persist + auto-match against Payment
- * Voucher/Official Receipt. Bank Account is required on upload (re-added 2026-09-28) -- the
- * Detail tab's per-account "Tabel Perbandingan" needs to know which account a statement belongs
- * to, since the file format alone (BCA vs Mandiri) can't disambiguate two accounts at one bank.
+ * Voucher/Official Receipt. Bank Account is the only manual field alongside the file -- the CSV's
+ * own format (BCA vs Mandiri) is always auto-detected from its content, so a separate "Bank /
+ * Format Template" picker was redundant with it and with Bank Account's own name.
  */
 export function BankStatementUploadPage() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [formatTemplate, setFormatTemplate] = useState<BankStatementFormatTemplate | 'auto'>('auto')
   const [file, setFile] = useState<File | null>(null)
   const [bankAccountId, setBankAccountId] = useState<string>('')
   const [result, setResult] = useState<UploadBankStatementResult | null>(null)
@@ -41,7 +33,7 @@ export function BankStatementUploadPage() {
   const bankAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
 
   const uploadMutation = useMutation({
-    mutationFn: () => uploadBankStatement(file!, bankAccountId, formatTemplate === 'auto' ? undefined : formatTemplate),
+    mutationFn: () => uploadBankStatement(file!, bankAccountId),
     onSuccess: (data) => setResult(data),
     onError: (error) => toastApiError(error),
   })
@@ -66,7 +58,7 @@ export function BankStatementUploadPage() {
           <CardTitle className="text-base">1. Select file</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Bank Account</Label>
               <Select value={bankAccountId} onValueChange={setBankAccountId} disabled={result !== null}>
@@ -75,21 +67,6 @@ export function BankStatementUploadPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {bankAccountOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Bank / Format Template</Label>
-              <Select value={formatTemplate} onValueChange={(value) => setFormatTemplate(value as typeof formatTemplate)} disabled={result !== null}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FORMAT_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
