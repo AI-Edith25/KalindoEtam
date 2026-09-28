@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\BalanceSheetImportController;
 use App\Http\Controllers\Api\V1\BankReconciliationController;
 use App\Http\Controllers\Api\V1\BankStatementController;
 use App\Http\Controllers\Api\V1\BranchController;
+use App\Http\Controllers\Api\V1\BrowserDiagnosticsController;
 use App\Http\Controllers\Api\V1\CashBookController;
 use App\Http\Controllers\Api\V1\CashBookImportController;
 use App\Http\Controllers\Api\V1\CashFlowController;
@@ -128,6 +129,9 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login']);
     // Phase 1 self-service reset (no email/OTP verification) — see AuthService::resetPasswordUnverified.
     Route::post('auth/reset-password-unverified', [AuthController::class, 'resetPasswordUnverified']);
+    // One-shot-per-session browser capability report (see reportBrowserDiagnostics.ts) — no auth
+    // required since it fires before login too; throttled since it's unauthenticated.
+    Route::post('diagnostics/browser-support', [BrowserDiagnosticsController::class, 'store'])->middleware('throttle:10,1');
 });
 
 Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPagePermissions) {

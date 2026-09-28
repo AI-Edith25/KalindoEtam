@@ -205,7 +205,18 @@ export function InvoicePrintPage() {
       style={
         format === 'roll'
           ? { width: `${ROLL_CONTENT_WIDTH_MM}mm` }
-          : { width: `${paperSize.widthMm}mm`, minHeight: isDotMatrix ? `${dotMatrixHeightMm}mm` : `${paperSize.heightMm}mm` }
+          : {
+              width: `${paperSize.widthMm}mm`,
+              // Landscape's own div already sets an explicit height (148.5mm, or dotMatrixHeightMm)
+              // — duplicating that exact number here as this wrapper's own min-height stacks a
+              // second zero-tolerance box on top of the first for no benefit (this wrapper has no
+              // other content once isLandscape, so its rendered height already equals the child's).
+              // Portrait (A4/Continuous) has no such child-imposed height — it's normal document
+              // flow — so it still needs this to visually fill the page for a short invoice.
+              minHeight: isLandscape ? undefined : `${paperSize.heightMm}mm`,
+              breakAfter: 'avoid',
+              pageBreakAfter: 'avoid',
+            }
       }
     >
       {/* margin: 0 on @page suppresses the browser's own print header/footer chrome (page title

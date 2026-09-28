@@ -68,11 +68,16 @@ export function DeliveryHalfLayout({ delivery, companyName, companyAddress, font
         minHeight: `${HALF.pageHeightMm}mm`,
         height: heightMm != null ? `${heightMm}mm` : undefined,
         overflow: clipOverflow ? 'hidden' : undefined,
-        // Both properties: `break-after` isn't honored by print in Chrome until ~116 (the
-        // stakeholder's Chrome 109 predates it) — `page-break-after` is the legacy alias that
-        // actually works there.
-        breakAfter: clipOverflow ? 'avoid' : undefined,
-        pageBreakAfter: clipOverflow ? 'avoid' : undefined,
+        // Unconditional (not just dot-matrix mode): minHeight above is pinned to exactly
+        // HALF.pageHeightMm — the same number as @page's own height, margin 0, zero tolerance —
+        // so a sub-pixel mm→px rounding difference (font fallback, deviceScaleFactor, GDI vs Skia
+        // text metrics) is enough to spill a blank 2nd page even for a short delivery order.
+        // `avoid` (not `always`) only suppresses that spurious break; a genuinely long delivery
+        // that overflows this box still gets a real 2nd page. Both properties: `break-after` isn't
+        // honored by print in Chrome until ~116 (a real stakeholder device on Chrome 109 predates
+        // it) — `page-break-after` is the legacy alias that actually works there.
+        breakAfter: 'avoid',
+        pageBreakAfter: 'avoid',
         boxSizing: 'border-box',
         padding: HALF.marginMm,
         fontFamily,

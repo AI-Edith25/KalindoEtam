@@ -270,16 +270,22 @@ export function InvoiceLandscapeLayout({
 
   return (
     <div
+      data-testid="invoice-landscape-canvas"
       style={{
         position: 'relative',
         width: '210mm',
         height: `${heightMm ?? 148.5}mm`,
         overflow: clipOverflow ? 'hidden' : 'visible', // pagination for long invoices is unmeasured (spec Section 12) — flow past this box rather than silently clip line items
-        // Both properties: `break-after` isn't honored by print in Chrome until ~116 (the
-        // stakeholder's Chrome 109 predates it) — `page-break-after` is the legacy alias that
-        // actually works there.
-        breakAfter: clipOverflow ? 'avoid' : undefined,
-        pageBreakAfter: clipOverflow ? 'avoid' : undefined,
+        // Unconditional (not just dot-matrix mode): this box's own height is pinned to exactly
+        // 148.5mm — the same number as @page's own height, margin 0, zero tolerance — so a sub-
+        // pixel mm→px rounding difference (font fallback, deviceScaleFactor, GDI vs Skia text
+        // metrics) is enough to spill a blank 2nd page even for a short invoice. `avoid` (not
+        // `always`) only suppresses that spurious break; a genuinely long invoice that overflows
+        // this box still gets a real 2nd page. Both properties: `break-after` isn't honored by
+        // print in Chrome until ~116 (a real stakeholder device on Chrome 109 predates it) —
+        // `page-break-after` is the legacy alias that actually works there.
+        breakAfter: 'avoid',
+        pageBreakAfter: 'avoid',
         fontFamily: effectiveFontFamily,
         color: '#000',
         lineHeight: LINE_HEIGHT,

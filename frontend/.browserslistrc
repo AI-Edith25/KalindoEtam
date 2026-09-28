@@ -1,0 +1,7 @@
+# Chrome 109 is the last version Google shipped for Windows 7/8/8.1 — a real device in the
+# field is stuck there. Drives postcss.config.js's postcss-preset-env fallback generation
+# (oklch()/color-mix(), both unsupported before Chrome 111) without changing anything for
+# browsers that already support them (feature-queried, not replaced).
+Chrome >= 109
+last 2 versions
+not dead

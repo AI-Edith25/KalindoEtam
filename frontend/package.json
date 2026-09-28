@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:css-fallbacks": "node scripts/check-css-color-fallbacks.mjs",
+    "check:print-pages": "node scripts/print-page-count.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -46,6 +48,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
+    "playwright": "^1.63.0",
+    "postcss-preset-env": "^11.5.4",
     "typescript": "~6.0.2",
     "vite": "^8.1.1"
   }
