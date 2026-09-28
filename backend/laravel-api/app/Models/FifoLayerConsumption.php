@@ -29,7 +29,7 @@ class FifoLayerConsumption extends Model
 
     protected $casts = [
         'qty_consumed' => 'decimal:4',
-        'unit_cost' => 'decimal:2',
+        'unit_cost' => 'decimal:6',
         'total_cost' => 'decimal:2',
         'reversed' => 'boolean',
         'reversed_at' => 'datetime',

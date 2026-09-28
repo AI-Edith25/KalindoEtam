@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\QtyCategory;
+use App\Exceptions\BusinessException;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -70,6 +71,57 @@ class Item extends Model
     public function itemUoms(): HasMany
     {
         return $this->hasMany(ItemUom::class);
+    }
+
+    /**
+     * The choices a line-item UOM picker offers: base UOM first (factor 1), then the extras.
+     * Needs `uom` and `itemUoms.uom` eager-loaded.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function uomChoices(): array
+    {
+        $choices = [[
+            'uom_id' => $this->uom_id,
+            'name' => $this->uom?->name,
+            'symbol' => $this->uom?->symbol,
+            'conversion_factor' => '1',
+            'is_base' => true,
+        ]];
+
+        foreach ($this->itemUoms as $row) {
+            $choices[] = [
+                'uom_id' => $row->uom_id,
+                'name' => $row->uom?->name,
+                'symbol' => $row->uom?->symbol,
+                'conversion_factor' => $row->conversion_factor,
+                'is_base' => false,
+            ];
+        }
+
+        return $choices;
+    }
+
+    /**
+     * Validates a document line's chosen UOM against this item and returns what the line must
+     * snapshot: uom_id null = the base UOM (factor 1). Anything else must be one of itemUoms,
+     * and the factor always comes from there — never from the client.
+     *
+     * @return array{uom_id: ?string, uom_factor: string}
+     */
+    public function resolveLineUom(?string $uomId): array
+    {
+        if ($uomId === null || $uomId === $this->uom_id) {
+            return ['uom_id' => null, 'uom_factor' => '1'];
+        }
+
+        $extra = $this->itemUoms()->where('uom_id', $uomId)->first();
+
+        if ($extra === null) {
+            throw new BusinessException("UOM is not available for item {$this->item_code}.");
+        }
+
+        return ['uom_id' => $uomId, 'uom_factor' => (string) $extra->conversion_factor];
     }
 
     public function itemWarehousePrices(): HasMany

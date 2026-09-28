@@ -18,6 +18,22 @@ export const lineItemFormSchema = z
     item_code: z.string().optional(),
     item_name: z.string().optional(),
     item_uom: z.string().optional(),
+    // The line's UOM (an id from the item's own choices — base or an extra one) and those
+    // choices for the picker. Qty and Unit Price are in this UOM; backend snapshots the factor.
+    uom_id: z.string().optional(),
+    item_uoms: z
+      .array(
+        z.object({
+          uom_id: z.string(),
+          name: z.string().nullable(),
+          symbol: z.string().nullable(),
+          conversion_factor: z.union([z.string(), z.number()]),
+          is_base: z.boolean(),
+        }),
+      )
+      .optional(),
+    // Item's standard_rate per *base* UOM — lets a UOM change default the rate to base_rate × factor.
+    base_rate: z.string().optional(),
     qtyCategory: z.enum(['unit', 'weight']),
     qty: z.string().min(1, 'Qty is required'),
     rate: z

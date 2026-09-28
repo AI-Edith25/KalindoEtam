@@ -27,6 +27,7 @@ const lineColumns: DataTableColumn<PurchaseOrderItem>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code ?? '—' },
   { header: 'Item Name', accessor: (row) => row.item_name ?? '—' },
   { header: 'Ordered Qty', accessor: (row) => formatQty(row.qty, row.item_qty_category ?? 'unit'), className: 'text-right' },
+  { header: 'UOM', accessor: (row) => row.item_uom ?? '—' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
   { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
   { header: 'Received Qty', accessor: (row) => formatQty(row.received_qty, row.item_qty_category ?? 'unit'), className: 'text-right' },

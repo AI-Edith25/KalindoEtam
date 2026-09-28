@@ -55,10 +55,28 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
     setValue(`items.${index}.item_code`, selected?.item_code ?? '')
     setValue(`items.${index}.item_name`, selected?.item_name ?? '')
     setValue(`items.${index}.item_uom`, selected?.uom ? `${selected.uom.name}${selected.uom.symbol ? ` (${selected.uom.symbol})` : ''}` : '')
+    // Always land on the item's base UOM at first (its rate is standard_rate per base UOM);
+    // the user can switch per line from the UOM picker afterwards.
+    setValue(`items.${index}.item_uoms`, selected?.uoms ?? [])
+    setValue(`items.${index}.uom_id`, selected?.uom_id ?? '')
+    setValue(`items.${index}.base_rate`, selected ? String(selected.standard_rate) : '')
     if (selected) {
       setValue(`items.${index}.rate`, String(selected.standard_rate), { shouldValidate: true })
       setValue(`items.${index}.tax_id`, selected.purchase_tax_id ?? '', { shouldValidate: true })
       setValue(`items.${index}.qtyCategory`, selected.qty_category, { shouldValidate: true })
+    }
+  }
+
+  const handleUomChange = (index: number, uomId: string) => {
+    const row = watchedItems?.[index]
+    const choice = row?.item_uoms?.find((c) => c.uom_id === uomId)
+    if (!choice) return
+
+    setValue(`items.${index}.uom_id`, uomId)
+    setValue(`items.${index}.item_uom`, `${choice.name ?? ''}${choice.symbol ? ` (${choice.symbol})` : ''}`)
+    // Unit Price is per the line's UOM — default it to base rate × factor (still editable).
+    if (row?.base_rate) {
+      setValue(`items.${index}.rate`, String(Number(row.base_rate) * Number(choice.conversion_factor)), { shouldValidate: true })
     }
   }
 
@@ -70,6 +88,7 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
             <TableRow>
               <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="w-28">Qty</TableHead>
+              <TableHead className="w-36">UOM</TableHead>
               <TableHead className="w-36">Unit Price</TableHead>
               <TableHead className="w-44">Tax</TableHead>
               <TableHead className="w-36 text-right">Amount</TableHead>
@@ -80,7 +99,7 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="p-0">
+                <TableCell colSpan={8} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start building this order." />
                 </TableCell>
               </TableRow>
@@ -89,7 +108,8 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                 const row = watchedItems?.[index]
                 const qtyCategory = row?.qtyCategory ?? 'unit'
                 const decimalPlaces = qtyDecimalPlaces(qtyCategory)
-                const uom = row?.item_uom || null
+                const uomChoices = row?.item_uoms ?? []
+                const baseUomName = uomChoices.find((c) => c.is_base)?.name ?? ''
                 const selectedOption: SearchableSelectOption<Item> | undefined =
                   row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
 
@@ -129,12 +149,31 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                               disabled={disabled}
                               {...qtyField}
                             />
-                            {uom && <span className="text-xs text-muted-foreground">{uom}</span>}
                           </div>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                  </TableCell>
+                  <TableCell className="min-w-36">
+                    {uomChoices.length > 1 ? (
+                      <SearchableSelect
+                        options={uomChoices.map((choice) => ({
+                          value: choice.uom_id,
+                          label: choice.is_base
+                            ? `${choice.name ?? ''}`
+                            : `${choice.name ?? ''} (= ${Number(choice.conversion_factor)} ${baseUomName})`,
+                        }))}
+                        value={row?.uom_id || undefined}
+                        onChange={(value) => value && handleUomChange(index, value)}
+                        disabled={disabled}
+                        clearable={false}
+                        placeholder="UOM"
+                        aria-label="UOM"
+                      />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">{row?.item_uom || '—'}</span>
+                    )}
                   </TableCell>
                   <TableCell className="min-w-36">
                     <FormField
@@ -213,7 +252,7 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', qtyCategory: 'unit', qty: '1', rate: '0', tax_id: '' })}
+        onClick={() => append({ item_id: '', uom_id: '', item_uoms: [], qtyCategory: 'unit', qty: '1', rate: '0', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

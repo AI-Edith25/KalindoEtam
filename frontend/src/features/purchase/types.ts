@@ -21,6 +21,11 @@ export interface PurchaseOrderItem {
   item_qty_category?: 'unit' | 'weight'
   /** From the line's Item — shown as a suffix next to the Receive Now input. */
   item_uom?: string | null
+  /** null = the item's base UOM. qty/rate are in this UOM; uom_factor = base units per 1 of it. */
+  uom_id?: string | null
+  uom_factor?: string | number
+  /** The item's current UOM choices (base first) — repopulates the editor's UOM picker. */
+  item_uoms?: import('@/features/master/types').ItemUomChoice[] | null
 }
 
 export interface PurchaseOrder {
@@ -63,7 +68,7 @@ export interface PurchaseOrderFormValues {
   expected_delivery_date: string | null
   tax_id: string | null
   remarks: string | null
-  items: { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
+  items: { item_id: string; uom_id?: string | null; qty: number; rate: number; tax_id?: string | null }[]
 }
 
 export interface PurchaseOrderFilterValues {

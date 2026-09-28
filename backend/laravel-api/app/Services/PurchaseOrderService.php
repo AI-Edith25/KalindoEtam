@@ -159,7 +159,7 @@ class PurchaseOrderService
     {
         $purchaseOrder->items()->delete();
 
-        $itemsById = Item::query()->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
+        $itemsById = Item::query()->with('itemUoms')->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
         $totalTax = 0.0;
 
         foreach ($items as $line) {
@@ -168,10 +168,14 @@ class PurchaseOrderService
             $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
             $lineAmount = $qty * $line['rate'];
             [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $item, 'purchase_tax_id', $lineAmount);
+            // qty/rate are in the chosen UOM; the factor is snapshotted from the item's own UOM list.
+            $uomLine = $item->resolveLineUom($line['uom_id'] ?? null);
 
             $this->purchaseOrderItemRepository->create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'item_id' => $line['item_id'],
+                'uom_id' => $uomLine['uom_id'],
+                'uom_factor' => $uomLine['uom_factor'],
                 'qty' => $qty,
                 'qty_category' => $item->qty_category,
                 'rate' => $line['rate'],

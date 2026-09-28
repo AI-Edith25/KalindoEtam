@@ -19,7 +19,7 @@ class PurchaseOrderItemRepository extends BaseRepository
      */
     public function findOrFail(string $id): Model
     {
-        return $this->model->query()->with('item.uom')->findOrFail($id);
+        return $this->model->query()->with(['item.uom', 'uom'])->findOrFail($id);
     }
 
     public function incrementReceivedQty(PurchaseOrderItem $item, int|float $qty): void

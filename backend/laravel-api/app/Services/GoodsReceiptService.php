@@ -167,7 +167,10 @@ class GoodsReceiptService
                 'item_id' => $item->id,
                 'item_code' => $item->item_code,
                 'item_name' => $item->item_name,
-                'uom' => $item->uom->name,
+                // The PO line's UOM (qty/rate are in it) and its factor to the item's base UOM —
+                // postReceiptStock() converts to base qty; received_qty stays in the PO line's UOM.
+                'uom' => $poItem->uom?->name ?? $item->uom->name,
+                'uom_factor' => $poItem->uom_factor,
                 'qty' => $qty,
                 'over_receipt_qty' => $overReceiptByIndex[$index] ?? 0,
                 'qty_category' => $item->qty_category,
@@ -282,7 +285,7 @@ class GoodsReceiptService
                 transactionType: StockTransactionType::OUT,
                 voucherType: StockVoucherType::GOODS_RECEIPT,
                 voucherId: $goodsReceipt->id,
-                qtyChange: -(float) $line->qty,
+                qtyChange: -$line->baseQty(),
                 postingDatetime: $goodsReceipt->receipt_date,
                 referenceNo: $goodsReceipt->document_number,
                 remarks: "Correction of Goods Receipt {$goodsReceipt->document_number}",
@@ -378,7 +381,7 @@ class GoodsReceiptService
                 transactionType: StockTransactionType::IN,
                 voucherType: StockVoucherType::GOODS_RECEIPT,
                 voucherId: $goodsReceipt->id,
-                qtyChange: $line->qty,
+                qtyChange: $line->baseQty(),
                 postingDatetime: $goodsReceipt->receipt_date,
                 referenceNo: $goodsReceipt->document_number,
                 remarks: "Goods Receipt {$goodsReceipt->document_number}",
@@ -387,8 +390,9 @@ class GoodsReceiptService
             $this->fifoLayerService->receive(
                 itemId: $line->item_id,
                 warehouseId: $goodsReceipt->warehouse_id,
-                qty: (float) $line->qty,
-                unitCost: (float) $line->rate,
+                qty: $line->baseQty(),
+                // Cost per *base* unit: the line's rate is per the line's UOM.
+                unitCost: (float) $line->rate / (float) ($line->uom_factor ?: 1),
                 sourceType: StockVoucherType::GOODS_RECEIPT,
                 sourceId: $goodsReceipt->id,
                 sourceDocumentNumber: $goodsReceipt->document_number,

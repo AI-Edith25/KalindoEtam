@@ -23,6 +23,9 @@ class StorePurchaseOrderRequest extends FormRequest
             'items.*.item_id' => ['required', 'uuid', 'exists:items,id'],
             // Whole-number-vs-decimal enforcement happens in PurchaseOrderService via
             // QtyCategoryValidator (needs the Item loaded, not available here).
+            // Must be the item's base UOM or one of its extra UOMs — checked (and the factor
+            // resolved) in PurchaseOrderService via Item::resolveLineUom(). Null = base UOM.
+            'items.*.uom_id' => ['nullable', 'uuid', 'exists:uoms,id'],
             'items.*.qty' => ['required', 'numeric', 'min:0.01'],
             'items.*.rate' => ['required', 'numeric', 'min:0'],
             'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],

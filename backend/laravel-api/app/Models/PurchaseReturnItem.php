@@ -22,7 +22,7 @@ class PurchaseReturnItem extends Model
 
     protected $fillable = [
         'purchase_return_id', 'purchase_invoice_item_id', 'item_id', 'warehouse_id',
-        'item_code', 'item_name', 'uom', 'qty_returned', 'qty_category', 'rate', 'amount',
+        'item_code', 'item_name', 'uom', 'uom_factor', 'qty_returned', 'qty_category', 'rate', 'amount',
     ];
 
     protected $casts = [
@@ -31,6 +31,12 @@ class PurchaseReturnItem extends Model
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
     ];
+
+    /** Returned qty in the item's base (stock) UOM — what the ledger/FIFO legs move. */
+    public function baseQty(): float
+    {
+        return round((float) $this->qty_returned * (float) ($this->uom_factor ?? 1), 4);
+    }
 
     public function purchaseReturn(): BelongsTo
     {

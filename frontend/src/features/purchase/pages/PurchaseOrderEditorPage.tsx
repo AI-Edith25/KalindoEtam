@@ -82,6 +82,9 @@ export function PurchaseOrderEditorPage() {
         item_code: line.item_code ?? '',
         item_name: line.item_name ?? '',
         item_uom: line.item_uom ?? '',
+        // null on the wire = base UOM; the picker needs a concrete id to show it selected.
+        uom_id: line.uom_id ?? line.item_uoms?.find((choice) => choice.is_base)?.uom_id ?? '',
+        item_uoms: line.item_uoms ?? [],
         qtyCategory: line.item_qty_category ?? 'unit',
         qty: String(line.qty),
         rate: String(line.rate),
@@ -100,6 +103,7 @@ export function PurchaseOrderEditorPage() {
     remarks: values.remarks || null,
     items: values.items.map((line) => ({
       item_id: line.item_id,
+      uom_id: line.uom_id || null,
       qty: parseLocaleQty(line.qty),
       rate: Number(line.rate),
       tax_id: line.tax_id || null,

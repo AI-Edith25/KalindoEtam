@@ -109,7 +109,7 @@ class PurchaseOrderReportService
                     null,
                     $item->item?->item_name,
                     null,
-                    $item->item?->uom?->name,
+                    $item->uom?->name ?? $item->item?->uom?->name,
                     (float) $item->qty,
                     (float) $item->rate,
                     0.0,

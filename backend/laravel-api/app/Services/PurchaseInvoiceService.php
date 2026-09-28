@@ -122,6 +122,7 @@ class PurchaseInvoiceService
                     'item_code' => $line->item_code,
                     'item_name' => $line->item_name,
                     'uom' => $line->uom,
+                    'uom_factor' => $line->uom_factor,
                     'rate' => $line->rate,
                     'qty' => $line->qty,
                     'amount' => $line->amount,

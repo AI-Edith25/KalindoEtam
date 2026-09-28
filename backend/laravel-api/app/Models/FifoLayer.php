@@ -35,7 +35,7 @@ class FifoLayer extends Model
         'received_date' => 'date',
         'qty_in' => 'decimal:4',
         'qty_remaining' => 'decimal:4',
-        'unit_cost' => 'decimal:2',
+        'unit_cost' => 'decimal:6',
         'total_cost' => 'decimal:2',
     ];
 

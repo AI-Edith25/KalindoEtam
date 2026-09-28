@@ -16,7 +16,7 @@ class PurchaseInvoiceItem extends Model
 
     protected $fillable = [
         'purchase_invoice_id', 'goods_receipt_item_id', 'item_id', 'chart_of_account_id',
-        'item_code', 'item_name', 'uom', 'rate', 'qty', 'qty_category', 'amount',
+        'item_code', 'item_name', 'uom', 'uom_factor', 'rate', 'qty', 'qty_category', 'amount',
         'tax_id', 'tax_amount',
     ];
 
