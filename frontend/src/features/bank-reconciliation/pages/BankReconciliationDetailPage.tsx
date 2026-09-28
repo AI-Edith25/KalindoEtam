@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -32,6 +32,7 @@ import type {
   BankReconciliationCategoryComparison,
   BankReconciliationFile,
   BankReconciliationMatchStatus,
+  BankReconciliationMatchingResult,
   BankReconciliationSummary,
   BankReconciliationStatus,
 } from '../types'
@@ -92,17 +93,39 @@ const MATCH_STATUS_FILTERS: { value: 'all' | BankReconciliationMatchStatus; labe
   { value: 'tidak_cocok', label: 'Tidak Cocok' },
 ]
 
+/** Every account's matching rows merged together, Tidak Cocok first overall (not just within one account's own block). */
+async function fetchAllAccountsMatching(date: string, accountIds: string[]): Promise<BankReconciliationMatchingResult> {
+  const perAccount = await Promise.all(accountIds.map((id) => fetchBankReconciliationMatching(date, id)))
+  const rows = perAccount.flatMap((result) => result.rows).sort((a, b) => (a.status === 'tidak_cocok' ? 0 : 1) - (b.status === 'tidak_cocok' ? 0 : 1))
+
+  return {
+    rows,
+    totals: perAccount.reduce(
+      (sum, result) => ({
+        matched_count: sum.matched_count + result.totals.matched_count,
+        unmatched_jl_count: sum.unmatched_jl_count + result.totals.unmatched_jl_count,
+        unmatched_mutasi_count: sum.unmatched_mutasi_count + result.totals.unmatched_mutasi_count,
+        unmatched_debit_total: sum.unmatched_debit_total + result.totals.unmatched_debit_total,
+        unmatched_credit_total: sum.unmatched_credit_total + result.totals.unmatched_credit_total,
+      }),
+      { matched_count: 0, unmatched_jl_count: 0, unmatched_mutasi_count: 0, unmatched_debit_total: 0, unmatched_credit_total: 0 },
+    ),
+  }
+}
+
 /**
  * Detail tab's row-level "Tabel Perbandingan" -- Cash Book (JL) vs mutasi bank, matched 1:1 by
- * nominal only (see BankStatementMatcher on the backend), scoped to one account+date. Tidak Cocok
- * rows sort first (backend order) so what needs checking is immediately visible.
+ * nominal only (see BankStatementMatcher on the backend). `accountId: 'all'` merges every
+ * account's own matching (never cross-account -- "Bank Account sama" stays a match rule) into one
+ * list; the Bank Account column exists so merged rows stay distinguishable. Tidak Cocok rows sort
+ * first so what needs checking is immediately visible.
  */
-function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAccountId: string }) {
+function MatchingComparisonTable({ date, accountId, allAccountIds }: { date: string; accountId: 'all' | string; allAccountIds: string[] }) {
   const [statusFilter, setStatusFilter] = useState<'all' | BankReconciliationMatchStatus>('all')
 
   const matchingQuery = useQuery({
-    queryKey: ['bank-reconciliation-matching', date, bankAccountId],
-    queryFn: () => fetchBankReconciliationMatching(date, bankAccountId),
+    queryKey: ['bank-reconciliation-matching', date, accountId, allAccountIds],
+    queryFn: () => (accountId === 'all' ? fetchAllAccountsMatching(date, allAccountIds) : fetchBankReconciliationMatching(date, accountId)),
   })
 
   if (matchingQuery.isLoading) {
@@ -133,28 +156,29 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead rowSpan={2} className="border-r align-bottom">Bank Account</TableHead>
               <TableHead colSpan={2} className="border-r text-center">Report System</TableHead>
               <TableHead colSpan={2} className="border-r text-center">Mutasi Bank</TableHead>
-              <TableHead className="text-center">Status</TableHead>
+              <TableHead rowSpan={2} className="text-center align-bottom">Status</TableHead>
             </TableRow>
             <TableRow>
               <TableHead>Transaction</TableHead>
               <TableHead className="border-r text-right">Debit / Credit</TableHead>
               <TableHead>Keterangan</TableHead>
               <TableHead className="border-r text-right">Debit / Credit</TableHead>
-              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                   No data for this account/day.
                 </TableCell>
               </TableRow>
             ) : (
               rows.map((row, index) => (
                 <TableRow key={index}>
+                  <TableCell className="border-r">{row.mutasi?.bank_account ?? row.jl?.bank_account ?? '-'}</TableCell>
                   <TableCell>{row.jl?.transaction ?? '-'}</TableCell>
                   <TableCell className="border-r text-right">
                     {row.jl ? formatCurrency(row.jl.debit > 0 ? row.jl.debit : row.jl.kredit) : '-'}
@@ -188,15 +212,9 @@ function ComparisonSubTable({ date }: { date: string }) {
     queryKey: ['bank-reconciliation-comparison', date],
     queryFn: () => fetchBankReconciliationComparisonRows(date),
   })
-  const [selectedAccountId, setSelectedAccountId] = useState<string>('')
+  const [selectedAccountId, setSelectedAccountId] = useState<'all' | string>('all')
 
   const bankAccounts = comparisonQuery.data?.bank_accounts ?? []
-  useEffect(() => {
-    if (bankAccounts.length > 0 && !bankAccounts.some((account) => account.id === selectedAccountId)) {
-      setSelectedAccountId(bankAccounts[0].id)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bankAccounts])
 
   if (comparisonQuery.isLoading) {
     return <p className="p-4 text-sm text-muted-foreground">Loading...</p>
@@ -279,6 +297,7 @@ function ComparisonSubTable({ date }: { date: string }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All</SelectItem>
               {bankAccounts.map((account) => (
                 <SelectItem key={account.id} value={account.id}>
                   {account.name}
@@ -289,7 +308,8 @@ function ComparisonSubTable({ date }: { date: string }) {
         </div>
       )}
 
-      {selectedAccountId && <MatchingComparisonTable date={date} bankAccountId={selectedAccountId} />}
+      <MatchingComparisonTable date={date} accountId={selectedAccountId} allAccountIds={bankAccounts.map((account) => account.id)} />
+
     </div>
   )
 }
