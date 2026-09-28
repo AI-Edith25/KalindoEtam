@@ -152,11 +152,13 @@ class InvoiceService
                         'item_code' => $line->item_code,
                         'item_name' => $line->item_name,
                         'uom' => $line->uom,
+                        'uom_factor' => $line->uom_factor,
                         'rate' => $line->rate,
                         'qty' => $line->qty,
                         'amount' => $line->amount,
+                        // unit_cost is per *base* unit (FIFO), qty is in the line's UOM.
                         'unit_cost' => $unitCost,
-                        'cost_amount' => round($unitCost * (float) $line->qty, 2),
+                        'cost_amount' => round($unitCost * $line->baseQty(), 2),
                         // Copied verbatim from the DeliveryItem — already resolved upstream,
                         // same frozen-snapshot treatment as item_code/item_name/uom above.
                         'tax_id' => $line->tax_id,

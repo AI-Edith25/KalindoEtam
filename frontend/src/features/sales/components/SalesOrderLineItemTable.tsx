@@ -16,6 +16,7 @@ import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { fetchItemsByIds, searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { Item, Tax } from '@/features/master/types'
 import type { SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
+import { lineUomFactor } from '../lib/salesOrderStock'
 
 const NO_TAX = '__none__'
 
@@ -118,9 +119,26 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
     setValue(`items.${index}.item_code`, selected?.item_code ?? '')
     setValue(`items.${index}.item_name`, selected?.item_name ?? '')
     setValue(`items.${index}.available_qty`, selected?.available_qty != null ? String(selected.available_qty) : '')
+    // Always land on the item's base UOM at first (effective_rate is per base UOM); the user can
+    // switch per line from the UOM picker afterwards.
+    setValue(`items.${index}.item_uoms`, selected?.uoms ?? [])
+    setValue(`items.${index}.uom_id`, selected?.uom_id ?? '')
+    setValue(`items.${index}.base_rate`, selected ? String(selected.effective_rate) : '')
     if (selected) {
       setValue(`items.${index}.rate`, String(selected.effective_rate), { shouldValidate: true })
       setValue(`items.${index}.tax_id`, selected.sales_tax_id ?? '', { shouldValidate: true })
+    }
+  }
+
+  const handleUomChange = (index: number, uomId: string) => {
+    const row = watchedItems?.[index]
+    const choice = row?.item_uoms?.find((c) => c.uom_id === uomId)
+    if (!choice) return
+
+    setValue(`items.${index}.uom_id`, uomId)
+    // Unit Price is per the line's UOM — default it to base rate × factor (still editable).
+    if (row?.base_rate) {
+      setValue(`items.${index}.rate`, String(Number(row.base_rate) * Number(choice.conversion_factor)), { shouldValidate: true })
     }
   }
 
@@ -132,6 +150,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
             <TableRow>
               <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="w-28">Qty</TableHead>
+              <TableHead className="w-36">UOM</TableHead>
               <TableHead className="w-36">Unit Price</TableHead>
               <TableHead className="w-44">Tax</TableHead>
               <TableHead className="w-36 text-right">Amount</TableHead>
@@ -142,7 +161,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="p-0">
+                <TableCell colSpan={8} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start building this order." />
                 </TableCell>
               </TableRow>
@@ -151,8 +170,11 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                 const row = watchedItems?.[index]
                 const selectedOption: SearchableSelectOption<Item> | undefined =
                   row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
+                // available_qty is base units; qty is in the line's UOM — scale before comparing.
                 const isInsufficientStock =
-                  !!row?.available_qty && row.available_qty !== '' && Number(row.qty) > Number(row.available_qty)
+                  !!row?.available_qty && row.available_qty !== '' && Number(row.qty) * lineUomFactor(row) > Number(row.available_qty)
+                const uomChoices = row?.item_uoms ?? []
+                const baseUomName = uomChoices.find((c) => c.is_base)?.name ?? ''
                 // Already referenced by a Delivery (Approved-order edit) — see SalesOrderService::syncApprovedItems.
                 const isRowLocked = !!row?.id && !!row.is_locked
                 const rowDisabled = disabled || isRowLocked
@@ -196,6 +218,26 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                         </FormItem>
                       )}
                     />
+                  </TableCell>
+                  <TableCell className="min-w-36">
+                    {uomChoices.length > 1 ? (
+                      <SearchableSelect
+                        options={uomChoices.map((choice) => ({
+                          value: choice.uom_id,
+                          label: choice.is_base
+                            ? `${choice.name ?? ''}`
+                            : `${choice.name ?? ''} (= ${Number(choice.conversion_factor)} ${baseUomName})`,
+                        }))}
+                        value={row?.uom_id || undefined}
+                        onChange={(value) => value && handleUomChange(index, value)}
+                        disabled={rowDisabled}
+                        clearable={false}
+                        placeholder="UOM"
+                        aria-label="UOM"
+                      />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">{uomChoices[0]?.name || '—'}</span>
+                    )}
                   </TableCell>
                   <TableCell className="min-w-36">
                     <FormField
@@ -274,7 +316,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', qty: '1', rate: '0', tax_id: '' })}
+        onClick={() => append({ item_id: '', uom_id: '', item_uoms: [], qty: '1', rate: '0', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

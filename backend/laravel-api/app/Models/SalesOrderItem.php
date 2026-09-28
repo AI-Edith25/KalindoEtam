@@ -16,6 +16,8 @@ class SalesOrderItem extends Model
     protected $fillable = [
         'sales_order_id',
         'item_id',
+        'uom_id',
+        'uom_factor',
         'qty',
         'rate',
         'amount',
@@ -25,6 +27,7 @@ class SalesOrderItem extends Model
     ];
 
     protected $casts = [
+        'uom_factor' => 'decimal:6',
         'qty' => 'integer',
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
@@ -40,6 +43,12 @@ class SalesOrderItem extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    /** The line's chosen UOM; null = the item's base UOM. qty/rate/delivered_qty are all in it. */
+    public function uom(): BelongsTo
+    {
+        return $this->belongsTo(UnitOfMeasurement::class, 'uom_id');
     }
 
     public function tax(): BelongsTo

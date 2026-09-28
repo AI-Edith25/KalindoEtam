@@ -278,6 +278,7 @@ class SalesOrderService
     {
         $existing = $salesOrder->items()->with('deliveryItems')->get()->keyBy('id');
         $incomingById = collect($items)->filter(fn ($line) => ! empty($line['id']))->keyBy('id');
+        $itemsById = Item::query()->with('itemUoms')->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
 
         foreach ($existing as $itemId => $existingLine) {
             /** @var SalesOrderItem $existingLine */
@@ -291,6 +292,7 @@ class SalesOrderService
             $unchanged = $incomingLine
                 && $incomingLine['item_id'] === $existingLine->item_id
                 && (int) $incomingLine['qty'] === (int) $existingLine->qty
+                && $itemsById->get($incomingLine['item_id'])->resolveLineUom($incomingLine['uom_id'] ?? null)['uom_id'] === $existingLine->uom_id
                 && abs((float) $incomingLine['rate'] - (float) $existingLine->rate) < 0.005
                 && ($incomingLine['tax_id'] ?? null) === $existingLine->tax_id;
 
@@ -298,8 +300,6 @@ class SalesOrderService
                 throw new BusinessException("Line item \"{$existingLine->item?->item_name}\" already has a Delivery against it and cannot be changed or removed.");
             }
         }
-
-        $itemsById = Item::query()->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
 
         // Delete-then-recreate is safe here: only unlocked rows reach this point (locked rows
         // were verified unchanged and left alone above), and an unlocked row by definition has
@@ -322,9 +322,13 @@ class SalesOrderService
             $lineAmount = $line['qty'] * $line['rate'];
             [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'sales_tax_id', $lineAmount);
 
+            $uomLine = $itemsById->get($line['item_id'])->resolveLineUom($line['uom_id'] ?? null);
+
             $attributes = [
                 'sales_order_id' => $salesOrder->id,
                 'item_id' => $line['item_id'],
+                'uom_id' => $uomLine['uom_id'],
+                'uom_factor' => $uomLine['uom_factor'],
                 'qty' => $line['qty'],
                 'rate' => $line['rate'],
                 'amount' => $lineAmount,
@@ -381,7 +385,7 @@ class SalesOrderService
 
             if (! empty($salesOrder->warehouse_id)) {
                 $this->enforceStockCheck(
-                    $salesOrder->items->map(fn ($item) => ['item_id' => $item->item_id, 'qty' => $item->qty])->all(),
+                    $salesOrder->items->map(fn ($item) => ['item_id' => $item->item_id, 'qty' => $item->qty, 'uom_factor' => $item->uom_factor])->all(),
                     $salesOrder->warehouse_id,
                     $overrideStockBlock,
                     $stockOverrideReason,
@@ -411,7 +415,7 @@ class SalesOrderService
             return ['is_blocked' => false, 'message' => '', 'lines' => []];
         }
 
-        $items = $salesOrder->items->map(fn ($item) => ['item_id' => $item->item_id, 'qty' => $item->qty])->all();
+        $items = $salesOrder->items->map(fn ($item) => ['item_id' => $item->item_id, 'qty' => $item->qty, 'uom_factor' => $item->uom_factor])->all();
 
         return $this->salesOrderStockService->evaluate($items, $salesOrder->warehouse_id, $salesOrder->id);
     }
@@ -469,7 +473,7 @@ class SalesOrderService
      */
     protected function enforceStockCheck(array $items, string $warehouseId, bool $overridden, ?string $overrideReason, string $context, ?string $excludeSalesOrderId = null): void
     {
-        $stock = $this->salesOrderStockService->evaluate($items, $warehouseId, $excludeSalesOrderId);
+        $stock = $this->salesOrderStockService->evaluate($this->withUomFactors($items), $warehouseId, $excludeSalesOrderId);
 
         if (! $stock['is_blocked']) {
             return;
@@ -486,6 +490,31 @@ class SalesOrderService
         );
     }
 
+    /**
+     * Stock is held in the item's base UOM, but request lines are in whatever UOM the user picked —
+     * attach each line's factor (resolved from the item's own UOM list, so an invalid UOM fails
+     * here too) so the stock check compares like with like. Lines that already carry a
+     * `uom_factor` (built from saved SO lines) are left as they are.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    protected function withUomFactors(array $items): array
+    {
+        $itemsById = Item::query()->with('itemUoms')->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
+
+        return array_map(function (array $line) use ($itemsById) {
+            if (array_key_exists('uom_factor', $line)) {
+                return $line;
+            }
+
+            $item = $itemsById->get($line['item_id']);
+            $line['uom_factor'] = $item ? $item->resolveLineUom($line['uom_id'] ?? null)['uom_factor'] : '1';
+
+            return $line;
+        }, $items);
+    }
+
     protected function assertDraft(SalesOrder $salesOrder, string $action): void
     {
         if ($salesOrder->status !== SalesOrderStatus::SUBMITTED) {
@@ -498,16 +527,20 @@ class SalesOrderService
     {
         $salesOrder->items()->delete();
 
-        $itemsById = Item::query()->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
+        $itemsById = Item::query()->with('itemUoms')->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
         $totalTax = 0.0;
 
         foreach ($items as $line) {
             $lineAmount = $line['qty'] * $line['rate'];
             [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'sales_tax_id', $lineAmount);
+            // qty/rate are in the chosen UOM; the factor is snapshotted from the item's own UOM list.
+            $uomLine = $itemsById->get($line['item_id'])->resolveLineUom($line['uom_id'] ?? null);
 
             $this->salesOrderItemRepository->create([
                 'sales_order_id' => $salesOrder->id,
                 'item_id' => $line['item_id'],
+                'uom_id' => $uomLine['uom_id'],
+                'uom_factor' => $uomLine['uom_factor'],
                 'qty' => $line['qty'],
                 'rate' => $line['rate'],
                 'amount' => $lineAmount,

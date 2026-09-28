@@ -33,6 +33,8 @@ class StoreSalesOrderRequest extends FormRequest
             'stock_override_reason' => ['nullable', 'string', 'max:500'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'uuid', 'exists:items,id'],
+            // Base UOM or one of the item's extra UOMs — checked (factor resolved) in SalesOrderService. Null = base.
+            'items.*.uom_id' => ['nullable', 'uuid', 'exists:uoms,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.rate' => ['required', 'numeric', 'min:0'],
             'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],

@@ -39,7 +39,7 @@ class ProductSalesRepository
                 'item_groups.id as group_id',
                 'item_groups.name as group_name',
                 DB::raw('COUNT(DISTINCT invoice_items.item_id) as sku_count'),
-                DB::raw('SUM(invoice_items.qty) as qty'),
+                DB::raw('SUM(invoice_items.qty * invoice_items.uom_factor) as qty'),
                 DB::raw('SUM(invoice_items.amount) as amount'),
                 DB::raw('SUM(invoice_items.tax_amount) as tax_amount'),
             ])->groupBy('item_groups.id', 'item_groups.name');
@@ -52,7 +52,7 @@ class ProductSalesRepository
                 'items.item_name',
                 'item_groups.name as group_name',
                 'uoms.name as uom_name',
-                DB::raw('SUM(invoice_items.qty) as qty'),
+                DB::raw('SUM(invoice_items.qty * invoice_items.uom_factor) as qty'),
                 DB::raw('SUM(invoice_items.amount) as amount'),
                 DB::raw('SUM(invoice_items.tax_amount) as tax_amount'),
             ])->groupBy('items.id', 'items.item_code', 'items.item_name', 'item_groups.name', 'uoms.name');
@@ -67,7 +67,7 @@ class ProductSalesRepository
     public function kpis(array $filters): array
     {
         $totals = $this->baseQuery($filters)
-            ->selectRaw('COALESCE(SUM(invoice_items.qty), 0) as total_qty')
+            ->selectRaw('COALESCE(SUM(invoice_items.qty * invoice_items.uom_factor), 0) as total_qty')
             ->selectRaw('COALESCE(SUM(invoice_items.amount), 0) as total_revenue')
             ->selectRaw('COALESCE(SUM(invoice_items.tax_amount), 0) as total_tax')
             ->selectRaw('COUNT(DISTINCT invoice_items.item_id) as sku_count')
@@ -97,7 +97,7 @@ class ProductSalesRepository
         return $this->baseQuery(array_merge($filters, ['item_id' => $itemId]))
             ->join('customers', 'customers.id', '=', 'invoices.customer_id')
             ->select(['customers.id as customer_id', 'customers.customer_code', 'customers.customer_name'])
-            ->selectRaw('SUM(invoice_items.qty) as qty')
+            ->selectRaw('SUM(invoice_items.qty * invoice_items.uom_factor) as qty')
             ->selectRaw('SUM(invoice_items.amount) as amount')
             ->groupBy('customers.id', 'customers.customer_code', 'customers.customer_name')
             ->orderByDesc('amount')

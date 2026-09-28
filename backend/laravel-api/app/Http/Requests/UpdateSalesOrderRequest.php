@@ -41,6 +41,7 @@ class UpdateSalesOrderRequest extends FormRequest
                 Rule::exists('sales_order_items', 'id')->where('sales_order_id', $this->route('salesOrder')?->id),
             ],
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
+            'items.*.uom_id' => ['nullable', 'uuid', 'exists:uoms,id'],
             'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],

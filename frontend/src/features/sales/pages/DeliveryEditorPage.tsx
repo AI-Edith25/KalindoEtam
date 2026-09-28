@@ -192,6 +192,8 @@ function DeliveryForm({
         alreadyDelivered: soItem.delivered_qty,
         remaining: soItem.outstanding_qty,
         availableStock: 0,
+        uom: soItem.uom ?? '',
+        uomFactor: Number(soItem.uom_factor ?? 1),
         deliverNow: String(existingQtyBySoItemId.get(soItem.id) ?? 0),
       })),
     },

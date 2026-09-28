@@ -18,6 +18,23 @@ export const lineItemFormSchema = z.object({
   // (or from the loaded order's line for edit mode), never sent in the payload.
   item_code: z.string().optional(),
   item_name: z.string().optional(),
+  // The line's UOM (an id from the item's own choices — base or an extra one) and those choices
+  // for the picker. Qty and Unit Price are in this UOM; the backend snapshots the factor. Stock
+  // (available_qty) is in the item's base UOM — see lineUomFactor() in salesOrderStock.ts.
+  uom_id: z.string().optional(),
+  item_uoms: z
+    .array(
+      z.object({
+        uom_id: z.string(),
+        name: z.string().nullable(),
+        symbol: z.string().nullable(),
+        conversion_factor: z.union([z.string(), z.number()]),
+        is_base: z.boolean(),
+      }),
+    )
+    .optional(),
+  // Item's effective_rate per *base* UOM — lets a UOM change default the rate to base_rate × factor.
+  base_rate: z.string().optional(),
   // Locks the row in SalesOrderLineItemTable once a Delivery already references it — mirrors
   // available_qty below: display-only, never sent in the payload.
   is_locked: z.boolean().optional(),

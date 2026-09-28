@@ -52,20 +52,28 @@ export function DeliveryLineItemTable({ form, disabled }: DeliveryLineItemTableP
         <TableBody>
           {fields.map((field, index) => {
             const availableStock = watchedItems?.[index]?.availableStock ?? field.availableStock
-            const cap = Math.min(field.remaining, availableStock)
-            const stockIsBindingLimit = availableStock < field.remaining
+            // Stock is base units; remaining/Deliver Now are in the SO line's UOM — convert stock
+            // into that UOM (whole units only) before comparing.
+            const factor = field.uomFactor ?? 1
+            const stockInLineUom = factor === 1 ? availableStock : Math.floor(availableStock / factor)
+            const cap = Math.min(field.remaining, stockInLineUom)
+            const stockIsBindingLimit = stockInLineUom < field.remaining
 
             return (
               <TableRow key={field.id}>
                 <TableCell className={STICKY_FIRST_COL}>
                   <div className="truncate font-medium">{field.item_code}</div>
-                  <div className="truncate text-xs text-muted-foreground" title={field.item_name}>{field.item_name}</div>
+                  <div className="truncate text-xs text-muted-foreground" title={field.item_name}>
+                    {field.item_name}
+                    {field.uom ? ` · ${field.uom}` : ''}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">{formatNumber(field.ordered)}</TableCell>
                 <TableCell className="text-right">{formatNumber(field.alreadyDelivered)}</TableCell>
                 <TableCell className="text-right">{formatNumber(field.remaining)}</TableCell>
                 <TableCell className={cn('text-right', stockIsBindingLimit && 'font-medium text-destructive')}>
-                  {formatNumber(availableStock)}
+                  {formatNumber(stockInLineUom)}
+                  {factor !== 1 && field.uom ? ` ${field.uom}` : ''}
                 </TableCell>
                 <TableCell className="min-w-36">
                   <FormField

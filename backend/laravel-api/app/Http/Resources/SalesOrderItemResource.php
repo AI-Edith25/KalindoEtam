@@ -14,7 +14,12 @@ class SalesOrderItemResource extends JsonResource
             'item_id' => $this->item_id,
             'item_code' => $this->whenLoaded('item', fn () => $this->item->item_code),
             'item_name' => $this->whenLoaded('item', fn () => $this->item->item_name),
-            'uom' => $this->whenLoaded('item', fn () => $this->item->uom?->name),
+            // The line's own UOM (falls back to the item's base UOM name) — what qty/rate are in.
+            'uom' => $this->whenLoaded('item', fn () => $this->uom?->name ?? $this->item->uom?->name),
+            'uom_id' => $this->uom_id,
+            'uom_factor' => $this->uom_factor,
+            // The item's current UOM choices — lets the editor re-populate the line's UOM picker on edit.
+            'item_uoms' => $this->whenLoaded('item', fn () => $this->item->relationLoaded('itemUoms') && $this->item->relationLoaded('uom') ? $this->item->uomChoices() : null),
             'qty' => $this->qty,
             'rate' => $this->rate,
             'amount' => $this->amount,

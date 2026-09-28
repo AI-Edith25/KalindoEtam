@@ -44,7 +44,8 @@ class SalesOrderStockService
             $physicalQty = $physical[$line['item_id']] ?? 0.0;
             $committedQty = $committed[$line['item_id']] ?? 0.0;
             $availableQty = $physicalQty - $committedQty;
-            $requestedQty = (float) $line['qty'];
+            // Base (stock) units — a line in DUS asks for qty × factor KG of stock.
+            $requestedQty = (float) $line['qty'] * (float) ($line['uom_factor'] ?? 1);
             $isInsufficient = $requestedQty > $availableQty;
             $itemName = $itemNames->get($line['item_id'], $line['item_id']);
 

@@ -20,6 +20,7 @@ class InvoiceItem extends Model
         'item_code',
         'item_name',
         'uom',
+        'uom_factor',
         'rate',
         'qty',
         'amount',
@@ -33,10 +34,16 @@ class InvoiceItem extends Model
         'rate' => 'decimal:2',
         'qty' => 'integer',
         'amount' => 'decimal:2',
-        'unit_cost' => 'decimal:2',
+        'unit_cost' => 'decimal:6',
         'cost_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
     ];
+
+    /** Qty in the item's base (stock) UOM — unit_cost is per base unit, so COGS = unit_cost × this. */
+    public function baseQty(): float
+    {
+        return round((float) $this->qty * (float) ($this->uom_factor ?? 1), 4);
+    }
 
     public function invoice(): BelongsTo
     {

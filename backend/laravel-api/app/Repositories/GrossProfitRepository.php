@@ -245,6 +245,6 @@ class GrossProfitRepository
             ])
             ->selectRaw('-credit_note_items.qty_credited as qty')
             ->selectRaw('-credit_note_items.amount as amount')
-            ->selectRaw('-COALESCE(credit_note_items.qty_credited * invoice_items.unit_cost, 0) as cost_amount');
+            ->selectRaw('-COALESCE(credit_note_items.qty_credited * credit_note_items.uom_factor * invoice_items.unit_cost, 0) as cost_amount');
     }
 }

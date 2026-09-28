@@ -21,7 +21,7 @@ class CreditNoteItem extends Model
 
     protected $fillable = [
         'credit_note_id', 'invoice_item_id', 'item_id',
-        'item_code', 'item_name', 'uom', 'qty_credited', 'qty_category', 'rate', 'amount', 'restock',
+        'item_code', 'item_name', 'uom', 'uom_factor', 'qty_credited', 'qty_category', 'rate', 'amount', 'restock',
     ];
 
     protected $casts = [
@@ -31,6 +31,12 @@ class CreditNoteItem extends Model
         'amount' => 'decimal:2',
         'restock' => 'boolean',
     ];
+
+    /** Credited qty in the item's base (stock) UOM — what a restock moves. */
+    public function baseQty(): float
+    {
+        return round((float) $this->qty_credited * (float) ($this->uom_factor ?? 1), 4);
+    }
 
     public function creditNote(): BelongsTo
     {

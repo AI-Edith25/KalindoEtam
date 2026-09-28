@@ -132,7 +132,7 @@ class FifoLayerService
                 $remaining -= $take;
             }
 
-            $weightedAverage = $qty > 0 ? round($totalCost / $qty, 2) : 0.0;
+            $weightedAverage = $qty > 0 ? round($totalCost / $qty, 6) : 0.0;
 
             return new FifoConsumptionResult($totalCost, $weightedAverage, $lines);
         });
@@ -220,7 +220,7 @@ class FifoLayerService
         }
 
         $consumed = $qty - max($remaining, 0);
-        $unitCost = $consumed > 0 ? round($totalCost / $consumed, 2) : 0.0;
+        $unitCost = $consumed > 0 ? round($totalCost / $consumed, 6) : 0.0;
 
         return ['unit_cost' => $unitCost, 'available_qty' => $available];
     }
@@ -237,6 +237,6 @@ class FifoLayerService
 
         $totalCost = (float) $consumptions->sum(fn ($c) => (float) $c->total_cost);
 
-        return round($totalCost / $totalQty, 2);
+        return round($totalCost / $totalQty, 6);
     }
 }

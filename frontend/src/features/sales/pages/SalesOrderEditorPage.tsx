@@ -115,6 +115,9 @@ export function SalesOrderEditorPage() {
         item_id: line.item_id,
         item_code: line.item_code ?? '',
         item_name: line.item_name ?? '',
+        // null on the wire = base UOM; the picker needs a concrete id to show it selected.
+        uom_id: line.uom_id ?? line.item_uoms?.find((choice) => choice.is_base)?.uom_id ?? '',
+        item_uoms: line.item_uoms ?? [],
         // Not carried by the loaded order's own line — starts blank, then gets filled in
         // immediately by SalesOrderLineItemTable's mount-time warehouse-change effect.
         available_qty: '',
@@ -183,6 +186,7 @@ export function SalesOrderEditorPage() {
     items: values.items.map((line) => ({
       ...(line.id ? { id: line.id } : {}),
       item_id: line.item_id,
+      uom_id: line.uom_id || null,
       qty: Number(line.qty),
       rate: Number(line.rate),
       tax_id: line.tax_id || null,

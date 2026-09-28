@@ -37,7 +37,7 @@ class SalesOrderItemRepository extends BaseRepository
             ->where('sales_orders.status', '!=', SalesOrderStatus::CANCELLED->value)
             ->whereIn('sales_order_items.item_id', $itemIds)
             ->when($excludeSalesOrderId, fn ($query, $id) => $query->where('sales_orders.id', '!=', $id))
-            ->selectRaw('sales_order_items.item_id, SUM(sales_order_items.qty - sales_order_items.delivered_qty) as committed_qty')
+            ->selectRaw('sales_order_items.item_id, SUM((sales_order_items.qty - sales_order_items.delivered_qty) * sales_order_items.uom_factor) as committed_qty')
             ->groupBy('sales_order_items.item_id')
             ->get()
             ->pluck('committed_qty', 'item_id')
@@ -52,7 +52,7 @@ class SalesOrderItemRepository extends BaseRepository
      */
     public function findOrFail(string $id): Model
     {
-        return $this->model->query()->with('item.uom')->findOrFail($id);
+        return $this->model->query()->with(['item.uom', 'uom'])->findOrFail($id);
     }
 
     public function incrementDeliveredQty(SalesOrderItem $item, int $qty): void

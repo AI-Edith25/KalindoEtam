@@ -20,6 +20,11 @@ export interface SalesOrderItem {
   item_code: string | null
   item_name: string | null
   uom: string | null
+  /** null = the item's base UOM. qty/rate/delivered_qty are in this UOM; uom_factor = base units per 1 of it. */
+  uom_id?: string | null
+  uom_factor?: string | number
+  /** The item's current UOM choices (base first) — repopulates the editor's UOM picker. */
+  item_uoms?: import('@/features/master/types').ItemUomChoice[] | null
   qty: number
   rate: string | number
   amount: string | number
@@ -89,7 +94,7 @@ export interface SalesOrderFormValues {
   reference?: string | null
   terms_of_payment_id?: string | null
   tax_id?: string | null
-  items: { id?: string; item_id: string; qty: number; rate: number; tax_id?: string | null }[]
+  items: { id?: string; item_id: string; uom_id?: string | null; qty: number; rate: number; tax_id?: string | null }[]
   override_credit_block?: boolean
   override_reason?: string | null
   override_stock_block?: boolean

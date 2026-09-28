@@ -52,7 +52,7 @@ class SalesOrderController extends Controller
 
     public function show(SalesOrder $salesOrder): JsonResponse
     {
-        return $this->success(new SalesOrderResource($salesOrder->load(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'tax', 'items.item.uom', 'items.deliveryItems', 'approvalFlows.approver'])));
+        return $this->success(new SalesOrderResource($salesOrder->load(['customer', 'salesPerson', 'branch', 'termsOfPayment', 'tax', 'items.item.uom', 'items.item.itemUoms.uom', 'items.uom', 'items.deliveryItems', 'approvalFlows.approver'])));
     }
 
     public function update(UpdateSalesOrderRequest $request, SalesOrder $salesOrder): JsonResponse

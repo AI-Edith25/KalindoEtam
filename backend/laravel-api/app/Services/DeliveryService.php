@@ -222,7 +222,7 @@ class DeliveryService
 
             foreach ($delivery->items as $line) {
                 $this->assertWithinOutstanding($line->salesOrderItem, $line->qty);
-                $this->assertSufficientStock($delivery->warehouse_id, $line->item_id, $line->qty);
+                $this->assertSufficientStock($delivery->warehouse_id, $line->item_id, $line->baseQty());
             }
 
             foreach ($delivery->items as $line) {
@@ -232,7 +232,7 @@ class DeliveryService
                     transactionType: StockTransactionType::OUT,
                     voucherType: StockVoucherType::DELIVERY,
                     voucherId: $delivery->id,
-                    qtyChange: -$line->qty,
+                    qtyChange: -$line->baseQty(),
                     postingDatetime: $delivery->delivery_date,
                     referenceNo: $delivery->document_number,
                     remarks: "Delivery {$delivery->document_number}",
@@ -241,7 +241,7 @@ class DeliveryService
                 $this->fifoLayerService->consume(
                     itemId: $line->item_id,
                     warehouseId: $delivery->warehouse_id,
-                    qty: (float) $line->qty,
+                    qty: $line->baseQty(),
                     sourceType: StockVoucherType::DELIVERY,
                     sourceId: $delivery->id,
                 );
@@ -280,7 +280,10 @@ class DeliveryService
             'item_id' => $item->id,
             'item_code' => $item->item_code,
             'item_name' => $item->item_name,
-            'uom' => $item->uom->name,
+            // The SO line's UOM (qty/rate are in it) + its factor to the item's base UOM —
+            // complete() converts to base qty for the Stock Ledger and FIFO.
+            'uom' => $soItem->uom?->name ?? $item->uom->name,
+            'uom_factor' => $soItem->uom_factor,
             'rate' => $soItem->rate,
             'qty' => $qty,
             'qty_category' => $item->qty_category,

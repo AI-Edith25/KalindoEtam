@@ -20,6 +20,7 @@ class DeliveryItem extends Model
         'item_code',
         'item_name',
         'uom',
+        'uom_factor',
         'rate',
         'qty',
         'qty_category',
@@ -35,6 +36,12 @@ class DeliveryItem extends Model
         'amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
     ];
+
+    /** Qty in the item's base (stock) UOM — what the Stock Ledger and FIFO layers actually hold. */
+    public function baseQty(): float
+    {
+        return round((float) $this->qty * (float) ($this->uom_factor ?? 1), 4);
+    }
 
     public function delivery(): BelongsTo
     {

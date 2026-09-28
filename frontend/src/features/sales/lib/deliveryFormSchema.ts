@@ -20,7 +20,11 @@ export const deliveryLineRowSchema = z
     ordered: z.number(),
     alreadyDelivered: z.number(),
     remaining: z.number(),
+    // Stock is in the item's base UOM, but ordered/remaining/deliverNow are in the SO line's UOM —
+    // uomFactor (base units per 1 of it, 1 when base) converts between them.
     availableStock: z.number(),
+    uom: z.string().optional(),
+    uomFactor: z.number().optional(),
     deliverNow: z.string(),
   })
   .superRefine((line, ctx) => {
@@ -40,10 +44,12 @@ export const deliveryLineRowSchema = z
       return
     }
 
-    if (value > line.availableStock) {
+    const factor = line.uomFactor ?? 1
+
+    if (value * factor > line.availableStock) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `Cannot exceed available stock (${line.availableStock})`,
+        message: `Cannot exceed available stock (${Math.floor(line.availableStock / factor)}${line.uom ? ` ${line.uom}` : ''})`,
         path: ['deliverNow'],
       })
     }
