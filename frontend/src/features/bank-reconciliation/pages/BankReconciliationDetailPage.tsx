@@ -33,6 +33,7 @@ import type {
   BankReconciliationFile,
   BankReconciliationMatchStatus,
   BankReconciliationMatchingResult,
+  BankReconciliationMatchingRow,
   BankReconciliationSummary,
   BankReconciliationStatus,
 } from '../types'
@@ -87,6 +88,19 @@ function MatchStatusBadge({ status, selisih }: { status: BankReconciliationMatch
   )
 }
 
+type MatchTypeFilter = 'all' | 'debit' | 'credit'
+
+/**
+ * A row's Type is whichever side of it carries the amount -- the same Debit (Keluar) / Kredit
+ * (Masuk) split the aggregate blocks above use. Matching only pairs debit-vs-debit and
+ * kredit-vs-kredit, so the JL and Mutasi sides of one row always agree; either can be missing
+ * on an unmatched row, hence the fallback.
+ */
+function matchRowType(row: BankReconciliationMatchingRow): 'debit' | 'credit' {
+  const side = row.jl ?? row.mutasi
+  return side && side.debit > 0 ? 'debit' : 'credit'
+}
+
 const MATCH_STATUS_FILTERS: { value: 'all' | BankReconciliationMatchStatus; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'cocok', label: 'Cocok' },
@@ -120,7 +134,7 @@ async function fetchAllAccountsMatching(date: string, accountIds: string[]): Pro
  * list; the Bank Account column exists so merged rows stay distinguishable. Tidak Cocok rows sort
  * first so what needs checking is immediately visible.
  */
-function MatchingComparisonTable({ date, accountId, allAccountIds }: { date: string; accountId: 'all' | string; allAccountIds: string[] }) {
+function MatchingComparisonTable({ date, accountId, allAccountIds, typeFilter }: { date: string; accountId: 'all' | string; allAccountIds: string[]; typeFilter: MatchTypeFilter }) {
   const [statusFilter, setStatusFilter] = useState<'all' | BankReconciliationMatchStatus>('all')
 
   const matchingQuery = useQuery({
@@ -138,7 +152,9 @@ function MatchingComparisonTable({ date, accountId, allAccountIds }: { date: str
   const data = matchingQuery.data
   if (!data) return null
 
-  const rows = data.rows.filter((row) => statusFilter === 'all' || row.status === statusFilter)
+  const rows = data.rows.filter(
+    (row) => (statusFilter === 'all' || row.status === statusFilter) && (typeFilter === 'all' || matchRowType(row) === typeFilter),
+  )
 
   return (
     <div className="space-y-2 rounded border bg-background p-3">
@@ -157,6 +173,7 @@ function MatchingComparisonTable({ date, accountId, allAccountIds }: { date: str
           <TableHeader>
             <TableRow>
               <TableHead rowSpan={2} className="border-r align-bottom">Bank Account</TableHead>
+              <TableHead rowSpan={2} className="border-r align-bottom">Type</TableHead>
               <TableHead colSpan={2} className="border-r text-center">Report System</TableHead>
               <TableHead colSpan={2} className="border-r text-center">Mutasi Bank</TableHead>
               <TableHead rowSpan={2} className="text-center align-bottom">Status</TableHead>
@@ -171,7 +188,7 @@ function MatchingComparisonTable({ date, accountId, allAccountIds }: { date: str
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
                   No data for this account/day.
                 </TableCell>
               </TableRow>
@@ -179,6 +196,7 @@ function MatchingComparisonTable({ date, accountId, allAccountIds }: { date: str
               rows.map((row, index) => (
                 <TableRow key={index}>
                   <TableCell className="border-r">{row.mutasi?.bank_account ?? row.jl?.bank_account ?? '-'}</TableCell>
+                  <TableCell className="border-r">{matchRowType(row) === 'debit' ? 'Debit' : 'Credit'}</TableCell>
                   <TableCell>{row.jl?.transaction ?? '-'}</TableCell>
                   <TableCell className="border-r text-right">
                     {row.jl ? formatCurrency(row.jl.debit > 0 ? row.jl.debit : row.jl.kredit) : '-'}
@@ -213,6 +231,7 @@ function ComparisonSubTable({ date }: { date: string }) {
     queryFn: () => fetchBankReconciliationComparisonRows(date),
   })
   const [selectedAccountId, setSelectedAccountId] = useState<'all' | string>('all')
+  const [typeFilter, setTypeFilter] = useState<MatchTypeFilter>('all')
 
   const bankAccounts = comparisonQuery.data?.bank_accounts ?? []
 
@@ -289,26 +308,46 @@ function ComparisonSubTable({ date }: { date: string }) {
         </div>
       </div>
 
-      {bankAccounts.length > 1 && (
-        <div className="max-w-xs space-y-1.5">
-          <Label>Bank Account</Label>
-          <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+      <div className="flex flex-wrap gap-4">
+        {bankAccounts.length > 1 && (
+          <div className="w-full max-w-xs space-y-1.5">
+            <Label>Bank Account</Label>
+            <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {bankAccounts.map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {account.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="w-full max-w-xs space-y-1.5">
+          <Label>Type</Label>
+          <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as MatchTypeFilter)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
-              {bankAccounts.map((account) => (
-                <SelectItem key={account.id} value={account.id}>
-                  {account.name}
-                </SelectItem>
-              ))}
+              <SelectItem value="debit">Debit</SelectItem>
+              <SelectItem value="credit">Credit</SelectItem>
             </SelectContent>
           </Select>
         </div>
-      )}
+      </div>
 
-      <MatchingComparisonTable date={date} accountId={selectedAccountId} allAccountIds={bankAccounts.map((account) => account.id)} />
+      <MatchingComparisonTable
+        date={date}
+        accountId={selectedAccountId}
+        allAccountIds={bankAccounts.map((account) => account.id)}
+        typeFilter={typeFilter}
+      />
 
     </div>
   )
