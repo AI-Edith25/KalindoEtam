@@ -23,7 +23,7 @@ class BankStatementService
      *
      * @return array{ok: bool, batch?: BankStatement, preview_rows?: array, message?: string}
      */
-    public function upload(?string $formatTemplate, UploadedFile $file, ?string $userId): array
+    public function upload(?string $formatTemplate, UploadedFile $file, ?string $userId, string $bankAccountId): array
     {
         $rawContent = file_get_contents($file->getRealPath());
 
@@ -38,6 +38,7 @@ class BankStatementService
 
         $batch = BankStatement::query()->create([
             'format_template' => $formatTemplate,
+            'bank_account_id' => $bankAccountId,
             'original_filename' => $file->getClientOriginalName(),
             'disk' => 'local',
             'file_path' => $path,

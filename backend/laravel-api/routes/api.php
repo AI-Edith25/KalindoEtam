@@ -506,6 +506,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('bank-reconciliation', [BankReconciliationController::class, 'index'])->middleware('permission:finance.bank_reconciliation.view');
     Route::get('bank-reconciliation/day-detail', [BankReconciliationController::class, 'dayDetail'])->middleware('permission:finance.bank_reconciliation.view');
     Route::get('bank-reconciliation/comparison', [BankReconciliationController::class, 'comparisonRows'])->middleware('permission:finance.bank_reconciliation.view');
+    Route::get('bank-reconciliation/comparison/matching', [BankReconciliationController::class, 'matchingRows'])->middleware('permission:finance.bank_reconciliation.view');
     Route::post('bank-reconciliation/recompute', [BankReconciliationController::class, 'recompute'])->middleware('permission:finance.bank_reconciliation.update');
     Route::delete('bank-reconciliation', [BankReconciliationController::class, 'destroyForDate'])->middleware('permission:finance.bank_reconciliation.delete');
 

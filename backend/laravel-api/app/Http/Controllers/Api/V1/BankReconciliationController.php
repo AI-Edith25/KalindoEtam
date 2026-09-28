@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DestroyBankReconciliationForDateRequest;
 use App\Http\Requests\IndexBankReconciliationDayDetailRequest;
+use App\Http\Requests\IndexBankReconciliationMatchingRequest;
 use App\Http\Requests\IndexBankReconciliationSummaryRequest;
 use App\Http\Requests\RecomputeBankReconciliationRequest;
 use App\Http\Resources\BankReconciliationSummaryResource;
@@ -41,6 +42,14 @@ class BankReconciliationController extends Controller
         $data = $request->validated();
 
         return $this->success($this->bankReconciliationService->comparisonRows($data['date']));
+    }
+
+    /** Detail tab's "Tabel Perbandingan" -- Cash Book vs mutasi bank, matched 1:1 by nominal, scoped to one account. */
+    public function matchingRows(IndexBankReconciliationMatchingRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        return $this->success($this->bankReconciliationService->matchingRows($data['date'], $data['bank_account_id']));
     }
 
     /** "Re-run reconciliation" — rebuilds the summary for an explicit range. */

@@ -3,6 +3,7 @@ import type { ApiResponse } from '@/shared/types/api'
 import type {
   BankReconciliationComparison,
   BankReconciliationFile,
+  BankReconciliationMatchingResult,
   BankReconciliationSummary,
   BankStatement,
   BankStatementFormatTemplate,
@@ -15,9 +16,10 @@ export interface UploadBankStatementResult {
 }
 
 /** Parses synchronously and returns a preview -- nothing is persisted until confirmBankStatement(). */
-export async function uploadBankStatement(file: File, formatTemplate?: BankStatementFormatTemplate): Promise<UploadBankStatementResult> {
+export async function uploadBankStatement(file: File, bankAccountId: string, formatTemplate?: BankStatementFormatTemplate): Promise<UploadBankStatementResult> {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('bank_account_id', bankAccountId)
   if (formatTemplate) formData.append('format_template', formatTemplate)
 
   const { data } = await apiClient.post<ApiResponse<UploadBankStatementResult>>('/bank-statements', formData, {
@@ -77,6 +79,14 @@ export async function fetchBankReconciliationDayDetail(date: string): Promise<Ba
 export async function fetchBankReconciliationComparisonRows(date: string): Promise<BankReconciliationComparison> {
   const { data } = await apiClient.get<ApiResponse<BankReconciliationComparison>>('/bank-reconciliation/comparison', {
     params: { date },
+  })
+  return data.data
+}
+
+/** Detail tab's "Tabel Perbandingan" -- Cash Book vs mutasi bank matched 1:1 by nominal, scoped to one account. */
+export async function fetchBankReconciliationMatching(date: string, bankAccountId: string): Promise<BankReconciliationMatchingResult> {
+  const { data } = await apiClient.get<ApiResponse<BankReconciliationMatchingResult>>('/bank-reconciliation/comparison/matching', {
+    params: { date, bank_account_id: bankAccountId },
   })
   return data.data
 }

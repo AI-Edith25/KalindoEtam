@@ -7,6 +7,7 @@ use App\Enums\BankStatementStatus;
 use App\Models\BankReconciliationSummary;
 use App\Models\BankStatement;
 use App\Models\BankStatementLine;
+use App\Models\ChartOfAccount;
 use App\Repositories\BankReconciliationRepository;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -16,15 +17,19 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Combines every cash/bank account into one bucket, deliberately -- confirmed with the user that
- * a per-account split doesn't match reality here: the mutasi/journal-list files this compares
- * against have no reliable structured "which account" field to hang one on, and only one physical
- * source has ever actually been reconciled through this feature. See the migration that dropped
- * bank_account_id from bank_statements/bank_reconciliation_summaries for the full rationale.
+ * The daily summary (recomputeSummary()/getDailyBalancingSummary()) and comparisonRows()'s
+ * aggregate blocks still combine every cash/bank account into one bucket, deliberately -- see the
+ * migration that dropped bank_account_id from bank_statements/bank_reconciliation_summaries for
+ * why. bank_account_id later came back on bank_statements alone (2026_09_28), so matchingRows()
+ * -- the Detail tab's row-level "Tabel Perbandingan" -- can split reconciliation per account; the
+ * rest of this class is unaffected.
  */
 class BankReconciliationService
 {
-    public function __construct(private BankReconciliationRepository $repository) {}
+    public function __construct(
+        private BankReconciliationRepository $repository,
+        private BankStatementMatcher $matcher,
+    ) {}
 
     public function recomputeForStatement(BankStatement $statement): void
     {
@@ -194,6 +199,7 @@ class BankReconciliationService
         $rows = $this->repository->cashBookRows($date, $date);
         $totalDebit = round(array_sum(array_column($rows, 'debit')), 2);
         $totalKredit = round(array_sum(array_column($rows, 'kredit')), 2);
+        $bankAccounts = $this->bankAccountsForDate($date, $rows);
 
         // orderBy(id) tie-breaks same-timestamp lines (Mandiri has no intraday time) by insertion
         // order -- HasUuids' ordered UUIDs sort the same way the source file's rows were parsed.
@@ -214,6 +220,7 @@ class BankReconciliationService
 
         return [
             'rows' => $rows,
+            'bank_accounts' => $bankAccounts,
             'totals' => [
                 'debit' => $totalDebit,
                 'kredit' => $totalKredit,
@@ -242,6 +249,96 @@ class BankReconciliationService
             'bank' => $bank,
             'variance' => $variance,
             'status' => abs($variance) <= 1000 ? BankReconciliationStatus::BALANCED : BankReconciliationStatus::UNBALANCED,
+        ];
+    }
+
+    /** @return array<int, array{id: string, name: string}> Every account with Cash Book or mutasi bank data that day, for the Detail tab's account picker. */
+    private function bankAccountsForDate(string $date, array $cashBookRows): array
+    {
+        $fromCashBook = collect($cashBookRows)
+            ->filter(fn ($row) => $row['bank_account_id'] !== null)
+            ->map(fn ($row) => ['id' => $row['bank_account_id'], 'name' => $row['bank_account']]);
+
+        $fromStatements = BankStatement::query()
+            ->whereDate('period_start', '<=', $date)
+            ->whereDate('period_end', '>=', $date)
+            ->whereNotNull('bank_account_id')
+            ->with('bankAccount')
+            ->get()
+            ->map(fn (BankStatement $statement) => ['id' => $statement->bank_account_id, 'name' => $statement->bankAccount?->name]);
+
+        return $fromCashBook->concat($fromStatements)->unique('id')->sortBy('name')->values()->all();
+    }
+
+    /**
+     * The Detail tab's "Tabel Perbandingan" -- Cash Book (JL) rows vs mutasi bank lines, matched
+     * 1:1 by nominal only (see BankStatementMatcher), scoped to one account since a day can have
+     * more than one account's statement uploaded. Deliberately separate from comparisonRows():
+     * that endpoint's aggregate blocks stay account-agnostic by the user's own design call.
+     */
+    public function matchingRows(string $date, string $bankAccountId): array
+    {
+        $jlRows = collect($this->repository->cashBookRows($date, $date))
+            ->filter(fn ($row) => $row['bank_account_id'] === $bankAccountId)
+            ->values()
+            ->all();
+
+        $mutasiRows = BankStatementLine::query()
+            ->whereDate('transaction_date', $date)
+            ->whereHas('bankStatement', fn ($query) => $query->where('bank_account_id', $bankAccountId))
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (BankStatementLine $line) => [
+                'id' => $line->id,
+                'date' => $line->transaction_date->format('Y-m-d'),
+                'description' => $line->description,
+                'debit' => (float) $line->debit_amount,
+                'kredit' => (float) $line->credit_amount,
+            ])
+            ->all();
+
+        $mutasiRows = $this->matcher->mergeAdminFees($mutasiRows);
+        $matched = $this->matcher->match($jlRows, $mutasiRows);
+        $accountName = ChartOfAccount::find($bankAccountId)?->name;
+
+        $rows = collect($matched)
+            ->map(fn (array $pair) => [
+                'jl' => $pair['jl'] === null ? null : [
+                    'transaction' => $pair['jl']['document_number'],
+                    'date' => $pair['jl']['date'],
+                    'reference' => $pair['jl']['reference_number'],
+                    'bank_account' => $pair['jl']['bank_account'],
+                    'debit' => $pair['jl']['debit'],
+                    'kredit' => $pair['jl']['kredit'],
+                ],
+                'mutasi' => $pair['mutasi'] === null ? null : [
+                    'date' => $pair['mutasi']['date'],
+                    'keterangan' => $pair['mutasi']['description'],
+                    'bank_account' => $accountName,
+                    'debit' => $pair['mutasi']['debit'],
+                    'kredit' => $pair['mutasi']['kredit'],
+                ],
+                'status' => $pair['status'],
+                'selisih' => $pair['selisih'],
+            ])
+            // Tidak Cocok first, so what needs checking is immediately visible.
+            ->sortBy(fn ($row) => $row['status'] === 'tidak_cocok' ? 0 : 1)
+            ->values()
+            ->all();
+
+        $unmatchedJl = collect($matched)->filter(fn ($pair) => $pair['status'] === 'tidak_cocok' && $pair['jl'] !== null);
+        $unmatchedMutasi = collect($matched)->filter(fn ($pair) => $pair['status'] === 'tidak_cocok' && $pair['mutasi'] !== null);
+
+        return [
+            'rows' => $rows,
+            'totals' => [
+                'matched_count' => collect($matched)->where('status', 'cocok')->count(),
+                'unmatched_jl_count' => $unmatchedJl->count(),
+                'unmatched_mutasi_count' => $unmatchedMutasi->count(),
+                'unmatched_debit_total' => round($unmatchedJl->sum(fn ($p) => $p['jl']['debit']) + $unmatchedMutasi->sum(fn ($p) => $p['mutasi']['debit']), 2),
+                'unmatched_credit_total' => round($unmatchedJl->sum(fn ($p) => $p['jl']['kredit']) + $unmatchedMutasi->sum(fn ($p) => $p['mutasi']['kredit']), 2),
+            ],
         ];
     }
 

@@ -26,6 +26,7 @@ class BankStatementController extends Controller
             $request->validated('format_template'),
             $request->file('file'),
             Auth::id(),
+            $request->validated('bank_account_id'),
         );
 
         if (! $result['ok']) {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -22,6 +23,7 @@ import {
   deleteBankReconciliationForDate,
   fetchBankReconciliationComparisonRows,
   fetchBankReconciliationDayDetail,
+  fetchBankReconciliationMatching,
   fetchBankStatementFileObjectUrl,
   fetchDailyBalancingSummary,
   recomputeReconciliation,
@@ -29,6 +31,7 @@ import {
 import type {
   BankReconciliationCategoryComparison,
   BankReconciliationFile,
+  BankReconciliationMatchStatus,
   BankReconciliationSummary,
   BankReconciliationStatus,
 } from '../types'
@@ -68,17 +71,128 @@ function CategoryComparisonRow({ label, comparison }: { label: string; compariso
   )
 }
 
+function MatchStatusBadge({ status, selisih }: { status: BankReconciliationMatchStatus; selisih: number }) {
+  const isCocok = status === 'cocok'
+  const className = isCocok
+    ? 'bg-green-100 text-green-700 border-transparent dark:bg-green-950 dark:text-green-300'
+    : 'bg-red-100 text-red-700 border-transparent dark:bg-red-950 dark:text-red-300'
+  const label = isCocok ? 'Cocok' : 'Tidak Cocok'
+
+  return (
+    <Badge className={className}>
+      {label}
+      {isCocok && selisih !== 0 && <> &middot; selisih {formatCurrency(Math.abs(selisih))}</>}
+    </Badge>
+  )
+}
+
+/**
+ * Detail tab's row-level "Tabel Perbandingan" -- Cash Book (JL) vs mutasi bank, matched 1:1 by
+ * nominal only (see BankStatementMatcher on the backend), scoped to one account+date. Tidak Cocok
+ * rows sort first (backend order) so what needs checking is immediately visible.
+ */
+function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAccountId: string }) {
+  const matchingQuery = useQuery({
+    queryKey: ['bank-reconciliation-matching', date, bankAccountId],
+    queryFn: () => fetchBankReconciliationMatching(date, bankAccountId),
+  })
+
+  if (matchingQuery.isLoading) {
+    return <p className="p-4 text-sm text-muted-foreground">Loading...</p>
+  }
+  if (matchingQuery.isError) {
+    return <p className="p-4 text-sm text-destructive">Failed to load the comparison table.</p>
+  }
+
+  const data = matchingQuery.data
+  if (!data) return null
+
+  return (
+    <div className="space-y-2 rounded border bg-background p-3">
+      <p className="text-sm font-medium">Tabel Perbandingan</p>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead colSpan={4} className="border-r text-center">JL</TableHead>
+              <TableHead colSpan={3} className="border-r text-center">Mutasi Bank</TableHead>
+              <TableHead className="text-center">Status</TableHead>
+            </TableRow>
+            <TableRow>
+              <TableHead>Transaction</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Reference</TableHead>
+              <TableHead className="border-r text-right">Debit / Credit</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Keterangan</TableHead>
+              <TableHead className="border-r text-right">Debit / Credit</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
+                  No data for this account/day.
+                </TableCell>
+              </TableRow>
+            ) : (
+              data.rows.map((row, index) => (
+                <TableRow key={index}>
+                  <TableCell>{row.jl?.transaction ?? '-'}</TableCell>
+                  <TableCell>{row.jl ? formatDate(row.jl.date) : '-'}</TableCell>
+                  <TableCell>{row.jl?.reference ?? '-'}</TableCell>
+                  <TableCell className="border-r text-right">
+                    {row.jl ? formatCurrency(row.jl.debit > 0 ? row.jl.debit : row.jl.kredit) : '-'}
+                  </TableCell>
+                  <TableCell>{row.mutasi ? formatDate(row.mutasi.date) : '-'}</TableCell>
+                  <TableCell className="max-w-[16rem] truncate">{row.mutasi?.keterangan ?? '-'}</TableCell>
+                  <TableCell className="border-r text-right">
+                    {row.mutasi ? formatCurrency(row.mutasi.debit > 0 ? row.mutasi.debit : row.mutasi.kredit) : '-'}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <MatchStatusBadge status={row.status} selisih={row.selisih} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="grid gap-1 pt-1 text-sm text-muted-foreground sm:grid-cols-2">
+        <span>Cocok: {data.totals.matched_count}</span>
+        <span>
+          Tidak Cocok: {data.totals.unmatched_jl_count + data.totals.unmatched_mutasi_count} (JL tanpa mutasi:{' '}
+          {data.totals.unmatched_jl_count}, mutasi tanpa JL: {data.totals.unmatched_mutasi_count})
+        </span>
+        <span>Total Tidak Cocok Debit: {formatCurrency(data.totals.unmatched_debit_total)}</span>
+        <span>Total Tidak Cocok Credit: {formatCurrency(data.totals.unmatched_credit_total)}</span>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Detail tab: Cash Book (Official Receipt/Payment Voucher, read straight from those documents'
  * own fields) for one day, compared against that day's uploaded bank statement at the aggregate
  * level only -- never row-by-row, since a transfer's sender name never matches the
- * customer/supplier name in the system.
+ * customer/supplier name in the system. The Tabel Perbandingan below IS row-level, but matches on
+ * nominal only, never name -- and needs one account picked since a day can have more than one.
  */
 function ComparisonSubTable({ date }: { date: string }) {
   const comparisonQuery = useQuery({
     queryKey: ['bank-reconciliation-comparison', date],
     queryFn: () => fetchBankReconciliationComparisonRows(date),
   })
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('')
+
+  const bankAccounts = comparisonQuery.data?.bank_accounts ?? []
+  useEffect(() => {
+    if (bankAccounts.length > 0 && !bankAccounts.some((account) => account.id === selectedAccountId)) {
+      setSelectedAccountId(bankAccounts[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankAccounts])
 
   if (comparisonQuery.isLoading) {
     return <p className="p-4 text-sm text-muted-foreground">Loading...</p>
@@ -152,6 +266,26 @@ function ComparisonSubTable({ date }: { date: string }) {
           <CategoryComparisonRow label="Kredit (Masuk)" comparison={data.comparison.kredit} />
         </div>
       </div>
+
+      {bankAccounts.length > 1 && (
+        <div className="max-w-xs space-y-1.5">
+          <Label>Bank Account</Label>
+          <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {bankAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {selectedAccountId && <MatchingComparisonTable date={date} bankAccountId={selectedAccountId} />}
     </div>
   )
 }

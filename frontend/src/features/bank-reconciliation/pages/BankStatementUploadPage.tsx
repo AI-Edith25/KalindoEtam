@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
 import { confirmBankStatement, uploadBankStatement, type UploadBankStatementResult } from '../api/bankReconciliationApi'
 import type { BankStatementFormatTemplate } from '../types'
 
@@ -23,9 +24,9 @@ const FORMAT_OPTIONS: { value: BankStatementFormatTemplate | 'auto'; label: stri
 
 /**
  * Upload -> preview (parsed, not yet saved) -> Confirm to persist + auto-match against Payment
- * Voucher/Official Receipt. No "which bank account" step -- Bank Reconciliation combines every
- * account into one bucket (see BankReconciliationService's own docblock), so nothing here needs
- * to know which physical account the file came from.
+ * Voucher/Official Receipt. Bank Account is required on upload (re-added 2026-09-28) -- the
+ * Detail tab's per-account "Tabel Perbandingan" needs to know which account a statement belongs
+ * to, since the file format alone (BCA vs Mandiri) can't disambiguate two accounts at one bank.
  */
 export function BankStatementUploadPage() {
   const navigate = useNavigate()
@@ -33,10 +34,14 @@ export function BankStatementUploadPage() {
 
   const [formatTemplate, setFormatTemplate] = useState<BankStatementFormatTemplate | 'auto'>('auto')
   const [file, setFile] = useState<File | null>(null)
+  const [bankAccountId, setBankAccountId] = useState<string>('')
   const [result, setResult] = useState<UploadBankStatementResult | null>(null)
 
+  const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
+  const bankAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
+
   const uploadMutation = useMutation({
-    mutationFn: () => uploadBankStatement(file!, formatTemplate === 'auto' ? undefined : formatTemplate),
+    mutationFn: () => uploadBankStatement(file!, bankAccountId, formatTemplate === 'auto' ? undefined : formatTemplate),
     onSuccess: (data) => setResult(data),
     onError: (error) => toastApiError(error),
   })
@@ -50,7 +55,7 @@ export function BankStatementUploadPage() {
     onError: (error) => toastApiError(error),
   })
 
-  const canUpload = file !== null && !uploadMutation.isPending
+  const canUpload = file !== null && bankAccountId !== '' && !uploadMutation.isPending
 
   return (
     <div className="space-y-4">
@@ -61,7 +66,22 @@ export function BankStatementUploadPage() {
           <CardTitle className="text-base">1. Select file</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label>Bank Account</Label>
+              <Select value={bankAccountId} onValueChange={setBankAccountId} disabled={result !== null}>
+                <SelectTrigger>
+                  <SelectValue placeholder={chartOfAccounts.isLoading ? 'Loading...' : 'Select account'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccountOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label>Bank / Format Template</Label>
               <Select value={formatTemplate} onValueChange={(value) => setFormatTemplate(value as typeof formatTemplate)} disabled={result !== null}>

@@ -9,9 +9,10 @@ use Illuminate\Support\Collection;
 
 /**
  * "System side" of the reconciliation -- every submitted Official Receipt/Payment Voucher,
- * grouped by day, regardless of which cash/bank account they were paid from/received into (Bank
- * Reconciliation combines every account into one bucket for its own totals -- see the migration
- * that dropped bank_account_id from this feature). Reads receipt_entries/payment_entries
+ * grouped by day. The day-total aggregate (systemTotalsByDate()) still combines every account
+ * into one bucket, unchanged since the migration that dropped bank_account_id from this feature;
+ * only the Detail tab's per-account matching table (BankReconciliationService::matchingRows())
+ * filters cashBookRows() by bank_account_id. Reads receipt_entries/payment_entries
  * directly rather than via journal_entries: every field the Detail tab needs (document number,
  * date, reference number, cash/bank account) is already a plain column on these two documents,
  * so there is no journal join, no "which line is the bank leg", and no particulars/description
@@ -26,11 +27,12 @@ use Illuminate\Support\Collection;
 class BankReconciliationRepository
 {
     /**
-     * One row per submitted Official Receipt/Payment Voucher in range. 'bank_account' is a
-     * display field only (see the migration above) -- for the human cross-checking against
-     * whichever mutasi file when more than one account's statement was uploaded for the same day.
+     * One row per submitted Official Receipt/Payment Voucher in range. 'bank_account'/
+     * 'bank_account_id' are display/filter fields only (see the migration above) -- the
+     * aggregate day totals below never split by account; only the Detail tab's per-account
+     * matching table (BankReconciliationService::matchingRows()) filters on bank_account_id.
      *
-     * @return array<int, array{document_number: ?string, date: string, reference_number: ?string, bank_account: ?string, tipe: 'masuk'|'keluar', debit: float, kredit: float}>
+     * @return array<int, array{document_number: ?string, date: string, reference_number: ?string, bank_account: ?string, bank_account_id: ?string, tipe: 'masuk'|'keluar', debit: float, kredit: float}>
      */
     public function cashBookRows(string $dateFrom, string $dateTo): array
     {
@@ -45,6 +47,7 @@ class BankReconciliationRepository
                 'date' => $receipt->receipt_date->format('Y-m-d'),
                 'reference_number' => $receipt->reference_number,
                 'bank_account' => $receipt->cashAccount?->name,
+                'bank_account_id' => $receipt->cash_account_id,
                 'tipe' => 'masuk',
                 'debit' => 0.0,
                 'kredit' => (float) $receipt->total_amount,
@@ -61,6 +64,7 @@ class BankReconciliationRepository
                 'date' => $payment->payment_date->format('Y-m-d'),
                 'reference_number' => $payment->reference_number,
                 'bank_account' => $payment->cashAccount?->name,
+                'bank_account_id' => $payment->cash_account_id,
                 'tipe' => 'keluar',
                 'debit' => (float) $payment->total_amount,
                 'kredit' => 0.0,

@@ -92,10 +92,11 @@ class BankReconciliationServiceTest extends TestCase
         return $payment->fresh();
     }
 
-    private function statementWithLines(string $date, array $lines): BankStatement
+    private function statementWithLines(string $date, array $lines, ?string $bankAccountId = null): BankStatement
     {
         $statement = BankStatement::query()->create([
             'format_template' => 'bca',
+            'bank_account_id' => $bankAccountId ?? $this->bankAccount->id,
             'original_filename' => 'test.csv',
             'disk' => 'local',
             'file_path' => 'test.csv',
@@ -367,5 +368,83 @@ class BankReconciliationServiceTest extends TestCase
 
         $this->assertSame(BankReconciliationStatus::UNBALANCED, $result['comparison']['debit']['status']);
         $this->assertEquals(5000, $result['comparison']['debit']['variance']);
+    }
+
+    public function test_comparisonRows_lists_bank_accounts_with_data_that_day(): void
+    {
+        $mandiri = ChartOfAccount::query()->create(['code' => '1104', 'name' => 'BANK MANDIRI 5840', 'account_type' => 'asset', 'is_cash_bank' => true]);
+        $this->submittedReceipt('2026-09-01', 1500000); // on $this->bankAccount (1100)
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'masuk', 'debit_amount' => 0, 'credit_amount' => 500000],
+        ], $mandiri->id);
+
+        $result = $this->service->comparisonRows('2026-09-01');
+
+        $ids = collect($result['bank_accounts'])->pluck('id')->all();
+        $this->assertContains($this->bankAccount->id, $ids);
+        $this->assertContains($mandiri->id, $ids);
+    }
+
+    public function test_matchingRows_pairs_jl_and_mutasi_within_tolerance_for_the_selected_account(): void
+    {
+        $this->submittedReceipt('2026-09-01', 8000001.30);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'transfer masuk', 'debit_amount' => 0, 'credit_amount' => 8000000],
+        ], $this->bankAccount->id);
+
+        $result = $this->service->matchingRows('2026-09-01', $this->bankAccount->id);
+
+        $this->assertCount(1, $result['rows']);
+        $this->assertSame('cocok', $result['rows'][0]['status']);
+        $this->assertEqualsWithDelta(1.30, $result['rows'][0]['selisih'], 0.001);
+        $this->assertSame(1, $result['totals']['matched_count']);
+        $this->assertSame(0, $result['totals']['unmatched_jl_count']);
+        $this->assertSame(0, $result['totals']['unmatched_mutasi_count']);
+    }
+
+    public function test_matchingRows_merges_admin_fee_line_before_matching(): void
+    {
+        $this->submittedPayment('2026-09-01', 100002500);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'TRANSFER KELUAR', 'debit_amount' => 100000000, 'credit_amount' => 0],
+            ['description' => 'BIAYA TXN', 'debit_amount' => 2500, 'credit_amount' => 0],
+        ], $this->bankAccount->id);
+
+        $result = $this->service->matchingRows('2026-09-01', $this->bankAccount->id);
+
+        $this->assertCount(1, $result['rows']);
+        $this->assertSame('cocok', $result['rows'][0]['status']);
+    }
+
+    public function test_matchingRows_excludes_rows_from_a_different_account(): void
+    {
+        $mandiri = ChartOfAccount::query()->create(['code' => '1104', 'name' => 'BANK MANDIRI 5840', 'account_type' => 'asset', 'is_cash_bank' => true]);
+        $this->submittedReceipt('2026-09-01', 500000); // this->bankAccount (1100)
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'masuk', 'debit_amount' => 0, 'credit_amount' => 500000],
+        ], $mandiri->id);
+
+        $result = $this->service->matchingRows('2026-09-01', $mandiri->id);
+
+        // The JL row belongs to a different account, so it must not appear at all for Mandiri's matching.
+        $this->assertCount(1, $result['rows']);
+        $this->assertSame('tidak_cocok', $result['rows'][0]['status']);
+        $this->assertNull($result['rows'][0]['jl']);
+    }
+
+    public function test_matchingRows_reports_unmatched_totals_split_by_debit_and_credit(): void
+    {
+        $this->submittedReceipt('2026-09-01', 500000);
+        $this->statementWithLines('2026-09-01', [
+            ['description' => 'keluar tanpa PV', 'debit_amount' => 300000, 'credit_amount' => 0],
+        ], $this->bankAccount->id);
+
+        $result = $this->service->matchingRows('2026-09-01', $this->bankAccount->id);
+
+        $this->assertSame(0, $result['totals']['matched_count']);
+        $this->assertSame(1, $result['totals']['unmatched_jl_count']);
+        $this->assertSame(1, $result['totals']['unmatched_mutasi_count']);
+        $this->assertEquals(300000, $result['totals']['unmatched_debit_total']);
+        $this->assertEquals(500000, $result['totals']['unmatched_credit_total']);
     }
 }

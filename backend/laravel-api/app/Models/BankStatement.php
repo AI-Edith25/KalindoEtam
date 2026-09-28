@@ -18,6 +18,7 @@ class BankStatement extends Model
 
     protected $fillable = [
         'format_template',
+        'bank_account_id',
         'period_start',
         'period_end',
         'original_filename',
@@ -37,6 +38,11 @@ class BankStatement extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'bank_account_id');
     }
 
     public function lines(): HasMany

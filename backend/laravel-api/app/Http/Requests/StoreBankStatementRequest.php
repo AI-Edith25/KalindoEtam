@@ -19,6 +19,7 @@ class StoreBankStatementRequest extends FormRequest
             // Omitted -> auto-detect from the file's structure (see BankStatementService::upload()).
             'format_template' => ['nullable', 'string', Rule::in(app(BankStatementParserRegistry::class)->codes())],
             'file' => ['required', 'file', 'max:20480', 'mimes:csv,txt'],
+            'bank_account_id' => ['required', 'uuid', Rule::exists('chart_of_accounts', 'id')->where('is_cash_bank', true)->whereNull('deleted_at')],
         ];
     }
 }
