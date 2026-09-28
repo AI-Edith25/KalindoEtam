@@ -495,7 +495,7 @@ export function OutgoingPaymentEditorPage() {
                   <FormItem>
                     <FormLabel>{isSupplierType || isMixedType ? 'Amount Paid' : 'Amount'}</FormLabel>
                     <FormControl>
-                      <RupiahInput value={field.value} onChange={field.onChange} disabled={isSupplierType && allocations.size > 0} />
+                      <RupiahInput value={field.value} onChange={field.onChange} disabled={isSupplierType && allocations.size > 0} decimals={2} />
                     </FormControl>
                     {isSupplierType && (
                       <FormDescription>

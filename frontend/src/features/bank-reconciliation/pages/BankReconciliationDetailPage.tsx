@@ -133,13 +133,12 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead colSpan={3} className="border-r text-center">Report System</TableHead>
+              <TableHead colSpan={2} className="border-r text-center">Report System</TableHead>
               <TableHead colSpan={2} className="border-r text-center">Mutasi Bank</TableHead>
               <TableHead className="text-center">Status</TableHead>
             </TableRow>
             <TableRow>
               <TableHead>Transaction</TableHead>
-              <TableHead>Reference</TableHead>
               <TableHead className="border-r text-right">Debit / Credit</TableHead>
               <TableHead>Keterangan</TableHead>
               <TableHead className="border-r text-right">Debit / Credit</TableHead>
@@ -149,7 +148,7 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
                   No data for this account/day.
                 </TableCell>
               </TableRow>
@@ -157,7 +156,6 @@ function MatchingComparisonTable({ date, bankAccountId }: { date: string; bankAc
               rows.map((row, index) => (
                 <TableRow key={index}>
                   <TableCell>{row.jl?.transaction ?? '-'}</TableCell>
-                  <TableCell>{row.jl?.reference ?? '-'}</TableCell>
                   <TableCell className="border-r text-right">
                     {row.jl ? formatCurrency(row.jl.debit > 0 ? row.jl.debit : row.jl.kredit) : '-'}
                   </TableCell>

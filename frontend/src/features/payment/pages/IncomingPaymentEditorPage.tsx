@@ -264,7 +264,7 @@ export function IncomingPaymentEditorPage() {
                   <FormItem>
                     <FormLabel>Amount Received</FormLabel>
                     <FormControl>
-                      <RupiahInput value={field.value} onChange={field.onChange} disabled={allocations.size > 0} />
+                      <RupiahInput value={field.value} onChange={field.onChange} disabled={allocations.size > 0} decimals={2} />
                     </FormControl>
                     <FormDescription>
                       {allocations.size > 0

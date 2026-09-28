@@ -207,7 +207,7 @@ function MixedVoucherLineRow({
       </TableCell>
 
       <TableCell className="align-top">
-        <RupiahInput value={line.amount} onChange={(v) => onChange({ amount: v })} className="text-right" aria-label="Amount" />
+        <RupiahInput value={line.amount} onChange={(v) => onChange({ amount: v })} className="text-right" aria-label="Amount" decimals={2} />
         {isSupplier && line.accounts_payable_outstanding != null && (
           <p className="mt-1 text-right text-xs text-muted-foreground">Outstanding: {formatCurrency(line.accounts_payable_outstanding)}</p>
         )}
