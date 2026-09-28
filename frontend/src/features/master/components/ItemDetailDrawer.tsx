@@ -36,6 +36,15 @@ export function ItemDetailDrawer({ open, onOpenChange, item, onEdit }: ItemDetai
         <DetailField label="Item Name" value={item.item_name} />
         <DetailField label="Item Group" value={item.item_group?.name ?? '—'} />
         <DetailField label="UOM" value={item.uom ? `${item.uom.name}${item.uom.symbol ? ` (${item.uom.symbol})` : ''}` : '—'} />
+        <DetailField
+          label="UOM Tambahan"
+          value={
+            item.uoms
+              ?.filter((choice) => !choice.is_base)
+              .map((choice) => `1 ${choice.name} = ${Number(choice.conversion_factor)} ${item.uom?.name ?? ''}`)
+              .join(', ') || '—'
+          }
+        />
         <DetailField label="Standard Rate" value={formatCurrency(item.standard_rate)} />
         <DetailField
           label="Current Stock"

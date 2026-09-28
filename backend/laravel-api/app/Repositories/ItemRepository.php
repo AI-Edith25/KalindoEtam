@@ -21,7 +21,7 @@ class ItemRepository extends BaseRepository
         ?string $itemGroupId = null,
         ?array $itemIds = null,
     ): LengthAwarePaginator {
-        $query = $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax']);
+        $query = $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax', 'itemUoms.uom']);
 
         if ($warehouseId !== null) {
             $warehouseIds = array_values(array_unique(array_filter([$warehouseId, $mainWarehouseId])));
@@ -45,7 +45,7 @@ class ItemRepository extends BaseRepository
 
     public function findOrFail(string $id): Model
     {
-        return $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax'])->findOrFail($id);
+        return $this->model->query()->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax', 'itemUoms.uom'])->findOrFail($id);
     }
 
     public function updateCurrentStock(Item $item, int|float $balanceQty): void
@@ -65,7 +65,7 @@ class ItemRepository extends BaseRepository
     public function lowStock(int $threshold, int $perPage = 15): LengthAwarePaginator
     {
         return $this->model->query()
-            ->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax'])
+            ->with(['itemGroup', 'uom', 'purchaseTax', 'salesTax', 'itemUoms.uom'])
             ->where('current_stock', '<=', $threshold)
             ->orderBy('current_stock')
             ->paginate($perPage);

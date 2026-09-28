@@ -29,7 +29,7 @@ class CleanupTestingDataCommand extends Command
     private const MASTER_TABLES = [
         'companies', 'branches', 'fiscal_years', 'accounting_periods',
         'chart_of_accounts', 'report_account_mappings', 'currencies', 'taxes',
-        'terms_of_payments', 'uoms', 'item_groups', 'items', 'item_warehouse_prices',
+        'terms_of_payments', 'uoms', 'item_groups', 'items', 'item_uoms', 'item_warehouse_prices',
         'miscellaneous_items', 'warehouses', 'customers', 'suppliers', 'sales_persons',
         'naming_series', 'purchase_settings', 'import_mapping_presets', 'users',
         'roles', 'permissions', 'model_has_roles', 'model_has_permissions', 'role_has_permissions',

@@ -7,6 +7,30 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class ItemResource extends JsonResource
 {
+    /** @return array<int, array<string, mixed>> */
+    protected function uomChoices(): array
+    {
+        $choices = [[
+            'uom_id' => $this->uom_id,
+            'name' => $this->uom?->name,
+            'symbol' => $this->uom?->symbol,
+            'conversion_factor' => '1',
+            'is_base' => true,
+        ]];
+
+        foreach ($this->itemUoms as $row) {
+            $choices[] = [
+                'uom_id' => $row->uom_id,
+                'name' => $row->uom?->name,
+                'symbol' => $row->uom?->symbol,
+                'conversion_factor' => $row->conversion_factor,
+                'is_base' => false,
+            ];
+        }
+
+        return $choices;
+    }
+
     public function toArray(Request $request): array
     {
         return [
@@ -17,6 +41,9 @@ class ItemResource extends JsonResource
             'item_group' => new ItemGroupResource($this->whenLoaded('itemGroup')),
             'uom_id' => $this->uom_id,
             'uom' => new UomResource($this->whenLoaded('uom')),
+            // Base UOM first (factor 1, implicit), then the item's extra UOMs — the choices a
+            // line-item UOM picker offers. Only present when uom + itemUoms are eager-loaded.
+            'uoms' => $this->when($this->relationLoaded('itemUoms') && $this->relationLoaded('uom'), fn () => $this->uomChoices()),
             'standard_rate' => $this->standard_rate,
             'sync_to_main_wh' => $this->sync_to_main_wh,
             // Set by ItemPriceResolver when the request asked for a warehouse_id (see

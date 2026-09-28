@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\QtyCategory;
 use App\Enums\WarehouseType;
+use App\Exceptions\BusinessException;
 use App\Models\Item;
 use App\Models\Warehouse;
 use App\Repositories\ItemRepository;
@@ -68,7 +69,12 @@ class ItemService
             // model from a bare create() would otherwise see qty_category as null.
             $data['qty_category'] ??= QtyCategory::UNIT->value;
 
+            $uoms = $this->pullUoms($data);
+
             $item = $this->itemRepository->create($data);
+            if ($uoms !== null) {
+                $this->syncUoms($item, $uoms);
+            }
             $this->auditLogService->record('created', 'item', "Created item \"{$item->item_name}\".");
 
             return $item;
@@ -78,7 +84,20 @@ class ItemService
     public function update(Item $item, array $data): Item
     {
         return DB::transaction(function () use ($item, $data) {
+            $uoms = $this->pullUoms($data);
+
+            // Extras are factors relative to the *current* base — moving the base under them
+            // would silently re-scale what they mean. Remove the extras first, then re-add.
+            $baseChanging = isset($data['uom_id']) && $data['uom_id'] !== $item->uom_id;
+            $keepsExtras = $uoms === null ? $item->itemUoms()->exists() : $uoms !== [];
+            if ($baseChanging && $keepsExtras) {
+                throw new BusinessException('Cannot change the base UOM while the item has extra UOMs. Remove the extra UOMs first.');
+            }
+
             $item = $this->itemRepository->update($item, $data);
+            if ($uoms !== null) {
+                $this->syncUoms($item, $uoms);
+            }
             $this->auditLogService->record('updated', 'item', "Updated item \"{$item->item_name}\".");
 
             return $item;
@@ -92,5 +111,37 @@ class ItemService
             $this->itemRepository->delete($item);
             $this->auditLogService->record('deleted', 'item', "Deleted item \"{$name}\".");
         });
+    }
+
+    /** Splits the `uoms` key off the item attributes: null = the caller didn't send it (leave as is). */
+    protected function pullUoms(array &$data): ?array
+    {
+        if (! array_key_exists('uoms', $data)) {
+            return null;
+        }
+
+        $uoms = $data['uoms'] ?? [];
+        unset($data['uoms']);
+
+        return $uoms;
+    }
+
+    /** Replaces the item's extra UOMs with $uoms (same delete-and-recreate as PO replaceItems). */
+    protected function syncUoms(Item $item, array $uoms): void
+    {
+        foreach ($uoms as $row) {
+            if ($row['uom_id'] === $item->uom_id) {
+                throw new BusinessException("An extra UOM cannot be the same as the item's base UOM.");
+            }
+        }
+
+        // Per-model deletes/creates (not raw queries) so AuditableObserver still stamps the rows.
+        $item->itemUoms()->get()->each->delete();
+
+        foreach ($uoms as $row) {
+            $item->itemUoms()->create(['uom_id' => $row['uom_id'], 'conversion_factor' => $row['conversion_factor']]);
+        }
+
+        $item->unsetRelation('itemUoms');
     }
 }

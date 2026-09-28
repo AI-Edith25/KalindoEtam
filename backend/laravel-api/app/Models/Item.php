@@ -66,6 +66,12 @@ class Item extends Model
         return $this->hasMany(StockLedger::class);
     }
 
+    /** Extra UOMs (with factor to the base uom_id) — the base UOM itself is not a row here. */
+    public function itemUoms(): HasMany
+    {
+        return $this->hasMany(ItemUom::class);
+    }
+
     public function itemWarehousePrices(): HasMany
     {
         return $this->hasMany(ItemWarehousePrice::class);

@@ -47,19 +47,19 @@ class ItemController extends Controller
     {
         $item = $this->itemService->create($request->validated());
 
-        return $this->success(new ItemResource($item), 'Item created.', 201);
+        return $this->success(new ItemResource($item->load('itemUoms.uom')), 'Item created.', 201);
     }
 
     public function show(Item $item): JsonResponse
     {
-        return $this->success(new ItemResource($item->load(['itemGroup', 'uom', 'purchaseTax', 'salesTax'])));
+        return $this->success(new ItemResource($item->load(['itemGroup', 'uom', 'purchaseTax', 'salesTax', 'itemUoms.uom'])));
     }
 
     public function update(UpdateItemRequest $request, Item $item): JsonResponse
     {
         $item = $this->itemService->update($item, $request->validated());
 
-        return $this->success(new ItemResource($item->load(['itemGroup', 'uom', 'purchaseTax', 'salesTax'])), 'Item updated.');
+        return $this->success(new ItemResource($item->load(['itemGroup', 'uom', 'purchaseTax', 'salesTax', 'itemUoms.uom'])), 'Item updated.');
     }
 
     public function destroy(Item $item): JsonResponse

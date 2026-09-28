@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -39,6 +39,16 @@ const itemFormSchema = z.object({
   sales_tax_id: z.string(),
   allow_over_receipt: z.boolean(),
   qty_category: z.enum(['unit', 'weight']),
+  // Extra UOMs (the base is uom_id) — factor = how many base units one of this UOM holds.
+  uoms: z.array(
+    z.object({
+      uom_id: z.string().min(1, 'UOM is required'),
+      conversion_factor: z
+        .string()
+        .min(1, 'Factor is required')
+        .refine((value) => !Number.isNaN(Number(value)) && Number(value) > 0, 'Must be greater than zero'),
+    }),
+  ),
 })
 
 type ItemFormSchemaValues = z.infer<typeof itemFormSchema>
@@ -53,6 +63,7 @@ const emptyValues: ItemFormSchemaValues = {
   sales_tax_id: '',
   allow_over_receipt: false,
   qty_category: 'unit',
+  uoms: [],
 }
 
 interface ItemFormDrawerProps {
@@ -90,10 +101,17 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
             sales_tax_id: item.sales_tax_id ?? '',
             allow_over_receipt: item.allow_over_receipt,
             qty_category: item.qty_category,
+            uoms: (item.uoms ?? [])
+              .filter((choice) => !choice.is_base)
+              .map((choice) => ({ uom_id: choice.uom_id, conversion_factor: String(Number(choice.conversion_factor)) })),
           }
         : emptyValues,
     )
   }, [open, item, form])
+
+  const { fields: uomFields, append: appendUom, remove: removeUom } = useFieldArray({ control: form.control, name: 'uoms' })
+  const watchedUoms = useWatch({ control: form.control, name: 'uoms' })
+  const baseUomId = useWatch({ control: form.control, name: 'uom_id' })
 
   const itemGroups = useQuery({ queryKey: ['item-groups'], queryFn: fetchItemGroups })
   const uoms = useQuery({ queryKey: ['uoms'], queryFn: fetchUoms })
@@ -107,6 +125,7 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
       const payload = {
         ...values,
         standard_rate: Number(values.standard_rate),
+        uoms: values.uoms.map((row) => ({ uom_id: row.uom_id, conversion_factor: Number(row.conversion_factor) })),
         purchase_tax_id: values.purchase_tax_id || null,
         sales_tax_id: values.sales_tax_id || null,
       }
@@ -124,7 +143,7 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md">
+      <SheetContent className="w-full sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>{isEdit ? 'Edit Item' : 'New Item'}</SheetTitle>
           <SheetDescription>
@@ -199,6 +218,72 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
                   </FormItem>
                 )}
               />
+              <div className="flex flex-col gap-2">
+                <FormLabel>UOM Tambahan</FormLabel>
+                <p className="text-xs text-muted-foreground">
+                  Satuan lain untuk beli/jual item ini (mis. DUS). Faktor = berapa UOM dasar dalam 1 satuan tambahan.
+                </p>
+                {uomFields.map((uomField, index) => (
+                  <div key={uomField.id} className="flex items-start gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`uoms.${index}.uom_id`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <SearchableSelect
+                            options={(uoms.data ?? [])
+                              .filter((uom) => uom.id !== baseUomId && !(watchedUoms ?? []).some((row, i) => i !== index && row.uom_id === uom.id))
+                              .map((uom) => ({ value: uom.id, label: `${uom.name}${uom.symbol ? ` (${uom.symbol})` : ''}` }))}
+                            value={field.value || undefined}
+                            onChange={(value) => field.onChange(value ?? '')}
+                            loading={uoms.isLoading}
+                            clearable={false}
+                            placeholder="Pilih UOM"
+                            aria-label="UOM Tambahan"
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`uoms.${index}.conversion_factor`}
+                      render={({ field }) => (
+                        <FormItem className="w-40">
+                          <div className="flex items-center gap-1.5">
+                            <Input type="number" min={0} step="any" placeholder="Faktor" {...field} />
+                            <span className="whitespace-nowrap text-xs text-muted-foreground">
+                              {uoms.data?.find((uom) => uom.id === baseUomId)?.name ?? 'dasar'}
+                            </span>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-9 text-destructive hover:text-destructive"
+                      onClick={() => removeUom(index)}
+                    >
+                      <Trash2 className="size-4" />
+                      <span className="sr-only">Hapus UOM</span>
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => appendUom({ uom_id: '', conversion_factor: '' })}
+                  disabled={!baseUomId}
+                >
+                  <Plus className="size-4" />
+                  Tambah UOM
+                </Button>
+              </div>
               <FormField
                 control={form.control}
                 name="qty_category"

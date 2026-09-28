@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
+use App\Models\ItemUom;
 use App\Models\UnitOfMeasurement;
 use App\Repositories\UomRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -42,6 +44,10 @@ class UomService
     public function delete(UnitOfMeasurement $uom): void
     {
         DB::transaction(function () use ($uom) {
+            if ($uom->items()->exists() || ItemUom::query()->where('uom_id', $uom->id)->exists()) {
+                throw new BusinessException("Cannot delete UOM \"{$uom->name}\": it is used by one or more items.");
+            }
+
             $name = $uom->name;
             $this->uomRepository->delete($uom);
             $this->auditLogService->record('deleted', 'uom', "Deleted UOM \"{$name}\".");

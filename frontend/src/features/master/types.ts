@@ -76,6 +76,16 @@ export interface Uom {
   updated_at: string
 }
 
+/** One choice in a line-item UOM picker — the base UOM (factor 1, is_base) first, then the item's extra UOMs. */
+export interface ItemUomChoice {
+  uom_id: string
+  name: string | null
+  symbol: string | null
+  /** How many base-UOM units one of this UOM holds (1 DUS = 25 KG → 25). */
+  conversion_factor: string | number
+  is_base: boolean
+}
+
 export interface Item {
   id: string
   item_code: string
@@ -84,6 +94,8 @@ export interface Item {
   item_group: ItemGroup | null
   uom_id: string
   uom: Uom | null
+  /** Base UOM first, then extra UOMs — present on Item responses (list, lookup, show). */
+  uoms?: ItemUomChoice[]
   standard_rate: string | number
   current_stock: string | number
   purchase_tax_id: string | null
@@ -109,6 +121,8 @@ export interface ItemFormValues {
   item_name: string
   item_group_id: string
   uom_id: string
+  /** Extra UOMs only (the base is uom_id). Sent on every save — replaces the item's current extras. */
+  uoms?: { uom_id: string; conversion_factor: number }[]
   standard_rate: number
   purchase_tax_id?: string | null
   sales_tax_id?: string | null
