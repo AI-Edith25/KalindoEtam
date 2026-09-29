@@ -236,10 +236,18 @@ export const PORTRAIT = {
  *   16 / 16 / 18 percent of 190mm (30.4 / 30.4 / 34.2mm). Description intentionally wraps (see
  *   InvoicePortraitLayout's own white-space handling) so it absorbs whatever percentage remains.
  */
+/** itemCode was 12% (22.8mm) / description 20% (38mm) until real invoices showed itemCode
+    truncating ("SC PCC 5...") on codes that should read in full — 12% only comfortably fits ~9-10
+    condensed characters at 10pt, not a typical 12-character code like "SC PCC 50 KG". Moved 6
+    points from description to itemCode (description already wraps safely at any width — a
+    measured multi-line pagination pass, not a fixed row height, absorbs the extra wrapping); the
+    money columns are untouched, they're sized from real getBoundingClientRect measurements against
+    a worst-case amount (see file doc comment above) and shrinking them isn't safe without
+    re-measuring. */
 export const PORTRAIT_ITEM_COLS: { key: string; label: string; align: 'left' | 'right'; percent: number }[] = [
   { key: 'no', label: 'No', align: 'left', percent: 5 },
-  { key: 'itemCode', label: 'ItemCode', align: 'left', percent: 12 },
-  { key: 'description', label: 'Description', align: 'left', percent: 20 },
+  { key: 'itemCode', label: 'ItemCode', align: 'left', percent: 18 },
+  { key: 'description', label: 'Description', align: 'left', percent: 14 },
   { key: 'qty', label: 'Qty', align: 'right', percent: 6 },
   { key: 'uom', label: 'UOM', align: 'left', percent: 7 },
   { key: 'unitCost', label: 'HCUnitCost', align: 'right', percent: 16 },

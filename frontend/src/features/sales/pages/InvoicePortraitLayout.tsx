@@ -125,10 +125,20 @@ function ddmmyyyy(dateStr: string | null | undefined): string {
 }
 
 /** Drops HCTax when Tax is off, folding its width into HCLineAmt — same convention as Landscape's own getItemCols. */
+/** Tax off drops HCTax entirely — its freed width used to go 100% into HCLineAmt, which produced
+    a right-aligned number sitting at the end of an ~34%-wide (65mm) column: a big empty gap right
+    after HCUnitCost, not a wider-looking amount. Split instead: a little to HCLineAmt for genuine
+    headroom, most of it back to Description (which can always use more before it needs to wrap). */
 function getPortraitItemCols(showTax: boolean) {
   if (showTax) return PORTRAIT_ITEM_COLS
   const taxCol = PORTRAIT_ITEM_COLS.find((c) => c.key === 'tax')!
-  return PORTRAIT_ITEM_COLS.filter((c) => c.key !== 'tax').map((c) => (c.key === 'lineAmt' ? { ...c, percent: c.percent + taxCol.percent } : c))
+  const toLineAmt = 4
+  const toDescription = taxCol.percent - toLineAmt
+  return PORTRAIT_ITEM_COLS.filter((c) => c.key !== 'tax').map((c) => {
+    if (c.key === 'lineAmt') return { ...c, percent: c.percent + toLineAmt }
+    if (c.key === 'description') return { ...c, percent: c.percent + toDescription }
+    return c
+  })
 }
 
 function renderCell(key: string, item: Invoice['items'][number], index: number): ReactNode {
