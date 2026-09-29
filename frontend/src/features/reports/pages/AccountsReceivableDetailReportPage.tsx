@@ -166,8 +166,14 @@ export function AccountsReceivableDetailReportPage() {
   // String(), which turns the sales_person_ids array into a single "id1,id2" comma-joined
   // param instead of the repeated `sales_person_ids=id1&sales_person_ids=id2` pairs the print
   // page (via its own useSearchParams().getAll()) and the backend both expect.
+  // Same "selection wins over filters" rule exportReport() already uses below — a non-empty
+  // checkbox selection (individual rows, or via the Perincian Piutang group/select-all checkboxes,
+  // which all just add/remove from this same selectedInvoiceIds set) scopes Print to exactly those
+  // rows instead of the active filters. Previously Print never read selectedInvoiceIds at all
+  // (only Export did) — that gap is what made "select some rows, then Print" print everything.
+  const printFilterParams = selectedInvoiceIds.size > 0 ? { invoice_ids: [...selectedInvoiceIds] } : activeFilterParams
   const printSearchParams = new URLSearchParams()
-  for (const [key, val] of Object.entries(activeFilterParams)) {
+  for (const [key, val] of Object.entries(printFilterParams)) {
     if (Array.isArray(val)) val.forEach((v) => printSearchParams.append(key, v))
     else printSearchParams.append(key, String(val))
   }
@@ -1075,14 +1081,65 @@ export function AccountsReceivableDetailReportPage() {
         </Card>
       ) : (
         <>
+          {(() => {
+            // Derived purely from groupedQuery.data + selectedInvoiceIds on every render — this is
+            // what makes manual per-toko toggling automatically update the group/global checkbox
+            // state (criterion: "dua arah") with no extra state or effect needed.
+            const allGroupedInvoiceIds = groupedQuery.data.groups.flatMap((g) =>
+              g.customers.flatMap((c) => c.rows.map((r) => r.invoice_id).filter((id): id is string => !!id)),
+            )
+            const allGroupedSelected = allGroupedInvoiceIds.length > 0 && allGroupedInvoiceIds.every((id) => selectedInvoiceIds.has(id))
+            const someGroupedSelected = allGroupedInvoiceIds.some((id) => selectedInvoiceIds.has(id))
+            const toggleAllGrouped = () =>
+              setSelectedInvoiceIds((prev) => {
+                const next = new Set(prev)
+                allGroupedInvoiceIds.forEach((id) => (allGroupedSelected ? next.delete(id) : next.add(id)))
+                return next
+              })
+
+            return (
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableBody>
-                {groupedQuery.data.groups.map((salesPersonGroup) => (
+                <TableRow className="bg-muted/50 font-medium">
+                  <TableCell colSpan={5}>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={allGroupedSelected ? true : someGroupedSelected ? 'indeterminate' : false}
+                        onCheckedChange={toggleAllGrouped}
+                        disabled={allGroupedInvoiceIds.length === 0}
+                        aria-label="Select all toko (every salesman)"
+                      />
+                      Select all
+                    </div>
+                  </TableCell>
+                </TableRow>
+                {groupedQuery.data.groups.map((salesPersonGroup) => {
+                  const groupInvoiceIds = salesPersonGroup.customers.flatMap((c) =>
+                    c.rows.map((r) => r.invoice_id).filter((id): id is string => !!id),
+                  )
+                  const groupAllSelected = groupInvoiceIds.length > 0 && groupInvoiceIds.every((id) => selectedInvoiceIds.has(id))
+                  const groupSomeSelected = groupInvoiceIds.some((id) => selectedInvoiceIds.has(id))
+                  const toggleGroup = () =>
+                    setSelectedInvoiceIds((prev) => {
+                      const next = new Set(prev)
+                      groupInvoiceIds.forEach((id) => (groupAllSelected ? next.delete(id) : next.add(id)))
+                      return next
+                    })
+
+                  return (
                   <Fragment key={salesPersonGroup.sales_person_name}>
                     <TableRow className="bg-muted/50">
                       <TableCell colSpan={5} className="font-semibold">
-                        Sales Person: {salesPersonGroup.sales_person_name}
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={groupAllSelected ? true : groupSomeSelected ? 'indeterminate' : false}
+                            onCheckedChange={toggleGroup}
+                            disabled={groupInvoiceIds.length === 0}
+                            aria-label={`Select all toko for ${salesPersonGroup.sales_person_name}`}
+                          />
+                          Sales Person: {salesPersonGroup.sales_person_name}
+                        </div>
                       </TableCell>
                     </TableRow>
                     {salesPersonGroup.customers.map((customerGroup) => {
@@ -1147,10 +1204,13 @@ export function AccountsReceivableDetailReportPage() {
                       <TableCell className="text-right font-semibold">{formatCurrency(salesPersonGroup.sales_person_subtotal)}</TableCell>
                     </TableRow>
                   </Fragment>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
+            )
+          })()}
 
           <Card>
             <CardContent className="flex items-center justify-end gap-2 py-4 text-base">

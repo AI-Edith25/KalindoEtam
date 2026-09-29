@@ -27,22 +27,30 @@ export function AccountsReceivableDetailReportPrintPage() {
   const invoiceDateFrom = searchParams.get('invoice_date_from') ?? undefined
   const invoiceDateTo = searchParams.get('invoice_date_to') ?? undefined
   const salesPersonIds = searchParams.getAll('sales_person_ids')
+  // Set only when the list page's own checkbox selection (individual rows, or the Perincian
+  // Piutang group/select-all checkboxes) was non-empty — same "selection wins over filters" rule
+  // Export already used, now Print does too (see AccountsReceivableDetailReportPage's printFilterParams).
+  const invoiceIds = searchParams.getAll('invoice_ids')
 
   const listQuery = useQuery({
-    queryKey: ['ar-detail-report-print', customerId, status, agingBucket, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, salesPersonIds],
+    queryKey: ['ar-detail-report-print', customerId, status, agingBucket, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, salesPersonIds, invoiceIds],
     queryFn: () =>
-      fetchAccountsReceivables({
-        page: 1,
-        per_page: 100,
-        ...(customerId ? { customer_id: customerId } : {}),
-        ...(status ? { status } : {}),
-        ...(agingBucket ? { aging_bucket: agingBucket } : {}),
-        ...(dateFrom ? { date_from: dateFrom } : {}),
-        ...(dateTo ? { date_to: dateTo } : {}),
-        ...(invoiceDateFrom ? { invoice_date_from: invoiceDateFrom } : {}),
-        ...(invoiceDateTo ? { invoice_date_to: invoiceDateTo } : {}),
-        ...(salesPersonIds.length > 0 ? { sales_person_ids: salesPersonIds } : {}),
-      }),
+      fetchAccountsReceivables(
+        invoiceIds.length > 0
+          ? { page: 1, per_page: 100, invoice_ids: invoiceIds }
+          : {
+              page: 1,
+              per_page: 100,
+              ...(customerId ? { customer_id: customerId } : {}),
+              ...(status ? { status } : {}),
+              ...(agingBucket ? { aging_bucket: agingBucket } : {}),
+              ...(dateFrom ? { date_from: dateFrom } : {}),
+              ...(dateTo ? { date_to: dateTo } : {}),
+              ...(invoiceDateFrom ? { invoice_date_from: invoiceDateFrom } : {}),
+              ...(invoiceDateTo ? { invoice_date_to: invoiceDateTo } : {}),
+              ...(salesPersonIds.length > 0 ? { sales_person_ids: salesPersonIds } : {}),
+            },
+      ),
   })
 
   // Names only for the header line below ("Salesman: AKHSAN, ANTONY, DIAH") — the filter itself
