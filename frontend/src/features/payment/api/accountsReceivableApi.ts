@@ -11,7 +11,12 @@ export interface AccountsReceivableListParams {
   invoice_date_from?: string
   invoice_date_to?: string
   branch_id?: string
+  /** Legacy single-id param — the backend still accepts it, but every caller in this codebase now
+      sends `sales_person_ids` (below) instead. Kept typed here only so a stray external caller
+      passing it wouldn't be a type error. */
   sales_person_id?: string
+  /** Multi-select (see AccountsReceivableDetailReportFiltersBar) — omit entirely for "all". */
+  sales_person_ids?: string[]
   /** Sales > Invoices' checkbox print flow (Tanda Terima Invoice / Laporan Penagihan Harian) — resolves checked Invoice ids to their AccountsReceivable rows. */
   invoice_ids?: string[]
   page?: number

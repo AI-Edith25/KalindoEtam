@@ -25,6 +25,7 @@ import type { AccountsReceivable } from '@/features/payment/types'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
 import { AccountsReceivableDetailReportFiltersBar } from '../components/AccountsReceivableDetailReportFiltersBar'
 import { CustomerOutstandingArchiveFiltersBar } from '../components/CustomerOutstandingArchiveFiltersBar'
 import { CustomerOutstandingArchiveImportDialog } from '../components/CustomerOutstandingArchiveImportDialog'
@@ -51,7 +52,14 @@ type ViewMode = 'aging' | 'grouped' | 'ledger' | 'archive'
 export function AccountsReceivableDetailReportPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState<ArDetailReportFilterValues>(emptyArDetailReportFilters)
+  // Only the Salesman multi-select is URL-synced (survives refresh/shared links) — every other
+  // filter on this page predates this ticket and stays plain useState, unchanged.
+  const [urlFilters, setUrlFilters] = useUrlFilters({ salesPersonIds: [] as string[] })
+  const [filters, setFiltersState] = useState<ArDetailReportFilterValues>({ ...emptyArDetailReportFilters, sales_person_ids: urlFilters.salesPersonIds })
+  const setFilters = (next: ArDetailReportFilterValues) => {
+    setFiltersState(next)
+    setUrlFilters({ salesPersonIds: next.sales_person_ids })
+  }
   const [viewMode, setViewMode] = useState<ViewMode>('aging')
   const [ledgerPage, setLedgerPage] = useState(1)
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
@@ -82,7 +90,7 @@ export function AccountsReceivableDetailReportPage() {
     filters.invoiceDateFrom,
     filters.invoiceDateTo,
     filters.branch_id,
-    filters.sales_person_id,
+    filters.sales_person_ids,
   ])
 
   const listQuery = useQuery({
@@ -97,7 +105,7 @@ export function AccountsReceivableDetailReportPage() {
       filters.invoiceDateFrom,
       filters.invoiceDateTo,
       filters.branch_id,
-      filters.sales_person_id,
+      filters.sales_person_ids,
     ],
     queryFn: () =>
       fetchAccountsReceivables({
@@ -110,7 +118,7 @@ export function AccountsReceivableDetailReportPage() {
         ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
         ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
         ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
-        ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
+        ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
       }),
     enabled: viewMode === 'aging' && hasLiveData,
     placeholderData: (previous) => previous,
@@ -139,7 +147,7 @@ export function AccountsReceivableDetailReportPage() {
     filters.invoiceDateFrom ||
     filters.invoiceDateTo ||
     filters.branch_id ||
-    filters.sales_person_id
+    filters.sales_person_ids.length > 0
   )
 
   const activeFilterParams = {
@@ -151,10 +159,19 @@ export function AccountsReceivableDetailReportPage() {
     ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
     ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
     ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
-    ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
+    ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
   }
 
-  const printParams = new URLSearchParams(activeFilterParams).toString()
+  // Not `new URLSearchParams(activeFilterParams)` — that constructor coerces every value with
+  // String(), which turns the sales_person_ids array into a single "id1,id2" comma-joined
+  // param instead of the repeated `sales_person_ids=id1&sales_person_ids=id2` pairs the print
+  // page (via its own useSearchParams().getAll()) and the backend both expect.
+  const printSearchParams = new URLSearchParams()
+  for (const [key, val] of Object.entries(activeFilterParams)) {
+    if (Array.isArray(val)) val.forEach((v) => printSearchParams.append(key, v))
+    else printSearchParams.append(key, String(val))
+  }
+  const printParams = printSearchParams.toString()
 
   const toggleInvoiceRow = (invoiceId: string | null) => {
     if (!invoiceId) return

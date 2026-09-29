@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { MultiSelectFilter } from '@/components/shared/MultiSelectFilter'
 import { Input } from '@/components/ui/input'
 import { fetchCustomer } from '@/features/master/api/customerApi'
 import { fetchBranches, fetchSalesPersonsLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
@@ -71,12 +72,13 @@ export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: Ac
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Salesman</span>
-        <SearchableSelect
+        <MultiSelectFilter
           options={salesPersons.data?.map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name })) ?? []}
-          value={value.sales_person_id || undefined}
-          onChange={(next) => onChange({ ...value, sales_person_id: next ?? '' })}
+          value={value.sales_person_ids}
+          onChange={(next) => onChange({ ...value, sales_person_ids: next })}
           loading={salesPersons.isLoading}
           placeholder="All sales persons"
+          itemLabel="salesman"
           aria-label="Salesman"
           className="w-44"
         />

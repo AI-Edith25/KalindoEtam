@@ -7,6 +7,7 @@ import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import { formatDate } from '@/lib/utils'
 import { defaultPrintOptions, formatMoney, PRINT_FONT_SIZE_PX, type PrintOptions } from '@/shared/lib/printOptions'
 import { fetchAccountsReceivables } from '@/features/payment/api/accountsReceivableApi'
+import { fetchSalesPersonsLookup } from '@/features/master/api/lookupsApi'
 
 /**
  * Read-only print view of the AR Detail Report's current filters — same
@@ -25,9 +26,10 @@ export function AccountsReceivableDetailReportPrintPage() {
   const dateTo = searchParams.get('date_to') ?? undefined
   const invoiceDateFrom = searchParams.get('invoice_date_from') ?? undefined
   const invoiceDateTo = searchParams.get('invoice_date_to') ?? undefined
+  const salesPersonIds = searchParams.getAll('sales_person_ids')
 
   const listQuery = useQuery({
-    queryKey: ['ar-detail-report-print', customerId, status, agingBucket, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo],
+    queryKey: ['ar-detail-report-print', customerId, status, agingBucket, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, salesPersonIds],
     queryFn: () =>
       fetchAccountsReceivables({
         page: 1,
@@ -39,8 +41,20 @@ export function AccountsReceivableDetailReportPrintPage() {
         ...(dateTo ? { date_to: dateTo } : {}),
         ...(invoiceDateFrom ? { invoice_date_from: invoiceDateFrom } : {}),
         ...(invoiceDateTo ? { invoice_date_to: invoiceDateTo } : {}),
+        ...(salesPersonIds.length > 0 ? { sales_person_ids: salesPersonIds } : {}),
       }),
   })
+
+  // Names only for the header line below ("Salesman: AKHSAN, ANTONY, DIAH") — the filter itself
+  // travels as ids (see MultiSelectFilter/useUrlFilters), never names.
+  const salesPersonsQuery = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup, enabled: salesPersonIds.length > 0 })
+  const salesPersonNamesLabel =
+    salesPersonIds.length === 0
+      ? 'Semua'
+      : (salesPersonsQuery.data ?? [])
+          .filter((sp) => salesPersonIds.includes(sp.id))
+          .map((sp) => sp.name)
+          .join(', ') || '…'
 
   const rows = listQuery.data?.data ?? []
   const total = listQuery.data?.meta.total ?? 0
@@ -80,6 +94,7 @@ export function AccountsReceivableDetailReportPrintPage() {
               Invoice Date {invoiceDateFrom ? formatDate(invoiceDateFrom) : '—'} to {invoiceDateTo ? formatDate(invoiceDateTo) : '—'}
             </p>
           )}
+          <p>Salesman: {salesPersonNamesLabel}</p>
         </div>
 
         <table className="w-full border-collapse">

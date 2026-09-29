@@ -193,6 +193,61 @@ class AccountsReceivableDetailReportTest extends TestCase
         $this->assertNotSame($bySalesPerson->items()[0]->id, $byBranch->items()[0]->id);
     }
 
+    /** Multi-select Salesman filter (AR Detail report) — 0 selected = unfiltered, 1 selected = same as the legacy single-id param, 2+ = union of each filtered individually, and a bogus id is ignored rather than erroring. */
+    public function test_sales_person_ids_multi_select_matches_the_tickets_own_acceptance_cases(): void
+    {
+        $akhsan = \App\Models\SalesPerson::query()->create(['code' => 'SP1', 'name' => 'Akhsan']);
+        $diah = \App\Models\SalesPerson::query()->create(['code' => 'SP2', 'name' => 'Diah']);
+        $antony = \App\Models\SalesPerson::query()->create(['code' => 'SP3', 'name' => 'Antony']);
+
+        $this->submittedInvoice(now()->addDays(10)->toDateString(), salesPersonId: $akhsan->id);
+        $this->submittedInvoice(now()->addDays(10)->toDateString(), salesPersonId: $diah->id);
+        $this->submittedInvoice(now()->addDays(10)->toDateString(), salesPersonId: $antony->id);
+
+        // 0 selected -> identical to no filter at all.
+        $none = $this->accountsReceivableRepository->search([]);
+        $emptyArray = $this->accountsReceivableRepository->search(['sales_person_ids' => []]);
+        $this->assertCount(3, $none->items());
+        $this->assertCount(3, $emptyArray->items());
+
+        // 1 selected -> same result as the legacy singular param.
+        $legacy = $this->accountsReceivableRepository->search(['sales_person_id' => $akhsan->id]);
+        $multiOne = $this->accountsReceivableRepository->search(['sales_person_ids' => [$akhsan->id]]);
+        $this->assertCount(1, $legacy->items());
+        $this->assertCount(1, $multiOne->items());
+        $this->assertSame($legacy->items()[0]->id, $multiOne->items()[0]->id);
+
+        // 2+ selected -> union, same total as filtering each one separately and summing.
+        $akhsanOnly = $this->accountsReceivableRepository->search(['sales_person_ids' => [$akhsan->id]]);
+        $diahOnly = $this->accountsReceivableRepository->search(['sales_person_ids' => [$diah->id]]);
+        $both = $this->accountsReceivableRepository->search(['sales_person_ids' => [$akhsan->id, $diah->id]]);
+        $this->assertCount($akhsanOnly->total() + $diahOnly->total(), $both->items());
+
+        // An invalid/unknown id is ignored, not a 500 — it simply matches no row via whereIn().
+        $withBogusId = $this->accountsReceivableRepository->search(['sales_person_ids' => [$akhsan->id, 'not-a-real-id']]);
+        $this->assertCount(1, $withBogusId->items());
+    }
+
+    public function test_sales_person_ids_endpoint_ignores_an_invalid_id_instead_of_erroring(): void
+    {
+        $akhsan = \App\Models\SalesPerson::query()->create(['code' => 'SP1', 'name' => 'Akhsan']);
+        $this->submittedInvoice(now()->addDays(10)->toDateString(), salesPersonId: $akhsan->id);
+
+        // submittedInvoice()'s own approval step swaps the acting user internally (see
+        // TestCase::approveDocument()) — the real request must authenticate AFTER that, not before.
+        \App\Models\Permission::query()->firstOrCreate(['name' => 'reports.ar_detail.view', 'guard_name' => 'web']);
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('reports.ar_detail.view');
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/accounts-receivables?'.http_build_query([
+            'sales_person_ids' => [$akhsan->id, 'not-a-uuid-at-all'],
+        ]));
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+    }
+
     /**
      * Regression test for the bug this fix addresses: Transportation invoices have no Sales
      * Order at all, so the Branch filter must also match accounts_receivables.branch_id

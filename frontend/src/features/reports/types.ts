@@ -380,7 +380,9 @@ export interface ArDetailReportFilterValues {
   invoiceDateFrom: string
   invoiceDateTo: string
   branch_id: string
-  sales_person_id: string
+  /** Multi-select — empty array means every salesman (the pre-existing default), matching how
+      every other array/optional filter on this page already treats "empty = no filter". */
+  sales_person_ids: string[]
 }
 
 /** Kartu Piutang — one customer's running ledger row. document_type matches the exact labels features/accounting/lib/journalReferenceLink.ts already switches on, reused as-is for the clickable Nomor Dokumen link. */

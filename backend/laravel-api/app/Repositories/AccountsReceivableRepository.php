@@ -66,6 +66,24 @@ class AccountsReceivableRepository extends BaseRepository
      * date_to just above) rather than DATEDIFF()/CURDATE(), which are
      * MySQL-only and break the SQLite-backed test suite.
      */
+    /**
+     * Merges the legacy single `sales_person_id` param with the multi-select `sales_person_ids`
+     * array into one deduplicated id list — [] (no filter) when neither is present, matching how
+     * every other optional filter here behaves with `when()`. Invalid/unknown ids are left in
+     * deliberately: whereIn() against a bogus id just matches nothing, never errors, which is the
+     * "ignore invalid ids, never 500" behavior the multi-select filter needs (validated loosely on
+     * purpose — see IndexAccountsReceivableRequest).
+     */
+    private function normalizedSalesPersonIds(array $filters): array
+    {
+        $ids = $filters['sales_person_ids'] ?? [];
+        if (! empty($filters['sales_person_id'])) {
+            $ids[] = $filters['sales_person_id'];
+        }
+
+        return array_values(array_unique(array_filter($ids)));
+    }
+
     private function filteredQuery(array $filters): Builder
     {
         return $this->model->query()
@@ -81,7 +99,10 @@ class AccountsReceivableRepository extends BaseRepository
             ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->where(fn ($q) => $q
                 ->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('branch_id', $branchId))
                 ->orWhere('branch_id', $branchId)))
-            ->when($filters['sales_person_id'] ?? null, fn ($query, $salesPersonId) => $query->whereHas('salesOrder', fn ($soQuery) => $soQuery->where('sales_person_id', $salesPersonId)))
+            ->when($this->normalizedSalesPersonIds($filters), fn ($query, $salesPersonIds) => $query->whereHas(
+                'salesOrder',
+                fn ($soQuery) => $soQuery->whereIn('sales_person_id', $salesPersonIds)
+            ))
             // Sales > Invoices' checkbox-driven print flow (Tanda Terima Invoice / Laporan Penagihan Harian) — resolves checked Invoice ids to their AccountsReceivable rows.
             ->when($filters['invoice_ids'] ?? null, fn ($query, $ids) => $query->whereIn('invoice_id', $ids))
             ->when($filters['aging_bucket'] ?? null, fn ($query, $bucket) => match ($bucket) {
