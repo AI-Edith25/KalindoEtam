@@ -22,7 +22,7 @@ interface PrintSettingsDialogProps {
 /** Which paper types each document's own print page actually offers — kept in lockstep with DeliveryPrintPage.tsx/InvoicePrintPage.tsx's own `paperTypeOptions`. */
 const PAPER_TYPE_OPTIONS: Record<PrintSettingDocumentType, PrintPaperType[]> = {
   'delivery-order': ['a4', 'half', 'dotmatrix_half'],
-  invoice: ['a4', 'half', 'continuous', 'roll', 'dotmatrix_half'],
+  invoice: ['a4', 'half', 'continuous', 'roll', 'dotmatrix_half', 'dotmatrix_auto'],
 }
 
 interface SectionState {

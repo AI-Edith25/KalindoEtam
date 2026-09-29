@@ -178,9 +178,17 @@ export interface InvoicePortraitLayoutProps {
   showDiscount: boolean
   showDecimalTotals?: boolean
   /** Physical page height in mm (297 for A4, 279.4 for Continuous) — drives each physical page's
-      own min-height; width is always 100% of its container, which the caller already sizes to the
-      correct physical page width. */
+      own min-height (unless `autoHeight`, see below); width is always 100% of its container, which
+      the caller already sizes to the correct physical page width. Still used as the pagination
+      budget even when `autoHeight` is set — it decides when content is long enough to need a 2nd
+      page, it just no longer forces every page to visually fill that height. */
   pageHeightMm: number
+  /** Dot Matrix (Auto) only — the caller can't know the real physical page height (that's the
+      whole reason this mode exists, see PrintPaperType's own 'dotmatrix_auto' doc comment), so
+      forcing every page to a fixed min-height would either leave a printer-confusing blank gap or,
+      worse, overflow a shorter-than-assumed physical page. Each page instead sizes to exactly its
+      own content. */
+  autoHeight?: boolean
 }
 
 export function InvoicePortraitLayout({
@@ -198,6 +206,7 @@ export function InvoicePortraitLayout({
   showDiscount,
   showDecimalTotals,
   pageHeightMm,
+  autoHeight,
 }: InvoicePortraitLayoutProps) {
   const effectiveFontFamily = fontFamily ?? DEJAVU_FONT_STACK
   const itemCols = getPortraitItemCols(showTax)
@@ -492,7 +501,7 @@ export function InvoicePortraitLayout({
     display: 'flex',
     flexDirection: 'column',
     width: '100%',
-    minHeight: `${pageHeightMm}mm`,
+    minHeight: autoHeight ? undefined : `${pageHeightMm}mm`,
     boxSizing: 'border-box',
     padding: `${MARGIN_MM}mm`,
     fontFamily: effectiveFontFamily,

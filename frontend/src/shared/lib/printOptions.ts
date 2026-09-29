@@ -10,8 +10,20 @@ export type PrintFontSize = 'small' | 'medium' | 'large'
  * locked in CSS so page count never depends on whatever custom paper form is registered in a given
  * device's printer driver. See DOTMATRIX_HALF_DEFAULTS below for its other tunable numbers
  * (content height/offset, independent of the physical @page size above).
+ *
+ * 'dotmatrix_auto' — Invoice-only, opt-in. For a printer driver whose registered paper form
+ * doesn't match EITHER 'half' (210x148.5mm) NOR 'dotmatrix_half' (9.5in x 5.5in) — Chrome then
+ * substitutes the driver's own paper size instead of honoring @page, and a box height pinned to
+ * either of those numbers can overflow onto a blank 2nd page. This mode emits no @page size at
+ * all (Chrome/the driver pick whatever's registered) and renders the invoice with
+ * InvoicePortraitLayout's normal document flow (auto height, no forced min-height) instead of
+ * InvoiceLandscapeLayout's fixed absolutely-positioned 210x148.5mm canvas, which cannot render at
+ * an unknown/auto height by construction. Deliberately its own isolated preset rather than a
+ * change to 'half'/'dotmatrix_half' — removing @page size for those was tried once before for a
+ * different stakeholder's printer and regressed page-count predictability for every other device
+ * (see DOTMATRIX_HALF_PAGE_SIZE_MM's own comment in invoicePrintConstants.ts).
  */
-export type PrintPaperType = 'a4' | 'continuous' | 'half' | 'roll' | 'letter' | 'dotmatrix_half'
+export type PrintPaperType = 'a4' | 'continuous' | 'half' | 'roll' | 'letter' | 'dotmatrix_half' | 'dotmatrix_auto'
 
 /** Font Style dropdown choices — shared by PrintOptionsDialog (print time) and the admin PrintSettingsDialog (features/administration), which edits the same choices for another user. */
 export const FONT_FAMILY_OPTIONS = [
@@ -70,6 +82,7 @@ export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
   roll: 'Roll (Thermal 80mm)',
   letter: 'Letter',
   dotmatrix_half: 'Dot Matrix Half (9.5" × 5.5")',
+  dotmatrix_auto: 'Dot Matrix (Auto / Driver Paper Size)',
 }
 
 /**
@@ -97,6 +110,9 @@ export const PRINT_PAPER_PAGE_CSS: Record<PrintPaperType, string | null> = {
   // other consumer offers this paper type. Present only so this Record<PrintPaperType, ...> stays
   // exhaustive.
   dotmatrix_half: null,
+  // Never read from here either — Invoice print emits `@page { margin: 0; }` (no size) for this
+  // paper type inline, for the same "unknown paper form" reason a fixed string can't work here.
+  dotmatrix_auto: null,
 }
 
 const PRINT_PAPER_TYPE_STORAGE_KEY = 'print-paper-type'
@@ -123,7 +139,14 @@ const INVOICE_PRINT_PAPER_TYPE_STORAGE_KEY = 'print-paper-type-invoice'
 
 export function loadInvoicePaperTypePreference(): PrintPaperType {
   const stored = localStorage.getItem(INVOICE_PRINT_PAPER_TYPE_STORAGE_KEY)
-  return stored === 'continuous' || stored === 'half' || stored === 'roll' ? stored : 'a4'
+  // ponytail: 'dotmatrix_half' was missing from this allow-list before dotmatrix_auto was added
+  // alongside it — a selected Dot Matrix Half preference silently reset to 'a4' on reload (server
+  // setting, if any, still won via InvoicePrintPage's own priority order, so this only bit a user
+  // with no saved server setting). Fixed in passing since dotmatrix_auto needed this list touched
+  // anyway.
+  return stored === 'continuous' || stored === 'half' || stored === 'roll' || stored === 'dotmatrix_half' || stored === 'dotmatrix_auto'
+    ? stored
+    : 'a4'
 }
 
 export function saveInvoicePaperTypePreference(paperType: PrintPaperType): void {

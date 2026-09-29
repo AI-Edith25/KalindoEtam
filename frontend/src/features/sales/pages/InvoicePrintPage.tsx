@@ -133,6 +133,9 @@ export function InvoicePrintPage() {
   // from it instead of tracked separately.
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
   const isDotMatrix = printOptions.paperType === 'dotmatrix_half'
+  // See PrintPaperType's own 'dotmatrix_auto' doc comment (printOptions.ts) for why this is a
+  // separate mode from 'half'/'dotmatrix_half' rather than a tweak to either.
+  const isDotMatrixAuto = printOptions.paperType === 'dotmatrix_auto'
   const isLandscape = format === 'a4' && (printOptions.paperType === 'half' || isDotMatrix)
   const showDiscount = printOptions.showDiscount ?? false
   const showTax = printOptions.showTax ?? false
@@ -184,7 +187,16 @@ export function InvoicePrintPage() {
   // Goods (Direct) has its own warehouse_id (no Delivery to source it from) — Transportation
   // still renders blank, unaffected (see this file's own docblock).
   const location = invoice.delivery?.warehouse?.name ?? invoice.warehouse?.name ?? ''
-  const paperKey = printOptions.paperType === 'half' || isDotMatrix ? 'half' : printOptions.paperType === 'continuous' ? 'continuous' : 'a4'
+  // dotmatrix_auto borrows 'half' sizing purely as the pagination budget InvoicePortraitLayout
+  // bin-packs against (see its own `autoHeight` doc comment) — it does not force the rendered
+  // page to that height, and its width (210mm) still matches the physical stationery this mode's
+  // one real-world stakeholder actually loads into their dot-matrix printer.
+  const paperKey =
+    printOptions.paperType === 'half' || isDotMatrix || isDotMatrixAuto
+      ? 'half'
+      : printOptions.paperType === 'continuous'
+        ? 'continuous'
+        : 'a4'
   const paperSize = PAPER_SIZES[paperKey]
   const dotMatrixHeightMm = printOptions.dotMatrixHeightMm ?? DOTMATRIX_HALF_DEFAULTS.heightMm
   const dotMatrixOffsetLeftMm = printOptions.dotMatrixOffsetLeftMm ?? DOTMATRIX_HALF_DEFAULTS.offsetLeftMm
@@ -213,7 +225,7 @@ export function InvoicePrintPage() {
               // other content once isLandscape, so its rendered height already equals the child's).
               // Portrait (A4/Continuous) has no such child-imposed height — it's normal document
               // flow — so it still needs this to visually fill the page for a short invoice.
-              minHeight: isLandscape ? undefined : `${paperSize.heightMm}mm`,
+              minHeight: isLandscape || isDotMatrixAuto ? undefined : `${paperSize.heightMm}mm`,
               breakAfter: 'avoid',
               pageBreakAfter: 'avoid',
             }
@@ -229,13 +241,21 @@ export function InvoicePrintPage() {
           no longer depends on whatever custom paper form is registered in a given device's printer
           driver -- this used to omit `size` entirely for one stakeholder's printer whose driver
           disagreed with any size we asked for, but that traded away predictable page count for
-          every other device, which is the worse failure mode. */}
+          every other device, which is the worse failure mode.
+
+          Dot Matrix (Auto) is the one deliberate exception to that lesson: it's for a driver whose
+          registered paper form matches NEITHER fixed size above, so Chrome substitutes the
+          driver's own size regardless of what we ask for — omitting `size` here just makes that
+          explicit instead of fighting it, and InvoicePortraitLayout's own auto-height rendering
+          (not a fixed-height absolutely-positioned canvas) is what actually keeps this safe. */}
       <style>
         {(isDotMatrix
           ? `@page { size: ${DOTMATRIX_HALF_PAGE_SIZE_MM.widthMm}mm ${DOTMATRIX_HALF_PAGE_SIZE_MM.heightMm}mm; margin: 0; }`
-          : format === 'roll'
-            ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
-            : `@page { size: ${paperSize.widthMm}mm ${paperSize.heightMm}mm; margin: 0; }`) +
+          : isDotMatrixAuto
+            ? '@page { margin: 0; }'
+            : format === 'roll'
+              ? `@page { size: ${ROLL_PAPER_WIDTH_MM}mm ${rollHeightMm}mm; margin: 0; }`
+              : `@page { size: ${paperSize.widthMm}mm ${paperSize.heightMm}mm; margin: 0; }`) +
           /* Without this, Chrome drops background/border colors that rely on print-color-adjust
              defaults, thinning out table borders and the totals box on some printers/PDF drivers. */
           ' @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'}
@@ -296,6 +316,7 @@ export function InvoicePrintPage() {
           showDiscount={showDiscount}
           showDecimalTotals={printOptions.showDecimalTotals}
           pageHeightMm={paperSize.heightMm}
+          autoHeight={isDotMatrixAuto}
         />
       )}
 
@@ -417,7 +438,7 @@ export function InvoicePrintPage() {
         onChange={handlePrintOptionsChange}
         fields={[]}
         showPaperType
-        paperTypeOptions={['a4', 'half', 'continuous', 'roll', 'dotmatrix_half']}
+        paperTypeOptions={['a4', 'half', 'continuous', 'roll', 'dotmatrix_half', 'dotmatrix_auto']}
         showFontSize={false}
         showFontFamily
         defaultFontFamily={format === 'a4' ? DEJAVU_FONT_STACK : undefined}

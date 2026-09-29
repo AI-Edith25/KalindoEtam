@@ -2,7 +2,15 @@
 // scenario) against the real built app, with the API layer mocked via page.route so no backend/DB
 // is needed. Prints to PDF and counts pages, across the variations from the bug ticket:
 // item count (1/5/15), font-family fallback, deviceScaleFactor, and a simulated 1-3px content
-// overflow. Run: `node scripts/print-page-count.mjs` (needs `npm run build` + `npx playwright install chromium` first).
+// overflow.
+//
+// Also covers "dotmatrix_auto" (a driver whose registered paper form matches neither 'half' nor
+// 'dotmatrix_half', so Chrome substitutes its own size instead of honoring @page — see
+// PrintPaperType's own doc comment in printOptions.ts) with `preferCSSPageSize: false`, the
+// inverse of every 'half' variant above: this is the one paper type that must stay correct even
+// when the browser does NOT honor our requested @page size at all.
+//
+// Run: `node scripts/print-page-count.mjs` (needs `npm run build` + `npx playwright install chromium` first).
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -112,10 +120,25 @@ async function run() {
   const browser = await chromium.launch()
   try {
     const variants = [
-      ...([1, 5, 15].map((itemCount) => ({ label: `items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0 }))),
-      ...(['Arial', '"Times New Roman"', 'monospace'].map((f) => ({ label: `font=${f}`, itemCount: 3, deviceScaleFactor: 1, fontOverride: f, extraHeightPx: 0 }))),
-      ...([1, 1.25, 1.5].map((dsf) => ({ label: `dsf=${dsf}`, itemCount: 3, deviceScaleFactor: dsf, fontOverride: null, extraHeightPx: 0 }))),
-      ...([1, 2, 3].map((px) => ({ label: `extraHeightPx=${px}`, itemCount: 3, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: px }))),
+      ...([1, 5, 15].map((itemCount) => ({
+        label: `items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true,
+      }))),
+      ...(['Arial', '"Times New Roman"', 'monospace'].map((f) => ({
+        label: `font=${f}`, itemCount: 3, deviceScaleFactor: 1, fontOverride: f, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true,
+      }))),
+      ...([1, 1.25, 1.5].map((dsf) => ({
+        label: `dsf=${dsf}`, itemCount: 3, deviceScaleFactor: dsf, fontOverride: null, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true,
+      }))),
+      ...([1, 2, 3].map((px) => ({
+        label: `extraHeightPx=${px}`, itemCount: 3, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: px, paperType: 'half', preferCSSPageSize: true,
+      }))),
+      // dotmatrix_auto, with preferCSSPageSize:false — simulates a driver that ignores our @page
+      // size entirely and substitutes its own (the actual SIMPLIDOTS/EPSON LX-310 failure mode).
+      // Nothing above tests this: every 'half' variant asserts the OPPOSITE premise
+      // (preferCSSPageSize:true, i.e. @page IS honored).
+      ...([1, 5, 15].map((itemCount) => ({
+        label: `dotmatrix_auto items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'dotmatrix_auto', preferCSSPageSize: false,
+      }))),
     ]
 
     for (const v of variants) {
@@ -128,9 +151,9 @@ async function run() {
       // idle, so `networkidle` hangs forever here; `load` + an explicit selector wait is enough.
       await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded', timeout: 15000 })
       await page.evaluate(() => localStorage.setItem('auth_token', 'fake-token'))
-      // Force the "half" (Half A5-landscape) paper type via the same localStorage key the page
-      // itself reads on init (loadInvoicePaperTypePreference) — avoids driving the Print Options UI.
-      await page.evaluate(() => localStorage.setItem('print-paper-type-invoice', 'half'))
+      // Force the paper type via the same localStorage key the page itself reads on init
+      // (loadInvoicePaperTypePreference) — avoids driving the Print Options UI.
+      await page.evaluate((paperType) => localStorage.setItem('print-paper-type-invoice', paperType), v.paperType)
       await page.goto(`${BASE}/sales/invoices/${INVOICE_ID}/print`, { waitUntil: 'load', timeout: 15000 })
       await page.waitForSelector('h1:has-text("Invoice Print Preview")', { timeout: 15000 })
       await page.waitForTimeout(300)
@@ -149,7 +172,7 @@ async function run() {
         }, v.extraHeightPx)
       }
 
-      const pdf = await page.pdf({ preferCSSPageSize: true })
+      const pdf = await page.pdf({ preferCSSPageSize: v.preferCSSPageSize })
       const pages = countPdfPages(pdf)
       results.push({ ...v, pages })
       await context.close()
