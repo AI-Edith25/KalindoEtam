@@ -88,7 +88,7 @@ export function PaymentVoucherPrintTemplate({ payment, companyName, printOptions
       {/* ---------- Header: two columns, no outer border ---------- */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
         <div>
-          <PrintMetaTable size={bodyPt} rows={[{ label: 'Bank Account', value: payment.cash_account?.name ?? '' }]} />
+          <PrintMetaTable size={bodyPt} rows={[{ label: 'Dibayarkan Kepada', value: payment.remarks ?? '' }]} />
           <p style={{ margin: 0, fontSize: `${bodyPt * (8 / 9)}pt`, fontWeight: 700 }}>Keterangan :</p>
           <p style={{ margin: 0 }}>
             {companyName}
