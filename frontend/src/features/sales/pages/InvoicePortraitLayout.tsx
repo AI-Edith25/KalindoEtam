@@ -378,6 +378,12 @@ export function InvoicePortraitLayout({
               padding: `${PORTRAIT.tableCellPaddingVerticalMm}mm ${PORTRAIT.tableCellPaddingHorizontalMm}mm`,
               whiteSpace: col.key === 'description' ? 'normal' : 'nowrap',
               overflowWrap: col.key === 'description' ? 'break-word' : undefined,
+              // ItemCode is the one nowrap column with real-world free-text length variance (not a
+              // short controlled code like UOM, or a formatted number) — without this, a code
+              // longer than its column overflows visibly into Description (table-layout:fixed
+              // doesn't clip on its own). An honest ellipsis beats silently running into the next
+              // column.
+              ...(col.key === 'itemCode' ? { overflow: 'hidden', textOverflow: 'ellipsis' } : undefined),
             }}
           >
             {renderCell(col.key, item, index)}

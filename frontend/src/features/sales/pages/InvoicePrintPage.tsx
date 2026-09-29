@@ -281,23 +281,22 @@ export function InvoicePrintPage() {
       </div>
 
       {format === 'a4' && isLandscape && (
-        <div style={isDotMatrix ? { marginLeft: `${dotMatrixOffsetLeftMm}mm`, marginTop: `${dotMatrixOffsetTopMm}mm` } : undefined}>
-          <InvoiceLandscapeLayout
-            invoice={invoice}
-            companyName={companyName}
-            printHeader={printHeaderQuery.data}
-            customerTel={tel}
-            location={location}
-            signatureLeftLabel={printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
-            signatureRightLabel={printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
-            fontFamily={printOptions.fontFamily}
-            showTax={showTax}
-            showDiscount={showDiscount}
-            showDecimalTotals={printOptions.showDecimalTotals}
-            heightMm={isDotMatrix ? dotMatrixHeightMm : undefined}
-            clipOverflow={isDotMatrix}
-          />
-        </div>
+        <InvoiceLandscapeLayout
+          invoice={invoice}
+          companyName={companyName}
+          printHeader={printHeaderQuery.data}
+          customerTel={tel}
+          location={location}
+          signatureLeftLabel={printOptions.signatureLeftLabel ?? 'AUTHORISED SIGNATURE'}
+          signatureRightLabel={printOptions.signatureRightLabel ?? 'AUTHORISED SIGNATURE'}
+          fontFamily={printOptions.fontFamily}
+          showTax={showTax}
+          showDiscount={showDiscount}
+          showDecimalTotals={printOptions.showDecimalTotals}
+          heightMm={isDotMatrix ? dotMatrixHeightMm : undefined}
+          offsetLeftMm={isDotMatrix ? dotMatrixOffsetLeftMm : undefined}
+          offsetTopMm={isDotMatrix ? dotMatrixOffsetTopMm : undefined}
+        />
       )}
 
       {format === 'a4' && !isLandscape && (

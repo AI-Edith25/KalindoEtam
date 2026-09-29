@@ -21,14 +21,27 @@ export { DEJAVU_FONT_STACK }
 
 /**
  * Precise replica of the legacy SkyBiz salesinvoice.php print (DocumentTemplate=23) for the
- * LANDSCAPE layout — Half (A5 landscape, 210x148.5mm) is the only paper type that uses it; A4 and
- * Continuous use the separate PORTRAIT layout (InvoicePortraitLayout.tsx), per the clouderp legacy
- * system's own two-template split. See invoice-print-spec.md at the repo root, which is the single
- * source of truth for every mm value below (extracted from the PDF's own content stream, not
- * estimated). Absolute positioning throughout per that spec's own Section 0 rule 3: mPDF places
- * every text baseline independently, which flow/flex layout cannot reproduce. This component is a
- * fixed 210x148.5mm canvas — no scaling, no paper-type parameterization — since only one paper
- * type ever renders it.
+ * LANDSCAPE layout — Half (A5 landscape, 210x148.5mm) and Dot Matrix Half (same canvas, a shorter
+ * tunable sheet height) are the only paper types that use it; A4 and Continuous use the separate
+ * PORTRAIT layout (InvoicePortraitLayout.tsx), per the clouderp legacy system's own two-template
+ * split. See invoice-print-spec.md at the repo root, which is the single source of truth for every
+ * mm value below (extracted from the PDF's own content stream, not estimated). Absolute
+ * positioning throughout per that spec's own Section 0 rule 3: mPDF places every text baseline
+ * independently, which flow/flex layout cannot reproduce.
+ *
+ * Multi-page (explicit, not browser auto-break): the header block (company/customer info, judul,
+ * rules, item-table column headers) and its own top coordinates are frozen exactly as the spec
+ * measured them and repeat byte-identical on every physical page — only the item table's row slice
+ * and the footer cluster (terbilang onward) vary per page. The footer's own internal geometry
+ * (terbilangTop, totals-box top, computed signature position) is UNCHANGED from the original
+ * single-page design; it was already independent of item row count (item area and footer cluster
+ * never shared layout math), which is exactly what makes "stop packing items once they'd reach the
+ * footer's fixed top" a correct multi-page split rather than a hack. Row capacity per page is
+ * computed from the same frozen row/header geometry (ITEM_TABLE_TOP_MM/ITEM_THEAD_HEIGHT_MM/
+ * ITEM_ROW_HEIGHT_MM below) — never hardcoded per invoice — so it stays correct if those numbers
+ * ever change. ItemCode/Description get `overflow:hidden` + ellipsis (ponytail: this is the whole
+ * fix for a too-narrow column — no measurement pass needed since Half's row height is frozen, and a
+ * physical dot-matrix/A5 sheet can't show an arbitrarily long line anyway).
  *
  * Three deliberate departures from the frozen baseline table, all imported from
  * invoicePrintConstants.ts (the shared constants file) rather than hand-tuned here:
@@ -209,6 +222,43 @@ function buildTotalsRows(invoice: Invoice, showTax: boolean, showDiscount: boole
   return rows
 }
 
+/** Frozen item-table geometry (see file doc comment) — drives pagination capacity, not just render. */
+const ITEM_TABLE_TOP_MM = 47.51
+const ITEM_THEAD_HEIGHT_MM = 6.4
+const ITEM_ROW_HEIGHT_MM = 5.92
+/** Terbilang's own frozen top (before any dot-matrix bottomShiftMm) — the footer cluster's fixed
+    start, and therefore the last page's item-area bottom limit. */
+const TERBILANG_TOP_MM = 82.44
+/** Non-last pages have no footer to stop for, so the item area can run down to the physical page
+    bottom instead — minus a small bottom margin and room for the "CONTINUE TO NEXT PAGE" line. */
+const PAGE_BOTTOM_MARGIN_MM = 3
+const CONTINUE_ROW_HEIGHT_MM = 6
+const CONTINUE_TEXT = 'CONTINUE TO NEXT PAGE ...'
+
+/**
+ * Splits `itemCount` rows into page-sized index groups. `lastCapacity` (smaller — the footer
+ * needs room) is reserved for the final page; every page before it packs up to `middleCapacity`
+ * rows. Unlike InvoicePortraitLayout's own bin-packer (variable, measured row heights, needs a
+ * cascading re-check), every row here is the same frozen height, so simple arithmetic is both
+ * correct and enough — no need for the heavier measure-then-cascade machinery.
+ */
+export function paginateHalfInvoiceItems(itemCount: number, middleCapacity: number, lastCapacity: number): number[][] {
+  if (itemCount === 0) return [[]]
+  const range = (start: number, end: number) => Array.from({ length: end - start }, (_, k) => start + k)
+  if (itemCount <= lastCapacity) return [range(0, itemCount)]
+
+  const nonLastPageCount = Math.ceil((itemCount - lastCapacity) / middleCapacity)
+  const pages: number[][] = []
+  let i = 0
+  for (let p = 0; p < nonLastPageCount; p++) {
+    const end = Math.min(i + middleCapacity, itemCount - lastCapacity)
+    pages.push(range(i, end))
+    i = end
+  }
+  pages.push(range(i, itemCount))
+  return pages
+}
+
 export interface InvoiceLandscapeLayoutProps {
   invoice: Invoice
   companyName: string
@@ -231,11 +281,13 @@ export interface InvoiceLandscapeLayoutProps {
    * before. When set, the whole bottom cluster (terbilang, E&O.E, bank notes, totals box — and by
    * extension the signature block, since its position is computed FROM the totals box) shifts up
    * by exactly `148.5 - heightMm`, a uniform translation, not a rescale — content above that
-   * cluster (header, item table) is untouched, per the ticket's own "konten di atas biarkan sama."
+   * cluster (header, item table) is untouched. Also shrinks every non-last page's own item area to
+   * match this shorter physical sheet.
    */
   heightMm?: number
-  /** Guarantees Chrome never emits a 2nd page for this sheet — dot-matrix mode only. */
-  clipOverflow?: boolean
+  /** Dot-matrix mode only — the Print Options "Offset Left/Top" tuning, applied to every page. */
+  offsetLeftMm?: number
+  offsetTopMm?: number
 }
 
 export function InvoiceLandscapeLayout({
@@ -251,13 +303,15 @@ export function InvoiceLandscapeLayout({
   showDiscount,
   showDecimalTotals,
   heightMm,
-  clipOverflow,
+  offsetLeftMm,
+  offsetTopMm,
 }: InvoiceLandscapeLayoutProps) {
   const effectiveFontFamily = fontFamily ?? DEJAVU_FONT_STACK
   const itemCols = getItemCols(showTax)
   const totalsDecimals = (showDecimalTotals ?? true) ? 2 : 0
   const totalsRows = buildTotalsRows(invoice, showTax, showDiscount)
-  const bottomShiftMm = heightMm != null ? 148.5 - heightMm : 0
+  const sheetHeightMm = heightMm ?? 148.5
+  const bottomShiftMm = 148.5 - sheetHeightMm
   const totalsTableTopMm = TOTALS_TABLE_TOP_MM - bottomShiftMm
 
   // Predicts the totals table's own rendered height (real <table> below, auto-fit) so the
@@ -268,205 +322,243 @@ export function InvoiceLandscapeLayout({
   const totalsBoxBottom = totalsTableTopMm + totalsRows.length * TOTALS_BOX_ROW_HEIGHT_MM
   const signatureNameTop = Math.max(LANDSCAPE_LEFT_COLUMN_BOTTOM_MM - bottomShiftMm, totalsBoxBottom) + LANDSCAPE_SIGNATURE_GAP_MM
 
+  // Pagination — see file doc comment. lastPageItemBottomMm is the footer's own fixed top
+  // (terbilang), unaffected by row count; middlePageItemBottomMm is just "physical sheet bottom
+  // minus a margin and the continue-row's own height."
+  const lastPageItemBottomMm = TERBILANG_TOP_MM - bottomShiftMm
+  const middlePageItemBottomMm = sheetHeightMm - PAGE_BOTTOM_MARGIN_MM - CONTINUE_ROW_HEIGHT_MM
+  const lastCapacity = Math.max(1, Math.floor((lastPageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM) / ITEM_ROW_HEIGHT_MM))
+  const middleCapacity = Math.max(lastCapacity, Math.floor((middlePageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM) / ITEM_ROW_HEIGHT_MM))
+  const pages = paginateHalfInvoiceItems(invoice.items.length, middleCapacity, lastCapacity)
+
   return (
-    <div
-      data-testid="invoice-landscape-canvas"
-      style={{
-        position: 'relative',
-        width: '210mm',
-        height: `${heightMm ?? 148.5}mm`,
-        overflow: clipOverflow ? 'hidden' : 'visible', // pagination for long invoices is unmeasured (spec Section 12) — flow past this box rather than silently clip line items
-        // Unconditional (not just dot-matrix mode): this box's own height is pinned to exactly
-        // 148.5mm — the same number as @page's own height, margin 0, zero tolerance — so a sub-
-        // pixel mm→px rounding difference (font fallback, deviceScaleFactor, GDI vs Skia text
-        // metrics) is enough to spill a blank 2nd page even for a short invoice. `avoid` (not
-        // `always`) only suppresses that spurious break; a genuinely long invoice that overflows
-        // this box still gets a real 2nd page. Both properties: `break-after` isn't honored by
-        // print in Chrome until ~116 (a real stakeholder device on Chrome 109 predates it) —
-        // `page-break-after` is the legacy alias that actually works there.
-        breakAfter: 'avoid',
-        pageBreakAfter: 'avoid',
-        fontFamily: effectiveFontFamily,
-        color: '#000',
-        lineHeight: LINE_HEIGHT,
-      }}
-    >
-      <style>{DEJAVU_FONT_FACES}</style>
+    <>
+      {pages.map((rowIndexes, pageIndex) => {
+        const isLastPage = pageIndex === pages.length - 1
+        const continueRowTop = ITEM_TABLE_TOP_MM + ITEM_THEAD_HEIGHT_MM + rowIndexes.length * ITEM_ROW_HEIGHT_MM + 1
 
-      {/* ---------- BLOK KIRI (company + customer) ---------- */}
-      <T top={5.94} left={10} size={FONT_PT.companyName} bold>{legacyCompanyName(companyName)}</T>
-      {printHeader?.address && <T top={12.65} left={10} size={FONT_PT.metaLeft}>{printHeader.address}</T>}
-      <MetaField top={16.88} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="TEL" value={printHeader?.phone ?? ''} size={FONT_PT.metaLeft} />
-      <MetaField top={20.85} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="EMAIL" value={printHeader?.email ?? ''} size={FONT_PT.metaLeft} />
-      <T top={26.46} left={10} size={FONT_PT.customerName} bold>{invoice.customer?.customer_name ?? '—'}</T>
-      {invoice.customer?.address && <T top={31.7} left={10} size={FONT_PT.metaLeft}>{invoice.customer.address}</T>}
-      <MetaField top={36.99} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="Tel" value={customerTel} size={FONT_PT.metaLeft} bold valueBold={false} />
-
-      {/* ---------- BLOK KANAN (info kanan) ---------- */}
-      {(
-        [
-          ['NO', invoice.document_number ?? '—', 5.26, true],
-          ['Date', ddmmyyyy(invoice.invoice_date), 9.76, false],
-          ['Reference 1', invoice.reference_1 ?? '', 14.25, false],
-          ['Payment Term', invoice.terms_of_payment?.name ?? '', 18.23, false],
-          ['Jatuh Tempo', ddmmyyyy(invoice.due_date), 22.73, false],
-          ['Sales Person', invoice.sales_person?.name ?? '', 26.95, false],
-          ['Location', location, 31.46, false],
-        ] as [string, string, number, boolean][]
-      ).map(([label, value, top, bold]) => (
-        <MetaField key={label} top={top} labelLeft={127.21} labelWidth={META_LABEL_WIDTH_RIGHT_MM} label={label} value={value} size={FONT_PT.metaRight} bold={bold} />
-      ))}
-
-      {/* ---------- JUDUL ---------- */}
-      <T top={37.75} left={10} width={190} size={FONT_PT.title} bold align="center">INVOICE</T>
-
-      {/* ---------- GARIS ---------- */}
-      <Line top={45.22} left={10} width={190} height={0.8} color="#000" />
-      <Line top={46.79} left={10.66} width={188.49} height={0.26} color="#383838" />
-      <Line top={52.34} left={10.66} width={188.49} height={0.26} color="#383838" />
-
-      {/* ---------- TABEL ITEM ---------- */}
-      <table
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: '47.51mm',
-          width: '210mm',
-          borderCollapse: 'collapse',
-          tableLayout: 'fixed',
-          fontSize: '9.99pt',
-        }}
-      >
-        <colgroup>
-          {itemCols.map((col) => (
-            <col key={col.key} style={{ width: `${col.width}mm` }} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr>
-            {itemCols.map((col) => (
-              <th
-                key={col.key}
-                style={{
-                  height: '6.40mm',
-                  verticalAlign: 'top',
-                  fontWeight: 400,
-                  textAlign: col.align,
-                  padding: 0,
-                  ...cellPadStyle(col, false),
-                }}
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.items.map((item, index) => (
-            <tr key={item.id}>
-              {itemCols.map((col) => {
-                const style: React.CSSProperties = {
-                  height: '5.92mm',
-                  verticalAlign: 'top',
-                  lineHeight: 1.2,
-                  textAlign: col.align,
-                  padding: 0,
-                  ...cellPadStyle(col, true),
-                }
-                let content: React.ReactNode = ''
-                switch (col.key) {
-                  case 'no':
-                    content = <span style={{ fontSize: '8.991pt' }}>{index + 1}</span>
-                    break
-                  case 'itemCode':
-                    content = item.item_code ?? ''
-                    break
-                  case 'description':
-                    content = item.item_name
-                    break
-                  case 'qty':
-                    content = fmt(item.qty, 0)
-                    break
-                  case 'uom':
-                    content = item.uom ?? ''
-                    break
-                  case 'unitCost':
-                    content = fmt(item.rate, 2)
-                    break
-                  case 'tax':
-                    content = fmt(item.tax_amount, 2)
-                    break
-                  case 'lineAmt':
-                    content = fmt(item.amount, 2)
-                    break
-                }
-                return (
-                  <td key={col.key} style={style}>
-                    {content}
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* ---------- TERMS KIRI ---------- */}
-      <T top={82.44 - bottomShiftMm} left={10} size={FONT_PT.words}>{terbilangIdr(invoice.grand_total)}</T>
-      <Line top={88.02 - bottomShiftMm} left={10} width={190} height={0.2} color="#000" />
-      <T top={88.58 - bottomShiftMm} left={10} size={FONT_PT.eoeNote} bold italic>E. &amp; O.E</T>
-      <T top={92.79 - bottomShiftMm} left={10} size={9}>1. All cheque and payment should be crossed and made payable to</T>
-      <T top={97.29 - bottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>{legacyCompanyName(companyName)}</T>
-      <T top={102.05 - bottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>BCA NO A/C. 0271461312</T>
-
-      {/* ---------- KOTAK TOTAL ----------
-          Real <table>, outer border ONLY (no internal rule — BUG 2 / spec Section 8), every row
-          bold, auto-fit height to however many rows show. */}
-      <table
-        style={{
-          position: 'absolute',
-          left: `${TOTALS_TABLE_LEFT_MM}mm`,
-          top: `${totalsTableTopMm}mm`,
-          width: `${TOTALS_TABLE_WIDTH_MM}mm`,
-          borderCollapse: 'collapse',
-          border: `${TOTALS_BOX.borderMm}mm solid #000`,
-          tableLayout: 'fixed',
-        }}
-      >
-        <colgroup>
-          <col style={{ width: `${TOTALS_BOX.labelColMm}mm` }} />
-          <col style={{ width: `${TOTALS_BOX.rpColMm}mm` }} />
-          <col style={{ width: `${TOTALS_NOMINAL_COL_MM}mm` }} />
-        </colgroup>
-        <tbody>
-          {totalsRows.map((row) => {
-            const cellStyle: React.CSSProperties = {
-              fontSize: `${FONT_PT.totalsBox}pt`,
-              fontWeight: 700,
+        return (
+          <div
+            key={pageIndex}
+            data-testid="invoice-landscape-canvas"
+            style={{
+              position: 'relative',
+              width: '210mm',
+              height: `${sheetHeightMm}mm`,
+              overflow: 'hidden', // pagination above guarantees every page's own content fits — this is a safety net, not the mechanism
+              marginLeft: offsetLeftMm ? `${offsetLeftMm}mm` : undefined,
+              marginTop: offsetTopMm ? `${offsetTopMm}mm` : undefined,
+              breakAfter: isLastPage ? 'avoid' : 'page',
+              pageBreakAfter: isLastPage ? 'avoid' : 'always',
+              fontFamily: effectiveFontFamily,
+              color: '#000',
               lineHeight: LINE_HEIGHT,
-              padding: `${TOTALS_BOX.rowPaddingVerticalMm}mm 0`,
-            }
-            return (
-              <tr key={row.label}>
-                <td style={{ ...cellStyle, textAlign: 'left', paddingLeft: `${TOTALS_BOX.rowPaddingHorizontalMm}mm` }}>{row.label}</td>
-                <td style={{ ...cellStyle, textAlign: 'right', paddingRight: `${TOTALS_BOX.rowPaddingHorizontalMm}mm` }}>RP</td>
-                <td style={{ ...cellStyle, textAlign: 'right', paddingRight: `${TOTALS_BOX.rowPaddingHorizontalMm}mm` }}>{fmt(row.amount, totalsDecimals)}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+            }}
+          >
+            <style>{DEJAVU_FONT_FACES}</style>
 
-      {/* ---------- TANDA TANGAN ---------- */}
-      {/* signatureNameTop is computed above (BUG 3) from whichever of the totals table or the left
-          E&O.E column ends lower, plus a real gap — guarantees clearance at any row count instead
-          of a fixed top that could push content past the 148.5mm page bottom. */}
-      <T top={signatureNameTop} left={10.79} width={65} size={FONT_PT.signatureName} bold align="center">{invoice.customer?.customer_name ?? '—'}</T>
-      <T top={signatureNameTop} left={133.82} width={65} size={FONT_PT.signatureName} bold align="center">{companyName}</T>
-      <Line top={signatureNameTop + 24.87} left={10.26} width={65} height={0.5} color="#000" />
-      <Line top={signatureNameTop + 24.61} left={133.82} width={65} height={0.5} color="#000" />
-      <T top={signatureNameTop + 25.93} left={10.26} width={65} size={FONT_PT.signatureCaption} align="center">({signatureLeftLabel})</T>
-      <T top={signatureNameTop + 25.93} left={133.82} width={65} size={FONT_PT.signatureCaption} align="center">({signatureRightLabel})</T>
-    </div>
+            {/* ---------- BLOK KIRI (company + customer) — repeats on every page ---------- */}
+            <T top={5.94} left={10} size={FONT_PT.companyName} bold>{legacyCompanyName(companyName)}</T>
+            {printHeader?.address && <T top={12.65} left={10} size={FONT_PT.metaLeft}>{printHeader.address}</T>}
+            <MetaField top={16.88} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="TEL" value={printHeader?.phone ?? ''} size={FONT_PT.metaLeft} />
+            <MetaField top={20.85} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="EMAIL" value={printHeader?.email ?? ''} size={FONT_PT.metaLeft} />
+            <T top={26.46} left={10} size={FONT_PT.customerName} bold>{invoice.customer?.customer_name ?? '—'}</T>
+            {invoice.customer?.address && <T top={31.7} left={10} size={FONT_PT.metaLeft}>{invoice.customer.address}</T>}
+            <MetaField top={36.99} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="Tel" value={customerTel} size={FONT_PT.metaLeft} bold valueBold={false} />
+
+            {/* ---------- BLOK KANAN (info kanan) — Page No added, computed, repeats every page ---------- */}
+            {(
+              [
+                ['NO', invoice.document_number ?? '—', 5.26, true],
+                ['Date', ddmmyyyy(invoice.invoice_date), 9.76, false],
+                ['Reference 1', invoice.reference_1 ?? '', 14.25, false],
+                ['Payment Term', invoice.terms_of_payment?.name ?? '', 18.23, false],
+                ['Jatuh Tempo', ddmmyyyy(invoice.due_date), 22.73, false],
+                ['Sales Person', invoice.sales_person?.name ?? '', 26.95, false],
+                ['Location', location, 31.46, false],
+                ['Page No', `${pageIndex + 1} of ${pages.length}`, 35.96, false],
+              ] as [string, string, number, boolean][]
+            ).map(([label, value, top, bold]) => (
+              <MetaField key={label} top={top} labelLeft={127.21} labelWidth={META_LABEL_WIDTH_RIGHT_MM} label={label} value={value} size={FONT_PT.metaRight} bold={bold} />
+            ))}
+
+            {/* ---------- JUDUL ---------- */}
+            <T top={37.75} left={10} width={190} size={FONT_PT.title} bold align="center">INVOICE</T>
+
+            {/* ---------- GARIS ---------- */}
+            <Line top={45.22} left={10} width={190} height={0.8} color="#000" />
+            <Line top={46.79} left={10.66} width={188.49} height={0.26} color="#383838" />
+            <Line top={52.34} left={10.66} width={188.49} height={0.26} color="#383838" />
+
+            {/* ---------- TABEL ITEM (this page's row slice only) ---------- */}
+            <table
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: '47.51mm',
+                width: '210mm',
+                borderCollapse: 'collapse',
+                tableLayout: 'fixed',
+                fontSize: '9.99pt',
+              }}
+            >
+              <colgroup>
+                {itemCols.map((col) => (
+                  <col key={col.key} style={{ width: `${col.width}mm` }} />
+                ))}
+              </colgroup>
+              <thead>
+                <tr>
+                  {itemCols.map((col) => (
+                    <th
+                      key={col.key}
+                      style={{
+                        height: '6.40mm',
+                        verticalAlign: 'top',
+                        fontWeight: 400,
+                        textAlign: col.align,
+                        padding: 0,
+                        ...cellPadStyle(col, false),
+                      }}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rowIndexes.map((index) => {
+                  const item = invoice.items[index]
+                  return (
+                    <tr key={item.id}>
+                      {itemCols.map((col) => {
+                        const isTruncatable = col.key === 'itemCode' || col.key === 'description'
+                        const style: React.CSSProperties = {
+                          height: '5.92mm',
+                          verticalAlign: 'top',
+                          lineHeight: 1.2,
+                          textAlign: col.align,
+                          padding: 0,
+                          // Every column stays single-line (not just the two truncatable ones
+                          // below) — pagination capacity above is computed from this exact 5.92mm
+                          // row height + `overflow:hidden` on the page canvas; a column that wraps
+                          // to 2 lines would silently grow past what was budgeted and get clipped.
+                          whiteSpace: 'nowrap',
+                          ...cellPadStyle(col, true),
+                          // ItemCode/Description guard against a too-narrow column overrunning its
+                          // neighbor (the exact A4/Continuous bug this ticket also reports) — an
+                          // ellipsis is a correct, honest "this line is longer than the physical
+                          // sheet can show," not silent data loss like the clip above would be.
+                          ...(isTruncatable ? { overflow: 'hidden', textOverflow: 'ellipsis' } : undefined),
+                        }
+                        let content: React.ReactNode = ''
+                        switch (col.key) {
+                          case 'no':
+                            content = <span style={{ fontSize: '8.991pt' }}>{index + 1}</span>
+                            break
+                          case 'itemCode':
+                            content = item.item_code ?? ''
+                            break
+                          case 'description':
+                            content = item.item_name
+                            break
+                          case 'qty':
+                            content = fmt(item.qty, 0)
+                            break
+                          case 'uom':
+                            content = item.uom ?? ''
+                            break
+                          case 'unitCost':
+                            content = fmt(item.rate, 2)
+                            break
+                          case 'tax':
+                            content = fmt(item.tax_amount, 2)
+                            break
+                          case 'lineAmt':
+                            content = fmt(item.amount, 2)
+                            break
+                        }
+                        return (
+                          <td key={col.key} style={style}>
+                            {content}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+
+            {!isLastPage && (
+              <T top={continueRowTop} left={10} width={190} size={FONT_PT.tableBody} bold italic align="right">
+                {CONTINUE_TEXT}
+              </T>
+            )}
+
+            {isLastPage && (
+              <>
+                {/* ---------- TERMS KIRI ---------- */}
+                <T top={82.44 - bottomShiftMm} left={10} size={FONT_PT.words}>{terbilangIdr(invoice.grand_total)}</T>
+                <Line top={88.02 - bottomShiftMm} left={10} width={190} height={0.2} color="#000" />
+                <T top={88.58 - bottomShiftMm} left={10} size={FONT_PT.eoeNote} bold italic>E. &amp; O.E</T>
+                <T top={92.79 - bottomShiftMm} left={10} size={9}>1. All cheque and payment should be crossed and made payable to</T>
+                <T top={97.29 - bottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>{legacyCompanyName(companyName)}</T>
+                <T top={102.05 - bottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>BCA NO A/C. 0271461312</T>
+
+                {/* ---------- KOTAK TOTAL ----------
+                    Real <table>, outer border ONLY (no internal rule — BUG 2 / spec Section 8), every row
+                    bold, auto-fit height to however many rows show. */}
+                <table
+                  style={{
+                    position: 'absolute',
+                    left: `${TOTALS_TABLE_LEFT_MM}mm`,
+                    top: `${totalsTableTopMm}mm`,
+                    width: `${TOTALS_TABLE_WIDTH_MM}mm`,
+                    borderCollapse: 'collapse',
+                    border: `${TOTALS_BOX.borderMm}mm solid #000`,
+                    tableLayout: 'fixed',
+                  }}
+                >
+                  <colgroup>
+                    <col style={{ width: `${TOTALS_BOX.labelColMm}mm` }} />
+                    <col style={{ width: `${TOTALS_BOX.rpColMm}mm` }} />
+                    <col style={{ width: `${TOTALS_NOMINAL_COL_MM}mm` }} />
+                  </colgroup>
+                  <tbody>
+                    {totalsRows.map((row) => {
+                      const cellStyle: React.CSSProperties = {
+                        fontSize: `${FONT_PT.totalsBox}pt`,
+                        fontWeight: 700,
+                        lineHeight: LINE_HEIGHT,
+                        padding: `${TOTALS_BOX.rowPaddingVerticalMm}mm 0`,
+                      }
+                      return (
+                        <tr key={row.label}>
+                          <td style={{ ...cellStyle, textAlign: 'left', paddingLeft: `${TOTALS_BOX.rowPaddingHorizontalMm}mm` }}>{row.label}</td>
+                          <td style={{ ...cellStyle, textAlign: 'right', paddingRight: `${TOTALS_BOX.rowPaddingHorizontalMm}mm` }}>RP</td>
+                          <td style={{ ...cellStyle, textAlign: 'right', paddingRight: `${TOTALS_BOX.rowPaddingHorizontalMm}mm` }}>{fmt(row.amount, totalsDecimals)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+
+                {/* ---------- TANDA TANGAN ---------- */}
+                {/* signatureNameTop is computed above (BUG 3) from whichever of the totals table or the left
+                    E&O.E column ends lower, plus a real gap — guarantees clearance at any row count instead
+                    of a fixed top that could push content past the 148.5mm page bottom. */}
+                <T top={signatureNameTop} left={10.79} width={65} size={FONT_PT.signatureName} bold align="center">{invoice.customer?.customer_name ?? '—'}</T>
+                <T top={signatureNameTop} left={133.82} width={65} size={FONT_PT.signatureName} bold align="center">{companyName}</T>
+                <Line top={signatureNameTop + 24.87} left={10.26} width={65} height={0.5} color="#000" />
+                <Line top={signatureNameTop + 24.61} left={133.82} width={65} height={0.5} color="#000" />
+                <T top={signatureNameTop + 25.93} left={10.26} width={65} size={FONT_PT.signatureCaption} align="center">({signatureLeftLabel})</T>
+                <T top={signatureNameTop + 25.93} left={133.82} width={65} size={FONT_PT.signatureCaption} align="center">({signatureRightLabel})</T>
+              </>
+            )}
+          </div>
+        )
+      })}
+    </>
   )
 }

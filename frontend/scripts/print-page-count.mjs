@@ -119,26 +119,62 @@ async function run() {
   const results = []
   const browser = await chromium.launch()
   try {
+    // Half: lastCapacity=4 rows (last page, footer reserved), middleCapacity=14 rows (non-last
+    // pages, no footer). Dot Matrix Half (default 135mm sheet height): lastCapacity=2,
+    // middleCapacity=12. See InvoiceLandscapeLayout.tsx's own file doc comment for the geometry
+    // these numbers come from — every `expectedPages` below is hand-derived from them, not guessed.
     const variants = [
-      ...([1, 5, 15].map((itemCount) => ({
-        label: `items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true,
+      // 5 and 15 used to live here expecting 1 page each — that was asserting the very bug this
+      // ticket reports (Half's real per-page capacity is 4 rows; those counts only rendered as
+      // "1 page" because content silently overlapped the footer instead of paginating). Superseded
+      // by the 'half-pagination' variants below, which assert the correct (2-page) outcome.
+      ...([1].map((itemCount) => ({
+        label: `items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true, expectedPages: 1,
       }))),
       ...(['Arial', '"Times New Roman"', 'monospace'].map((f) => ({
-        label: `font=${f}`, itemCount: 3, deviceScaleFactor: 1, fontOverride: f, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true,
+        label: `font=${f}`, itemCount: 3, deviceScaleFactor: 1, fontOverride: f, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true, expectedPages: 1,
       }))),
       ...([1, 1.25, 1.5].map((dsf) => ({
-        label: `dsf=${dsf}`, itemCount: 3, deviceScaleFactor: dsf, fontOverride: null, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true,
+        label: `dsf=${dsf}`, itemCount: 3, deviceScaleFactor: dsf, fontOverride: null, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true, expectedPages: 1,
       }))),
       ...([1, 2, 3].map((px) => ({
-        label: `extraHeightPx=${px}`, itemCount: 3, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: px, paperType: 'half', preferCSSPageSize: true,
+        label: `extraHeightPx=${px}`, itemCount: 3, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: px, paperType: 'half', preferCSSPageSize: true, expectedPages: 1,
       }))),
       // dotmatrix_auto, with preferCSSPageSize:false — simulates a driver that ignores our @page
       // size entirely and substitutes its own (the actual SIMPLIDOTS/EPSON LX-310 failure mode).
       // Nothing above tests this: every 'half' variant asserts the OPPOSITE premise
       // (preferCSSPageSize:true, i.e. @page IS honored).
-      ...([1, 5, 15].map((itemCount) => ({
-        label: `dotmatrix_auto items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'dotmatrix_auto', preferCSSPageSize: false,
-      }))),
+      // items=15 intentionally expects 3, not 1 — dotmatrix_auto's pagination budget is
+      // deliberately conservative (it can't know the real physical page height), so it safely
+      // uses more pages than optimal once item count runs past the ticket's own stated 1-10 range.
+      // Never overlapping content — just not page-count-optimal past that range.
+      ...(
+        [
+          [1, 1], [5, 1], [15, 3],
+        ].map(([itemCount, expectedPages]) => ({
+          label: `dotmatrix_auto items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'dotmatrix_auto', preferCSSPageSize: false, expectedPages,
+        }))
+      ),
+      // Half explicit multi-page pagination (SI/KE/00022/09/2026 is the real 8-item case that
+      // started this ticket) — 1 (well under capacity), 4 (exact capacity, no overlap), 5
+      // (capacity+1, must split), 8 (the ticket's own example), 15 (spans the middle-page
+      // boundary too), 30 (3+ pages).
+      ...(
+        [
+          [1, 1], [4, 1], [5, 2], [8, 2], [15, 2], [30, 3],
+        ].map(([itemCount, expectedPages]) => ({
+          label: `half-pagination items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'half', preferCSSPageSize: true, expectedPages,
+        }))
+      ),
+      // Dot Matrix Half — same idea, smaller capacity (2 last / 12 middle at the 135mm default
+      // sheet height).
+      ...(
+        [
+          [1, 1], [2, 1], [3, 2], [8, 2], [13, 2], [30, 4],
+        ].map(([itemCount, expectedPages]) => ({
+          label: `dotmatrix_half-pagination items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'dotmatrix_half', preferCSSPageSize: true, expectedPages,
+        }))
+      ),
     ]
 
     for (const v of variants) {
@@ -182,13 +218,20 @@ async function run() {
     server.kill()
   }
 
-  console.table(results.map((r) => ({ variant: r.label, pages: r.pages, ok: r.pages === 1 ? 'OK' : 'FAIL (2+ pages)' })))
-  const failures = results.filter((r) => r.pages !== 1)
+  console.table(
+    results.map((r) => ({
+      variant: r.label,
+      expected: r.expectedPages,
+      pages: r.pages,
+      ok: r.pages === r.expectedPages ? 'OK' : `FAIL (expected ${r.expectedPages})`,
+    })),
+  )
+  const failures = results.filter((r) => r.pages !== r.expectedPages)
   if (failures.length) {
-    console.error(`\n${failures.length}/${results.length} variants produced more than 1 page.`)
+    console.error(`\n${failures.length}/${results.length} variants did not match their expected page count.`)
     process.exitCode = 1
   } else {
-    console.log(`\nAll ${results.length} variants produced exactly 1 page.`)
+    console.log(`\nAll ${results.length} variants matched their expected page count.`)
   }
 }
 

@@ -135,11 +135,19 @@ export function angkaToKata(n: number): string {
   return `${angkaToKata(Math.floor(n / 1_000_000_000_000))} triliun${n % 1_000_000_000_000 !== 0 ? ` ${angkaToKata(n % 1_000_000_000_000)}` : ''}`
 }
 
-/** Indonesian terbilang, ALL CAPS, e.g. 1470000 -> "SATU JUTA EMPAT RATUS TUJUH PULUH RIBU RUPIAH". Rounds to the nearest Rupiah — no sen clause, unlike terbilangUsd's cents. */
+/** Indonesian terbilang, ALL CAPS, e.g. 1470000 -> "SATU JUTA EMPAT RATUS TUJUH PULUH RIBU RUPIAH".
+    Invoice print's own terbilang line (Portrait + Landscape, both paper types) — a nonzero cents
+    remainder gets its own "... SEN" clause instead of being rounded away (7,000,001.86 ->
+    "TUJUH JUTA SATU RUPIAH DELAPAN PULUH ENAM SEN", not "...DUA RUPIAH" from rounding .86 up).
+    Same round-to-2-decimals-first pattern as terbilangIdrPlain, so a .995-style carry lands in the
+    rupiah part rather than producing "100 SEN". */
 export function terbilangIdr(amount: number | string): string {
-  const rounded = Math.round(Number(amount))
-  if (rounded === 0) return 'NOL RUPIAH'
-  return `${angkaToKata(rounded)} rupiah`.toUpperCase()
+  const rounded = Math.round(Number(amount) * 100) / 100
+  const integerPart = Math.floor(rounded)
+  const cents = Math.round((rounded - integerPart) * 100)
+  const rupiahWords = integerPart === 0 ? 'NOL' : angkaToKata(integerPart).toUpperCase()
+  if (cents === 0) return `${rupiahWords} RUPIAH`
+  return `${rupiahWords} RUPIAH ${angkaToKata(cents).toUpperCase()} SEN`
 }
 
 /** Payment Voucher print's own terbilang — same Indonesian words as terbilangIdr but with NO
