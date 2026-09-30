@@ -45,6 +45,9 @@ class Invoice extends Model
         'remarks',
         'reference_1',
         'reference_2',
+        'source_document_number',
+        'import_source_type',
+        'import_extra',
     ];
 
     protected $casts = [
@@ -60,6 +63,7 @@ class Invoice extends Model
         'grand_total' => 'decimal:2',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'import_extra' => 'array',
     ];
 
     /**

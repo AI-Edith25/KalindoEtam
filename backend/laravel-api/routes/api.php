@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\V1\IncomeStatementImportController;
 use App\Http\Controllers\Api\V1\InventoryValuationController;
 use App\Http\Controllers\Api\V1\InvoiceChangeRequestController;
 use App\Http\Controllers\Api\V1\InvoiceController;
+use App\Http\Controllers\Api\V1\SalesInvoiceHistoryImportController;
 use App\Http\Controllers\Api\V1\IssueStockController;
 use App\Http\Controllers\Api\V1\ItemController;
 use App\Http\Controllers\Api\V1\ItemGroupController;
@@ -410,6 +411,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Transportation only — Branch is metadata, not a financial field, so it stays editable
     // regardless of Draft/Submitted status. See InvoiceService::updateBranch().
     Route::patch('invoices/{invoice}/branch', [InvoiceController::class, 'updateBranch'])->middleware('permission:sales.invoices.update');
+
+    // Sales Invoice historical import — one click, one file shape, no manual column-mapping
+    // wizard. Creates real submitted Invoice/InvoiceItem rows but never touches stock/AR/GL (AR/GL
+    // balances are already backfilled by a separate Customer Outstanding import) — see
+    // SalesInvoiceImportService.
+    Route::post('sales-invoice-history/import', [SalesInvoiceHistoryImportController::class, 'store'])->middleware('permission:sales.invoices.import');
+    Route::post('sales-invoice-history/import/{batch}/resolve', [SalesInvoiceHistoryImportController::class, 'resolve'])->middleware('permission:sales.invoices.import');
+    Route::get('sales-invoice-history/import/{batch}', [SalesInvoiceHistoryImportController::class, 'show'])->middleware('permission:sales.invoices.import');
 
     // Invoice Angkutan nominal lock + approval: a Submitted Transportation Invoice's Rate/Amount/
     // Grand Total are otherwise immutable (no write path exists at all); this is the sole, audited,

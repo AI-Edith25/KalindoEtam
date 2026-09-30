@@ -473,12 +473,19 @@ class InvoiceService
         return DB::transaction(function () use ($invoice) {
             $invoice->submit();
 
-            if ($invoice->isDirectGoods()) {
-                $this->postDirectGoodsStock($invoice);
-            }
+            // Imported historical Invoices (import_source_type set — see SalesInvoiceImportService)
+            // never move stock, never create AR, never post GL: AR/GL balances are already
+            // backfilled by a separate Customer Outstanding import, and stock was never really
+            // consumed by these rows. Status still flips to Submitted above either way, so an
+            // imported invoice looks and behaves like a real one everywhere else.
+            if ($invoice->import_source_type === null) {
+                if ($invoice->isDirectGoods()) {
+                    $this->postDirectGoodsStock($invoice);
+                }
 
-            $this->accountsReceivableService->createFromInvoice($invoice);
-            $this->accountingService->postForDocument($invoice, $invoice->journalLines(), "Invoice {$invoice->document_number}", $invoice->invoice_date->toDateString());
+                $this->accountsReceivableService->createFromInvoice($invoice);
+                $this->accountingService->postForDocument($invoice, $invoice->journalLines(), "Invoice {$invoice->document_number}", $invoice->invoice_date->toDateString());
+            }
 
             $invoice = $invoice->fresh(self::EAGER);
             $this->auditLogService->record('submitted', 'invoice', "Submitted Invoice \"{$invoice->document_number}\".");
@@ -511,7 +518,7 @@ class InvoiceService
                 $this->accountsReceivableRepository->delete($accountsReceivable);
             }
 
-            if ($invoice->isDirectGoods()) {
+            if ($invoice->import_source_type === null && $invoice->isDirectGoods()) {
                 $this->reverseDirectGoodsStock($invoice);
             }
 

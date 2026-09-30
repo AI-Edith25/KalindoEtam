@@ -22,6 +22,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../api/invoiceApi'
 import { exportSalesReport } from '../api/salesReportApi'
 import { InvoiceFiltersBar } from '../components/InvoiceFiltersBar'
+import { SalesInvoiceHistoryImportDialog } from '../components/SalesInvoiceHistoryImportDialog'
 import { emptyInvoiceFilters } from '../lib/invoiceFilters'
 import type { Invoice, InvoiceFilterValues } from '../types'
 
@@ -37,6 +38,9 @@ export function InvoiceListPage() {
   const canCreate = useHasPermission('sales.invoices.create')
   const canUpdate = useHasPermission('sales.invoices.update')
   const canDelete = useHasPermission('sales.invoices.delete')
+  const canImport = useHasPermission('sales.invoices.import')
+
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -287,12 +291,18 @@ export function InvoiceListPage() {
             <ActionBar
               actions={[
                 { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
-                { label: 'Import', icon: Upload, disabled: true },
+                { label: 'Import', icon: Upload, onClick: () => setImportDialogOpen(true), disabled: !canImport },
               ]}
               primary={canCreate ? { label: 'New Invoice', icon: Plus, onClick: () => navigate('/sales/invoices/new') } : undefined}
             />
           </>
         }
+      />
+
+      <SalesInvoiceHistoryImportDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onImported={invalidate}
       />
 
       <div className="flex flex-wrap items-center gap-3">
