@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\DeliveryStatus;
 use App\Exceptions\BusinessException;
 use App\Exports\DeliveryDetailExport;
 use App\Http\Controllers\Concerns\ApiResponse;
@@ -14,6 +15,7 @@ use App\Http\Resources\DeliveryResource;
 use App\Models\Delivery;
 use App\Services\DeliveryService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -43,11 +45,22 @@ class DeliveryController extends Controller
 
     public function show(Delivery $delivery): JsonResponse
     {
-        return $this->success(new DeliveryResource($delivery->load(['customer', 'warehouse', 'salesOrder.salesPerson', 'salesOrder.tax', 'items', 'invoices', 'termsOfPayment'])));
+        return $this->success(new DeliveryResource($delivery->load(['customer', 'warehouse', 'salesOrder.salesPerson', 'salesOrder.tax', 'salesPerson', 'items.invoiceItem', 'invoices', 'termsOfPayment', 'updater'])));
     }
 
+    /**
+     * The route's own `permission:sales.deliveries.update` middleware covers the ordinary
+     * Pending-Delivery edit; a Complete Delivery is a materially different, riskier action
+     * (stock/delivered_qty reverse-and-repost — see DeliveryService::updateComplete()) so it
+     * additionally requires `sales.deliveries.edit`, checked here since the router has no way to
+     * know the document's status before it's loaded.
+     */
     public function update(UpdateDeliveryRequest $request, Delivery $delivery): JsonResponse
     {
+        if ($delivery->status === DeliveryStatus::COMPLETE) {
+            abort_unless(Auth::user()?->can('sales.deliveries.edit'), 403, 'You do not have permission to edit a Complete Delivery.');
+        }
+
         $delivery = $this->deliveryService->update($delivery, $request->validated());
 
         return $this->success(new DeliveryResource($delivery), 'Delivery updated.');

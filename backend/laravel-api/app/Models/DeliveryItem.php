@@ -7,6 +7,7 @@ use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class DeliveryItem extends Model
@@ -61,5 +62,11 @@ class DeliveryItem extends Model
     public function tax(): BelongsTo
     {
         return $this->belongsTo(Tax::class);
+    }
+
+    /** Null once this line has never been invoiced — see restrictOnDelete on invoice_items.delivery_item_id, and DeliveryService::updateComplete()'s row-removal guard. */
+    public function invoiceItem(): HasOne
+    {
+        return $this->hasOne(InvoiceItem::class);
     }
 }

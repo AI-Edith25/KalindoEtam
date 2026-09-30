@@ -39,6 +39,7 @@ import type { Customer, Item, MiscellaneousItem } from '@/features/master/types'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
+import { InvoiceSubmittedEditPage } from './InvoiceSubmittedEditPage'
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
 import { discountLabel } from '../lib/discount'
 import type { Delivery, Invoice, InvoiceFormValues, InvoiceType } from '../types'
@@ -165,8 +166,8 @@ export function InvoiceEditorPage() {
     const invoice = invoiceQuery.data
     if (!invoice) return
 
-    if (invoice.status !== 'draft') {
-      toast.error('Only draft invoices can be edited.')
+    if (invoice.status !== 'draft' && invoice.status !== 'submitted') {
+      toast.error('Cancelled invoices cannot be edited.')
       navigate(`/sales/invoices/${invoice.id}`, { replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,6 +179,14 @@ export function InvoiceEditorPage() {
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
       </div>
     )
+  }
+
+  // Submitted routes to a separate, purpose-built editor (InvoiceSubmittedEditPage) — this
+  // page's own form below is Draft-only and built around 3 create-time sub-flows (Goods/Direct/
+  // Transportation), a different shape from "correct an existing Submitted invoice's numbers".
+  // See InvoiceService::updateSubmitted().
+  if (isEdit && invoiceQuery.data?.status === 'submitted') {
+    return <InvoiceSubmittedEditPage />
   }
 
   // Step 1 (create mode only): pick the Invoice Type (which Naming Series numbers it) and

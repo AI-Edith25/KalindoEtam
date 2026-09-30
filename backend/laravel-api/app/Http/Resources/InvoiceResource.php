@@ -71,6 +71,15 @@ class InvoiceResource extends JsonResource
             'remarks' => $this->remarks,
             'reference_1' => $this->reference_1,
             'reference_2' => $this->reference_2,
+            // This Invoice's own override — null falls back to the Sales Order's own
+            // attention/tel/fax, or the Customer's own address/phone, for display; a non-null
+            // value here is a per-Invoice correction (see InvoiceService::updateSubmitted()).
+            'attention' => $this->attention,
+            'tel' => $this->tel,
+            'fax' => $this->fax,
+            'customer_address' => $this->customer_address,
+            'customer_phone' => $this->customer_phone,
+            'lock_version' => $this->lock_version,
             'items' => InvoiceItemResource::collection($this->whenLoaded('items')),
             'payment_history' => $accountsReceivable
                 ? $accountsReceivable->receiptEntryItems->map(fn ($line) => [
@@ -108,6 +117,10 @@ class InvoiceResource extends JsonResource
             'submitted_at' => $this->submitted_at,
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+            // "Last edited by" on the detail page's Audit Information card — full field-by-field
+            // history lives on the generic Audit Log page (module=invoice), not duplicated here.
+            'updater' => $this->whenLoaded('updater', fn () => $this->updater ? ['id' => $this->updater->id, 'name' => $this->updater->name] : null),
         ];
     }
 

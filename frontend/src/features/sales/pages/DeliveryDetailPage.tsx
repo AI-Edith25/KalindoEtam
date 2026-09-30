@@ -12,6 +12,7 @@ import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { lineAmount } from '@/shared/lib/documentTotals'
 import { openPrintWindow } from '@/shared/lib/printOptions'
@@ -32,6 +33,7 @@ export function DeliveryDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const canEditComplete = useHasPermission('sales.deliveries.edit')
 
   const deliveryQuery = useQuery({
     queryKey: ['deliveries', id],
@@ -100,6 +102,12 @@ export function DeliveryDetailPage() {
                   Delete
                 </Button>
               </>
+            )}
+            {delivery.status === 'complete' && canEditComplete && (
+              <Button variant="outline" onClick={() => navigate(`/sales/deliveries/${delivery.id}/edit`)}>
+                <Pencil className="size-4" />
+                Edit
+              </Button>
             )}
           </div>
         }
@@ -179,6 +187,9 @@ export function DeliveryDetailPage() {
           <DetailSection>
             <DetailField label="Created" value={formatDate(delivery.created_at)} />
             <DetailField label="Submitted" value={delivery.submitted_at ? formatDate(delivery.submitted_at) : '—'} />
+            {delivery.updater && (
+              <DetailField label="Last Edited By" value={`${delivery.updater.name} — ${formatDate(delivery.updated_at)}`} />
+            )}
           </DetailSection>
         </CardContent>
       </Card>

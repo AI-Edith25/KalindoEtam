@@ -26,6 +26,7 @@ import { fetchSalesOrder, fetchSalesOrders } from '../api/salesOrderApi'
 import type { Delivery, SalesOrder } from '../types'
 import { DeliveryLineItemTable } from '../components/DeliveryLineItemTable'
 import { deliveryFormSchema, type DeliveryEditorValues } from '../lib/deliveryFormSchema'
+import { DeliveryCompleteEditPage } from './DeliveryCompleteEditPage'
 
 export function DeliveryEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -62,8 +63,8 @@ export function DeliveryEditorPage() {
     const delivery = deliveryQuery.data
     if (!delivery) return
 
-    if (delivery.status !== 'pending') {
-      toast.error('Only pending deliveries can be edited.')
+    if (delivery.status !== 'pending' && delivery.status !== 'complete') {
+      toast.error('Cancelled deliveries cannot be edited.')
       navigate(`/sales/deliveries/${delivery.id}`, { replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,6 +76,13 @@ export function DeliveryEditorPage() {
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
       </div>
     )
+  }
+
+  // Complete routes to a separate, purpose-built editor (DeliveryCompleteEditPage) — this
+  // page's own form below is built around "how much to deliver against outstanding SO qty", a
+  // different shape from "correct what was already recorded". See DeliveryService::updateComplete().
+  if (isEdit && deliveryQuery.data?.status === 'complete') {
+    return <DeliveryCompleteEditPage />
   }
 
   // Step 1 (create mode only): pick the Sales Order this delivery originates from.

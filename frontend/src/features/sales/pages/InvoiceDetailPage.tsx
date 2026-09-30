@@ -13,6 +13,7 @@ import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { useHasPermission } from '@/shared/hooks/usePermission'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoice, submitInvoice } from '../api/invoiceApi'
@@ -172,6 +173,7 @@ export function InvoiceDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const canEditSubmitted = useHasPermission('sales.invoices.edit')
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -259,6 +261,12 @@ export function InvoiceDetailPage() {
               <Button variant="outline" onClick={() => navigate(`/sales/debit-notes/new?invoice_id=${invoice.id}`)}>
                 <FilePlus2 className="size-4" />
                 Create Debit Note
+              </Button>
+            )}
+            {invoice.status === 'submitted' && canEditSubmitted && (
+              <Button variant="outline" onClick={() => navigate(`/sales/invoices/${invoice.id}/edit`)}>
+                <Pencil className="size-4" />
+                Edit
               </Button>
             )}
             {invoice.status === 'submitted' && (
@@ -451,6 +459,9 @@ export function InvoiceDetailPage() {
             <DetailField label="Created" value={formatDate(invoice.created_at)} />
             <DetailField label="Submitted" value={invoice.submitted_at ? formatDate(invoice.submitted_at) : '—'} />
             <DetailField label="Cancelled" value={invoice.cancelled_at ? formatDate(invoice.cancelled_at) : '—'} />
+            {invoice.updater && (
+              <DetailField label="Last Edited By" value={`${invoice.updater.name} — ${formatDate(invoice.updated_at)}`} />
+            )}
           </DetailSection>
         </CardContent>
       </Card>

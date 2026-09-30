@@ -57,6 +57,7 @@ export function DeliveryListPage() {
   const canCreate = useHasPermission('sales.deliveries.create')
   const canUpdate = useHasPermission('sales.deliveries.update')
   const canDelete = useHasPermission('sales.deliveries.delete')
+  const canEditComplete = useHasPermission('sales.deliveries.edit')
 
   const [page, setPage] = useState(1)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
@@ -150,8 +151,11 @@ export function DeliveryListPage() {
       if (canDelete) {
         actions.push({ label: 'Delete', icon: Trash2, variant: 'destructive', onClick: () => setDeletingDelivery(delivery) })
       }
+    } else if (delivery.status === 'complete' && canEditComplete) {
+      // Delivery has no cancel action (see deliveryApi.ts) — Complete is otherwise terminal
+      // except for this correction path (DeliveryService::updateComplete()).
+      actions.push({ label: 'Edit', icon: Pencil, onClick: () => navigate(`/sales/deliveries/${delivery.id}/edit`) })
     }
-    // complete is terminal — Delivery has no cancel action (see deliveryApi.ts).
 
     return actions
   }

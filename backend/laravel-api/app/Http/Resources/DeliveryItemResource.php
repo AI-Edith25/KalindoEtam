@@ -22,6 +22,10 @@ class DeliveryItemResource extends JsonResource
             'tax_id' => $this->tax_id,
             'tax' => new TaxResource($this->whenLoaded('tax')),
             'tax_amount' => $this->tax_amount,
+            // Locks this row against removal on the edit screen — see
+            // DeliveryService::updateComplete()'s own guard, which is authoritative; this is
+            // display-only so the UI doesn't have to guess and get a 422 back.
+            'is_invoiced' => $this->whenLoaded('invoiceItem', fn () => $this->invoiceItem !== null, false),
         ];
     }
 }

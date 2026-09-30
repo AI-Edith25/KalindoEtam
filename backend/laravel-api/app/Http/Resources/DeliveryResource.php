@@ -21,6 +21,14 @@ class DeliveryResource extends JsonResource
             'customer' => new CustomerResource($this->whenLoaded('customer')),
             'warehouse_id' => $this->warehouse_id,
             'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
+            // This Delivery's own override — null falls back to the Sales Order's own
+            // sales_person/attention/tel/fax for display (DeliveryDetailPage.tsx already does
+            // this fallback on the frontend); a non-null value here is a per-Delivery correction.
+            'sales_person_id' => $this->sales_person_id,
+            'sales_person' => new SalesPersonResource($this->whenLoaded('salesPerson')),
+            'attention' => $this->attention,
+            'tel' => $this->tel,
+            'fax' => $this->fax,
             'delivery_date' => $this->delivery_date?->format('Y-m-d'),
             'due_date' => $this->due_date?->format('Y-m-d'),
             'terms_of_payment_id' => $this->terms_of_payment_id,
@@ -28,6 +36,7 @@ class DeliveryResource extends JsonResource
             'remarks' => $this->remarks,
             'fleet' => $this->fleet,
             'driver' => $this->driver,
+            'lock_version' => $this->lock_version,
             'items' => DeliveryItemResource::collection($this->whenLoaded('items')),
             'amount' => $this->whenLoaded('items', fn () => $this->items->sum('amount')),
             // Tax is per-line now (each item's own tax_id/tax_amount, already resolved when
@@ -53,6 +62,12 @@ class DeliveryResource extends JsonResource
             'submitted_at' => $this->submitted_at,
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+            // "Last edited by" on the detail page's Audit Information card — null on a
+            // never-edited-since-creation row, same as updated_at === created_at meaning nothing
+            // happened. Full field-by-field history lives on the generic Audit Log page
+            // (module=delivery), not duplicated here.
+            'updater' => $this->whenLoaded('updater', fn () => $this->updater ? ['id' => $this->updater->id, 'name' => $this->updater->name] : null),
         ];
     }
 }

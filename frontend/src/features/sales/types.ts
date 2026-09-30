@@ -141,6 +141,8 @@ export interface DeliveryItem {
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
+  // Locks this row against removal on the edit screen once true — see DeliveryService::updateComplete().
+  is_invoiced: boolean
 }
 
 export interface Delivery {
@@ -148,6 +150,7 @@ export interface Delivery {
   document_number: string | null
   status: DeliveryStatus
   revision: number
+  lock_version: number
   sales_order_id: string
   sales_order: {
     id: string
@@ -172,6 +175,13 @@ export interface Delivery {
   } | null
   warehouse_id: string
   warehouse: { id: string; name: string; code: string } | null
+  // This Delivery's own override — null falls back to sales_order.sales_person/attention/tel/fax
+  // for display. A non-null value here is a per-Delivery correction (DeliveryService::updateComplete()).
+  sales_person_id: string | null
+  sales_person: { id: string; code: string; name: string } | null
+  attention: string | null
+  tel: string | null
+  fax: string | null
   delivery_date: string
   due_date: string
   terms_of_payment_id: string | null
@@ -190,18 +200,27 @@ export interface Delivery {
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string
+  updated_at: string
+  updater: { id: string; name: string } | null
 }
 
 export interface DeliveryFormValues {
   sales_order_id: string
+  customer_id?: string
   warehouse_id: string
+  sales_person_id?: string | null
+  attention?: string | null
+  tel?: string | null
+  fax?: string | null
   delivery_date: string
   due_date: string
   terms_of_payment_id: string | null
   remarks: string | null
   fleet: string | null
   driver: string | null
-  items: { sales_order_item_id: string; qty: number }[]
+  // Required once editing a Complete Delivery (DeliveryService::updateComplete()'s optimistic-lock check).
+  lock_version?: number
+  items: { id?: string; sales_order_item_id: string; qty: number; rate?: number; tax_id?: string | null }[]
 }
 
 export type InvoiceDisplayStatus = 'draft' | 'unpaid' | 'partial' | 'paid' | 'cancelled'
@@ -287,6 +306,12 @@ export interface Invoice {
   remarks: string | null
   reference_1: string | null
   reference_2: string | null
+  attention: string | null
+  tel: string | null
+  fax: string | null
+  customer_address: string | null
+  customer_phone: string | null
+  lock_version: number
   items: InvoiceItem[]
   payment_history: InvoicePaymentHistoryLine[]
   credit_note_history: InvoiceCreditNoteHistoryLine[]
@@ -294,6 +319,8 @@ export interface Invoice {
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string
+  updated_at: string
+  updater: { id: string; name: string } | null
 }
 
 export interface InvoiceFormValues {
@@ -302,10 +329,16 @@ export interface InvoiceFormValues {
   // Transportation and Goods (Direct) only — picked directly instead of derived from a Delivery.
   customer_id?: string
   // Transportation: manual freestanding lines (no Item/inventory link). Goods (Direct): real
-  // Item-backed lines, same master data a Sales Order line resolves against.
-  items?: { description: string; qty: number; rate: number }[] | { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
+  // Item-backed lines, same master data a Sales Order line resolves against. Submitted-edit
+  // (InvoiceService::updateSubmitted()): existing line id + qty/rate/tax_id only, no add/remove.
+  items?:
+    | { description: string; qty: number; rate: number }[]
+    | { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
+    | { id: string; qty?: number; rate?: number; tax_id?: string | null }[]
   // Transportation and Goods (Direct), create-only — no Sales Order to derive Branch from.
-  branch_id?: string
+  // Also editable on a Submitted Invoice (InvoiceService::updateSubmitted()), hence the
+  // nullable variant — null clears the override back to the Sales Order's own Branch.
+  branch_id?: string | null
   // Goods (Direct) only — no Delivery to inherit a Location from. invoice_type stays 'goods'
   // either way (see Invoice::isDirectGoods()); this field alone is what the backend uses to
   // route to the Direct sub-flow.
@@ -324,6 +357,13 @@ export interface InvoiceFormValues {
   sales_person_id?: string | null
   reference_1?: string | null
   reference_2?: string | null
+  attention?: string | null
+  tel?: string | null
+  fax?: string | null
+  customer_address?: string | null
+  customer_phone?: string | null
+  // Required once editing a Submitted Invoice (InvoiceService::updateSubmitted()'s optimistic-lock check).
+  lock_version?: number
 }
 
 export interface InvoiceFilterValues {

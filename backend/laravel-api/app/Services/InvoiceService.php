@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'warehouse', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes'];
+    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'warehouse', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes', 'updater'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
@@ -346,9 +346,13 @@ class InvoiceService
         });
     }
 
-    /** Only header fields are editable — never delivery_id, never items. */
+    /** Draft: only header fields are editable — never delivery_id, never items. Submitted: see updateSubmitted(). */
     public function update(Invoice $invoice, array $data): Invoice
     {
+        if ($invoice->status === DocumentStatus::SUBMITTED) {
+            return $this->updateSubmitted($invoice, $data);
+        }
+
         return DB::transaction(function () use ($invoice, $data) {
             $this->assertDraft($invoice, 'updated');
 
@@ -402,6 +406,148 @@ class InvoiceService
 
             return $invoice;
         });
+    }
+
+    /**
+     * A stakeholder-driven relaxation, same posture as PurchaseOrderService::updateSubmitted()/
+     * SalesOrderService::updateApproved(): a Submitted Invoice used to be fully locked (Cancel ->
+     * Create New was the only correction path). Item identity (item_id/item_code/item_name/uom)
+     * and Delivery/Sales Order linkage stay locked — no add/remove, see
+     * applySubmittedItemChanges(); only qty/rate/tax_id per line and a set of header fields are
+     * editable. Any change to grand_total reverses this Invoice's previously-posted Journal Entry
+     * and posts a fresh one with the final totals (AccountingService::reverseForDocument()/
+     * postForDocument(), both already-generic, already used by Credit Note/Debit Note/Purchase
+     * Return) and resizes the existing Accounts Receivable row by the same delta
+     * (AccountsReceivableService::adjustForNominalChange() — the exact "resize amount by a delta,
+     * recompute UNPAID/PARTIALLY_PAID/PAID" primitive Debit/Credit Note already share). Allowed
+     * even once the Invoice has payments/Credit/Debit Notes applied (confirmed with the user) —
+     * unlike InvoiceChangeRequestService's own narrower (Transportation-only, Rate-only,
+     * blocks-if-paid) nominal-change workflow, which this doesn't touch or reuse beyond its 2
+     * proven AR/GL primitives. Transportation invoices keep using that dedicated workflow for
+     * money changes — `items` here is rejected for them, header fields still go through.
+     */
+    protected function updateSubmitted(Invoice $invoice, array $data): Invoice
+    {
+        return DB::transaction(function () use ($invoice, $data) {
+            $invoice = Invoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+
+            if (array_key_exists('lock_version', $data) && (int) $data['lock_version'] !== $invoice->lock_version) {
+                throw new BusinessException('Dokumen ini sudah diubah oleh pengguna lain. Muat ulang halaman dan coba lagi.', 409);
+            }
+
+            if (isset($data['items']) && $invoice->invoice_type === InvoiceType::TRANSPORTATION) {
+                throw new BusinessException('Gunakan menu "Ubah Nominal" untuk mengubah Rate pada Transportation Invoice.');
+            }
+
+            $editableFields = ['invoice_date', 'due_date', 'terms_of_payment_id', 'sales_person_id', 'branch_id', 'attention', 'tel', 'fax', 'reference_1', 'reference_2', 'customer_address', 'customer_phone', 'remarks'];
+            $before = $invoice->only([...$editableFields, 'discount_amount', 'discount_type', 'discount_percentage', 'subtotal', 'tax_amount', 'grand_total']);
+            $headerData = collect($data)->only($editableFields)->all();
+
+            $oldGrandTotal = (float) $invoice->grand_total;
+
+            if (isset($data['items'])) {
+                $this->applySubmittedItemChanges($invoice, $data['items']);
+                $invoice->refresh();
+            }
+
+            $subtotal = round((float) $invoice->items()->sum('amount'), 2);
+            $taxAmount = round((float) $invoice->items()->sum('tax_amount'), 2);
+
+            if (array_key_exists('discount_type', $data) || array_key_exists('discount_amount', $data) || array_key_exists('discount_percentage', $data)) {
+                [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
+            } else {
+                $discountAmount = (float) $invoice->discount_amount;
+                $discountType = $invoice->discount_type;
+                $discountPercentage = $invoice->discount_percentage;
+            }
+
+            $grandTotal = round($subtotal - $discountAmount + $taxAmount, 2);
+
+            if ($grandTotal < 0) {
+                throw new BusinessException('Grand total cannot be negative.');
+            }
+
+            $headerData['subtotal'] = $subtotal;
+            $headerData['tax_amount'] = $taxAmount;
+            $headerData['discount_amount'] = $discountAmount;
+            $headerData['discount_type'] = $discountType instanceof DiscountType ? $discountType->value : $discountType;
+            $headerData['discount_percentage'] = $discountPercentage;
+            $headerData['grand_total'] = $grandTotal;
+            $headerData['lock_version'] = $invoice->lock_version + 1;
+
+            $this->invoiceRepository->update($invoice, $headerData);
+
+            $delta = round($grandTotal - $oldGrandTotal, 2);
+
+            if ($delta !== 0.0 && $invoice->import_source_type === null && $invoice->accountsReceivable !== null) {
+                $accountsReceivable = $invoice->accountsReceivable;
+                $this->accountsReceivableRepository->lockManyForUpdate([$accountsReceivable->id]);
+                $this->accountingService->reverseForDocument($invoice);
+                $freshInvoice = $invoice->fresh(['items']);
+                $this->accountingService->postForDocument($freshInvoice, $freshInvoice->journalLines(), "Koreksi Invoice {$invoice->document_number}", now()->toDateString());
+                $this->accountsReceivableService->adjustForNominalChange($accountsReceivable, $delta);
+            }
+
+            $invoice = $invoice->fresh(self::EAGER);
+            $this->auditLogService->recordChanges('updated', 'invoice', $invoice, $before, $headerData, "Updated submitted Invoice \"{$invoice->document_number}\".");
+
+            return $invoice;
+        });
+    }
+
+    /**
+     * Item identity (item_id/item_code/item_name/uom) and Delivery/Sales Order linkage stay
+     * locked — every incoming line must reference an existing InvoiceItem id, no add/remove; only
+     * qty/rate/tax_id change. Direct Goods reverses+reposts real stock/FIFO around the edit
+     * (reusing postDirectGoodsStock()/reverseDirectGoodsStock() verbatim — no new stock code);
+     * every other Goods invoice never touches stock (the source Delivery already did), it just
+     * recomputes amount/tax_amount and rescales the frozen COGS snapshot — unit_cost is a
+     * per-unit figure and stays valid, only the extended cost_amount needs to track the new qty
+     * so Gross Profit/Product Sales reporting doesn't go stale against it.
+     */
+    protected function applySubmittedItemChanges(Invoice $invoice, array $items): void
+    {
+        $invoice->load('items');
+        $existing = $invoice->items->keyBy('id');
+        $incomingIds = collect($items)->pluck('id')->filter()->unique()->values();
+
+        if ($incomingIds->count() !== count($items) || $incomingIds->diff($existing->keys())->isNotEmpty() || $existing->keys()->diff($incomingIds)->isNotEmpty()) {
+            throw new BusinessException('Baris Invoice tidak bisa ditambah atau dihapus — hanya Qty, Rate, dan Tax yang bisa diubah.');
+        }
+
+        $isDirectGoods = $invoice->isDirectGoods();
+
+        if ($isDirectGoods) {
+            $this->reverseDirectGoodsStock($invoice);
+        }
+
+        $incomingById = collect($items)->keyBy('id');
+
+        foreach ($existing as $id => $line) {
+            $incoming = $incomingById->get($id);
+            $qty = (int) round((float) ($incoming['qty'] ?? $line->qty));
+
+            if ($qty <= 0) {
+                throw new BusinessException("Qty untuk item \"{$line->item_name}\" harus lebih dari 0.");
+            }
+
+            $rate = (float) ($incoming['rate'] ?? $line->rate);
+            $amount = round($qty * $rate, 2);
+            $taxId = array_key_exists('tax_id', $incoming) ? $incoming['tax_id'] : $line->tax_id;
+            $taxAmount = $taxId !== null ? round($this->taxService->calculate($amount, $this->taxRepository->findOrFail($taxId))['tax_amount'], 2) : 0.0;
+
+            $attributes = ['qty' => $qty, 'rate' => $rate, 'amount' => $amount, 'tax_id' => $taxId, 'tax_amount' => $taxAmount];
+
+            if ($line->unit_cost !== null) {
+                $attributes['cost_amount'] = round((float) $line->unit_cost * $qty * (float) ($line->uom_factor ?? 1), 2);
+            }
+
+            $this->invoiceItemRepository->update($line, $attributes);
+        }
+
+        if ($isDirectGoods) {
+            $this->postDirectGoodsStock($invoice->fresh(['items']));
+        }
     }
 
     /**

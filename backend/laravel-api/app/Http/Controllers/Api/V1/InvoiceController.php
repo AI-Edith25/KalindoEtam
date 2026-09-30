@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Concerns\ExportsSalesList;
 use App\Http\Controllers\Controller;
@@ -13,6 +14,7 @@ use App\Http\Resources\InvoiceResource;
 use App\Models\Invoice;
 use App\Services\InvoiceService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -55,12 +57,23 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice): JsonResponse
     {
         return $this->success(new InvoiceResource($invoice->load([
-            'customer', 'salesPerson', 'salesOrder.salesPerson', 'salesOrder.branch', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'items.deliveryItem.delivery.salesOrder.salesPerson', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes',
+            'customer', 'salesPerson', 'salesOrder.salesPerson', 'salesOrder.branch', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'items.deliveryItem.delivery.salesOrder.salesPerson', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes', 'updater',
         ])));
     }
 
+    /**
+     * The route's own `permission:sales.invoices.update` middleware covers the ordinary
+     * Draft-Invoice edit; a Submitted Invoice is a materially different, riskier action (GL
+     * reverse-and-repost + Accounts Receivable resize — see InvoiceService::updateSubmitted())
+     * so it additionally requires `sales.invoices.edit`, checked here since the router has no way
+     * to know the document's status before it's loaded.
+     */
     public function update(UpdateInvoiceRequest $request, Invoice $invoice): JsonResponse
     {
+        if ($invoice->status === DocumentStatus::SUBMITTED) {
+            abort_unless(Auth::user()?->can('sales.invoices.edit'), 403, 'You do not have permission to edit a Submitted Invoice.');
+        }
+
         $invoice = $this->invoiceService->update($invoice, $request->validated());
 
         return $this->success(new InvoiceResource($invoice), 'Invoice updated.');

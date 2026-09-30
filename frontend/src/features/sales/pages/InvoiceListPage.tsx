@@ -39,6 +39,7 @@ export function InvoiceListPage() {
   const canUpdate = useHasPermission('sales.invoices.update')
   const canDelete = useHasPermission('sales.invoices.delete')
   const canImport = useHasPermission('sales.invoices.import')
+  const canEditSubmitted = useHasPermission('sales.invoices.edit')
 
   const [importDialogOpen, setImportDialogOpen] = useState(false)
 
@@ -166,8 +167,13 @@ export function InvoiceListPage() {
       if (canDelete) {
         actions.push({ label: 'Delete', icon: Trash2, variant: 'destructive', onClick: () => setDeletingInvoice(invoice) })
       }
-    } else if (invoice.status === 'submitted' && canUpdate) {
-      actions.push({ label: 'Cancel', icon: Ban, variant: 'destructive', onClick: () => cancelMutation.mutate(invoice.id) })
+    } else if (invoice.status === 'submitted') {
+      if (canEditSubmitted) {
+        actions.push({ label: 'Edit', icon: Pencil, onClick: () => navigate(`/sales/invoices/${invoice.id}/edit`) })
+      }
+      if (canUpdate) {
+        actions.push({ label: 'Cancel', icon: Ban, variant: 'destructive', onClick: () => cancelMutation.mutate(invoice.id) })
+      }
     }
 
     return actions

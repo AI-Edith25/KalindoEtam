@@ -9,12 +9,14 @@ use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
 use App\Exports\Concerns\BuildsSalesSummaryReport;
 use App\Models\Delivery;
+use App\Models\InvoiceItem;
 use App\Models\SalesOrderItem;
 use App\Repositories\CompanyRepository;
 use App\Repositories\DeliveryItemRepository;
 use App\Repositories\DeliveryRepository;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
+use App\Repositories\TaxRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -36,6 +38,8 @@ class DeliveryService
         protected TaxService $taxService,
         protected CompanyRepository $companyRepository,
         protected QtyCategoryValidator $qtyCategoryValidator,
+        protected TaxRepository $taxRepository,
+        protected DocumentTimelineService $documentTimelineService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -169,8 +173,13 @@ class DeliveryService
         });
     }
 
+    /** Pending: only header fields + full item replace (unchanged). Complete: see updateComplete(). */
     public function update(Delivery $delivery, array $data): Delivery
     {
+        if ($delivery->status === DeliveryStatus::COMPLETE) {
+            return $this->updateComplete($delivery, $data);
+        }
+
         return DB::transaction(function () use ($delivery, $data) {
             $this->assertDraft($delivery, 'updated');
 
@@ -191,6 +200,149 @@ class DeliveryService
 
             return $delivery;
         });
+    }
+
+    /**
+     * A stakeholder-driven relaxation, same posture as PurchaseOrderService::updateSubmitted()/
+     * InvoiceService::updateSubmitted(): a Complete Delivery used to be fully locked. Header
+     * fields (Customer, Location, Sales Person, dates, Terms, Attn/Tel/Fax, Fleet, Driver, Notes)
+     * stay freely editable. Item rows may have Qty/Rate/Tax changed, and rows may be added
+     * (any Sales Order item not yet on this Delivery, within its own remaining outstanding) or
+     * removed — except a row already referenced by an Invoice (invoice_items.delivery_item_id is
+     * restrictOnDelete; this catches it at the app layer with a clear message before the DB
+     * would). Since Delivery has no field-level lock the way PO/SO do (unlike those, an
+     * already-invoiced DO row's Qty/Rate are explicitly still editable per the ticket — the
+     * Invoice already snapshotted its own item_code/item_name/uom/rate/qty/amount at
+     * invoice-creation time and never re-reads the Delivery afterward, so this never touches an
+     * already-issued Invoice), the whole item set is reverse-then-reposted: this Delivery's
+     * entire current stock effect is undone (reverseDeliveryStock(), mirroring
+     * GoodsReceiptService::reverseReceiptStock()), the new line set is written, then stock is
+     * reposted fresh for it (postDeliveryStock(), the same posting logic complete() itself uses).
+     * One transaction — a mid-way failure (insufficient stock for the new qty, outstanding
+     * exceeded, etc.) rolls back stock/delivered_qty/rows together, never partially applied.
+     */
+    protected function updateComplete(Delivery $delivery, array $data): Delivery
+    {
+        return DB::transaction(function () use ($delivery, $data) {
+            $delivery = Delivery::query()->whereKey($delivery->id)->lockForUpdate()->firstOrFail();
+
+            if (array_key_exists('lock_version', $data) && (int) $data['lock_version'] !== $delivery->lock_version) {
+                throw new BusinessException('Dokumen ini sudah diubah oleh pengguna lain. Muat ulang halaman dan coba lagi.', 409);
+            }
+
+            $editableFields = ['customer_id', 'warehouse_id', 'sales_person_id', 'delivery_date', 'due_date', 'terms_of_payment_id', 'attention', 'tel', 'fax', 'fleet', 'driver', 'remarks'];
+            $before = $delivery->only($editableFields);
+            $headerData = collect($data)->only($editableFields)->all();
+
+            if (isset($data['items'])) {
+                $delivery->load(['items.salesOrderItem.item', 'items.salesOrderItem.tax']);
+
+                foreach ($delivery->items as $line) {
+                    if (! collect($data['items'])->contains(fn ($incoming) => ($incoming['id'] ?? null) === $line->id)) {
+                        if (InvoiceItem::query()->where('delivery_item_id', $line->id)->exists()) {
+                            throw new BusinessException("Baris item \"{$line->item_name}\" sudah di-invoice dan tidak bisa dihapus.");
+                        }
+                    }
+                }
+
+                $this->reverseDeliveryStock($delivery);
+
+                $keepIds = collect($data['items'])->pluck('id')->filter();
+                $delivery->items()->whereNotIn('id', $keepIds)->delete();
+
+                $existingById = $delivery->items->keyBy('id');
+
+                foreach ($data['items'] as $line) {
+                    $soItem = $this->resolveSalesOrderItem($delivery->sales_order_id, $line['sales_order_item_id']);
+                    $this->assertWithinOutstanding($soItem, $line['qty']);
+
+                    $attributes = $this->buildDeliveryLineAttributes($delivery, $soItem, $line['qty'], $line['rate'] ?? null, $line['tax_id'] ?? null);
+
+                    if (! empty($line['id']) && $existingById->has($line['id'])) {
+                        $this->deliveryItemRepository->update($existingById[$line['id']], $attributes);
+                    } else {
+                        $this->deliveryItemRepository->create($attributes);
+                    }
+                }
+
+                $delivery = $delivery->fresh(['items.salesOrderItem', 'salesOrder']);
+                $this->postDeliveryStock($delivery);
+            }
+
+            $headerData['lock_version'] = $delivery->lock_version + 1;
+            $this->deliveryRepository->update($delivery, $headerData);
+
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items.invoiceItem', 'termsOfPayment', 'salesPerson', 'updater']);
+            $this->auditLogService->recordChanges('updated', 'delivery', $delivery, $before, $headerData, "Updated Complete Delivery \"{$delivery->document_number}\".");
+            $this->documentTimelineService->record($delivery, 'updated');
+
+            return $delivery;
+        });
+    }
+
+    /**
+     * Undoes exactly what postDeliveryStock() posted for this Delivery's *current* items —
+     * mirrors GoodsReceiptService::reverseReceiptStock() and InvoiceService::
+     * reverseDirectGoodsStock() exactly: a compensating IN Stock Ledger entry per line,
+     * FifoLayerService::reverseConsumption() (generic — same method Direct-Goods-Invoice reversal
+     * already uses, just a different StockVoucherType), and the Sales Order line's delivered_qty
+     * decremented back down. Must run before this Delivery's items/qty are changed, since it
+     * relies on them still holding what was actually posted at complete()/the last edit.
+     */
+    protected function reverseDeliveryStock(Delivery $delivery): void
+    {
+        foreach ($delivery->items as $line) {
+            $this->stockLedgerService->record(
+                itemId: $line->item_id,
+                warehouseId: $delivery->warehouse_id,
+                transactionType: StockTransactionType::IN,
+                voucherType: StockVoucherType::DELIVERY,
+                voucherId: $delivery->id,
+                qtyChange: $line->baseQty(),
+                postingDatetime: $delivery->delivery_date,
+                referenceNo: $delivery->document_number,
+                remarks: "Correction of Delivery {$delivery->document_number}",
+            );
+
+            if ($line->salesOrderItem !== null) {
+                $this->salesOrderItemRepository->incrementDeliveredQty($line->salesOrderItem, -$line->qty);
+            }
+        }
+
+        $this->fifoLayerService->reverseConsumption(StockVoucherType::DELIVERY, $delivery->id);
+    }
+
+    /** Shared by complete() (first time) and updateComplete() (repost after reverseDeliveryStock()). */
+    protected function postDeliveryStock(Delivery $delivery): void
+    {
+        foreach ($delivery->items as $line) {
+            $this->assertWithinOutstanding($line->salesOrderItem, $line->qty);
+            $this->assertSufficientStock($delivery->warehouse_id, $line->item_id, $line->baseQty());
+        }
+
+        foreach ($delivery->items as $line) {
+            $this->stockLedgerService->record(
+                itemId: $line->item_id,
+                warehouseId: $delivery->warehouse_id,
+                transactionType: StockTransactionType::OUT,
+                voucherType: StockVoucherType::DELIVERY,
+                voucherId: $delivery->id,
+                qtyChange: -$line->baseQty(),
+                postingDatetime: $delivery->delivery_date,
+                referenceNo: $delivery->document_number,
+                remarks: "Delivery {$delivery->document_number}",
+            );
+
+            $this->fifoLayerService->consume(
+                itemId: $line->item_id,
+                warehouseId: $delivery->warehouse_id,
+                qty: $line->baseQty(),
+                sourceType: StockVoucherType::DELIVERY,
+                sourceId: $delivery->id,
+            );
+
+            $this->salesOrderItemRepository->incrementDeliveredQty($line->salesOrderItem, $line->qty);
+        }
     }
 
     public function delete(Delivery $delivery): void
@@ -220,34 +372,7 @@ class DeliveryService
                 throw new BusinessException('Sales Order is no longer approved; cannot deliver against it.');
             }
 
-            foreach ($delivery->items as $line) {
-                $this->assertWithinOutstanding($line->salesOrderItem, $line->qty);
-                $this->assertSufficientStock($delivery->warehouse_id, $line->item_id, $line->baseQty());
-            }
-
-            foreach ($delivery->items as $line) {
-                $this->stockLedgerService->record(
-                    itemId: $line->item_id,
-                    warehouseId: $delivery->warehouse_id,
-                    transactionType: StockTransactionType::OUT,
-                    voucherType: StockVoucherType::DELIVERY,
-                    voucherId: $delivery->id,
-                    qtyChange: -$line->baseQty(),
-                    postingDatetime: $delivery->delivery_date,
-                    referenceNo: $delivery->document_number,
-                    remarks: "Delivery {$delivery->document_number}",
-                );
-
-                $this->fifoLayerService->consume(
-                    itemId: $line->item_id,
-                    warehouseId: $delivery->warehouse_id,
-                    qty: $line->baseQty(),
-                    sourceType: StockVoucherType::DELIVERY,
-                    sourceId: $delivery->id,
-                );
-
-                $this->salesOrderItemRepository->incrementDeliveredQty($line->salesOrderItem, $line->qty);
-            }
+            $this->postDeliveryStock($delivery);
 
             $delivery->submit();
 
@@ -263,18 +388,33 @@ class DeliveryService
         $soItem = $this->resolveSalesOrderItem($salesOrderId, $salesOrderItemId);
         $this->assertWithinOutstanding($soItem, $qty);
 
+        $this->deliveryItemRepository->create($this->buildDeliveryLineAttributes($delivery, $soItem, $qty, null, null));
+    }
+
+    /**
+     * Shared by addLine() (create/Pending-update, rate/tax always inherited from the Sales Order
+     * line) and updateComplete() (Complete-edit, rate/tax may be overridden per the ticket's
+     * "Rate dan Tax bisa diedit" rule). $rateOverride/$taxIdOverride null = inherit the SO line's
+     * own value, same as today's behavior.
+     */
+    protected function buildDeliveryLineAttributes(Delivery $delivery, SalesOrderItem $soItem, int|float $qty, int|float|null $rateOverride, ?string $taxIdOverride): array
+    {
         $item = $soItem->item;
         $this->qtyCategoryValidator->assertValid($item, $qty);
         $qty = $this->qtyCategoryValidator->round($item, $qty);
 
-        $lineAmount = $qty * $soItem->rate;
-        // tax_id carries forward as-is; tax_amount is recomputed against this delivery
-        // line's own (possibly partial) qty, not simply copied — same "rate inherited,
-        // amount recomputed against the real quantity" rule the old header-level
-        // inheritance used, now applied per line.
-        $taxAmount = $this->taxService->calculate($lineAmount, $soItem->tax)['tax_amount'];
+        $rate = $rateOverride ?? $soItem->rate;
+        $lineAmount = $qty * $rate;
 
-        $this->deliveryItemRepository->create([
+        // tax_id carries forward as-is (or the caller's override); tax_amount is recomputed
+        // against this delivery line's own (possibly partial, possibly overridden) qty/rate, not
+        // simply copied — same "rate inherited, amount recomputed against the real quantity" rule
+        // the old header-level inheritance used, now applied per line.
+        $taxId = $taxIdOverride ?? $soItem->tax_id;
+        $tax = $taxId !== null ? $this->taxRepository->findOrFail($taxId) : null;
+        $taxAmount = $tax !== null ? $this->taxService->calculate($lineAmount, $tax)['tax_amount'] : 0.0;
+
+        return [
             'delivery_id' => $delivery->id,
             'sales_order_item_id' => $soItem->id,
             'item_id' => $item->id,
@@ -284,13 +424,13 @@ class DeliveryService
             // complete() converts to base qty for the Stock Ledger and FIFO.
             'uom' => $soItem->uom?->name ?? $item->uom->name,
             'uom_factor' => $soItem->uom_factor,
-            'rate' => $soItem->rate,
+            'rate' => $rate,
             'qty' => $qty,
             'qty_category' => $item->qty_category,
-            'amount' => $lineAmount,
-            'tax_id' => $soItem->tax_id,
-            'tax_amount' => $taxAmount,
-        ]);
+            'amount' => round($lineAmount, 2),
+            'tax_id' => $taxId,
+            'tax_amount' => round($taxAmount, 2),
+        ];
     }
 
     protected function resolveSalesOrderItem(string $salesOrderId, string $salesOrderItemId): SalesOrderItem

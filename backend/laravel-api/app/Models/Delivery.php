@@ -25,6 +25,7 @@ class Delivery extends Model
         'cancelled_at',
         'sales_order_id',
         'customer_id',
+        'sales_person_id',
         'warehouse_id',
         'delivery_date',
         'due_date',
@@ -32,6 +33,10 @@ class Delivery extends Model
         'remarks',
         'fleet',
         'driver',
+        'attention',
+        'tel',
+        'fax',
+        'lock_version',
     ];
 
     protected $casts = [
@@ -62,6 +67,12 @@ class Delivery extends Model
     public function salesOrder(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class);
+    }
+
+    /** This Delivery's own override — null falls back to salesOrder->sales_person for display, see DeliveryResource. */
+    public function salesPerson(): BelongsTo
+    {
+        return $this->belongsTo(SalesPerson::class);
     }
 
     public function customer(): BelongsTo
