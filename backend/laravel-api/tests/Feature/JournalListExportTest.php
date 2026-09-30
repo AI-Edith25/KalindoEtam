@@ -192,6 +192,25 @@ class JournalListExportTest extends TestCase
             ->assertHeader('content-disposition', "attachment; filename=JournalList-PaymentVoucher-{$today}.xlsx");
     }
 
+    public function test_payment_voucher_export_survives_a_since_deleted_expense_account(): void
+    {
+        $payment = $this->paymentEntryService->create([
+            'payment_type' => 'general_expense', 'expense_account_id' => $this->expenseAccount->id,
+            'description' => 'Office supplies', 'amount' => 15000, 'payment_date' => '2026-01-06',
+            'cash_account_id' => $this->bankAccount->id,
+        ]);
+        $this->paymentEntryService->submit($payment);
+
+        // Mirrors production: a chart_of_accounts row can be soft-deleted after vouchers
+        // referencing it already exist (see the 2026-09-27 cash/bank cleanup migration).
+        $this->expenseAccount->delete();
+
+        $sheet = $this->downloadXlsx('view=payment');
+
+        $this->assertStringContainsString($this->expenseAccount->code, $sheet->getCell('D7')->getValue());
+        $this->assertEquals('Total For :[Cash Book-Payment]', $sheet->getCell('A9')->getValue());
+    }
+
     public function test_csv_format_produces_the_same_group_header_and_trailer(): void
     {
         $receipt = $this->receiptEntryService->create([

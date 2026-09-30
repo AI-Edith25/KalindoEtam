@@ -102,11 +102,16 @@ class JournalListExport implements FromQuery, WithChunkReading, WithMapping, Wit
         if (! $remark) {
             $remark = $siblings
                 ->reject(fn (JournalEntryLine $sibling) => $sibling->id === $line->id)
-                ->map(fn (JournalEntryLine $sibling) => $sibling->chartOfAccount->name . ($sibling->description ? " ({$sibling->description})" : ''))
+                ->map(fn (JournalEntryLine $sibling) => ($sibling->chartOfAccount->name ?? '[Deleted Account]') . ($sibling->description ? " ({$sibling->description})" : ''))
                 ->implode('; ');
         }
 
-        return "{$account->code} - {$account->name} - [{$remark}]";
+        // A line's chartOfAccount can be null when the account was soft-deleted after the
+        // voucher was posted (e.g. a later chart-of-accounts cleanup) — don't 500 on old data.
+        $code = $account->code ?? $line->chart_of_account_id;
+        $name = $account->name ?? '[Deleted Account]';
+
+        return "{$code} - {$name} - [{$remark}]";
     }
 
     public function registerEvents(): array

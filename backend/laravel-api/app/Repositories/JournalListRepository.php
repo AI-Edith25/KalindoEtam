@@ -54,7 +54,13 @@ class JournalListRepository
                 fn ($q2) => $q2->where('receipt_entries.branch_id', $branchId)->orWhere('payment_entries.branch_id', $branchId)
             ))
             ->when($filters['search'] ?? null, fn ($q, $search) => $q->where('journal_entries.document_number', 'like', "%{$search}%"))
-            ->with(['lines' => fn ($q) => $q->orderBy('id'), 'lines.chartOfAccount'])
+            ->with([
+                'lines' => fn ($q) => $q->orderBy('id'),
+                // withTrashed: a voucher can reference a chart_of_account that's since been
+                // soft-deleted (e.g. a chart-of-accounts cleanup) — the export should still show
+                // that account's real code/name, not drop it and 500 on the null relation.
+                'lines.chartOfAccount' => fn ($q) => $q->withTrashed(),
+            ])
             ->orderBy('journal_entries.posting_date')
             ->orderBy('journal_entries.document_number');
     }
