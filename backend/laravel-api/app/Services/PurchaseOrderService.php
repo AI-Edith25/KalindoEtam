@@ -77,6 +77,10 @@ class PurchaseOrderService
 
     public function update(PurchaseOrder $purchaseOrder, array $data): PurchaseOrder
     {
+        if ($purchaseOrder->status === DocumentStatus::SUBMITTED) {
+            return $this->updateSubmitted($purchaseOrder, $data);
+        }
+
         return DB::transaction(function () use ($purchaseOrder, $data) {
             $this->assertDraft($purchaseOrder, 'updated');
 
@@ -105,6 +109,123 @@ class PurchaseOrderService
 
             return $purchaseOrder;
         });
+    }
+
+    /**
+     * A stakeholder-driven relaxation, same shape as SalesOrderService::updateApproved(): a
+     * Submitted PO used to be fully locked (the assertDraft() path above). Now it can still be
+     * corrected, but a line that already has goods received against it (received_qty > 0 — the
+     * same check PurchaseOrderService::cancel() already uses to block cancelling a received PO)
+     * is locked, since editing it after the fact would desync received_qty/outstanding math from
+     * what a Goods Receipt already posted. Everything else — every header field, and any line
+     * with nothing received against it yet — stays freely editable. No re-approval is triggered:
+     * unlike Sales Order there is no supplier-side credit/budget check in this codebase to re-run.
+     */
+    protected function updateSubmitted(PurchaseOrder $purchaseOrder, array $data): PurchaseOrder
+    {
+        return DB::transaction(function () use ($purchaseOrder, $data) {
+            $headerData = collect($data)->except(['items', 'tax_id', 'tax_amount'])->all();
+
+            if (isset($data['items'])) {
+                $this->syncSubmittedItems($purchaseOrder, $data['items']);
+
+                $freshItems = $purchaseOrder->items()->get();
+                $totalAmount = round((float) $freshItems->sum('amount'), 2);
+                $taxAmount = round((float) $freshItems->sum('tax_amount'), 2);
+                $headerData['total_amount'] = $totalAmount;
+                $headerData['tax_amount'] = $taxAmount;
+                $headerData['grand_total'] = round($totalAmount + $taxAmount, 2);
+            }
+
+            if (array_key_exists('tax_id', $data)) {
+                $headerData['tax_id'] = $data['tax_id'];
+            }
+
+            $this->purchaseOrderRepository->update($purchaseOrder, $headerData);
+
+            $purchaseOrder = $purchaseOrder->fresh(['supplier', 'items.item', 'items.tax', 'tax']);
+            $this->auditLogService->record('updated', 'purchase_order', "Updated submitted Purchase Order \"{$purchaseOrder->document_number}\".");
+
+            return $purchaseOrder;
+        });
+    }
+
+    /**
+     * Diff-and-merge, not delete-and-recreate (replaceItems()'s approach) — a line with
+     * received_qty > 0 is locked: it must appear in $items unchanged, or this rejects the whole
+     * edit rather than silently dropping the caller's attempt to touch it. Mirrors
+     * SalesOrderService::syncApprovedItems() exactly.
+     */
+    protected function syncSubmittedItems(PurchaseOrder $purchaseOrder, array $items): void
+    {
+        $existing = $purchaseOrder->items()->get()->keyBy('id');
+        $incomingById = collect($items)->filter(fn ($line) => ! empty($line['id']))->keyBy('id');
+        $itemsById = Item::query()->with('itemUoms')->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
+
+        foreach ($existing as $lineId => $existingLine) {
+            $isLocked = (float) $existingLine->received_qty > 0;
+            $incomingLine = $incomingById->get($lineId);
+
+            if (! $isLocked) {
+                continue;
+            }
+
+            $unchanged = $incomingLine
+                && $incomingLine['item_id'] === $existingLine->item_id
+                && (float) $incomingLine['qty'] === (float) $existingLine->qty
+                && $itemsById->get($incomingLine['item_id'])->resolveLineUom($incomingLine['uom_id'] ?? null)['uom_id'] === $existingLine->uom_id
+                && abs((float) $incomingLine['rate'] - (float) $existingLine->rate) < 0.005
+                && ($incomingLine['tax_id'] ?? null) === $existingLine->tax_id;
+
+            if (! $unchanged) {
+                throw new BusinessException("Line item \"{$existingLine->item?->item_name}\" already has goods received against it and cannot be changed or removed.");
+            }
+        }
+
+        // Delete-then-recreate is safe here: only unlocked rows reach this point (locked rows
+        // were verified unchanged and left alone above), and an unlocked row by definition has
+        // received_qty === 0.
+        foreach ($existing as $lineId => $existingLine) {
+            if ((float) $existingLine->received_qty > 0) {
+                continue;
+            }
+
+            if (! $incomingById->has($lineId)) {
+                $existingLine->delete();
+            }
+        }
+
+        foreach ($items as $line) {
+            if (! empty($line['id']) && $existing->has($line['id']) && (float) $existing[$line['id']]->received_qty > 0) {
+                continue; // Locked — already verified unchanged above, never rewritten.
+            }
+
+            $item = $itemsById->get($line['item_id']);
+            $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+            $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
+            $lineAmount = $qty * $line['rate'];
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $item, 'purchase_tax_id', $lineAmount);
+            $uomLine = $item->resolveLineUom($line['uom_id'] ?? null);
+
+            $attributes = [
+                'purchase_order_id' => $purchaseOrder->id,
+                'item_id' => $line['item_id'],
+                'uom_id' => $uomLine['uom_id'],
+                'uom_factor' => $uomLine['uom_factor'],
+                'qty' => $qty,
+                'qty_category' => $item->qty_category,
+                'rate' => $line['rate'],
+                'amount' => $lineAmount,
+                'tax_id' => $taxId,
+                'tax_amount' => $taxAmount,
+            ];
+
+            if (! empty($line['id']) && $existing->has($line['id'])) {
+                $this->purchaseOrderItemRepository->update($existing[$line['id']], $attributes);
+            } else {
+                $this->purchaseOrderItemRepository->create($attributes + ['received_qty' => 0]);
+            }
+        }
     }
 
     public function delete(PurchaseOrder $purchaseOrder): void

@@ -150,10 +150,16 @@ export function PurchaseOrderDetailPage() {
               </>
             )}
             {order.status === 'submitted' && (
-              <Button variant="destructive" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
-                {cancelMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Ban className="size-4" />}
-                Cancel
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => navigate(`/purchase/orders/${order.id}/edit`)}>
+                  <Pencil className="size-4" />
+                  Edit
+                </Button>
+                <Button variant="destructive" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
+                  {cancelMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Ban className="size-4" />}
+                  Cancel
+                </Button>
+              </>
             )}
           </div>
         }

@@ -12,6 +12,14 @@ import { isValidQtyForCategory, qtyErrorMessage } from '@/shared/lib/qty'
  */
 export const lineItemFormSchema = z
   .object({
+    // Present once the order has been saved — lets the backend correlate an edited row back to
+    // its existing PurchaseOrderItem (PurchaseOrderService::syncSubmittedItems) once the order is
+    // Submitted, instead of a delete-and-recreate. Never set for a brand-new row.
+    id: z.string().optional(),
+    // Snapshot of how much has already been received against this line — a locked row
+    // (see PurchaseOrderLineItemTable's isRowLocked) once any of it has. Never sent in the
+    // payload; purely a read-only signal loaded from the order.
+    received_qty: z.union([z.string(), z.number()]).optional(),
     item_id: z.string().min(1, 'Item is required'),
     // Denormalized display fields for the row's SearchableSelect — populated on pick
     // (or from the loaded order's line for edit mode), never sent in the payload.

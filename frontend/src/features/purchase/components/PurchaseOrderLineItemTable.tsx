@@ -1,5 +1,5 @@
 import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
-import { Plus, Trash2 } from 'lucide-react'
+import { Lock, Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatCurrency } from '@/lib/utils'
 import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
@@ -20,6 +21,19 @@ const NO_TAX = '__none__'
 
 function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
   return `${item.item_code} — ${item.item_name}`
+}
+
+function LockedRowIcon() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger>
+          <Lock className="size-3.5 shrink-0 text-muted-foreground" />
+        </TooltipTrigger>
+        <TooltipContent>Sudah ada Goods Receipt untuk baris ini — tidak bisa diubah atau dihapus</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 interface PurchaseOrderLineItemTableProps {
@@ -112,6 +126,10 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                 const baseUomName = uomChoices.find((c) => c.is_base)?.name ?? ''
                 const selectedOption: SearchableSelectOption<Item> | undefined =
                   row?.item_id && row.item_code ? { value: row.item_id, label: itemLabel({ item_code: row.item_code, item_name: row.item_name ?? '' }) } : undefined
+                // Already has a Goods Receipt against it (Submitted-order edit) — see
+                // PurchaseOrderService::syncSubmittedItems.
+                const isRowLocked = !!row?.id && Number(row.received_qty ?? 0) > 0
+                const rowDisabled = disabled || isRowLocked
 
                 return (
                 <TableRow key={field.id}>
@@ -121,15 +139,18 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                       name={`items.${index}.item_id`}
                       render={({ field: itemField }) => (
                         <FormItem className="gap-0">
-                          <SearchableSelect
-                            loadOptions={loadItemOptions}
-                            selectedOption={selectedOption}
-                            value={itemField.value}
-                            onChange={(value, option) => handleItemChange(index, value ?? '', option)}
-                            disabled={disabled}
-                            placeholder="Select item"
-                            aria-label="Item"
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <SearchableSelect
+                              loadOptions={loadItemOptions}
+                              selectedOption={selectedOption}
+                              value={itemField.value}
+                              onChange={(value, option) => handleItemChange(index, value ?? '', option)}
+                              disabled={rowDisabled}
+                              placeholder="Select item"
+                              aria-label="Item"
+                            />
+                            {isRowLocked && <LockedRowIcon />}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -146,7 +167,7 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                               type="number"
                               min={decimalPlaces > 0 ? 0.01 : 1}
                               step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
-                              disabled={disabled}
+                              disabled={rowDisabled}
                               {...qtyField}
                             />
                           </div>
@@ -166,7 +187,7 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                         }))}
                         value={row?.uom_id || undefined}
                         onChange={(value) => value && handleUomChange(index, value)}
-                        disabled={disabled}
+                        disabled={rowDisabled}
                         clearable={false}
                         placeholder="UOM"
                         aria-label="UOM"
@@ -181,7 +202,7 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                       name={`items.${index}.rate`}
                       render={({ field: rateField }) => (
                         <FormItem className="gap-0">
-                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={disabled} decimals={2} />
+                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={rowDisabled} decimals={2} />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -196,7 +217,7 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                           <Select
                             value={taxField.value || NO_TAX}
                             onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
-                            disabled={disabled}
+                            disabled={rowDisabled}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="No tax" />
@@ -233,7 +254,7 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                       size="icon"
                       className="size-8 text-destructive hover:text-destructive"
                       onClick={() => remove(index)}
-                      disabled={disabled}
+                      disabled={rowDisabled}
                     >
                       <Trash2 className="size-4" />
                       <span className="sr-only">Remove row</span>

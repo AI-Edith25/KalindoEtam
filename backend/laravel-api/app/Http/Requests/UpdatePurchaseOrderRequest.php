@@ -20,6 +20,13 @@ class UpdatePurchaseOrderRequest extends FormRequest
             'expected_delivery_date' => ['nullable', 'date', 'after_or_equal:order_date'],
             'remarks' => ['nullable', 'string'],
             'items' => ['sometimes', 'array', 'min:1'],
+            // Only meaningful once the order is Submitted (PurchaseOrderService::syncSubmittedItems)
+            // — a Draft-order edit still fully replaces every line and ignores this. Scoped to this
+            // order so a stray id can't be used to touch another Purchase Order's line.
+            'items.*.id' => [
+                'nullable', 'uuid',
+                Rule::exists('purchase_order_items', 'id')->where('purchase_order_id', $this->route('purchaseOrder')?->id),
+            ],
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
             'items.*.uom_id' => ['nullable', 'uuid', 'exists:uoms,id'],
             'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01'],

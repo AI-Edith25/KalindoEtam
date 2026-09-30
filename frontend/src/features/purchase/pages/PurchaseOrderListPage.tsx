@@ -141,7 +141,10 @@ export function PurchaseOrderListPage() {
         actions.push({ label: 'Delete', icon: Trash2, variant: 'destructive', onClick: () => setDeletingOrder(order) })
       }
     } else if (order.status === 'submitted' && canUpdate) {
-      actions.push({ label: 'Cancel', icon: Ban, variant: 'destructive', onClick: () => cancelMutation.mutate(order.id) })
+      actions.push(
+        { label: 'Edit', icon: Pencil, onClick: () => navigate(`/purchase/orders/${order.id}/edit`) },
+        { label: 'Cancel', icon: Ban, variant: 'destructive', onClick: () => cancelMutation.mutate(order.id) },
+      )
     }
 
     return actions

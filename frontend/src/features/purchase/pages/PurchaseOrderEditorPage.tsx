@@ -62,8 +62,10 @@ export function PurchaseOrderEditorPage() {
     const order = orderQuery.data
     if (!order) return
 
-    if (order.status !== 'draft') {
-      toast.error('Only draft purchase orders can be edited.')
+    // Submitted is editable too (PurchaseOrderService::syncSubmittedItems) — only a Cancelled
+    // order is fully locked out.
+    if (order.status === 'cancelled') {
+      toast.error('Cancelled purchase orders cannot be edited.')
       navigate(`/purchase/orders/${order.id}`, { replace: true })
       return
     }
@@ -78,6 +80,8 @@ export function PurchaseOrderEditorPage() {
       tax_id: '',
       remarks: order.remarks ?? '',
       items: order.items.map((line) => ({
+        id: line.id,
+        received_qty: line.received_qty,
         item_id: line.item_id,
         item_code: line.item_code ?? '',
         item_name: line.item_name ?? '',
@@ -102,6 +106,7 @@ export function PurchaseOrderEditorPage() {
     tax_id: values.tax_id || null,
     remarks: values.remarks || null,
     items: values.items.map((line) => ({
+      id: line.id || undefined,
       item_id: line.item_id,
       uom_id: line.uom_id || null,
       qty: parseLocaleQty(line.qty),

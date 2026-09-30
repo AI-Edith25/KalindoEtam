@@ -68,7 +68,7 @@ export interface PurchaseOrderFormValues {
   expected_delivery_date: string | null
   tax_id: string | null
   remarks: string | null
-  items: { item_id: string; uom_id?: string | null; qty: number; rate: number; tax_id?: string | null }[]
+  items: { id?: string; item_id: string; uom_id?: string | null; qty: number; rate: number; tax_id?: string | null }[]
 }
 
 export interface PurchaseOrderFilterValues {
