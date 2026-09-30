@@ -285,7 +285,11 @@ export function InvoicePortraitLayout({
     }
   }, [pages, items, pageHeightMm])
 
-  function renderHeaderBlock(pageLabel: string, ref?: Ref<HTMLDivElement>) {
+  // Page No is only meaningful once there's more than one page — the measurement pass always
+  // renders it (worst case: multi-page) so the header's measured height never comes in shorter
+  // than what a real multi-page document will actually need, matching this file's existing
+  // "reserve space conservatively" pattern (continueMm/footerMm above).
+  function renderHeaderBlock(pageLabel: string, showPageNo: boolean, ref?: Ref<HTMLDivElement>) {
     return (
       <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: '0.5mm' }}>
         {/* ---------- 1. Blok perusahaan (kiri) ---------- */}
@@ -339,7 +343,7 @@ export function InvoicePortraitLayout({
                 { label: 'Payment Term', value: invoice.terms_of_payment?.name ?? '' },
                 { label: 'Jatuh Tempo', value: ddmmyyyy(invoice.due_date) },
                 { label: 'Sales Person', value: invoice.sales_person?.name ?? '' },
-                { label: 'Page No', value: pageLabel },
+                ...(showPageNo ? [{ label: 'Page No', value: pageLabel }] : []),
                 { label: 'Location', value: location },
               ]}
             />
@@ -531,7 +535,7 @@ export function InvoicePortraitLayout({
     return (
       <div style={{ ...pageBaseStyle, visibility: 'hidden' }}>
         <style>{DEJAVU_FONT_FACES}</style>
-        {renderHeaderBlock('1 of 1', headerRef)}
+        {renderHeaderBlock('1 of 1', true, headerRef)}
         <div style={{ marginTop: `${PORTRAIT.gapAboveTableMm}mm` }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: `${FONT_PT.tableBody}pt` }}>
             <colgroup>
@@ -565,7 +569,7 @@ export function InvoicePortraitLayout({
             }}
           >
             <style>{DEJAVU_FONT_FACES}</style>
-            {renderHeaderBlock(`${pageIndex + 1} of ${pages.length}`)}
+            {renderHeaderBlock(`${pageIndex + 1} of ${pages.length}`, pages.length > 1)}
 
             {/* flex:1 0 auto is safe per-page here — each page div is guaranteed by the
                 measurement pass to fit within one physical page, so nothing inside it ever needs

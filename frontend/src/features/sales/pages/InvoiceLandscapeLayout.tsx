@@ -366,7 +366,7 @@ export function InvoiceLandscapeLayout({
             {invoice.customer?.address && <T top={31.7} left={10} size={FONT_PT.metaLeft}>{invoice.customer.address}</T>}
             <MetaField top={36.99} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="Tel" value={customerTel} size={FONT_PT.metaLeft} bold valueBold={false} />
 
-            {/* ---------- BLOK KANAN (info kanan) — Page No added, computed, repeats every page ---------- */}
+            {/* ---------- BLOK KANAN (info kanan) — Page No added, computed, repeats every page; omitted entirely when there's only 1 page ---------- */}
             {(
               [
                 ['NO', invoice.document_number ?? '—', 5.26, true],
@@ -376,7 +376,7 @@ export function InvoiceLandscapeLayout({
                 ['Jatuh Tempo', ddmmyyyy(invoice.due_date), 22.73, false],
                 ['Sales Person', invoice.sales_person?.name ?? '', 26.95, false],
                 ['Location', location, 31.46, false],
-                ['Page No', `${pageIndex + 1} of ${pages.length}`, 35.96, false],
+                ...(pages.length > 1 ? [['Page No', `${pageIndex + 1} of ${pages.length}`, 35.96, false] as [string, string, number, boolean]] : []),
               ] as [string, string, number, boolean][]
             ).map(([label, value, top, bold]) => (
               <MetaField key={label} top={top} labelLeft={127.21} labelWidth={META_LABEL_WIDTH_RIGHT_MM} label={label} value={value} size={FONT_PT.metaRight} bold={bold} />
