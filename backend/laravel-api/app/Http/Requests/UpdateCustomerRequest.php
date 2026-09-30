@@ -24,6 +24,7 @@ class UpdateCustomerRequest extends FormRequest
             'no_ktp' => ['nullable', 'string', 'max:50'],
             'no_npwp' => ['nullable', 'string', 'max:50'],
             'area' => ['nullable', 'string', 'max:255'],
+            'location_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
             'sales_person_id' => ['nullable', 'uuid', 'exists:sales_persons,id'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],

@@ -227,6 +227,9 @@ export interface Customer {
   no_ktp: string | null
   no_npwp: string | null
   area: string | null
+  // Replaces the old free-text `area` field on the form — the Warehouse master ("Location" in this app's UI).
+  location_id: string | null
+  location: { id: string; name: string; code: string } | null
   sales_person_id: string | null
   sales_person: { id: string; code: string; name: string } | null
   credit_limit: string | number | null
@@ -245,7 +248,7 @@ export interface CustomerFormValues {
   address: string | null
   no_ktp: string | null
   no_npwp: string | null
-  area: string | null
+  location_id: string | null
   sales_person_id: string | null
   credit_limit: number | null
   terms_of_payment_id: string | null

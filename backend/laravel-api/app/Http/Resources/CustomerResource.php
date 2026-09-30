@@ -20,6 +20,13 @@ class CustomerResource extends JsonResource
             'no_ktp' => $this->no_ktp,
             'no_npwp' => $this->no_npwp,
             'area' => $this->area,
+            'location_id' => $this->location_id,
+            // Replaces the old free-text `area` field — the Warehouse master ("Location" in this app's UI).
+            'location' => $this->whenLoaded('location', fn () => $this->location ? [
+                'id' => $this->location->id,
+                'name' => $this->location->name,
+                'code' => $this->location->code,
+            ] : null),
             'sales_person_id' => $this->sales_person_id,
             'sales_person' => $this->whenLoaded('salesPerson', fn () => [
                 'id' => $this->salesPerson->id,

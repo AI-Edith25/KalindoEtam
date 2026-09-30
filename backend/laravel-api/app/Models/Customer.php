@@ -22,6 +22,7 @@ class Customer extends Model
         'no_ktp',
         'no_npwp',
         'area',
+        'location_id',
         'sales_person_id',
         'credit_limit',
         'terms_of_payment_id',
@@ -41,5 +42,11 @@ class Customer extends Model
     public function salesPerson(): BelongsTo
     {
         return $this->belongsTo(SalesPerson::class);
+    }
+
+    /** Replaces the old free-text `area` field on the Customer form — the Warehouse master ("Location" in this app's UI). */
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 }

@@ -13,7 +13,7 @@ import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchSalesPersonsLookup, fetchTermsOfPaymentLookup } from '../api/lookupsApi'
+import { fetchSalesPersonsLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '../api/lookupsApi'
 import { createCustomer, fetchNextCustomerCode, updateCustomer } from '../api/customerApi'
 import type { Customer } from '../types'
 
@@ -26,7 +26,7 @@ const customerFormSchema = z.object({
   address: z.string().max(255).optional().or(z.literal('')),
   no_ktp: z.string().max(50).optional().or(z.literal('')),
   no_npwp: z.string().max(50).optional().or(z.literal('')),
-  area: z.string().max(255).optional().or(z.literal('')),
+  location_id: z.string().optional().or(z.literal('')),
   sales_person_id: z.string().optional().or(z.literal('')),
   credit_limit: z
     .string()
@@ -48,7 +48,7 @@ const emptyValues: CustomerFormValues = {
   address: '',
   no_ktp: '',
   no_npwp: '',
-  area: '',
+  location_id: '',
   sales_person_id: '',
   credit_limit: '',
   terms_of_payment_id: '',
@@ -66,6 +66,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
   const queryClient = useQueryClient()
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
+  const locations = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   /**
    * Suggested default only, not a lock — the field stays editable (user feedback: codes need
    * to stay correctable even with a system default). Can go stale under concurrent creates;
@@ -97,7 +98,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
             address: customer.address ?? '',
             no_ktp: customer.no_ktp ?? '',
             no_npwp: customer.no_npwp ?? '',
-            area: customer.area ?? '',
+            location_id: customer.location_id ?? '',
             sales_person_id: customer.sales_person_id ?? '',
             credit_limit: customer.credit_limit != null ? String(customer.credit_limit) : '',
             terms_of_payment_id: customer.terms_of_payment_id ?? '',
@@ -126,7 +127,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
         address: values.address || null,
         no_ktp: values.no_ktp || null,
         no_npwp: values.no_npwp || null,
-        area: values.area || null,
+        location_id: values.location_id || null,
         sales_person_id: values.sales_person_id || null,
         credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
         terms_of_payment_id: values.terms_of_payment_id || null,
@@ -266,13 +267,18 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
               />
               <FormField
                 control={form.control}
-                name="area"
+                name="location_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Location / Area</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional" autoComplete="off" {...field} />
-                    </FormControl>
+                    <FormLabel>Location</FormLabel>
+                    <SearchableSelect
+                      options={locations.data?.map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` })) ?? []}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={locations.isLoading}
+                      placeholder="Optional"
+                      aria-label="Location"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
