@@ -152,6 +152,7 @@ class PurchaseInvoiceService
         $lines = $this->buildDirectLines($data['items']);
         $subtotal = round((float) array_sum(array_column($lines, 'amount')), 2);
         $taxAmount = round((float) array_sum(array_column($lines, 'tax_amount')), 2);
+        $this->assertPositiveGrandTotal($subtotal + $taxAmount);
 
         $purchaseInvoice = $this->purchaseInvoiceRepository->create([
             'source' => PurchaseInvoiceSource::DIRECT,
@@ -185,11 +186,21 @@ class PurchaseInvoiceService
     protected function buildDirectLines(array $items): array
     {
         return collect($items)->map(function (array $line) {
-            $account = $this->resolveExpenseAccount($line['chart_of_account_id']);
+            $account = $this->resolveDirectLineAccount($line['chart_of_account_id']);
             $qty = (float) $line['qty'];
             $rate = (float) $line['rate'];
             $amount = round($qty * $rate, 2);
-            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $amount);
+
+            if ($account->account_type === AccountType::LIABILITY) {
+                // A Liability line (e.g. Hutang PPh 23) deducts from what's owed to the
+                // supplier rather than adding to it — user always types a positive rate,
+                // the sign flip happens here. No tax of its own either.
+                $amount = -$amount;
+                $taxId = null;
+                $taxAmount = 0.0;
+            } else {
+                [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $amount);
+            }
 
             return [
                 'chart_of_account_id' => $account->id,
@@ -204,12 +215,24 @@ class PurchaseInvoiceService
         })->all();
     }
 
-    protected function resolveExpenseAccount(string $chartOfAccountId): ChartOfAccount
+    /**
+     * Unreachable before Liability deduction lines existed (every line was a positive
+     * Expense amount) — now a Liability line can outweigh the Expense lines, so this turns
+     * that into a clear message instead of an opaque unbalanced-journal failure at submit.
+     */
+    protected function assertPositiveGrandTotal(float $grandTotal): void
+    {
+        if ($grandTotal <= 0) {
+            throw new BusinessException('Grand Total must be greater than zero.');
+        }
+    }
+
+    protected function resolveDirectLineAccount(string $chartOfAccountId): ChartOfAccount
     {
         $account = $this->chartOfAccountRepository->findOrFail($chartOfAccountId);
 
-        if ($account->account_type !== AccountType::EXPENSE || ! $account->is_active) {
-            throw new BusinessException("Account {$account->code} — {$account->name} is not an active Expense account.");
+        if (! in_array($account->account_type, [AccountType::EXPENSE, AccountType::LIABILITY], true) || ! $account->is_active) {
+            throw new BusinessException("Account {$account->code} — {$account->name} is not an active Expense or Liability account.");
         }
 
         return $account;
@@ -286,6 +309,7 @@ class PurchaseInvoiceService
             $lines = $this->buildDirectLines($data['items']);
             $subtotal = round((float) array_sum(array_column($lines, 'amount')), 2);
             $taxAmount = round((float) array_sum(array_column($lines, 'tax_amount')), 2);
+            $this->assertPositiveGrandTotal($subtotal + $taxAmount);
 
             $purchaseInvoice->items()->delete();
 

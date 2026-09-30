@@ -10,7 +10,7 @@ import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineI
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
-import { lineAmount } from '@/shared/lib/documentTotals'
+import { directLineAmount, isLiabilityLine } from '../lib/directLineAmount'
 import type { DirectPurchaseInvoiceEditorValues } from '../lib/purchaseInvoiceFormSchema'
 import type { ChartOfAccount, Tax } from '@/features/master/types'
 
@@ -36,7 +36,10 @@ export function DirectPurchaseInvoiceLineItemTable({ form, accounts, accountsLoa
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
 
-  const accountOptions = accounts.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` }))
+  const accountOptions = accounts.map((account) => ({
+    value: account.id,
+    label: account.account_type === 'liability' ? `${account.code} — ${account.name} (Liability)` : `${account.code} — ${account.name}`,
+  }))
 
   return (
     <div className="flex flex-col gap-3">
@@ -62,122 +65,131 @@ export function DirectPurchaseInvoiceLineItemTable({ form, accounts, accountsLoa
                 </TableCell>
               </TableRow>
             ) : (
-              fields.map((field, index) => (
-                <TableRow key={field.id}>
-                  <TableCell className={STICKY_FIRST_COL}>
-                    <FormField
-                      control={control}
-                      name={`items.${index}.chart_of_account_id`}
-                      render={({ field: accountField }) => (
-                        <FormItem className="gap-0">
-                          <SearchableSelect
-                            options={accountOptions}
-                            value={accountField.value}
-                            onChange={(value) => accountField.onChange(value ?? '')}
-                            loading={accountsLoading}
-                            disabled={disabled}
-                            placeholder="Select account"
-                            aria-label="Expense Account"
-                          />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell className="min-w-56">
-                    <FormField
-                      control={control}
-                      name={`items.${index}.description`}
-                      render={({ field: descriptionField }) => (
-                        <FormItem className="gap-0">
-                          <Input placeholder="Description" disabled={disabled} {...descriptionField} />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell className="min-w-24">
-                    <FormField
-                      control={control}
-                      name={`items.${index}.qty`}
-                      render={({ field: qtyField }) => (
-                        <FormItem className="gap-0">
-                          <Input type="number" min={0.01} step="0.01" disabled={disabled} {...qtyField} />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell className="min-w-24">
-                    <FormField
-                      control={control}
-                      name={`items.${index}.uom`}
-                      render={({ field: uomField }) => (
-                        <FormItem className="gap-0">
-                          <Input placeholder="Optional" disabled={disabled} {...uomField} />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell className="min-w-36">
-                    <FormField
-                      control={control}
-                      name={`items.${index}.rate`}
-                      render={({ field: rateField }) => (
-                        <FormItem className="gap-0">
-                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={disabled} />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <FormField
-                      control={control}
-                      name={`items.${index}.tax_id`}
-                      render={({ field: taxField }) => (
-                        <FormItem className="gap-0">
-                          <Select
-                            value={taxField.value || NO_TAX}
-                            onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
-                            disabled={disabled}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="No tax" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={NO_TAX}>No tax</SelectItem>
-                              {taxes.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>
-                                  {t.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(lineAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }))}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:text-destructive"
-                      onClick={() => remove(index)}
-                      disabled={disabled}
-                    >
-                      <Trash2 className="size-4" />
-                      <span className="sr-only">Remove row</span>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+              fields.map((field, index) => {
+                const isLiability = isLiabilityLine(watchedItems?.[index] ?? { chart_of_account_id: '', qty: 0, rate: 0 }, accounts)
+
+                return (
+                  <TableRow key={field.id}>
+                    <TableCell className={STICKY_FIRST_COL}>
+                      <FormField
+                        control={control}
+                        name={`items.${index}.chart_of_account_id`}
+                        render={({ field: accountField }) => (
+                          <FormItem className="gap-0">
+                            <SearchableSelect
+                              options={accountOptions}
+                              value={accountField.value}
+                              onChange={(value) => {
+                                accountField.onChange(value ?? '')
+                                if (accounts.find((account) => account.id === value)?.account_type === 'liability') {
+                                  form.setValue(`items.${index}.tax_id`, '')
+                                }
+                              }}
+                              loading={accountsLoading}
+                              disabled={disabled}
+                              placeholder="Select account"
+                              aria-label="Expense Account"
+                            />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell className="min-w-56">
+                      <FormField
+                        control={control}
+                        name={`items.${index}.description`}
+                        render={({ field: descriptionField }) => (
+                          <FormItem className="gap-0">
+                            <Input placeholder="Description" disabled={disabled} {...descriptionField} />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell className="min-w-24">
+                      <FormField
+                        control={control}
+                        name={`items.${index}.qty`}
+                        render={({ field: qtyField }) => (
+                          <FormItem className="gap-0">
+                            <Input type="number" min={0.01} step="0.01" disabled={disabled} {...qtyField} />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell className="min-w-24">
+                      <FormField
+                        control={control}
+                        name={`items.${index}.uom`}
+                        render={({ field: uomField }) => (
+                          <FormItem className="gap-0">
+                            <Input placeholder="Optional" disabled={disabled} {...uomField} />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell className="min-w-36">
+                      <FormField
+                        control={control}
+                        name={`items.${index}.rate`}
+                        render={({ field: rateField }) => (
+                          <FormItem className="gap-0">
+                            <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={disabled} />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <FormField
+                        control={control}
+                        name={`items.${index}.tax_id`}
+                        render={({ field: taxField }) => (
+                          <FormItem className="gap-0">
+                            <Select
+                              value={isLiability ? NO_TAX : taxField.value || NO_TAX}
+                              onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
+                              disabled={disabled || isLiability}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="No tax" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NO_TAX}>No tax</SelectItem>
+                                {taxes.map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>
+                                    {t.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(directLineAmount(watchedItems?.[index] ?? { chart_of_account_id: '', qty: 0, rate: 0 }, accounts))}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:text-destructive"
+                        onClick={() => remove(index)}
+                        disabled={disabled}
+                      >
+                        <Trash2 className="size-4" />
+                        <span className="sr-only">Remove row</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>

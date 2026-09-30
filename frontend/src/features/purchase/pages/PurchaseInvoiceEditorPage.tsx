@@ -22,7 +22,8 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/shar
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { formatQty } from '@/shared/lib/qty'
-import { computeLineTaxTotal, computeSubtotal } from '@/shared/lib/documentTotals'
+import { computeLineTaxTotal } from '@/shared/lib/documentTotals'
+import { directLineAmount } from '../lib/directLineAmount'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import { fetchTaxesLookup, searchSuppliersLookup } from '@/features/master/api/lookupsApi'
 import { fetchGoodsReceipts } from '../api/goodsReceiptApi'
@@ -501,7 +502,9 @@ function DirectPurchaseInvoiceForm({
     return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
   }
   const accounts = useChartOfAccountsLookup()
-  const expenseAccounts = (accounts.data ?? []).filter((account) => account.account_type === 'expense' && account.is_active)
+  const directLineAccounts = (accounts.data ?? []).filter(
+    (account) => (account.account_type === 'expense' || account.account_type === 'liability') && account.is_active,
+  )
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
   const activePurchaseTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'purchase')
 
@@ -575,7 +578,7 @@ function DirectPurchaseInvoiceForm({
   })
 
   const watchedItems = form.watch('items')
-  const subtotal = computeSubtotal(watchedItems ?? [])
+  const subtotal = (watchedItems ?? []).reduce((sum, item) => sum + directLineAmount(item, directLineAccounts), 0)
   const tax = computeLineTaxTotal(watchedItems ?? [], (line) => activePurchaseTaxOptions.find((t) => t.id === line.tax_id))
   const grandTotal = subtotal + tax
 
@@ -710,7 +713,7 @@ function DirectPurchaseInvoiceForm({
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <DirectPurchaseInvoiceLineItemTable form={form} accounts={expenseAccounts} accountsLoading={accounts.isLoading} taxes={activePurchaseTaxOptions} />
+              <DirectPurchaseInvoiceLineItemTable form={form} accounts={directLineAccounts} accountsLoading={accounts.isLoading} taxes={activePurchaseTaxOptions} />
               {form.formState.errors.items?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
               )}

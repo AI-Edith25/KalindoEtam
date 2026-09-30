@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AccountType;
 use App\Enums\DocumentStatus;
 use App\Enums\PurchaseInvoiceSource;
 use App\Models\Concerns\Documentable;
@@ -95,20 +96,26 @@ class PurchaseInvoice extends Model
      * credit on the same shared 2100 Tax Payable account.
      *
      * GOODS_RECEIPT: single Dr 5100 (subtotal) — Goods Receipt items carry no per-line expense
-     * account, tax_amount is a manual header figure. DIRECT: one Dr line per distinct expense
+     * account, tax_amount is a manual header figure. DIRECT: one Dr/Cr line per distinct
      * account chosen on the invoice's own lines (items must be loaded with chartOfAccount),
      * subtotal/tax_amount are sums of the lines instead — see PurchaseInvoiceService::createDirect().
+     * A DIRECT line's account is Expense (debited, adds to what's owed) or Liability (credited,
+     * e.g. Hutang PPh 23 — deducts from what's owed to the supplier; its group sum is already
+     * negative, per PurchaseInvoiceService::buildDirectLines()).
      */
     public function journalLines(): array
     {
         $lines = $this->source === PurchaseInvoiceSource::DIRECT
             ? $this->loadMissing('items.chartOfAccount')->items
                 ->groupBy('chart_of_account_id')
-                ->map(fn ($group) => [
-                    'account' => $group->first()->chartOfAccount->code,
-                    'type' => 'debit',
-                    'amount' => (float) $group->sum('amount'),
-                ])
+                ->map(function ($group) {
+                    $account = $group->first()->chartOfAccount;
+                    $amount = (float) $group->sum('amount');
+
+                    return $account->account_type === AccountType::LIABILITY
+                        ? ['account' => $account->code, 'type' => 'credit', 'amount' => abs($amount)]
+                        : ['account' => $account->code, 'type' => 'debit', 'amount' => $amount];
+                })
                 ->values()
                 ->all()
             : [['account' => '5100', 'type' => 'debit', 'amount' => (float) $this->subtotal]]; // Purchase Expense
