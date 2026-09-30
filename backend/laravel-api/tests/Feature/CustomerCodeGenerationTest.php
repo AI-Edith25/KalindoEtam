@@ -12,10 +12,14 @@ use Tests\TestCase;
 
 /**
  * Customer Code (customer_code) defaults to a server-generated suggestion
- * (C-2105, C-2106, ...) but stays editable — see CustomerService::create()/
- * peekNextCode(). 2026_09_11_000002 corrected the series real production
- * data needs: prefix "C-" (not "CUST-") starting after the existing C-0001..
- * C-2104 range, not a fresh count-based guess.
+ * (C-2112, C-2113, ...) but stays editable — see CustomerService::create()/
+ * peekNextCode(). 2026_09_11_000002 first corrected the series to real
+ * production data needs: prefix "C-" (not "CUST-") starting after the
+ * existing C-0001..C-2104 range, not a fresh count-based guess.
+ * 2026_10_01_000002 bumped it further to 2111 (next code C-2112) — the
+ * Customer import that ran afterward wrote codes up to that range directly
+ * (bypassing the counter entirely), so the suggestion kept colliding with
+ * already-imported codes until this correction.
  */
 class CustomerCodeGenerationTest extends TestCase
 {
@@ -38,10 +42,10 @@ class CustomerCodeGenerationTest extends TestCase
     public function test_store_without_a_code_uses_the_generated_suggestion(): void
     {
         $first = $this->postJson('/api/v1/customers', ['customer_name' => 'Acme'])->assertCreated();
-        $this->assertSame('C-2105', $first->json('data.customer_code'));
+        $this->assertSame('C-2112', $first->json('data.customer_code'));
 
         $second = $this->postJson('/api/v1/customers', ['customer_name' => 'Beta'])->assertCreated();
-        $this->assertSame('C-2106', $second->json('data.customer_code'));
+        $this->assertSame('C-2113', $second->json('data.customer_code'));
     }
 
     public function test_store_honors_a_client_supplied_code(): void
@@ -60,20 +64,20 @@ class CustomerCodeGenerationTest extends TestCase
     {
         $this->postJson('/api/v1/customers', ['customer_name' => 'Acme', 'customer_code' => 'CUSTOM-01'])->assertCreated();
 
-        // The next suggestion is C-2106, not the still-unused C-2105 — otherwise a second
+        // The next suggestion is C-2113, not the still-unused C-2112 — otherwise a second
         // customer created without a code would collide with what the first one could have had.
-        $this->getJson('/api/v1/customers/next-code')->assertOk()->assertJsonPath('data.customer_code', 'C-2106');
+        $this->getJson('/api/v1/customers/next-code')->assertOk()->assertJsonPath('data.customer_code', 'C-2113');
     }
 
     public function test_next_code_previews_without_consuming_the_counter(): void
     {
-        $this->getJson('/api/v1/customers/next-code')->assertOk()->assertJsonPath('data.customer_code', 'C-2105');
+        $this->getJson('/api/v1/customers/next-code')->assertOk()->assertJsonPath('data.customer_code', 'C-2112');
         // Calling it again without creating anything must not have advanced the counter.
-        $this->getJson('/api/v1/customers/next-code')->assertOk()->assertJsonPath('data.customer_code', 'C-2105');
+        $this->getJson('/api/v1/customers/next-code')->assertOk()->assertJsonPath('data.customer_code', 'C-2112');
 
         $this->postJson('/api/v1/customers', ['customer_name' => 'Acme'])->assertCreated();
 
-        $this->getJson('/api/v1/customers/next-code')->assertOk()->assertJsonPath('data.customer_code', 'C-2106');
+        $this->getJson('/api/v1/customers/next-code')->assertOk()->assertJsonPath('data.customer_code', 'C-2113');
     }
 
     public function test_update_can_change_customer_code(): void
