@@ -152,9 +152,13 @@ class PurchaseOrderService
 
     /**
      * Diff-and-merge, not delete-and-recreate (replaceItems()'s approach) — a line with
-     * received_qty > 0 is locked: it must appear in $items unchanged, or this rejects the whole
-     * edit rather than silently dropping the caller's attempt to touch it. Mirrors
-     * SalesOrderService::syncApprovedItems() exactly.
+     * received_qty > 0 is partly locked: Item/Unit Price/Tax must come back unchanged (a wrong
+     * price or tax on an already-received line is corrected via a Goods Receipt return/
+     * cancellation, or in the Purchase Invoice — never rewritten out from under what was already
+     * received), but Qty may still be raised or lowered as long as it never drops below
+     * received_qty (outstanding must never go negative). Mirrors SalesOrderService::
+     * syncApprovedItems()'s diff-and-merge shape, just with a softer per-field lock instead of an
+     * all-or-nothing one.
      */
     protected function syncSubmittedItems(PurchaseOrder $purchaseOrder, array $items): void
     {
@@ -163,28 +167,30 @@ class PurchaseOrderService
         $itemsById = Item::query()->with('itemUoms')->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
 
         foreach ($existing as $lineId => $existingLine) {
-            $isLocked = (float) $existingLine->received_qty > 0;
-            $incomingLine = $incomingById->get($lineId);
-
-            if (! $isLocked) {
+            if ((float) $existingLine->received_qty <= 0) {
                 continue;
             }
 
-            $unchanged = $incomingLine
-                && $incomingLine['item_id'] === $existingLine->item_id
-                && (float) $incomingLine['qty'] === (float) $existingLine->qty
-                && $itemsById->get($incomingLine['item_id'])->resolveLineUom($incomingLine['uom_id'] ?? null)['uom_id'] === $existingLine->uom_id
-                && abs((float) $incomingLine['rate'] - (float) $existingLine->rate) < 0.005
-                && ($incomingLine['tax_id'] ?? null) === $existingLine->tax_id;
+            $incomingLine = $incomingById->get($lineId);
 
-            if (! $unchanged) {
-                throw new BusinessException("Line item \"{$existingLine->item?->item_name}\" already has goods received against it and cannot be changed or removed.");
+            if (! $incomingLine) {
+                throw new BusinessException("Line item \"{$existingLine->item?->item_name}\" already has goods received against it and cannot be removed.");
+            }
+
+            $uomUnchanged = $itemsById->get($incomingLine['item_id'])?->resolveLineUom($incomingLine['uom_id'] ?? null)['uom_id'] === $existingLine->uom_id;
+
+            if ($incomingLine['item_id'] !== $existingLine->item_id || ! $uomUnchanged || abs((float) $incomingLine['rate'] - (float) $existingLine->rate) >= 0.005 || ($incomingLine['tax_id'] ?? null) !== $existingLine->tax_id) {
+                throw new BusinessException("Line item \"{$existingLine->item?->item_name}\" already has goods received against it — Item, UOM, Unit Price and Tax cannot be changed once received (correct via a Goods Receipt return/cancellation, or in the Purchase Invoice instead). Qty may still be adjusted.");
+            }
+
+            if ((float) $incomingLine['qty'] < (float) $existingLine->received_qty) {
+                throw new BusinessException("Line item \"{$existingLine->item?->item_name}\" qty cannot be reduced below the ".rtrim(rtrim((string) $existingLine->received_qty, '0'), '.')." already received.");
             }
         }
 
         // Delete-then-recreate is safe here: only unlocked rows reach this point (locked rows
-        // were verified unchanged and left alone above), and an unlocked row by definition has
-        // received_qty === 0.
+        // were verified present above with nothing but qty differing, and are updated in place
+        // below like any other row), and an unlocked row by definition has received_qty === 0.
         foreach ($existing as $lineId => $existingLine) {
             if ((float) $existingLine->received_qty > 0) {
                 continue;
@@ -196,10 +202,6 @@ class PurchaseOrderService
         }
 
         foreach ($items as $line) {
-            if (! empty($line['id']) && $existing->has($line['id']) && (float) $existing[$line['id']]->received_qty > 0) {
-                continue; // Locked — already verified unchanged above, never rewritten.
-            }
-
             $item = $itemsById->get($line['item_id']);
             $this->qtyCategoryValidator->assertValid($item, $line['qty']);
             $qty = $this->qtyCategoryValidator->round($item, $line['qty']);

@@ -30,7 +30,7 @@ function LockedRowIcon() {
         <TooltipTrigger>
           <Lock className="size-3.5 shrink-0 text-muted-foreground" />
         </TooltipTrigger>
-        <TooltipContent>Sudah ada Goods Receipt untuk baris ini — tidak bisa diubah atau dihapus</TooltipContent>
+        <TooltipContent>Sudah ada Goods Receipt untuk baris ini — Item, UOM, Unit Price dan Tax tidak bisa diubah (koreksi lewat retur/pembatalan Goods Receipt, atau di Purchase Invoice). Qty masih bisa dinaikkan/diturunkan asal tidak kurang dari qty yang sudah diterima.</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )
@@ -165,9 +165,12 @@ export function PurchaseOrderLineItemTable({ form, taxes, disabled }: PurchaseOr
                           <div className="flex items-center gap-1.5">
                             <Input
                               type="number"
-                              min={decimalPlaces > 0 ? 0.01 : 1}
+                              // Qty stays editable even on a locked (already-received) row — it just
+                              // can never drop below what's already been received (enforced here for
+                              // a11y/UX, and again authoritatively by PurchaseOrderService::syncSubmittedItems).
+                              min={isRowLocked ? Number(row?.received_qty ?? 0) : decimalPlaces > 0 ? 0.01 : 1}
                               step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
-                              disabled={rowDisabled}
+                              disabled={disabled}
                               {...qtyField}
                             />
                           </div>

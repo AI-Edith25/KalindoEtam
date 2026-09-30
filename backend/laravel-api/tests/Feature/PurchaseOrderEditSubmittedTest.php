@@ -95,46 +95,78 @@ class PurchaseOrderEditSubmittedTest extends TestCase
         $this->assertSame($line->id, $updated->items->first()->id, 'same row updated in place, not delete-and-recreate');
     }
 
-    public function test_line_already_received_against_cannot_be_changed_or_removed(): void
+    protected function receiveAgainst(\App\Models\PurchaseOrderItem $line, float $qty, ?string $warehouse = null): void
+    {
+        $receipt = $this->goodsReceiptService->create([
+            'purchase_order_id' => $line->purchase_order_id,
+            'warehouse_id' => $warehouse ?? $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'items' => [['purchase_order_item_id' => $line->id, 'qty' => $qty]],
+        ]);
+        $this->goodsReceiptService->submit($receipt);
+    }
+
+    public function test_qty_on_a_received_line_can_be_raised_or_lowered_but_never_below_received_qty(): void
     {
         $purchaseOrder = $this->submittedPurchaseOrder([
             ['item_id' => $this->item->id, 'qty' => 10, 'rate' => 1000000],
         ]);
         $line = $purchaseOrder->items->first();
+        $this->receiveAgainst($line, 4);
 
-        $receipt = $this->goodsReceiptService->create([
-            'purchase_order_id' => $purchaseOrder->id,
-            'warehouse_id' => $this->warehouse->id,
-            'receipt_date' => now()->toDateString(),
-            'items' => [['purchase_order_item_id' => $line->id, 'qty' => 4]],
+        // Raised.
+        $updated = $this->purchaseOrderService->update($purchaseOrder->fresh(), [
+            'items' => [['id' => $line->id, 'item_id' => $this->item->id, 'qty' => 15, 'rate' => 1000000]],
         ]);
-        $this->goodsReceiptService->submit($receipt);
+        $this->assertEquals(15, (float) $updated->items->first()->qty);
+        $this->assertEquals(4, (float) $updated->items->first()->received_qty, 'received_qty untouched by a qty edit');
+        $this->assertEquals(15000000, (float) $updated->total_amount);
 
-        $this->assertEquals(4, (float) $line->fresh()->received_qty);
+        // Lowered, but still >= received_qty (4) — allowed.
+        $updated = $this->purchaseOrderService->update($purchaseOrder->fresh(), [
+            'items' => [['id' => $line->id, 'item_id' => $this->item->id, 'qty' => 4, 'rate' => 1000000]],
+        ]);
+        $this->assertEquals(4, (float) $updated->items->first()->qty);
+
+        // Lowered below received_qty (4) — rejected.
+        try {
+            $this->purchaseOrderService->update($purchaseOrder->fresh(), [
+                'items' => [['id' => $line->id, 'item_id' => $this->item->id, 'qty' => 3, 'rate' => 1000000]],
+            ]);
+            $this->fail('Expected lowering qty below received_qty to throw.');
+        } catch (BusinessException $e) {
+            $this->assertStringContainsString('cannot be reduced below', $e->getMessage());
+        }
+    }
+
+    public function test_unit_price_tax_and_item_on_a_received_line_cannot_be_changed_or_removed(): void
+    {
+        $purchaseOrder = $this->submittedPurchaseOrder([
+            ['item_id' => $this->item->id, 'qty' => 10, 'rate' => 1000000],
+        ]);
+        $line = $purchaseOrder->items->first();
+        $this->receiveAgainst($line, 4);
 
         try {
             $this->purchaseOrderService->update($purchaseOrder->fresh(), [
-                'items' => [
-                    ['id' => $line->id, 'item_id' => $this->item->id, 'qty' => 5, 'rate' => 1000000],
-                ],
+                'items' => [['id' => $line->id, 'item_id' => $this->item->id, 'qty' => 10, 'rate' => 950000]],
             ]);
-            $this->fail('Expected changing a received line to throw.');
+            $this->fail('Expected changing Unit Price on a received line to throw.');
         } catch (BusinessException $e) {
             $this->assertStringContainsString('already has goods received against it', $e->getMessage());
         }
 
         try {
             $this->purchaseOrderService->update($purchaseOrder->fresh(), [
-                'items' => [
-                    ['item_id' => $this->otherItem->id, 'qty' => 3, 'rate' => 500000],
-                ],
+                'items' => [['item_id' => $this->otherItem->id, 'qty' => 3, 'rate' => 500000]],
             ]);
             $this->fail('Expected dropping a received line to throw.');
         } catch (BusinessException $e) {
             $this->assertStringContainsString('already has goods received against it', $e->getMessage());
         }
 
-        // Resubmitting the exact same line unchanged, alongside a brand-new line, succeeds.
+        // Resubmitting the exact same line unchanged (Item/Unit Price/Tax), alongside a brand-new
+        // line, succeeds.
         $updated = $this->purchaseOrderService->update($purchaseOrder->fresh(), [
             'items' => [
                 ['id' => $line->id, 'item_id' => $this->item->id, 'qty' => 10, 'rate' => 1000000],
