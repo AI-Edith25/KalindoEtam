@@ -74,6 +74,7 @@ export function SmartOpeningStockImportDialog({ open, onClose }: SmartOpeningSto
   const preview = step === 'preview' ? (batch?.preview_summary as SmartOpeningStockPreviewSummary | null) : null
   const result = step === 'result' ? (batch?.preview_summary as SmartOpeningStockCommitResult | null) : null
   const hasIssues = !!preview && (preview.unmatched_items.length > 0 || preview.unmatched_warehouses.length > 0 || preview.price_conflicts.length > 0 || preview.skipped_rows.length > 0)
+  const alreadyOpenedCount = preview?.already_opened_items.reduce((sum, g) => sum + g.rows.length, 0) ?? 0
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && handleClose()}>
@@ -148,6 +149,21 @@ export function SmartOpeningStockImportDialog({ open, onClose }: SmartOpeningSto
               </table>
             </div>
 
+            {alreadyOpenedCount > 0 && (
+              <Alert>
+                <AlertTitle>Item yang sudah pernah di-opening-stock (dilewati, bukan error)</AlertTitle>
+                <AlertDescription>
+                  <div className="flex flex-col gap-1.5 text-sm">
+                    <p>
+                      <Badge variant="secondary" className="mr-1.5">{alreadyOpenedCount}</Badge>
+                      Item ini sudah punya aktivitas stok sebelum cutoff date file ini di gudang yang sama, jadi tidak diimpor ulang (mencegah Opening Stock dobel yang merusak urutan FIFO):{' '}
+                      {preview.already_opened_items.map((g) => `${g.item_code} (${g.warehouse_code})`).join(', ')}
+                    </p>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {hasIssues && (
               <Alert variant="destructive">
                 <AlertTitle>Baris yang dilewati (tidak akan diimpor)</AlertTitle>
@@ -192,6 +208,7 @@ export function SmartOpeningStockImportDialog({ open, onClose }: SmartOpeningSto
                 <AlertTitle>{result.documents_created} dokumen Opening Stock dibuat</AlertTitle>
                 <AlertDescription>
                   Lokasi: {result.warehouses.join(', ') || '-'}. Total qty: {formatNumber(result.total_qty)}.
+                  {result.already_opened_count > 0 && ` ${result.already_opened_count} baris dilewati karena item tersebut sudah pernah di-opening-stock sebelumnya.`}
                 </AlertDescription>
               </Alert>
             )}

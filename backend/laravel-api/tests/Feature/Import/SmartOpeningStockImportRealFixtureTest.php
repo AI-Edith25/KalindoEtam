@@ -11,6 +11,7 @@ use App\Models\Permission;
 use App\Models\UnitOfMeasurement;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\OpeningStockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
@@ -203,5 +204,54 @@ class SmartOpeningStockImportRealFixtureTest extends TestCase
         $bppLine = $bppDoc->items->firstWhere('item_code', 'SC PCC 50 KG');
         $this->assertNotNull($bppLine);
         $this->assertEqualsWithDelta(103066.0, (float) $bppLine->qty, 0.001);
+    }
+
+    /**
+     * Real bug reported against production: re-importing a Stock Balance file that overlaps
+     * items already opening-stocked (e.g. a newer snapshot of the same warehouses) used to fail
+     * the ENTIRE warehouse group — 0 documents created — the moment OpeningStockService::create()
+     * hit the first already-opened item, even though most of the group's items were perfectly
+     * fine. It must now exclude just the already-opened items up front and still import whatever
+     * is genuinely new, reporting the excluded ones separately instead of failing outright.
+     */
+    public function test_stock_balance_reimport_skips_already_opened_items_instead_of_failing_the_whole_group(): void
+    {
+        $master = $this->seedMaster();
+        $this->makeItem('SC OPC JB', $master['itemGroup'], $master['uom'], 'weight');
+        $this->makeItem('CAT', $master['itemGroup'], $master['uom']);
+
+        $firstUpload = $this->post('/api/v1/opening-stock/smart-import', [
+            'file' => $this->fixtureFile('xlsStockBalance.xlsx'),
+            'metadata_cutoff_date' => '2026-09-20',
+        ]);
+        $firstUpload->assertCreated();
+        $this->post('/api/v1/opening-stock/smart-import/'.$firstUpload->json('data.id').'/resolve')->assertOk();
+
+        // Submit every draft so its lines actually become FIFO activity -- assertCutoffPrecedes-
+        // ExistingActivity() (and this test's own excludeAlreadyOpenedItems()) both check FifoLayer
+        // rows, which only exist after submit(), not at Draft creation.
+        OpeningStock::query()->get()->each(fn (OpeningStock $doc) => app(OpeningStockService::class)->submit($doc));
+
+        // Re-import the SAME file with a LATER cutoff date -- every item it resolves already has
+        // FIFO activity dated before this new cutoff, so all of it should be excluded up front.
+        $secondUpload = $this->post('/api/v1/opening-stock/smart-import', [
+            'file' => $this->fixtureFile('xlsStockBalance.xlsx'),
+            'metadata_cutoff_date' => '2026-09-25',
+        ]);
+        $secondUpload->assertCreated();
+        $summary = $secondUpload->json('data.preview_summary');
+
+        $alreadyOpenedCodes = collect($summary['already_opened_items'])->pluck('item_code')->all();
+        $this->assertContains('SC OPC JB', $alreadyOpenedCodes);
+        $this->assertContains('CAT', $alreadyOpenedCodes);
+        $this->assertSame([], $summary['groups'], 'Nothing left to import — both known items are already opened.');
+
+        $resolve = $this->post('/api/v1/opening-stock/smart-import/'.$secondUpload->json('data.id').'/resolve');
+        $resolve->assertOk();
+        $result = $resolve->json('data.preview_summary');
+
+        $this->assertSame(0, $result['documents_created']);
+        $this->assertGreaterThan(0, $result['already_opened_count']);
+        $this->assertSame([], $result['failures'], 'Must no longer fail the group — just nothing new to create.');
     }
 }

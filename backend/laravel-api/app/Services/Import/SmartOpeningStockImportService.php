@@ -3,6 +3,7 @@
 namespace App\Services\Import;
 
 use App\Exceptions\BusinessException;
+use App\Models\FifoLayer;
 use App\Models\Item;
 use App\Models\Warehouse;
 use App\Services\OpeningStockService;
@@ -56,6 +57,7 @@ class SmartOpeningStockImportService
      *   unmatched_items: array<int, array{item_code: string, rows: int[], suggestions: array}>,
      *   unmatched_warehouses: array<int, array{warehouse_code: string, rows: int[]}>,
      *   price_conflicts: array<int, array{item_code: string, warehouse_code: string, rows: int[], prices: float[]}>,
+     *   already_opened_items: array<int, array{item_code: string, warehouse_code: string, rows: int[]}>,
      * }
      */
     public function preflight(string $absolutePath, string $extension, ?string $metadataCutoffDate = null): array
@@ -75,6 +77,7 @@ class SmartOpeningStockImportService
             'unmatched_items' => $parsed['unmatched_items'],
             'unmatched_warehouses' => $parsed['unmatched_warehouses'],
             'price_conflicts' => $parsed['price_conflicts'],
+            'already_opened_items' => $parsed['already_opened_items'],
         ];
     }
 
@@ -90,14 +93,14 @@ class SmartOpeningStockImportService
      * dependency is a real, observed failure mode on this app's production worker — no reason
      * to expose this feature to it when the file size doesn't need queuing at all.
      *
-     * @return array{documents_created: int, warehouses: string[], total_qty: float, failures: array<int, array{warehouse_code: string, cutoff_date: string, reason: string}>}
+     * @return array{documents_created: int, warehouses: string[], total_qty: float, already_opened_count: int, failures: array<int, array{warehouse_code: string, cutoff_date: string, reason: string}>}
      */
     public function commit(string $absolutePath, string $extension, ?string $metadataCutoffDate = null): array
     {
         $parsed = $this->parse($absolutePath, $extension, $metadataCutoffDate);
 
         if (isset($parsed['error'])) {
-            return ['documents_created' => 0, 'warehouses' => [], 'total_qty' => 0.0, 'failures' => [['warehouse_code' => '-', 'cutoff_date' => '-', 'reason' => $parsed['error']]]];
+            return ['documents_created' => 0, 'warehouses' => [], 'total_qty' => 0.0, 'already_opened_count' => 0, 'failures' => [['warehouse_code' => '-', 'cutoff_date' => '-', 'reason' => $parsed['error']]]];
         }
 
         $documentsCreated = 0;
@@ -125,7 +128,9 @@ class SmartOpeningStockImportService
             }
         }
 
-        return ['documents_created' => $documentsCreated, 'warehouses' => array_values(array_unique($warehouses)), 'total_qty' => $totalQty, 'failures' => $failures];
+        $alreadyOpenedCount = array_sum(array_map(fn ($g) => count($g['rows']), $parsed['already_opened_items']));
+
+        return ['documents_created' => $documentsCreated, 'warehouses' => array_values(array_unique($warehouses)), 'total_qty' => $totalQty, 'already_opened_count' => $alreadyOpenedCount, 'failures' => $failures];
     }
 
     /** Shared parse+dedup+group logic — preflight() reports it, commit() acts on it, so they can never disagree. */
@@ -226,7 +231,9 @@ class SmartOpeningStockImportService
         $items = Item::query()->whereIn('item_code', array_column($resolvedRows, 'item_code'))->get()->keyBy('item_code');
         $warehouses = Warehouse::query()->whereIn('code', array_column($resolvedRows, 'warehouse_code'))->get()->keyBy('code');
 
-        [$summedRows, $priceConflicts] = $this->sumDuplicates($resolvedRows);
+        [$openableRows, $alreadyOpenedItems] = $this->excludeAlreadyOpenedItems($resolvedRows, $items, $warehouses);
+
+        [$summedRows, $priceConflicts] = $this->sumDuplicates($openableRows);
 
         $groups = $this->groupByWarehouseAndDate($summedRows, $items, $warehouses);
 
@@ -245,7 +252,61 @@ class SmartOpeningStockImportService
             'unmatched_items' => $unmatchedItems,
             'unmatched_warehouses' => $unmatchedWarehouses,
             'price_conflicts' => $priceConflicts,
+            'already_opened_items' => $alreadyOpenedItems,
         ];
+    }
+
+    /**
+     * Excludes rows whose item+warehouse already has FIFO activity on or before this row's own
+     * cutoff date — OpeningStockService::create() would reject the *entire* document for a
+     * single such item (assertCutoffPrecedesExistingActivity(), protecting FIFO ordering), which
+     * would otherwise fail a whole warehouse group of 70 clean rows over 1 already-opened item.
+     * Re-running a Stock Balance file that overlaps a prior import (or covers items opened at an
+     * earlier cutoff) now only picks up the genuinely new items instead of importing nothing.
+     *
+     * One query for every (item, warehouse) pair in the file, not one per row.
+     *
+     * @return array{0: array, 1: array<int, array{item_code: string, warehouse_code: string, rows: int[]}>}
+     */
+    private function excludeAlreadyOpenedItems(array $rows, $items, $warehouses): array
+    {
+        $itemIds = $items->pluck('id')->all();
+        $warehouseIds = $warehouses->pluck('id')->all();
+
+        $earliestActivity = ($itemIds === [] || $warehouseIds === []) ? collect() : FifoLayer::query()
+            ->whereIn('item_id', $itemIds)
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->selectRaw('item_id, warehouse_id, MIN(received_date) as earliest_date')
+            ->groupBy('item_id', 'warehouse_id')
+            ->get()
+            ->keyBy(fn ($row) => "{$row->item_id}|{$row->warehouse_id}");
+
+        $eligible = [];
+        $alreadyOpened = [];
+
+        foreach ($rows as $r) {
+            $item = $items->get($r['item_code']);
+            $warehouse = $warehouses->get($r['warehouse_code']);
+
+            if ($item === null || $warehouse === null) {
+                continue; // unresolved — already excluded from $resolvedRows upstream, never reached in practice
+            }
+
+            $earliest = $earliestActivity->get("{$item->id}|{$warehouse->id}")?->earliest_date;
+
+            if ($earliest !== null && $earliest < $r['cutoff_date']) {
+                $key = $r['item_code'].'|'.$r['warehouse_code'];
+                $alreadyOpened[$key]['item_code'] ??= $r['item_code'];
+                $alreadyOpened[$key]['warehouse_code'] ??= $r['warehouse_code'];
+                $alreadyOpened[$key]['rows'][] = $r['row_no'];
+
+                continue;
+            }
+
+            $eligible[] = $r;
+        }
+
+        return [$eligible, array_values($alreadyOpened)];
     }
 
     /** @return \App\Services\Import\ImportFieldDefinition[] */

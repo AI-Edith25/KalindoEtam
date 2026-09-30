@@ -384,6 +384,13 @@ export interface SmartOpeningStockPriceConflict {
   prices: number[]
 }
 
+/** An item/warehouse that already has earlier FIFO activity -- excluded up front rather than failing its whole group (see SmartOpeningStockImportService::excludeAlreadyOpenedItems()). */
+export interface SmartOpeningStockAlreadyOpenedItem {
+  item_code: string
+  warehouse_code: string
+  rows: number[]
+}
+
 export interface SmartOpeningStockGroupLine {
   item_id: string
   item_code: string
@@ -412,6 +419,7 @@ export interface SmartOpeningStockPreviewSummary {
   unmatched_items: SmartOpeningStockUnmatchedItem[]
   unmatched_warehouses: SmartOpeningStockUnmatchedWarehouse[]
   price_conflicts: SmartOpeningStockPriceConflict[]
+  already_opened_items: SmartOpeningStockAlreadyOpenedItem[]
 }
 
 /** Shape after resolve(), replacing preview_summary once status is 'completed'/'failed' -- from SmartOpeningStockImportService::commit(). */
@@ -419,6 +427,7 @@ export interface SmartOpeningStockCommitResult {
   documents_created: number
   warehouses: string[]
   total_qty: number
+  already_opened_count: number
   failures: Array<{ warehouse_code: string; cutoff_date: string; reason: string }>
 }
 
