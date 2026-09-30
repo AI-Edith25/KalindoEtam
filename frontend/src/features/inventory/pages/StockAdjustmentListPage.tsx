@@ -16,6 +16,7 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { cn, formatDate, formatNumber } from '@/lib/utils'
 import { deleteStockAdjustment, fetchStockAdjustments, submitStockAdjustment } from '../api/stockAdjustmentApi'
+import { SmartStockAdjustmentImportDialog } from '../components/SmartStockAdjustmentImportDialog'
 import { StockAdjustmentFiltersBar } from '../components/StockAdjustmentFiltersBar'
 import { emptyStockAdjustmentFilters } from '../lib/stockAdjustmentFilters'
 import type { StockAdjustment, StockAdjustmentFilterValues } from '../types'
@@ -46,6 +47,7 @@ export function StockAdjustmentListPage() {
   const [filters, setFilters] = useState<StockAdjustmentFilterValues>(emptyStockAdjustmentFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingAdjustment, setDeletingAdjustment] = useState<StockAdjustment | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   const listQuery = useQuery({
     queryKey: ['stock-adjustments', page, search, filters.status, filters.dateFrom, filters.dateTo],
@@ -176,7 +178,7 @@ export function StockAdjustmentListPage() {
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
-              { label: 'Import', icon: Upload, disabled: true },
+              { label: 'Import', icon: Upload, onClick: () => setImportOpen(true), disabled: !canCreate },
             ]}
             primary={canCreate ? { label: 'New Adjustment', icon: Plus, onClick: () => navigate('/inventory/adjustments/new') } : undefined}
           />
@@ -224,6 +226,8 @@ export function StockAdjustmentListPage() {
           if (deletingAdjustment) deleteMutation.mutate(deletingAdjustment.id)
         }}
       />
+
+      <SmartStockAdjustmentImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   )
 }

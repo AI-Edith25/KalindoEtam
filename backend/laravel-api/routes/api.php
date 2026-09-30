@@ -79,6 +79,7 @@ use App\Http\Controllers\Api\V1\SalesPurchaseJournalImportController;
 use App\Http\Controllers\Api\V1\SalesReportController;
 use App\Http\Controllers\Api\V1\SalesTargetController;
 use App\Http\Controllers\Api\V1\SmartOpeningStockImportController;
+use App\Http\Controllers\Api\V1\SmartStockAdjustmentImportController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockInController;
 use App\Http\Controllers\Api\V1\StockLedgerController;
@@ -471,6 +472,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // deliberately — see StockAdjustment::cancel(). No Report counterpart exists, no OR needed.
     $withPagePermissions(Route::apiResource('stock-adjustments', StockAdjustmentController::class), 'inventory.adjustments');
     Route::post('stock-adjustments/{stockAdjustment}/submit', [StockAdjustmentController::class, 'submit'])->middleware('permission:inventory.adjustments.update');
+    Route::post('stock-adjustments/smart-import', [SmartStockAdjustmentImportController::class, 'store'])->middleware('permission:inventory.adjustments.create');
+    Route::post('stock-adjustments/smart-import/{batch}/resolve', [SmartStockAdjustmentImportController::class, 'resolve'])->middleware('permission:inventory.adjustments.create');
+    Route::get('stock-adjustments/smart-import/{batch}', [SmartStockAdjustmentImportController::class, 'show'])->middleware('permission:inventory.adjustments.create');
     $withPagePermissions(Route::apiResource('opening-stocks', OpeningStockController::class), 'inventory.opening_stock');
     Route::post('opening-stocks/{openingStock}/submit', [OpeningStockController::class, 'submit'])->middleware('permission:inventory.opening_stock.update');
     Route::post('opening-stocks/{openingStock}/cancel', [OpeningStockController::class, 'cancel'])->middleware('permission:inventory.opening_stock.update');

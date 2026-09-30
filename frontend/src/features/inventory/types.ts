@@ -439,3 +439,64 @@ export interface SmartOpeningStockImportBatch {
   failed_rows: number
   preview_summary: SmartOpeningStockPreviewSummary | SmartOpeningStockCommitResult | null
 }
+
+// -- Smart Stock Adjustment Import -- reads the same raw legacy files as Smart Opening Stock
+// Import, but reconciles CURRENT stock to a counted balance instead of opening a new one -- see
+// SmartStockAdjustmentImportService's docblock.
+
+export interface SmartStockAdjustmentLine {
+  item_id: string
+  item_code: string
+  item_name: string
+  uom: string | null
+  qty: number
+  unit_cost: number
+  system_qty: number
+  difference_qty: number
+}
+
+export interface SmartStockAdjustmentGroup {
+  warehouse_code: string
+  warehouse_id: string
+  adjustment_date: string
+  lines: SmartStockAdjustmentLine[]
+  changed_line_count: number
+}
+
+export interface SmartStockAdjustmentCostMissingItem {
+  item_code: string
+  warehouse_code: string
+  system_qty: number
+  counted_qty: number
+}
+
+/** Shape while status='previewed' -- from SmartStockAdjustmentImportService::preflight(). */
+export interface SmartStockAdjustmentPreviewSummary {
+  total_rows: number
+  skipped_rows: SmartOpeningStockSkippedRow[]
+  warehouses_detected: Record<string, number>
+  groups: SmartStockAdjustmentGroup[]
+  unmatched_items: SmartOpeningStockUnmatchedItem[]
+  unmatched_warehouses: SmartOpeningStockUnmatchedWarehouse[]
+  price_conflicts: SmartOpeningStockPriceConflict[]
+  cost_missing_items: SmartStockAdjustmentCostMissingItem[]
+}
+
+/** Shape after resolve(), replacing preview_summary once status is 'completed'/'failed' -- from SmartStockAdjustmentImportService::commit(). */
+export interface SmartStockAdjustmentCommitResult {
+  documents_created: number
+  warehouses: string[]
+  lines_adjusted: number
+  unchanged_count: number
+  cost_missing_count: number
+  failures: Array<{ warehouse_code: string; adjustment_date: string; reason: string }>
+}
+
+export interface SmartStockAdjustmentImportBatch {
+  id: string
+  status: SmartOpeningStockImportBatchStatus
+  total_rows: number
+  success_rows: number
+  failed_rows: number
+  preview_summary: SmartStockAdjustmentPreviewSummary | SmartStockAdjustmentCommitResult | null
+}
