@@ -32,24 +32,24 @@ class SalesListingService
         $kpis = $this->kpis($filters);
 
         $headingRow = [
-            'DATE', 'DOCUMENT', 'REFERENCE SO', 'REFERENCE DO', 'CUSTOMER CODE', 'CUSTOMER NAME', 'TYPE',
+            'DATE', 'DOCUMENT', 'REFERENCE SO', 'REFERENCE DO', 'DESCRIPTION', 'CUSTOMER CODE', 'CUSTOMER NAME', 'TYPE',
             'AMOUNT EXCL. TAX', 'DISC ADJUSTMENT', 'TAX', 'AMOUNT INCL. TAX', 'PAYMENT STATUS', 'OUTSTANDING AR',
         ];
 
         $bodyRows = $rows->map(fn ($row) => [
             $this->excelDate(Carbon::parse($row->date)), $row->document_number, $row->reference_so, $row->reference_do,
-            $row->customer_code, $row->customer_name, self::TYPE_LABELS[$row->type] ?? $row->type,
+            $row->description, $row->customer_code, $row->customer_name, self::TYPE_LABELS[$row->type] ?? $row->type,
             (float) $row->amount, (float) $row->discount, (float) $row->tax, (float) $row->amount_incl_tax,
             $row->payment_status, $row->outstanding_ar !== null ? (float) $row->outstanding_ar : null,
         ])->all();
 
         $totalsRow = [
-            'Grand Total', '', '', '', '', '', '',
+            'Grand Total', '', '', '', '', '', '', '',
             $kpis['net_sales'], null, $kpis['total_tax'], $kpis['gross'], '', null,
         ];
 
         if ($format === 'csv') {
-            return $this->buildCsvRows($headingRow, $bodyRows, 'M');
+            return $this->buildCsvRows($headingRow, $bodyRows, 'N');
         }
 
         return $this->buildXlsxRows(
@@ -58,10 +58,10 @@ class SalesListingService
             headingRow: $headingRow,
             bodyRows: $bodyRows,
             totalsRow: $totalsRow,
-            lastColumn: 'M',
-            numberFormatColumns: ['H', 'I', 'J', 'K', 'M'],
+            lastColumn: 'N',
+            numberFormatColumns: ['I', 'J', 'K', 'L', 'N'],
             dateColumn: 'A',
-            rightAlignColumns: ['H', 'I', 'J', 'K', 'M'],
+            rightAlignColumns: ['I', 'J', 'K', 'L', 'N'],
         );
     }
 

@@ -108,6 +108,10 @@ class SalesListingRepository
                 'sales_persons.name as sales_person_name',
             ])
             ->selectRaw('COALESCE(invoices.branch_id, sales_orders.branch_id) as branch_id')
+            // Comma-joined item names for this document — GROUP_CONCAT's default separator (',')
+            // is identical on MySQL (production) and SQLite (tests), so no per-driver branching
+            // is needed here, unlike a custom-separator GROUP_CONCAT would require.
+            ->selectRaw('(SELECT GROUP_CONCAT(item_name) FROM invoice_items WHERE invoice_items.invoice_id = invoices.id) as description')
             ->addSelect([
                 'invoices.subtotal as amount',
                 'invoices.discount_amount as discount',
@@ -148,6 +152,7 @@ class SalesListingRepository
                 'sales_persons.name as sales_person_name',
             ])
             ->selectRaw('COALESCE(cn_invoices.branch_id, sales_orders.branch_id) as branch_id')
+            ->selectRaw('(SELECT GROUP_CONCAT(item_name) FROM credit_note_items WHERE credit_note_items.credit_note_id = credit_notes.id) as description')
             ->selectRaw('-credit_notes.subtotal as amount')
             ->selectRaw('-credit_notes.discount_amount as discount')
             ->selectRaw('-credit_notes.tax_amount as tax')

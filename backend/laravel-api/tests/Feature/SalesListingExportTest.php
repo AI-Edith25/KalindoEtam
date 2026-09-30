@@ -74,13 +74,34 @@ class SalesListingExportTest extends TestCase
         $this->assertEquals('01/01/2026 - 31/01/2026', $sheet->getCell('A3')->getValue());
 
         $this->assertEquals('DATE', $sheet->getCell('A5')->getValue());
+        $this->assertEquals('DESCRIPTION', $sheet->getCell('E5')->getValue());
         $this->assertEquals($invoice->document_number, $sheet->getCell('B6')->getValue());
-        $this->assertEquals('Acme', $sheet->getCell('F6')->getValue());
-        $this->assertEquals('Sales Invoice', $sheet->getCell('G6')->getValue());
-        $this->assertEquals(100000, $sheet->getCell('H6')->getValue());
+        $this->assertEquals('Acme', $sheet->getCell('G6')->getValue());
+        $this->assertEquals('Sales Invoice', $sheet->getCell('H6')->getValue());
+        $this->assertEquals(100000, $sheet->getCell('I6')->getValue());
 
         $this->assertEquals('Grand Total', $sheet->getCell('A7')->getValue());
-        $this->assertEquals(100000, $sheet->getCell('H7')->getValue());
+        $this->assertEquals(100000, $sheet->getCell('I7')->getValue());
+    }
+
+    public function test_description_column_lists_the_invoices_item_names(): void
+    {
+        $invoice = $this->makeInvoice(100000);
+        \App\Models\InvoiceItem::query()->create([
+            'invoice_id' => $invoice->id, 'item_name' => 'Semen PCC 50KG', 'uom' => 'ZAK', 'rate' => 50000, 'qty' => 1, 'amount' => 50000,
+        ]);
+        \App\Models\InvoiceItem::query()->create([
+            'invoice_id' => $invoice->id, 'item_name' => 'Semen OPC 50KG', 'uom' => 'ZAK', 'rate' => 50000, 'qty' => 1, 'amount' => 50000,
+        ]);
+
+        $sheet = $this->downloadXlsx('date_from=2026-01-01&date_to=2026-01-31');
+
+        // GROUP_CONCAT's row order isn't guaranteed by the SQL standard on either engine —
+        // asserting both names are present (comma-joined) rather than a fixed order.
+        $description = (string) $sheet->getCell('E6')->getValue();
+        $this->assertStringContainsString('Semen PCC 50KG', $description);
+        $this->assertStringContainsString('Semen OPC 50KG', $description);
+        $this->assertStringContainsString(',', $description);
     }
 
     public function test_csv_has_no_banner_just_headings_and_raw_data(): void
