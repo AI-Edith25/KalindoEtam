@@ -35,10 +35,15 @@ use Throwable;
  * column; here the file's numbers are authoritative and frozen, not recomputed.
  *
  * import_source_type = 'historical_invoice' is set on every row created here — InvoiceService::
- * submit()/cancel() key off it to skip stock/AR/GL entirely (confirmed with the user: AR/GL
- * balances are already backfilled by a separate Customer Outstanding import; this import is for
- * populating Invoice/InvoiceItem rows for reporting only). Invoice::submit() still flips status
- * to Submitted, so an imported row looks and behaves like a real one everywhere else.
+ * submit()/cancel() key off it to skip stock and GL (that account's balance already comes from
+ * the Trial Balance import as one aggregate journal entry — a per-invoice entry here would double
+ * it). AccountsReceivable IS still created per invoice, same as a live Invoice — fixed 2026-10-02,
+ * see [[project_erp_sales_invoice_ar_backfill]]: without it, a real Official Receipt against one of
+ * these customers can never be allocated (PaymentAllocationService only ever queries that table),
+ * and the (separate, standalone, never-synced) Customer Outstanding Bills snapshot report would
+ * keep showing the invoice as unpaid forever regardless of any later payment. Invoice::submit()
+ * still flips status to Submitted, so an imported row looks and behaves like a real one everywhere
+ * else.
  *
  * Customer/Item codes that don't resolve are map-to-existing-or-skip only — no auto-create of
  * master data (confirmed with the user), unlike Supplier in PurchaseHistoryImportService.

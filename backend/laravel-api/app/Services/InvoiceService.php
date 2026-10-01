@@ -672,18 +672,24 @@ class InvoiceService
             $invoice->submit();
 
             // Imported historical Invoices (import_source_type set — see SalesInvoiceImportService)
-            // never move stock, never create AR, never post GL: AR/GL balances are already
-            // backfilled by a separate Customer Outstanding import, and stock was never really
-            // consumed by these rows. Status still flips to Submitted above either way, so an
-            // imported invoice looks and behaves like a real one everywhere else.
+            // never move stock and never post their own GL entry — stock was never really consumed
+            // by these rows, and GL's AR control-account balance already comes from the Trial
+            // Balance import as one aggregate journal entry (TrialBalanceImportService); posting a
+            // per-invoice entry too would double-count it. Status still flips to Submitted above
+            // either way, so an imported invoice looks and behaves like a real one everywhere else.
             if ($invoice->import_source_type === null) {
                 if ($invoice->isDirectGoods()) {
                     $this->postDirectGoodsStock($invoice);
                 }
 
-                $this->accountsReceivableService->createFromInvoice($invoice);
                 $this->accountingService->postForDocument($invoice, $invoice->journalLines(), "Invoice {$invoice->document_number}", $invoice->invoice_date->toDateString());
             }
+
+            // AR *is* always created, even for historical imports — without a real AccountsReceivable
+            // row here, a historical invoice can never be found/allocated against by a later Official
+            // Receipt (PaymentAllocationService only ever queries this table), leaving real customer
+            // payments permanently stuck unallocated. See docs note in SalesInvoiceImportService.
+            $this->accountsReceivableService->createFromInvoice($invoice);
 
             $invoice = $invoice->fresh(self::EAGER);
             $this->auditLogService->record('submitted', 'invoice', "Submitted Invoice \"{$invoice->document_number}\".");

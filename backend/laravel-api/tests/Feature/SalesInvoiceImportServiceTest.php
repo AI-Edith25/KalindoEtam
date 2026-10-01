@@ -90,7 +90,7 @@ class SalesInvoiceImportServiceTest extends TestCase
         ]);
     }
 
-    public function test_goods_row_creates_a_submitted_invoice_with_no_stock_ar_or_gl_side_effects(): void
+    public function test_goods_row_creates_a_submitted_invoice_with_a_real_ar_row_but_no_stock_or_gl_side_effects(): void
     {
         $csv = $this->csv([
             ...self::PREAMBLE,
@@ -119,8 +119,10 @@ class SalesInvoiceImportServiceTest extends TestCase
         $this->assertSame($this->item->id, $invoice->items->first()->item_id);
         $this->assertEquals(10, $invoice->items->first()->qty);
 
-        $this->assertSame(0, AccountsReceivable::query()->count(), 'AR/GL already backfilled by a separate import — must never be created here');
-        $this->assertSame(0, JournalEntry::query()->count());
+        $accountsReceivable = AccountsReceivable::query()->where('invoice_id', $invoice->id)->firstOrFail();
+        $this->assertEquals(111000, (float) $accountsReceivable->amount);
+        $this->assertEquals(0, (float) $accountsReceivable->paid_amount, 'a freshly imported invoice starts fully outstanding — any prior payment is a separate, later Official Receipt allocation');
+        $this->assertSame(0, JournalEntry::query()->count(), 'GL is still skipped — the AR control account balance already comes from the Trial Balance import in aggregate');
         $this->assertSame(0, StockLedger::query()->count(), 'must never touch stock');
     }
 
