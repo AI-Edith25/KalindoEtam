@@ -36,6 +36,8 @@ class UpdateInvoiceRequest extends FormRequest
             'invoice_date' => ['sometimes', 'required', 'date'],
             'due_date' => ['sometimes', 'required', 'date', 'after_or_equal:invoice_date'],
             'terms_of_payment_id' => ['sometimes', 'nullable', 'uuid', 'exists:terms_of_payments,id'],
+            // The printed/displayed Location — editable at any status, zero stock/accounting side effects. See Invoice::locationWarehouse().
+            'location_warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
             'discount_type' => ['sometimes', 'nullable', Rule::enum(DiscountType::class)],
             'discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],

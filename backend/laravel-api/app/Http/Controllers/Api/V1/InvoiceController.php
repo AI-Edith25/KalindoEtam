@@ -57,7 +57,7 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice): JsonResponse
     {
         return $this->success(new InvoiceResource($invoice->load([
-            'customer', 'salesPerson', 'salesOrder.salesPerson', 'salesOrder.branch', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'items.deliveryItem.delivery.salesOrder.salesPerson', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes', 'updater',
+            'customer', 'salesPerson', 'salesOrder.salesPerson', 'salesOrder.branch', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'warehouse', 'locationWarehouse', 'items.deliveryItem.delivery.salesOrder.salesPerson', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes', 'updater',
         ])));
     }
 

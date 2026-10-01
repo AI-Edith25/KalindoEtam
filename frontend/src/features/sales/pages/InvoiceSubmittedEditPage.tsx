@@ -18,7 +18,7 @@ import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeLineTaxTotal, computeSubtotal } from '@/shared/lib/documentTotals'
-import { fetchBranches, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { fetchInvoice, updateInvoice } from '../api/invoiceApi'
 import type { InvoiceItem } from '../types'
 
@@ -54,6 +54,7 @@ export function InvoiceSubmittedEditPage() {
   const invoice = invoiceQuery.data
 
   const branchesQuery = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
+  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const salesPersonsQuery = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const termsOfPaymentQuery = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
@@ -63,6 +64,7 @@ export function InvoiceSubmittedEditPage() {
   const [termsOfPaymentId, setTermsOfPaymentId] = useState('')
   const [salesPersonId, setSalesPersonId] = useState('')
   const [branchId, setBranchId] = useState('')
+  const [locationWarehouseId, setLocationWarehouseId] = useState('')
   const [attention, setAttention] = useState('')
   const [tel, setTel] = useState('')
   const [fax, setFax] = useState('')
@@ -80,6 +82,7 @@ export function InvoiceSubmittedEditPage() {
     setTermsOfPaymentId(invoice.terms_of_payment_id ?? '')
     setSalesPersonId(invoice.sales_person_id ?? '')
     setBranchId(invoice.branch_id ?? '')
+    setLocationWarehouseId(invoice.location_warehouse_id ?? '')
     setAttention(invoice.attention ?? '')
     setTel(invoice.tel ?? '')
     setFax(invoice.fax ?? '')
@@ -100,6 +103,7 @@ export function InvoiceSubmittedEditPage() {
     terms_of_payment_id: termsOfPaymentId || null,
     sales_person_id: salesPersonId || null,
     branch_id: branchId || null,
+    location_warehouse_id: locationWarehouseId || null,
     attention: attention || null,
     tel: tel || null,
     fax: fax || null,
@@ -203,6 +207,17 @@ export function InvoiceSubmittedEditPage() {
               loading={branchesQuery.isLoading}
               placeholder={invoice.sales_order?.branch?.name || 'None'}
               aria-label="Location"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Location (Warehouse)</label>
+            <SearchableSelect
+              options={(warehousesQuery.data ?? []).map((w) => ({ value: w.id, label: w.name }))}
+              value={locationWarehouseId}
+              onChange={(value) => setLocationWarehouseId(value ?? '')}
+              loading={warehousesQuery.isLoading}
+              placeholder={invoice.location_warehouse?.name || invoice.delivery?.warehouse?.name || 'None'}
+              aria-label="Location (Warehouse)"
             />
           </div>
           <div className="flex flex-col gap-1.5">

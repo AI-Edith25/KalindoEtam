@@ -29,6 +29,7 @@ class Invoice extends Model
         'delivery_id',
         'sales_order_id',
         'warehouse_id',
+        'location_warehouse_id',
         'branch_id',
         'customer_id',
         'sales_person_id',
@@ -124,6 +125,18 @@ class Invoice extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    /**
+     * The printed/displayed "Location" — independent of warehouse() above, which is Direct-Goods-
+     * only and drives real stock consumption. This one is purely cosmetic, defaulted from the
+     * anchor Delivery's warehouse (or warehouse_id for Direct Goods) at creation, and editable at
+     * any status with zero stock/accounting side effects. See migration
+     * 2026_10_01_000005_add_location_warehouse_id_to_invoices_table.
+     */
+    public function locationWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'location_warehouse_id');
     }
 
     /** A Goods invoice with no Delivery behind it (Jumbo & Curah billed straight to a Customer) — the one Invoice flow that itself reduces stock at submit()/cancel(), rather than inheriting an already-moved Delivery. */

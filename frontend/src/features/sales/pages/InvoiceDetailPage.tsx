@@ -296,6 +296,9 @@ export function InvoiceDetailPage() {
             <DetailField label="Due Date" value={formatDate(invoice.due_date)} />
             <DetailField label="Terms of Payment" value={invoice.terms_of_payment ? `${invoice.terms_of_payment.name} (${invoice.terms_of_payment.code})` : '—'} />
             <DetailField label="Sales Person" value={invoice.sales_person?.name || '—'} />
+            {invoice.invoice_type !== 'transportation' && (
+              <DetailField label="Location" value={invoice.location_warehouse?.name ?? invoice.delivery?.warehouse?.name ?? '—'} />
+            )}
             {invoice.invoice_type === 'transportation' && (
               <DetailField
                 label="Branch"

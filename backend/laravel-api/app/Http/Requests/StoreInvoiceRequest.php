@@ -40,6 +40,10 @@ class StoreInvoiceRequest extends FormRequest
             'delivery_ids.*' => ['uuid', 'distinct', 'exists:deliveries,id'],
             // Direct Goods only — no Delivery to inherit a Location from.
             'warehouse_id' => [Rule::when($isDirectGoods, 'required', 'prohibited'), 'uuid', 'exists:warehouses,id'],
+            // The printed/displayed Location — optional on every flow. Defaults server-side
+            // (InvoiceService::create()) from the anchor Delivery's warehouse, or from warehouse_id
+            // for Direct Goods, when omitted. See Invoice::locationWarehouse().
+            'location_warehouse_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
             // Transportation and Direct Goods only — picked directly instead of being derived from a Delivery.
             'customer_id' => [Rule::when($isTransportationOrDirectGoods, 'required', 'prohibited'), 'uuid', 'exists:customers,id'],
             // Transportation and Direct Goods only — no Sales Order to derive Branch from, so it's captured directly here.

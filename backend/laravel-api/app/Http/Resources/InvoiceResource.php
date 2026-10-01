@@ -36,6 +36,9 @@ class InvoiceResource extends JsonResource
             // Goods (Direct) only — captured directly at creation (no Delivery to inherit it from). Null for every other flow.
             'warehouse_id' => $this->warehouse_id,
             'warehouse' => $this->whenLoaded('warehouse', fn () => $this->warehouse ? new WarehouseResource($this->warehouse) : null),
+            // The printed/displayed Location — every invoice has one, independent of warehouse_id above. See Invoice::locationWarehouse().
+            'location_warehouse_id' => $this->location_warehouse_id,
+            'location_warehouse' => $this->whenLoaded('locationWarehouse', fn () => $this->locationWarehouse ? new WarehouseResource($this->locationWarehouse) : null),
             'sales_order_id' => $this->sales_order_id,
             'sales_orders' => $this->whenLoaded('salesOrders', fn () => $this->salesOrders->map(fn ($salesOrder) => [
                 'id' => $salesOrder->id,

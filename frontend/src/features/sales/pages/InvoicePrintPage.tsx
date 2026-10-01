@@ -184,9 +184,10 @@ export function InvoicePrintPage() {
   const attn = invoice.sales_order?.attention ?? ''
   const tel = invoice.sales_order?.tel ?? invoice.customer?.phone ?? ''
   const fax = invoice.sales_order?.fax ?? ''
-  // Goods (Direct) has its own warehouse_id (no Delivery to source it from) — Transportation
-  // still renders blank, unaffected (see this file's own docblock).
-  const location = invoice.delivery?.warehouse?.name ?? invoice.warehouse?.name ?? ''
+  // location_warehouse_id is the editable, printed Location field (every Goods invoice has one —
+  // see Invoice::locationWarehouse()); the old derived chain stays as a fallback only for a
+  // pre-backfill invoice where it's somehow still null. Transportation still renders blank, unaffected.
+  const location = invoice.location_warehouse?.name ?? invoice.delivery?.warehouse?.name ?? invoice.warehouse?.name ?? ''
   // dotmatrix_auto borrows 'half' sizing purely as the pagination budget InvoicePortraitLayout
   // bin-packs against (see its own `autoHeight` doc comment) — it does not force the rendered
   // page to that height, and its width (210mm) still matches the physical stationery this mode's

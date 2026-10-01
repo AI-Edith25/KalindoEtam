@@ -28,6 +28,9 @@ export const invoiceFormSchema = z.object({
   sales_person_id: z.string().optional().or(z.literal('')),
   reference_1: z.string().optional().or(z.literal('')),
   reference_2: z.string().optional().or(z.literal('')),
+  // The printed/displayed Location — every flow gets this field, unlike warehouse_id (Direct
+  // Goods only, drives stock consumption). See Invoice::locationWarehouse().
+  location_warehouse_id: z.string().optional().or(z.literal('')),
 })
 
 export type InvoiceEditorValues = z.infer<typeof invoiceFormSchema>
@@ -44,4 +47,5 @@ export const emptyInvoiceEditorValues: InvoiceEditorValues = {
   sales_person_id: '',
   reference_1: '',
   reference_2: '',
+  location_warehouse_id: '',
 }

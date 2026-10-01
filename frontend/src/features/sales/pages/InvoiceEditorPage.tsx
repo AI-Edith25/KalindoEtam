@@ -338,6 +338,11 @@ function resolveTermsOfPaymentDefault(deliveries: Delivery[]): string {
   return sharedTop ?? deliveries[0]?.customer?.terms_of_payment_id ?? ''
 }
 
+/** Printed/displayed Location default for a new Delivery-based Invoice — the anchor (first) Delivery's own warehouse. Still freely changeable, this is only the starting value. */
+function resolveLocationWarehouseDefault(deliveries: Delivery[]): string {
+  return deliveries[0]?.warehouse_id ?? ''
+}
+
 /**
  * Only mounts once its source data has already loaded (the existing Invoice in edit mode,
  * or the selected Delivery in create mode) — so useForm's defaultValues can be computed
@@ -410,8 +415,11 @@ function InvoiceForm({
 
   // Goods (Direct) only — no Delivery to inherit a Location from, so it's a real required field
   // here (same Location field Delivery's own editor has), and it scopes the Item Picker's lookup.
+  // Also doubles as that sub-flow's printed/displayed Location (see toPayload()) — Direct Goods
+  // never shows the separate location_warehouse_id field below, one Location input is enough.
   const [directGoodsWarehouseId, setDirectGoodsWarehouseId] = useState('')
-  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup, enabled: !isEdit && isDirectGoods })
+  // Always enabled now — every Goods flow (Delivery-based or Direct) can show/edit a Location.
+  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup, enabled: !isTransportation })
   const warehouseOptions = warehousesQuery.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const [directGoodsLines, setDirectGoodsLines] = useState<DirectGoodsLine[]>(() => [emptyDirectGoodsLine()])
   const addDirectGoodsLine = () => setDirectGoodsLines((prev) => [...prev, emptyDirectGoodsLine()])
@@ -462,6 +470,7 @@ function InvoiceForm({
           sales_person_id: invoice.sales_person_id ?? '',
           reference_1: invoice.reference_1 ?? '',
           reference_2: invoice.reference_2 ?? '',
+          location_warehouse_id: invoice.location_warehouse_id ?? '',
         }
       : {
           ...emptyInvoiceEditorValues,
@@ -470,6 +479,7 @@ function InvoiceForm({
           // Customer's own default when they disagree or have none. Still freely changeable —
           // this is only the starting value. See resolveTermsOfPaymentDefault().
           terms_of_payment_id: resolveTermsOfPaymentDefault(selectedDeliveries),
+          location_warehouse_id: resolveLocationWarehouseDefault(selectedDeliveries),
           // Sales Person and Reference 1 (Goods) are auto-filled server-side from the Sales
           // Order at save time (InvoiceService::createGoods()) - same "assigned when saved"
           // treatment as the invoice number, editable here once the invoice exists.
@@ -545,6 +555,10 @@ function InvoiceForm({
     sales_person_id: values.sales_person_id || null,
     reference_1: values.reference_1 || null,
     reference_2: values.reference_2 || null,
+    // Omitted for Direct Goods — that sub-flow's own Location field above (directGoodsWarehouseId)
+    // already becomes warehouse_id, and the backend defaults location_warehouse_id from it
+    // (InvoiceService::createDirectGoods()) when this key is absent.
+    ...(isDirectGoods && !isEdit ? {} : { location_warehouse_id: values.location_warehouse_id || null }),
   })
 
   const saveMutation = useMutation({
@@ -781,6 +795,28 @@ function InvoiceForm({
                   </FormItem>
                 )}
               />
+              {/* Delivery-based Goods only — Direct Goods' own Location above already is its
+                  warehouse_id (one input is enough there); Transportation has no Location concept. */}
+              {!isDirectGoods && !isTransportation && (
+                <FormField
+                  control={form.control}
+                  name="location_warehouse_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <SearchableSelect
+                        options={warehouseOptions}
+                        value={field.value}
+                        onChange={(value) => field.onChange(value ?? '')}
+                        loading={warehousesQuery.isLoading}
+                        placeholder="None"
+                        aria-label="Location"
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="terms_of_payment_id"

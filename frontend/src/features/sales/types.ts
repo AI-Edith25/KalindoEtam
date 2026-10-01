@@ -272,6 +272,11 @@ export interface Invoice {
   // Goods (Direct) only — captured directly at creation (no Delivery to inherit it from). Null for every other flow.
   warehouse_id: string | null
   warehouse: { id: string; name: string; code: string } | null
+  // The printed/displayed Location — every invoice has one (defaults from the Delivery's own
+  // warehouse, or warehouse_id for Direct Goods), independently editable at any status. Purely
+  // cosmetic, never affects stock — unlike warehouse_id above.
+  location_warehouse_id: string | null
+  location_warehouse: { id: string; name: string; code: string } | null
   sales_order_id: string | null
   sales_orders: { id: string; document_number: string | null }[]
   sales_order: {

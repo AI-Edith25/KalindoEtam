@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
-    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'warehouse', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes', 'updater'];
+    protected const EAGER = ['customer', 'salesPerson', 'salesOrder', 'salesOrders', 'branch', 'delivery.warehouse', 'deliveries', 'warehouse', 'locationWarehouse', 'items.tax', 'tax', 'termsOfPayment', 'accountsReceivable.receiptEntryItems.receiptEntry.cashAccount', 'creditNotes', 'debitNotes', 'updater'];
 
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
@@ -115,6 +115,9 @@ class InvoiceService
                 'sales_order_id' => $anchor->sales_order_id,
                 'customer_id' => $anchor->customer_id,
                 'sales_person_id' => $data['sales_person_id'] ?? $anchor->salesOrder?->sales_person_id,
+                // Printed/displayed Location — defaults to the anchor Delivery's own warehouse,
+                // independently editable afterward (see Invoice::locationWarehouse()).
+                'location_warehouse_id' => $data['location_warehouse_id'] ?? $anchor->warehouse_id,
                 // Defaults to Goods — every caller that predates Sprint 2 (Invoice Numbering),
                 // including existing tests, never passes this and means Goods either way.
                 'invoice_type' => $data['invoice_type'] ?? InvoiceType::GOODS->value,
@@ -300,6 +303,8 @@ class InvoiceService
                 'delivery_id' => null,
                 'sales_order_id' => null,
                 'warehouse_id' => $data['warehouse_id'],
+                // Printed/displayed Location — defaults to the same warehouse picked above, independently editable afterward (see Invoice::locationWarehouse()).
+                'location_warehouse_id' => $data['location_warehouse_id'] ?? $data['warehouse_id'],
                 'branch_id' => $data['branch_id'] ?? null,
                 'customer_id' => $data['customer_id'],
                 'sales_person_id' => $data['sales_person_id'] ?? null,
@@ -391,6 +396,7 @@ class InvoiceService
                 'invoice_date' => $data['invoice_date'] ?? $invoice->invoice_date,
                 'due_date' => $data['due_date'] ?? $invoice->due_date,
                 'terms_of_payment_id' => array_key_exists('terms_of_payment_id', $data) ? $data['terms_of_payment_id'] : $invoice->terms_of_payment_id,
+                'location_warehouse_id' => array_key_exists('location_warehouse_id', $data) ? $data['location_warehouse_id'] : $invoice->location_warehouse_id,
                 'discount_amount' => $discountAmount,
                 'discount_type' => $discountType instanceof DiscountType ? $discountType->value : $discountType,
                 'discount_percentage' => $discountPercentage,
@@ -441,7 +447,7 @@ class InvoiceService
                 throw new BusinessException('Gunakan menu "Ubah Nominal" untuk mengubah Rate pada Transportation Invoice.');
             }
 
-            $editableFields = ['invoice_date', 'due_date', 'terms_of_payment_id', 'sales_person_id', 'branch_id', 'attention', 'tel', 'fax', 'reference_1', 'reference_2', 'customer_address', 'customer_phone', 'remarks'];
+            $editableFields = ['invoice_date', 'due_date', 'terms_of_payment_id', 'sales_person_id', 'branch_id', 'attention', 'tel', 'fax', 'reference_1', 'reference_2', 'customer_address', 'customer_phone', 'remarks', 'location_warehouse_id'];
             $before = $invoice->only([...$editableFields, 'discount_amount', 'discount_type', 'discount_percentage', 'subtotal', 'tax_amount', 'grand_total']);
             $headerData = collect($data)->only($editableFields)->all();
 
