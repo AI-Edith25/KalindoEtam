@@ -130,7 +130,8 @@ export interface SalesOrderStockStatus {
 
 export interface DeliveryItem {
   id: string
-  sales_order_item_id: string
+  // Null for a Direct Delivery line (no source Sales Order) — see DeliveryService::createDirect().
+  sales_order_item_id: string | null
   item_id: string
   item_code: string
   item_name: string
@@ -151,7 +152,8 @@ export interface Delivery {
   status: DeliveryStatus
   revision: number
   lock_version: number
-  sales_order_id: string
+  // Null for a Direct Delivery (no source Sales Order) — see DeliveryService::createDirect().
+  sales_order_id: string | null
   sales_order: {
     id: string
     document_number: string | null
@@ -205,7 +207,9 @@ export interface Delivery {
 }
 
 export interface DeliveryFormValues {
-  sales_order_id: string
+  // Null/omitted for a Direct Delivery (no source Sales Order) — customer_id is required instead.
+  // See DeliveryService::createDirect().
+  sales_order_id?: string | null
   customer_id?: string
   warehouse_id: string
   sales_person_id?: string | null
@@ -220,7 +224,7 @@ export interface DeliveryFormValues {
   driver: string | null
   // Required once editing a Complete Delivery (DeliveryService::updateComplete()'s optimistic-lock check).
   lock_version?: number
-  items: { id?: string; sales_order_item_id: string; qty: number; rate?: number; tax_id?: string | null }[]
+  items: { id?: string; sales_order_item_id?: string | null; item_id?: string; qty: number; rate?: number; tax_id?: string | null }[]
 }
 
 export type InvoiceDisplayStatus = 'draft' | 'unpaid' | 'partial' | 'paid' | 'cancelled'
@@ -312,6 +316,8 @@ export interface Invoice {
   customer_address: string | null
   customer_phone: string | null
   lock_version: number
+  source: 'manual' | 'import'
+  imported_at: string | null
   items: InvoiceItem[]
   payment_history: InvoicePaymentHistoryLine[]
   credit_note_history: InvoiceCreditNoteHistoryLine[]
@@ -368,6 +374,7 @@ export interface InvoiceFormValues {
 
 export interface InvoiceFilterValues {
   status: DocumentStatus | null
+  source: 'manual' | 'import' | null
   dateFrom: string
   dateTo: string
 }

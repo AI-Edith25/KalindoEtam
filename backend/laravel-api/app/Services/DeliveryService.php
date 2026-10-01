@@ -14,6 +14,7 @@ use App\Models\SalesOrderItem;
 use App\Repositories\CompanyRepository;
 use App\Repositories\DeliveryItemRepository;
 use App\Repositories\DeliveryRepository;
+use App\Repositories\ItemRepository;
 use App\Repositories\SalesOrderItemRepository;
 use App\Repositories\SalesOrderRepository;
 use App\Repositories\TaxRepository;
@@ -40,6 +41,7 @@ class DeliveryService
         protected QtyCategoryValidator $qtyCategoryValidator,
         protected TaxRepository $taxRepository,
         protected DocumentTimelineService $documentTimelineService,
+        protected ItemRepository $itemRepository,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -144,6 +146,10 @@ class DeliveryService
     public function create(array $data): Delivery
     {
         return DB::transaction(function () use ($data) {
+            if (empty($data['sales_order_id'])) {
+                return $this->createDirect($data);
+            }
+
             $salesOrder = $this->salesOrderRepository->findOrFail($data['sales_order_id']);
 
             if ($salesOrder->status !== SalesOrderStatus::APPROVED) {
@@ -173,6 +179,77 @@ class DeliveryService
         });
     }
 
+    /**
+     * Standalone delivery with no source Sales Order — items are typed
+     * directly (item/qty/rate/tax) instead of copied from a Sales Order
+     * line, so there's no assertWithinOutstanding()/incrementDeliveredQty()
+     * to run (nothing to check against). Same shape as
+     * GoodsReceiptService::createDirect(). Only reachable from create(),
+     * always inside its transaction.
+     */
+    protected function createDirect(array $data): Delivery
+    {
+        $delivery = $this->deliveryRepository->create([
+            'sales_order_id' => null,
+            'customer_id' => $data['customer_id'],
+            'warehouse_id' => $data['warehouse_id'],
+            'delivery_date' => $data['delivery_date'],
+            'due_date' => $data['due_date'],
+            'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
+            'remarks' => $data['remarks'] ?? null,
+            'fleet' => $data['fleet'] ?? null,
+            'driver' => $data['driver'] ?? null,
+        ]);
+
+        foreach ($data['items'] as $line) {
+            $this->addDirectLine($delivery, $line);
+        }
+
+        $delivery = $delivery->fresh(['customer', 'warehouse', 'items', 'termsOfPayment']);
+        $this->auditLogService->record('created', 'delivery', "Created Delivery \"{$delivery->document_number}\".");
+
+        return $delivery;
+    }
+
+    protected function addDirectLine(Delivery $delivery, array $line): void
+    {
+        $this->deliveryItemRepository->create($this->buildDirectDeliveryLineAttributes($delivery, $line));
+    }
+
+    /**
+     * Mirrors buildDeliveryLineAttributes(), but for a line with no Sales
+     * Order item behind it — item/rate/tax all come straight from the
+     * request. tax_id resolution deliberately passes item: null (same as
+     * GoodsReceiptService::createDirectLine()) so a Direct Delivery line's
+     * tax is purely manual, never silently defaulted from the Item's own
+     * sales_tax_id.
+     */
+    protected function buildDirectDeliveryLineAttributes(Delivery $delivery, array $line): array
+    {
+        $item = $this->itemRepository->findOrFail($line['item_id']);
+        $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+        $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
+        $rate = (float) ($line['rate'] ?? 0);
+        $lineAmount = $qty * $rate;
+        [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $lineAmount);
+
+        return [
+            'delivery_id' => $delivery->id,
+            'sales_order_item_id' => null,
+            'item_id' => $item->id,
+            'item_code' => $item->item_code,
+            'item_name' => $item->item_name,
+            'uom' => $item->uom->name,
+            'uom_factor' => 1,
+            'rate' => $rate,
+            'qty' => $qty,
+            'qty_category' => $item->qty_category,
+            'amount' => round($lineAmount, 2),
+            'tax_id' => $taxId,
+            'tax_amount' => round($taxAmount, 2),
+        ];
+    }
+
     /** Pending: only header fields + full item replace (unchanged). Complete: see updateComplete(). */
     public function update(Delivery $delivery, array $data): Delivery
     {
@@ -189,7 +266,11 @@ class DeliveryService
                 $delivery->items()->delete();
 
                 foreach ($data['items'] as $line) {
-                    $this->addLine($delivery, $delivery->sales_order_id, $line['sales_order_item_id'], $line['qty']);
+                    if ($delivery->sales_order_id === null) {
+                        $this->addDirectLine($delivery, $line);
+                    } else {
+                        $this->addLine($delivery, $delivery->sales_order_id, $line['sales_order_item_id'], $line['qty']);
+                    }
                 }
             }
 
@@ -253,10 +334,14 @@ class DeliveryService
                 $existingById = $delivery->items->keyBy('id');
 
                 foreach ($data['items'] as $line) {
-                    $soItem = $this->resolveSalesOrderItem($delivery->sales_order_id, $line['sales_order_item_id']);
-                    $this->assertWithinOutstanding($soItem, $line['qty']);
+                    if ($delivery->sales_order_id === null) {
+                        $attributes = $this->buildDirectDeliveryLineAttributes($delivery, $line);
+                    } else {
+                        $soItem = $this->resolveSalesOrderItem($delivery->sales_order_id, $line['sales_order_item_id']);
+                        $this->assertWithinOutstanding($soItem, $line['qty']);
 
-                    $attributes = $this->buildDeliveryLineAttributes($delivery, $soItem, $line['qty'], $line['rate'] ?? null, $line['tax_id'] ?? null);
+                        $attributes = $this->buildDeliveryLineAttributes($delivery, $soItem, $line['qty'], $line['rate'] ?? null, $line['tax_id'] ?? null);
+                    }
 
                     if (! empty($line['id']) && $existingById->has($line['id'])) {
                         $this->deliveryItemRepository->update($existingById[$line['id']], $attributes);
@@ -316,7 +401,9 @@ class DeliveryService
     protected function postDeliveryStock(Delivery $delivery): void
     {
         foreach ($delivery->items as $line) {
-            $this->assertWithinOutstanding($line->salesOrderItem, $line->qty);
+            if ($line->salesOrderItem !== null) {
+                $this->assertWithinOutstanding($line->salesOrderItem, $line->qty);
+            }
             $this->assertSufficientStock($delivery->warehouse_id, $line->item_id, $line->baseQty());
         }
 
@@ -341,7 +428,9 @@ class DeliveryService
                 sourceId: $delivery->id,
             );
 
-            $this->salesOrderItemRepository->incrementDeliveredQty($line->salesOrderItem, $line->qty);
+            if ($line->salesOrderItem !== null) {
+                $this->salesOrderItemRepository->incrementDeliveredQty($line->salesOrderItem, $line->qty);
+            }
         }
     }
 
@@ -368,7 +457,7 @@ class DeliveryService
         return DB::transaction(function () use ($delivery) {
             $delivery->load(['items.salesOrderItem', 'salesOrder']);
 
-            if ($delivery->salesOrder->status !== SalesOrderStatus::APPROVED) {
+            if ($delivery->salesOrder !== null && $delivery->salesOrder->status !== SalesOrderStatus::APPROVED) {
                 throw new BusinessException('Sales Order is no longer approved; cannot deliver against it.');
             }
 

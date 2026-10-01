@@ -43,8 +43,8 @@ export function DeliveryReportPrintPage() {
     queryKey: ['sales-orders-lookup'],
     queryFn: () => fetchSalesOrders({ page: 1, per_page: 100 }),
   })
-  const salesOrderNumber = (salesOrderId: string) =>
-    salesOrdersLookup.data?.data.find((so) => so.id === salesOrderId)?.document_number ?? '—'
+  const salesOrderNumber = (salesOrderId: string | null) =>
+    salesOrderId ? (salesOrdersLookup.data?.data.find((so) => so.id === salesOrderId)?.document_number ?? '—') : '—'
 
   const deliveries = deliveriesQuery.data?.data ?? []
   const rows = deliveries.flatMap((delivery) =>

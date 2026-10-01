@@ -168,7 +168,9 @@ class InvoiceService
             }
 
             $invoice->deliveries()->sync($deliveries->pluck('id')->all());
-            $invoice->salesOrders()->sync($deliveries->pluck('sales_order_id')->unique()->all());
+            // filter() drops a Direct Delivery's null sales_order_id before sync() — the pivot's
+            // sales_order_id column is NOT NULL/FK, and a Direct Delivery has no Sales Order to link.
+            $invoice->salesOrders()->sync($deliveries->pluck('sales_order_id')->filter()->unique()->all());
 
             $invoice = $invoice->fresh(self::EAGER);
             $this->auditLogService->record('created', 'invoice', "Created Invoice \"{$invoice->document_number}\".");

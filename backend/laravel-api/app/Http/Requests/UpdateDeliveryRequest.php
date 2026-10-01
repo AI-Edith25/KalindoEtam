@@ -19,8 +19,11 @@ class UpdateDeliveryRequest extends FormRequest
             // A direct API call sending one of these is rejected outright (422) rather than
             // silently ignored, per the ticket's own "reject requests touching locked fields" rule.
             'document_number' => ['prohibited'],
+            // Direct/SO-linked mode is fixed at creation (not accepted here) — whether a line needs
+            // sales_order_item_id vs item_id/rate is resolved server-side from the existing
+            // Delivery's own sales_order_id, not from this request's shape. Same approach as
+            // UpdateGoodsReceiptRequest.
             'sales_order_id' => ['prohibited'],
-            'items.*.item_id' => ['prohibited'],
             'items.*.item_code' => ['prohibited'],
             'items.*.item_name' => ['prohibited'],
             'items.*.uom' => ['prohibited'],
@@ -54,7 +57,8 @@ class UpdateDeliveryRequest extends FormRequest
                 'nullable', 'uuid',
                 Rule::exists('delivery_items', 'id')->where('delivery_id', $this->route('delivery')?->id),
             ],
-            'items.*.sales_order_item_id' => ['required_with:items', 'uuid', 'exists:sales_order_items,id'],
+            'items.*.sales_order_item_id' => ['nullable', 'uuid', 'exists:sales_order_items,id'],
+            'items.*.item_id' => ['nullable', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01'],
             'items.*.rate' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],

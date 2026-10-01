@@ -18,15 +18,21 @@ import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeGrandTotal, computeSubtotal, lineTaxAmount } from '@/shared/lib/documentTotals'
-import { fetchWarehousesLookup, fetchTermsOfPaymentLookup } from '@/features/master/api/lookupsApi'
+import { fetchWarehousesLookup, fetchTermsOfPaymentLookup, fetchTaxesLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
 import { fetchStockBalances } from '@/features/inventory/api/stockApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { fetchDelivery, createDelivery, updateDelivery, completeDelivery } from '../api/deliveryApi'
 import { fetchSalesOrder, fetchSalesOrders } from '../api/salesOrderApi'
+import type { Customer } from '@/features/master/types'
 import type { Delivery, SalesOrder } from '../types'
 import { DeliveryLineItemTable } from '../components/DeliveryLineItemTable'
-import { deliveryFormSchema, type DeliveryEditorValues } from '../lib/deliveryFormSchema'
+import { DirectDeliveryLineItemTable } from '../components/DirectDeliveryLineItemTable'
+import { deliveryFormSchema, directDeliveryFormSchema, type DeliveryEditorValues, type DirectDeliveryEditorValues } from '../lib/deliveryFormSchema'
 import { DeliveryCompleteEditPage } from './DeliveryCompleteEditPage'
+import type { SearchableSelectOption } from '@/components/shared/SearchableSelect'
+import { parseLocaleQty } from '@/shared/lib/qty'
+
+type DeliveryMode = 'from_so' | 'direct' | null
 
 export function DeliveryEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -35,6 +41,7 @@ export function DeliveryEditorPage() {
   const queryClient = useQueryClient()
 
   const [selectedSalesOrderId, setSelectedSalesOrderId] = useState<string | null>(null)
+  const [mode, setMode] = useState<DeliveryMode>(null)
 
   const deliveryQuery = useQuery({
     queryKey: ['deliveries', id],
@@ -42,13 +49,17 @@ export function DeliveryEditorPage() {
     enabled: isEdit,
   })
 
+  // An existing delivery's own sales_order_id decides its mode — a direct delivery can't
+  // retroactively gain a Sales Order, same mechanism as GoodsReceiptEditorPage's isDirectMode.
+  const isDirectMode = isEdit ? deliveryQuery.data?.sales_order_id === null : mode === 'direct'
+
   const salesOrderId = isEdit ? deliveryQuery.data?.sales_order_id : (selectedSalesOrderId ?? undefined)
 
   // Eligible = approved and not fully delivered. Fetched only in create mode, before an SO is picked.
   const eligibleOrdersQuery = useQuery({
     queryKey: ['sales-orders-eligible-for-delivery'],
     queryFn: () => fetchSalesOrders({ page: 1, per_page: 100, status: 'approved' }),
-    enabled: !isEdit,
+    enabled: !isEdit && mode === 'from_so',
   })
   const eligibleOrders = (eligibleOrdersQuery.data?.data ?? []).filter((so) => !so.is_fully_delivered)
 
@@ -85,34 +96,60 @@ export function DeliveryEditorPage() {
     return <DeliveryCompleteEditPage />
   }
 
-  // Step 1 (create mode only): pick the Sales Order this delivery originates from.
-  if (!isEdit && !selectedSalesOrderId) {
+  // Step 1 (create mode only): choose From Sales Order or Direct/no Sales Order, then (for From
+  // Sales Order) pick the order. Mirrors GoodsReceiptEditorPage's "How was this received?" step.
+  if (!isEdit && (mode === null || (mode === 'from_so' && !selectedSalesOrderId))) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="New Delivery" description="Every Delivery starts from an existing, approved Sales Order." />
+        <PageHeader title="New Delivery" description="Deliver against an existing Sales Order, or record a direct delivery with no Sales Order." />
         <Card>
           <CardHeader>
-            <CardTitle>Select Sales Order</CardTitle>
+            <CardTitle>{mode === 'from_so' ? 'Select Sales Order' : 'How was this delivered?'}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <SearchableSelect
-              className="w-full sm:w-96"
-              options={eligibleOrders.map((so) => ({ value: so.id, label: `${so.document_number} — ${so.customer?.customer_name ?? ''}` }))}
-              value=""
-              onChange={(value) => setSelectedSalesOrderId(value ?? null)}
-              loading={eligibleOrdersQuery.isLoading}
-              placeholder={eligibleOrders.length === 0 ? 'No sales orders with outstanding items' : 'Select sales order'}
-              aria-label="Sales Order"
-            />
-            <p className="text-sm text-muted-foreground">
-              Only approved sales orders with outstanding (not yet fully delivered) items are shown.
-            </p>
-            <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/sales/deliveries')}>
-              Cancel
+            {mode === null ? (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setMode('from_so')}>
+                  From Sales Order
+                </Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setMode('direct')}>
+                  Direct Delivery (no Sales Order)
+                </Button>
+              </div>
+            ) : (
+              <>
+                <SearchableSelect
+                  className="w-full sm:w-96"
+                  options={eligibleOrders.map((so) => ({ value: so.id, label: `${so.document_number} — ${so.customer?.customer_name ?? ''}` }))}
+                  value=""
+                  onChange={(value) => setSelectedSalesOrderId(value ?? null)}
+                  loading={eligibleOrdersQuery.isLoading}
+                  placeholder={eligibleOrders.length === 0 ? 'No sales orders with outstanding items' : 'Select sales order'}
+                  aria-label="Sales Order"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Only approved sales orders with outstanding (not yet fully delivered) items are shown.
+                </p>
+              </>
+            )}
+            <Button type="button" variant="outline" className="self-start" onClick={() => (mode === null ? navigate('/sales/deliveries') : setMode(null))}>
+              {mode === null ? 'Cancel' : 'Back'}
             </Button>
           </CardContent>
         </Card>
       </div>
+    )
+  }
+
+  if (isDirectMode) {
+    return (
+      <DirectDeliveryForm
+        isEdit={isEdit}
+        id={id}
+        delivery={deliveryQuery.data}
+        navigate={navigate}
+        queryClient={queryClient}
+      />
     )
   }
 
@@ -455,6 +492,329 @@ function DeliveryForm({
                 <p className="mb-3 text-sm text-muted-foreground">Select a location to see available stock for each item.</p>
               )}
               <DeliveryLineItemTable form={form} />
+              {form.formState.errors.items?.root && (
+                <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col items-end gap-1.5 py-4">
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Tax</span>
+                <span>{formatCurrency(tax)}</span>
+              </div>
+              <Separator className="w-full max-w-64" />
+              <div className="flex w-full max-w-64 justify-between text-base font-semibold">
+                <span>Grand Total</span>
+                <span>{formatCurrency(grandTotal)}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <p className="text-right text-sm text-muted-foreground">
+            {isEdit && delivery?.status === 'pending'
+              ? 'Recording a Delivery captures what is about to leave the warehouse. Confirming updates stock levels and creates the receivable from your customer.'
+              : 'Recording quantities here doesn’t move stock yet — you’ll confirm the delivery on the next screen.'}
+          </p>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => navigate('/sales/deliveries')}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="outline" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Record Delivery
+            </Button>
+            {isEdit && delivery?.status === 'pending' && (
+              <Button type="button" onClick={() => completeMutation.mutate()} disabled={completeMutation.isPending}>
+                {completeMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                Confirm Delivery
+              </Button>
+            )}
+          </div>
+        </form>
+      </Form>
+    </div>
+  )
+}
+
+/**
+ * Standalone/direct delivery (no source Sales Order) — mirrors DeliveryForm's structure, but the
+ * Customer is picked directly (no Sales Order to derive it from) and line items are typed
+ * manually via DirectDeliveryLineItemTable instead of pre-populated from SO lines. Same
+ * create/edit-while-Pending split as DeliveryForm; a Complete Direct Delivery routes to
+ * DeliveryCompleteEditPage like any other, same as the outer component's existing guard.
+ */
+function DirectDeliveryForm({
+  isEdit,
+  id,
+  delivery,
+  navigate,
+  queryClient,
+}: {
+  isEdit: boolean
+  id: string | undefined
+  delivery: Delivery | undefined
+  navigate: NavigateFunction
+  queryClient: QueryClient
+}) {
+  const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
+  const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
+  const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
+  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
+  const activeSalesTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'sales')
+
+  const [selectedCustomerOption, setSelectedCustomerOption] = useState<SearchableSelectOption<Customer> | undefined>(undefined)
+  const loadCustomerOptions = async (query: string) => {
+    const customers = await searchCustomersLookup(query)
+    return customers.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}`, data: customer }))
+  }
+  const customerSelectedOption: SearchableSelectOption<Customer> | undefined = delivery?.customer
+    ? { value: delivery.customer.id, label: delivery.customer.customer_name, data: delivery.customer as Customer }
+    : selectedCustomerOption
+
+  const form = useForm<DirectDeliveryEditorValues>({
+    resolver: zodResolver(directDeliveryFormSchema),
+    defaultValues: {
+      customer_id: delivery?.customer_id ?? '',
+      warehouse_id: delivery?.warehouse_id ?? '',
+      delivery_date: delivery?.delivery_date ?? '',
+      due_date: delivery?.due_date ?? '',
+      terms_of_payment_id: delivery?.terms_of_payment_id ?? '',
+      remarks: delivery?.remarks ?? '',
+      fleet: delivery?.fleet ?? '',
+      driver: delivery?.driver ?? '',
+      items: (delivery?.items ?? []).map((line) => ({
+        item_id: line.item_id,
+        item_code: line.item_code,
+        item_name: line.item_name,
+        item_uom: line.uom,
+        qtyCategory: 'unit',
+        qty: String(line.qty),
+        rate: String(line.rate),
+        tax_id: line.tax_id ?? '',
+      })),
+    },
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: (values: DirectDeliveryEditorValues) => {
+      const items = values.items.map((line) => ({
+        item_id: line.item_id,
+        qty: parseLocaleQty(line.qty),
+        rate: Number(line.rate),
+        tax_id: line.tax_id || null,
+      }))
+
+      if (isEdit) {
+        return updateDelivery(id!, {
+          customer_id: values.customer_id,
+          warehouse_id: values.warehouse_id,
+          delivery_date: values.delivery_date,
+          due_date: values.due_date,
+          terms_of_payment_id: values.terms_of_payment_id || null,
+          remarks: values.remarks || null,
+          fleet: values.fleet || null,
+          driver: values.driver || null,
+          items,
+        })
+      }
+
+      return createDelivery({
+        sales_order_id: null,
+        customer_id: values.customer_id,
+        warehouse_id: values.warehouse_id,
+        delivery_date: values.delivery_date,
+        due_date: values.due_date,
+        terms_of_payment_id: values.terms_of_payment_id || null,
+        remarks: values.remarks || null,
+        fleet: values.fleet || null,
+        driver: values.driver || null,
+        items,
+      })
+    },
+    onSuccess: (savedDelivery) => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] })
+      toast.success(isEdit ? 'Delivery details updated.' : 'Delivery recorded. Confirm to update stock and create the receivable.')
+      if (!isEdit) {
+        navigate(`/sales/deliveries/${savedDelivery.id}/edit`, { replace: true })
+      }
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const completeMutation = useMutation({
+    mutationFn: () => completeDelivery(id!),
+    onSuccess: (completedDelivery) => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] })
+      toast.success('Delivery confirmed — stock updated.')
+      navigate(`/sales/deliveries/${completedDelivery.id}`)
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const watchedItems = form.watch('items')
+  const subtotal = computeSubtotal(watchedItems ?? [])
+  const tax = (watchedItems ?? []).reduce((sum, line) => {
+    const taxRecord = activeSalesTaxOptions.find((t) => t.id === line.tax_id)
+    return sum + lineTaxAmount(Number(parseLocaleQty(line.qty || '0')) * Number(line.rate || 0), taxRecord)
+  }, 0)
+  const grandTotal = computeGrandTotal(watchedItems ?? []) + tax
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title={isEdit ? `Edit ${delivery?.document_number ?? 'Delivery'}` : 'New Direct Delivery'}
+        description="Delivery with no source Sales Order — pick the customer and enter items directly."
+      />
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))} className="flex flex-col gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Delivery Details</CardTitle>
+              <StatusBadge status={isEdit ? (delivery?.status ?? 'pending') : 'pending'} />
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="customer_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer</FormLabel>
+                    <SearchableSelect
+                      loadOptions={loadCustomerOptions}
+                      selectedOption={customerSelectedOption}
+                      value={field.value}
+                      onChange={(value, option) => {
+                        field.onChange(value ?? '')
+                        setSelectedCustomerOption(option)
+                      }}
+                      clearable={false}
+                      placeholder="Select customer"
+                      aria-label="Customer"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="warehouse_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <SearchableSelect
+                      options={warehouseOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      clearable={false}
+                      placeholder="Select location"
+                      aria-label="Location"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="terms_of_payment_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Terms of Payment</FormLabel>
+                    <SearchableSelect
+                      options={termsOfPaymentOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={termsOfPayment.isLoading}
+                      placeholder="None"
+                      aria-label="Terms of Payment"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="delivery_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Delivery Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="due_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Due Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="fleet"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fleet</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="driver"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Driver</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="remarks"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Optional" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Line Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DirectDeliveryLineItemTable form={form} taxes={activeSalesTaxOptions} />
               {form.formState.errors.items?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
               )}

@@ -19,8 +19,8 @@ import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeLineTaxTotal, computeSubtotal } from '@/shared/lib/documentTotals'
-import { searchCustomersLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
-import type { Customer } from '@/features/master/types'
+import { searchCustomersLookup, searchItemsLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import type { Customer, Item } from '@/features/master/types'
 import { fetchDelivery, updateDelivery } from '../api/deliveryApi'
 import { fetchSalesOrder } from '../api/salesOrderApi'
 import type { DeliveryItem } from '../types'
@@ -28,7 +28,9 @@ import type { DeliveryItem } from '../types'
 interface EditableLine {
   key: string
   id?: string
-  sales_order_item_id: string
+  // Null for a Direct Delivery line (no source Sales Order) — see DeliveryService::createDirect().
+  sales_order_item_id: string | null
+  item_id: string
   item_code: string
   item_name: string
   uom: string
@@ -46,6 +48,7 @@ function toEditableLine(line: DeliveryItem): EditableLine {
     key: line.id,
     id: line.id,
     sales_order_item_id: line.sales_order_item_id,
+    item_id: line.item_id,
     item_code: line.item_code,
     item_name: line.item_name,
     uom: line.uom,
@@ -73,10 +76,12 @@ export function DeliveryCompleteEditPage() {
   const deliveryQuery = useQuery({ queryKey: ['deliveries', id], queryFn: () => fetchDelivery(id!) })
   const delivery = deliveryQuery.data
 
+  // A Direct Delivery (no source Sales Order) has no Sales Order to fetch — see
+  // DeliveryService::createDirect(). Its "Add item" control picks an Item directly instead.
   const salesOrderQuery = useQuery({
     queryKey: ['sales-orders', delivery?.sales_order_id],
-    queryFn: () => fetchSalesOrder(delivery!.sales_order_id),
-    enabled: !!delivery,
+    queryFn: () => fetchSalesOrder(delivery!.sales_order_id!),
+    enabled: !!delivery && delivery.sales_order_id !== null,
   })
 
   const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
@@ -136,12 +141,38 @@ export function DeliveryCompleteEditPage() {
       {
         key: nextLineKey(),
         sales_order_item_id: soItem.id,
+        item_id: soItem.item_id,
         item_code: soItem.item_code ?? '',
         item_name: soItem.item_name ?? '',
         uom: soItem.uom ?? '',
         qty: '1',
         rate: String(soItem.rate),
         tax_id: soItem.tax_id ?? '',
+        is_invoiced: false,
+      },
+    ])
+  }
+
+  const loadItemOptions = async (query: string) => {
+    const items = await searchItemsLookup(query)
+    return items.map((item) => ({ value: item.id, label: `${item.item_code} — ${item.item_name}`, data: item }))
+  }
+
+  // Direct Delivery's own "Add item" — no Sales Order line to snapshot, so Rate/Tax start from
+  // the Item's own standard_rate/unset, same as DirectDeliveryLineItemTable's handleItemChange.
+  const addDirectLine = (item: Item) => {
+    setLines((prev) => [
+      ...(prev ?? []),
+      {
+        key: nextLineKey(),
+        sales_order_item_id: null,
+        item_id: item.id,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        uom: item.uom ? `${item.uom.name}${item.uom.symbol ? ` (${item.uom.symbol})` : ''}` : '',
+        qty: '1',
+        rate: String(item.standard_rate),
+        tax_id: '',
         is_invoiced: false,
       },
     ])
@@ -168,6 +199,7 @@ export function DeliveryCompleteEditPage() {
     items: (lines ?? []).map((line) => ({
       id: line.id,
       sales_order_item_id: line.sales_order_item_id,
+      item_id: line.item_id,
       qty: Number(line.qty) || 0,
       rate: Number(line.rate) || 0,
       tax_id: line.tax_id || null,
@@ -192,7 +224,9 @@ export function DeliveryCompleteEditPage() {
     saveMutation.mutate()
   }
 
-  if (deliveryQuery.isLoading || !delivery || !salesOrderQuery.data || lines === null) {
+  const isDirect = delivery?.sales_order_id === null
+
+  if (deliveryQuery.isLoading || !delivery || (!isDirect && !salesOrderQuery.data) || lines === null) {
     return (
       <div className="flex min-h-64 items-center justify-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -206,7 +240,10 @@ export function DeliveryCompleteEditPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={`Edit ${delivery.document_number ?? 'Delivery'}`} description={`Delivering against ${delivery.sales_order?.document_number ?? ''}.`} />
+      <PageHeader
+        title={`Edit ${delivery.document_number ?? 'Delivery'}`}
+        description={delivery.sales_order ? `Delivering against ${delivery.sales_order.document_number}.` : 'Direct delivery (no Sales Order).'}
+      />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -308,15 +345,26 @@ export function DeliveryCompleteEditPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Delivered Items</CardTitle>
-          {addableSoItems.length > 0 && (
+          {isDirect ? (
             <SearchableSelect
               className="w-64"
-              options={addableSoItems.map((i) => ({ value: i.id, label: `${i.item_code} — ${i.item_name}` }))}
+              loadOptions={loadItemOptions}
               value=""
-              onChange={(value) => value && addLine(value)}
-              placeholder="Add item from Sales Order…"
+              onChange={(_value, option) => option?.data && addDirectLine(option.data)}
+              placeholder="Add item…"
               aria-label="Add item"
             />
+          ) : (
+            addableSoItems.length > 0 && (
+              <SearchableSelect
+                className="w-64"
+                options={addableSoItems.map((i) => ({ value: i.id, label: `${i.item_code} — ${i.item_name}` }))}
+                value=""
+                onChange={(value) => value && addLine(value)}
+                placeholder="Add item from Sales Order…"
+                aria-label="Add item"
+              />
+            )
           )}
         </CardHeader>
         <CardContent>

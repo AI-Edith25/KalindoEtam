@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isValidQtyForCategory, parseLocaleQty, qtyErrorMessage } from '@/shared/lib/qty'
 
 /**
  * One row per Sales Order line — never added or removed by the user
@@ -71,5 +72,48 @@ export const deliveryFormSchema = z.object({
   }),
 })
 
+/**
+ * One row of a standalone/direct delivery (no source Sales Order) — user
+ * picks the Item and types qty/rate directly, no Sales Order line to
+ * snapshot or cap against. Mirrors directGoodsReceiptLineRowSchema.
+ * `tax_id` is optional and manual only — a Direct Delivery line has no
+ * Sales Order item to inherit tax from.
+ */
+export const directDeliveryLineRowSchema = z
+  .object({
+    item_id: z.string().min(1, 'Item is required'),
+    item_code: z.string().optional().or(z.literal('')),
+    item_name: z.string().optional().or(z.literal('')),
+    item_uom: z.string().optional().or(z.literal('')),
+    qtyCategory: z.enum(['unit', 'weight']),
+    qty: z.string().min(1, 'Qty is required'),
+    tax_id: z.string().optional().or(z.literal('')),
+    rate: z
+      .string()
+      .min(1, 'Rate is required')
+      .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0, 'Must be zero or greater'),
+  })
+  .superRefine((line, ctx) => {
+    const value = parseLocaleQty(line.qty)
+
+    if (Number.isNaN(value) || value <= 0 || !isValidQtyForCategory(line.qty, line.qtyCategory)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: qtyErrorMessage(line.qtyCategory), path: ['qty'] })
+    }
+  })
+
+export const directDeliveryFormSchema = z.object({
+  customer_id: z.string().min(1, 'Customer is required'),
+  warehouse_id: z.string().min(1, 'Location is required'),
+  delivery_date: z.string().min(1, 'Delivery date is required'),
+  due_date: z.string().min(1, 'Due date is required'),
+  terms_of_payment_id: z.string().optional().or(z.literal('')),
+  remarks: z.string().optional().or(z.literal('')),
+  fleet: z.string().optional().or(z.literal('')),
+  driver: z.string().optional().or(z.literal('')),
+  items: z.array(directDeliveryLineRowSchema).min(1, 'Add at least one line item.'),
+})
+
 export type DeliveryEditorValues = z.infer<typeof deliveryFormSchema>
 export type DeliveryLineRow = z.infer<typeof deliveryLineRowSchema>
+export type DirectDeliveryEditorValues = z.infer<typeof directDeliveryFormSchema>
+export type DirectDeliveryLineRow = z.infer<typeof directDeliveryLineRowSchema>

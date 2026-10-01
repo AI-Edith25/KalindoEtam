@@ -22,7 +22,7 @@ interface DeliveryReportRow {
   id: string
   deliveryId: string
   document_number: string | null
-  sales_order_id: string
+  sales_order_id: string | null
   customer_name: string
   warehouse_name: string
   delivery_date: string
@@ -68,8 +68,8 @@ export function DeliveryReportPage() {
     queryKey: ['sales-orders-lookup'],
     queryFn: () => fetchSalesOrders({ page: 1, per_page: 100 }),
   })
-  const salesOrderNumber = (salesOrderId: string) =>
-    salesOrdersLookup.data?.data.find((so) => so.id === salesOrderId)?.document_number ?? '—'
+  const salesOrderNumber = (salesOrderId: string | null) =>
+    salesOrderId ? (salesOrdersLookup.data?.data.find((so) => so.id === salesOrderId)?.document_number ?? '—') : '—'
 
   const rows = useMemo<DeliveryReportRow[]>(() => {
     const deliveries = listQuery.data?.data ?? []
@@ -98,19 +98,22 @@ export function DeliveryReportPage() {
     { header: 'Location', accessor: (row) => row.warehouse_name },
     {
       header: 'Reference Document',
-      accessor: (row) => (
-        <Button
-          variant="link"
-          className="h-auto p-0"
-          onClick={(event) => {
-            event.stopPropagation()
-            navigate(`/sales/orders/${row.sales_order_id}`)
-          }}
-        >
-          {salesOrderNumber(row.sales_order_id)}
-          <ExternalLink className="size-3.5" />
-        </Button>
-      ),
+      accessor: (row) =>
+        row.sales_order_id ? (
+          <Button
+            variant="link"
+            className="h-auto p-0"
+            onClick={(event) => {
+              event.stopPropagation()
+              navigate(`/sales/orders/${row.sales_order_id}`)
+            }}
+          >
+            {salesOrderNumber(row.sales_order_id)}
+            <ExternalLink className="size-3.5" />
+          </Button>
+        ) : (
+          '—'
+        ),
     },
   ]
 

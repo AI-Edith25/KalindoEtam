@@ -124,14 +124,18 @@ export function DeliveryDetailPage() {
             <DetailField
               label="Sales Order"
               value={
-                <Button
-                  variant="link"
-                  className="h-auto p-0"
-                  onClick={() => navigate(`/sales/orders/${delivery.sales_order_id}`)}
-                >
-                  View Sales Order
-                  <ExternalLink className="size-3.5" />
-                </Button>
+                delivery.sales_order_id ? (
+                  <Button
+                    variant="link"
+                    className="h-auto p-0"
+                    onClick={() => navigate(`/sales/orders/${delivery.sales_order_id}`)}
+                  >
+                    View Sales Order
+                    <ExternalLink className="size-3.5" />
+                  </Button>
+                ) : (
+                  'Direct Delivery (no Sales Order)'
+                )
               }
             />
             <DetailField label="Customer" value={delivery.customer?.customer_name ?? '—'} />
