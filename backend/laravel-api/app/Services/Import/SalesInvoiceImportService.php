@@ -3,6 +3,7 @@
 namespace App\Services\Import;
 
 use App\Enums\DiscountType;
+use App\Enums\DocumentStatus;
 use App\Enums\ImportBatchStatus;
 use App\Enums\InvoiceType;
 use App\Exceptions\BusinessException;
@@ -13,6 +14,10 @@ use App\Models\Item;
 use App\Repositories\InvoiceItemRepository;
 use App\Repositories\InvoiceRepository;
 use App\Services\InvoiceService;
+use App\Support\DocumentDuplicateChecker;
+use App\Support\DocumentKeyNormalizer;
+use App\Support\DuplicateKeyViolation;
+use App\Support\ImportErrorReportWriter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -74,7 +79,16 @@ class SalesInvoiceImportService
         ];
     }
 
-    /** @return array{0: array, 1: array, 2: array<int,string>} [customerClassification, itemClassification, duplicateDocumentNumbers] */
+    /**
+     * @return array{0: array, 1: array, 2: array<int,string>} [customerClassification, itemClassification,
+     *                                                           fileDocumentNumbersMatchingACancelledInvoice]
+     *
+     * A duplicate against a *live* (non-cancelled) Invoice is always rejected outright in
+     * importOne() — see duplicateKeyField()/cancel() on Invoice, which frees its normalized slot
+     * so only a live row can ever match there, nothing to resolve. The only duplicate that still
+     * needs an operator decision is one against a *cancelled* Invoice (resolvable via "proceed"),
+     * which is what this method surfaces for the preflight/resolution UI.
+     */
     private function classify(array $invoices): array
     {
         $customerCodes = collect($invoices)->pluck('customer_code')->all();
@@ -82,13 +96,27 @@ class SalesInvoiceImportService
             ->filter(fn ($invoice) => $invoice['type'] === 'goods')
             ->flatMap(fn ($invoice) => collect($invoice['items'])->pluck('item_code'))
             ->all();
-        $documentNumbers = collect($invoices)->pluck('document_number')->all();
 
         $customerClassification = $this->fkResolver->classify(Customer::class, 'customer_code', $customerCodes);
         $itemClassification = $this->fkResolver->classify(Item::class, 'item_code', $itemCodes);
-        $duplicates = Invoice::query()->whereIn('source_document_number', $documentNumbers)->pluck('source_document_number')->unique()->all();
 
-        return [$customerClassification, $itemClassification, $duplicates];
+        $cancelledNormalizedNumbers = Invoice::query()
+            ->where('status', DocumentStatus::CANCELLED)
+            ->whereNotNull('source_document_number')
+            ->pluck('source_document_number')
+            ->map(fn ($value) => DocumentKeyNormalizer::normalize($value))
+            ->filter()
+            ->unique()
+            ->flip();
+
+        $cancelledDuplicates = collect($invoices)
+            ->pluck('document_number')
+            ->unique()
+            ->filter(fn ($raw) => $cancelledNormalizedNumbers->has(DocumentKeyNormalizer::normalize($raw)))
+            ->values()
+            ->all();
+
+        return [$customerClassification, $itemClassification, $cancelledDuplicates];
     }
 
     /** @return array<int, array{category: string, value: string, status: string, suggestions: array}> */
@@ -136,11 +164,12 @@ class SalesInvoiceImportService
         $report = array_map(fn ($w) => ['document_number' => 'WARNING', 'status' => 'needs_review', 'reason' => $w], $parsed['warnings']);
         $customerCache = [];
         $itemCache = [];
+        $seenNormalizedNumbers = [];
 
         foreach ($parsed['invoices'] as $group) {
             $batch->increment('processed_rows');
 
-            $outcome = $this->importOne($group, $warehouseId, $customerClassification, $itemClassification, $resolutions, $customerCache, $itemCache);
+            $outcome = $this->importOne($group, $warehouseId, $customerClassification, $itemClassification, $resolutions, $customerCache, $itemCache, $batch, $seenNormalizedNumbers);
             $report[] = $outcome;
 
             match ($outcome['status']) {
@@ -156,18 +185,17 @@ class SalesInvoiceImportService
             'preview_summary' => ['needs_review_rows' => $skipped, 'vouchers' => $report],
             'status' => ImportBatchStatus::COMPLETED,
         ]);
+
+        ImportErrorReportWriter::attachRejectedRows($batch, $report);
     }
 
-    private function importOne(array $group, ?string $warehouseId, array $customerClassification, array $itemClassification, array $resolutions, array &$customerCache, array &$itemCache): array
+    private function importOne(array $group, ?string $warehouseId, array $customerClassification, array $itemClassification, array $resolutions, array &$customerCache, array &$itemCache, ImportBatch $batch, array &$seenNormalizedNumbers): array
     {
         $base = ['document_number' => $group['document_number']];
+        $rejection = DocumentDuplicateChecker::reject(Invoice::class, $group['document_number'], $resolutions, $seenNormalizedNumbers, ['reference_1', 'reference_2']);
 
-        if (Invoice::query()->where('source_document_number', $group['document_number'])->exists()) {
-            $decision = $resolutions['duplicate'][$group['document_number']]['action'] ?? 'skip';
-
-            if ($decision !== 'proceed') {
-                return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah pernah diimpor sebelumnya — dilewati.'];
-            }
+        if ($rejection !== null) {
+            return [...$base, 'status' => 'needs_review', 'reason' => $rejection];
         }
 
         $customerId = $this->resolveId($group['customer_code'], $customerClassification, $resolutions['customer'] ?? [], $customerCache);
@@ -198,9 +226,14 @@ class SalesInvoiceImportService
                 $invoice = $this->createGoodsInvoice($group, $customerId, $warehouseId, $resolvedItemIds);
             }
 
+            $invoice->update(['source' => 'import', 'import_batch_id' => $batch->id, 'imported_at' => now()]);
             $mismatchWarning = $this->crossCheckAmount($group, $invoice);
             $this->invoiceService->submit($invoice);
         } catch (Throwable $e) {
+            if (DuplicateKeyViolation::detected($e)) {
+                return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah ada pada data yang aktif — ditolak.'];
+            }
+
             return [...$base, 'status' => 'failed', 'reason' => $e->getMessage()];
         }
 

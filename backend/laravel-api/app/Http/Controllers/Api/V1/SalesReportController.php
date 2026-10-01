@@ -28,7 +28,7 @@ class SalesReportController extends Controller
                 $this->salesReportService->detailRows($invoices),
                 $data,
                 $invoices,
-                lastColumn: 'Q',
+                lastColumn: 'R',
                 dateColumn: 'A',
                 withDataBorders: true,
                 dateFormat: 'dd-mm-yyyy',
@@ -45,7 +45,7 @@ class SalesReportController extends Controller
                 $this->salesReportService->summaryRows($invoices),
                 $data,
                 $invoices,
-                lastColumn: 'L',
+                lastColumn: 'M',
                 dateColumn: 'A',
                 withDataBorders: true,
             );

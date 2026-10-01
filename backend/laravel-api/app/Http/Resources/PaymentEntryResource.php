@@ -32,6 +32,8 @@ class PaymentEntryResource extends JsonResource
             'total_amount' => $this->total_amount,
             'allocated_amount' => $this->allocated_amount,
             'unallocated_amount' => $this->unallocatedAmount(),
+            'source' => $this->source,
+            'imported_at' => $this->imported_at,
             'items' => PaymentEntryAllocationResource::collection($this->whenLoaded('items')),
             'expense_lines' => PaymentEntryExpenseLineResource::collection($this->whenLoaded('expenseLines')),
             // Unified view across all three payment types — one line per AP allocation, one per

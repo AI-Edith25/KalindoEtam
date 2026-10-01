@@ -11,6 +11,7 @@ import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMe
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SourceBadge } from '@/components/shared/SourceBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -19,13 +20,14 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deletePaymentEntry, fetchPaymentEntries, fetchPaymentVoucherImportBatch, importPaymentVouchers, submitPaymentEntry } from '../api/paymentEntryApi'
 import { PaymentEntryFiltersBar } from '../components/PaymentEntryFiltersBar'
 import { LedgerImportReportDialog } from '../components/LedgerImportReportDialog'
-import { emptyPaymentEntryFilters } from '../lib/paymentEntryFilters'
+import { emptyPaymentEntryFilters, hasActivePaymentEntryFilters } from '../lib/paymentEntryFilters'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 import type { PaymentEntry, PaymentEntryFilterValues } from '../types'
 
-const SORTERS: Record<string, (payment: PaymentEntry) => number> = {
+const SORTERS: Record<string, (payment: PaymentEntry) => number | string> = {
   unallocated_amount: (payment) =>
     (payment.payment_type === 'supplier' || payment.payment_type === 'mixed') && payment.status === 'submitted' ? Number(payment.unallocated_amount) : 0,
+  source: (payment) => payment.source,
 }
 
 /** Payment Voucher — either settles Accounts Payable created by Goods Receipt, or posts a General Expense (no Supplier/PO) directly to an Expense account. Never touches stock. */
@@ -46,12 +48,13 @@ export function OutgoingPaymentListPage() {
   const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const listQuery = useQuery({
-    queryKey: ['payment-entries', page, search, filters.status, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
+    queryKey: ['payment-entries', page, search, filters.status, filters.source, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
     queryFn: () =>
       fetchPaymentEntries({
         page,
         ...(search ? { search } : {}),
         ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.source ? { source: filters.source } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
         ...(filters.unallocatedOnly ? { unallocated_only: true } : {}),
@@ -97,7 +100,9 @@ export function OutgoingPaymentListPage() {
     if (!getter) return data
 
     return [...data].sort((a, b) => {
-      const cmp = getter(a) - getter(b)
+      const av = getter(a)
+      const bv = getter(b)
+      const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv))
       return sort.direction === 'asc' ? cmp : -cmp
     })
   }, [listQuery.data, sort])
@@ -235,6 +240,7 @@ export function OutgoingPaymentListPage() {
           <StatusBadge status={row.status} />
         ),
     },
+    { header: 'Source', accessor: (row) => <SourceBadge source={row.source} />, sortKey: 'source' },
     {
       header: '',
       className: 'text-right',
@@ -242,7 +248,7 @@ export function OutgoingPaymentListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo || filters.unallocatedOnly)
+  const hasFilters = !!search || hasActivePaymentEntryFilters(filters)
 
   return (
     <div className="flex flex-col gap-4">
@@ -325,6 +331,7 @@ export function OutgoingPaymentListPage() {
 
       <LedgerImportReportDialog
         title="Import Payment Voucher"
+        module="payment-vouchers"
         batchId={importBatchId}
         fetchBatch={fetchPaymentVoucherImportBatch}
         onClose={() => {

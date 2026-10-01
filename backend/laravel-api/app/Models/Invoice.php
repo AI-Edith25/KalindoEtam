@@ -52,8 +52,12 @@ class Invoice extends Model
         'customer_phone',
         'lock_version',
         'source_document_number',
+        'source_document_number_normalized',
         'import_source_type',
         'import_extra',
+        'source',
+        'import_batch_id',
+        'imported_at',
     ];
 
     protected $casts = [
@@ -70,6 +74,7 @@ class Invoice extends Model
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'import_extra' => 'array',
+        'imported_at' => 'datetime',
     ];
 
     /**
@@ -84,6 +89,11 @@ class Invoice extends Model
             InvoiceType::TRANSPORTATION => 'invoice_transportation',
             default => 'invoice_goods',
         };
+    }
+
+    protected function duplicateKeyField(): ?string
+    {
+        return 'source_document_number';
     }
 
     /** The anchor/primary Delivery (earliest delivery_date among the sources) — kept for backward compatibility. See deliveries() for the full source history. */

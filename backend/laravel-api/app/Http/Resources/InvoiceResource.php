@@ -80,6 +80,8 @@ class InvoiceResource extends JsonResource
             'customer_address' => $this->customer_address,
             'customer_phone' => $this->customer_phone,
             'lock_version' => $this->lock_version,
+            'source' => $this->source,
+            'imported_at' => $this->imported_at,
             'items' => InvoiceItemResource::collection($this->whenLoaded('items')),
             'payment_history' => $accountsReceivable
                 ? $accountsReceivable->receiptEntryItems->map(fn ($line) => [

@@ -74,6 +74,7 @@ class GoodsReceiptReportService
                 $exclTax + $tax,
                 $gr->purchaseOrder?->document_number,
                 $gr->purchaseOrder?->remarks,
+                $gr->source,
             ];
         })->all();
 
@@ -86,7 +87,7 @@ class GoodsReceiptReportService
             $this->formatTotal(0),
             $this->formatTotal($totalTax),
             $this->formatTotal($totalExclTax + $totalTax),
-            null, null,
+            null, null, null,
         ];
 
         return $rows;
@@ -120,6 +121,7 @@ class GoodsReceiptReportService
                 $exclTax + $tax,
                 $poNumber,
                 $gr->purchaseOrder?->remarks,
+                $gr->source,
             ];
 
             $rows[] = [
@@ -157,12 +159,12 @@ class GoodsReceiptReportService
     /** @return array<int, mixed> */
     public function summaryHeadings(): array
     {
-        return ['Date', 'Document#', 'Supplier#', 'Supplier Name', 'Currency', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax', 'Reference 1 #', 'Reference 2 #'];
+        return ['Date', 'Document#', 'Supplier#', 'Supplier Name', 'Currency', 'Excl.Tax', 'Disc', 'Tax', 'Incl.Tax', 'Reference 1 #', 'Reference 2 #', 'Source'];
     }
 
     /** One-time top heading row — each GR's own repeating item-label row is emitted inline by detailRows(). @return array<int, mixed> */
     public function detailHeadings(): array
     {
-        return ['DATE', 'DOCUMENT #', 'SUPPLIER#', 'NAME', null, null, null, 'DISC', 'TAX', 'AMOUNT', 'REFERENCE 1 #', 'REFERENCE 2 #'];
+        return ['DATE', 'DOCUMENT #', 'SUPPLIER#', 'NAME', null, null, null, 'DISC', 'TAX', 'AMOUNT', 'REFERENCE 1 #', 'REFERENCE 2 #', 'SOURCE'];
     }
 }

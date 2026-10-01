@@ -11,6 +11,7 @@ import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMe
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SourceBadge } from '@/components/shared/SourceBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -21,13 +22,14 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelPurchaseOrder, deletePurchaseOrder, exportPurchaseOrderListing, fetchPurchaseOrders, submitPurchaseOrder } from '../api/purchaseOrderApi'
 import { PurchaseOrderFiltersBar } from '../components/PurchaseOrderFiltersBar'
 import { ReceivingProgress } from '../components/ReceivingProgress'
-import { emptyPurchaseOrderFilters } from '../lib/purchaseOrderFilters'
+import { emptyPurchaseOrderFilters, hasActivePurchaseOrderFilters } from '../lib/purchaseOrderFilters'
 import type { PurchaseOrder, PurchaseOrderFilterValues } from '../types'
 
 const SORTERS: Record<string, (po: PurchaseOrder) => string | number> = {
   document_number: (po) => po.document_number ?? '',
   order_date: (po) => po.order_date,
   total_amount: (po) => Number(po.total_amount),
+  source: (po) => po.source,
 }
 
 export function PurchaseOrderListPage() {
@@ -45,12 +47,13 @@ export function PurchaseOrderListPage() {
   const [isExporting, setIsExporting] = useState(false)
 
   const listQuery = useQuery({
-    queryKey: ['purchase-orders', page, search, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: ['purchase-orders', page, search, filters.status, filters.source, filters.dateFrom, filters.dateTo],
     queryFn: () =>
       fetchPurchaseOrders({
         page,
         ...(search ? { search } : {}),
         ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.source ? { source: filters.source } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
       }),
@@ -113,6 +116,7 @@ export function PurchaseOrderListPage() {
         {
           ...(search ? { search } : {}),
           ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.source ? { source: filters.source } : {}),
           ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
           ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
         },
@@ -162,6 +166,7 @@ export function PurchaseOrderListPage() {
       className: 'text-right',
       sortKey: 'total_amount',
     },
+    { header: 'Source', accessor: (row) => <SourceBadge source={row.source} />, sortKey: 'source' },
     {
       header: '',
       className: 'text-right',
@@ -169,7 +174,7 @@ export function PurchaseOrderListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!search || hasActivePurchaseOrderFilters(filters)
 
   return (
     <div className="flex flex-col gap-4">

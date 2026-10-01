@@ -11,6 +11,7 @@ import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMe
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SourceBadge } from '@/components/shared/SourceBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
@@ -18,11 +19,12 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deleteReceiptEntry, fetchOfficialReceiptImportBatch, fetchReceiptEntries, importOfficialReceipts, submitReceiptEntry } from '../api/receiptEntryApi'
 import { ReceiptEntryFiltersBar } from '../components/ReceiptEntryFiltersBar'
 import { LedgerImportReportDialog } from '../components/LedgerImportReportDialog'
-import { emptyReceiptEntryFilters } from '../lib/receiptEntryFilters'
+import { emptyReceiptEntryFilters, hasActiveReceiptEntryFilters } from '../lib/receiptEntryFilters'
 import type { ReceiptEntry, ReceiptEntryFilterValues } from '../types'
 
-const SORTERS: Record<string, (receipt: ReceiptEntry) => number> = {
+const SORTERS: Record<string, (receipt: ReceiptEntry) => number | string> = {
   unallocated_amount: (receipt) => (receipt.status === 'submitted' ? Number(receipt.unallocated_amount) : 0),
+  source: (receipt) => receipt.source,
 }
 
 /** Official Receipt — settles Accounts Receivable created by Delivery. Never touches stock. */
@@ -43,12 +45,13 @@ export function IncomingPaymentListPage() {
   const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const listQuery = useQuery({
-    queryKey: ['receipt-entries', page, search, filters.status, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
+    queryKey: ['receipt-entries', page, search, filters.status, filters.source, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
     queryFn: () =>
       fetchReceiptEntries({
         page,
         ...(search ? { search } : {}),
         ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.source ? { source: filters.source } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
         ...(filters.unallocatedOnly ? { unallocated_only: true } : {}),
@@ -91,7 +94,9 @@ export function IncomingPaymentListPage() {
     if (!getter) return data
 
     return [...data].sort((a, b) => {
-      const cmp = getter(a) - getter(b)
+      const av = getter(a)
+      const bv = getter(b)
+      const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv))
       return sort.direction === 'asc' ? cmp : -cmp
     })
   }, [listQuery.data, sort])
@@ -141,6 +146,7 @@ export function IncomingPaymentListPage() {
       className: 'text-right',
     },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
+    { header: 'Source', accessor: (row) => <SourceBadge source={row.source} />, sortKey: 'source' },
     {
       header: '',
       className: 'text-right',
@@ -148,7 +154,7 @@ export function IncomingPaymentListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo || filters.unallocatedOnly)
+  const hasFilters = !!search || hasActiveReceiptEntryFilters(filters)
 
   return (
     <div className="flex flex-col gap-4">
@@ -231,6 +237,7 @@ export function IncomingPaymentListPage() {
 
       <LedgerImportReportDialog
         title="Import Official Receipt"
+        module="official-receipts"
         batchId={importBatchId}
         fetchBatch={fetchOfficialReceiptImportBatch}
         onClose={() => {

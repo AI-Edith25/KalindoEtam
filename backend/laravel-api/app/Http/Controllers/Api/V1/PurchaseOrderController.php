@@ -104,7 +104,7 @@ class PurchaseOrderController extends Controller
                 filters: $data,
                 documents: $orders,
                 dateField: 'order_date',
-                lastColumn: 'L',
+                lastColumn: 'M',
                 timestampColumn: 'D',
                 numberFormatColumns: [...$moneyColumns, 'K' => '#,##0.00'],
             );
@@ -119,7 +119,7 @@ class PurchaseOrderController extends Controller
                 filters: $data,
                 documents: $orders,
                 dateField: 'order_date',
-                lastColumn: 'J',
+                lastColumn: 'K',
                 timestampColumn: 'D',
                 numberFormatColumns: $moneyColumns,
             );

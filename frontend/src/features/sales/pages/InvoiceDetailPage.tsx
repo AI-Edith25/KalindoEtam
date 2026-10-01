@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SourceBadge } from '@/components/shared/SourceBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
@@ -282,7 +283,10 @@ export function InvoiceDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Invoice Information</CardTitle>
-          <StatusBadge status={invoice.display_status} />
+          <div className="flex items-center gap-2">
+            <SourceBadge source={invoice.source} />
+            <StatusBadge status={invoice.display_status} />
+          </div>
         </CardHeader>
         <CardContent>
           <DetailSection>

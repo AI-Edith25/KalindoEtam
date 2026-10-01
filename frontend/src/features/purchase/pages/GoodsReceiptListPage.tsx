@@ -11,6 +11,7 @@ import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMe
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SourceBadge } from '@/components/shared/SourceBadge'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -21,12 +22,13 @@ import { formatDate, formatNumber } from '@/lib/utils'
 import { deleteGoodsReceipt, exportGoodsReceiptListing, fetchGoodsReceipts, submitGoodsReceipt } from '../api/goodsReceiptApi'
 import { fetchPurchaseOrders } from '../api/purchaseOrderApi'
 import { GoodsReceiptFiltersBar } from '../components/GoodsReceiptFiltersBar'
-import { emptyGoodsReceiptFilters } from '../lib/goodsReceiptFilters'
+import { emptyGoodsReceiptFilters, hasActiveGoodsReceiptFilters } from '../lib/goodsReceiptFilters'
 import type { GoodsReceipt, GoodsReceiptFilterValues } from '../types'
 
 const SORTERS: Record<string, (gr: GoodsReceipt) => string | number> = {
   document_number: (gr) => gr.document_number ?? '',
   receipt_date: (gr) => gr.receipt_date,
+  source: (gr) => gr.source,
 }
 
 export function GoodsReceiptListPage() {
@@ -44,12 +46,13 @@ export function GoodsReceiptListPage() {
   const [isExporting, setIsExporting] = useState(false)
 
   const listQuery = useQuery({
-    queryKey: ['goods-receipts', page, search, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: ['goods-receipts', page, search, filters.status, filters.source, filters.dateFrom, filters.dateTo],
     queryFn: () =>
       fetchGoodsReceipts({
         page,
         ...(search ? { search } : {}),
         ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.source ? { source: filters.source } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
       }),
@@ -111,6 +114,7 @@ export function GoodsReceiptListPage() {
         {
           ...(search ? { search } : {}),
           ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.source ? { source: filters.source } : {}),
           ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
           ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
         },
@@ -178,6 +182,7 @@ export function GoodsReceiptListPage() {
       className: 'text-right',
     },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
+    { header: 'Source', accessor: (row) => <SourceBadge source={row.source} />, sortKey: 'source' },
     {
       header: '',
       className: 'text-right',
@@ -185,7 +190,7 @@ export function GoodsReceiptListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!search || hasActiveGoodsReceiptFilters(filters)
 
   return (
     <div className="flex flex-col gap-4">

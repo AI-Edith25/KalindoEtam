@@ -11,6 +11,7 @@ import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMe
 import { Pagination } from '@/components/shared/Pagination'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { SectionNav } from '@/components/shared/SectionNav'
+import { SourceBadge } from '@/components/shared/SourceBadge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -23,13 +24,14 @@ import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../a
 import { exportSalesReport } from '../api/salesReportApi'
 import { InvoiceFiltersBar } from '../components/InvoiceFiltersBar'
 import { SalesInvoiceHistoryImportDialog } from '../components/SalesInvoiceHistoryImportDialog'
-import { emptyInvoiceFilters } from '../lib/invoiceFilters'
+import { emptyInvoiceFilters, hasActiveInvoiceFilters } from '../lib/invoiceFilters'
 import type { Invoice, InvoiceFilterValues } from '../types'
 
 const SORTERS: Record<string, (invoice: Invoice) => string | number> = {
   document_number: (invoice) => invoice.document_number ?? '',
   invoice_date: (invoice) => invoice.invoice_date,
   grand_total: (invoice) => Number(invoice.grand_total),
+  source: (invoice) => invoice.source,
 }
 
 export function InvoiceListPage() {
@@ -233,6 +235,7 @@ export function InvoiceListPage() {
     { header: 'Gross Amount', accessor: (row) => formatCurrency(row.subtotal), className: 'text-right' },
     { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
     { header: 'Amount', accessor: (row) => formatCurrency(row.grand_total), className: 'text-right', sortKey: 'grand_total' },
+    { header: 'Source', accessor: (row) => <SourceBadge source={row.source} />, sortKey: 'source' },
     {
       header: '',
       className: 'text-right',
@@ -240,7 +243,7 @@ export function InvoiceListPage() {
     },
   ]
 
-  const hasFilters = !!(search || filters.status || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!search || hasActiveInvoiceFilters(filters)
 
   return (
     <div className="flex flex-col gap-4">

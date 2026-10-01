@@ -6,12 +6,15 @@ use App\Enums\ImportBatchStatus;
 use App\Models\ChartOfAccount;
 use App\Models\Customer;
 use App\Models\ImportBatch;
+use App\Models\Permission;
 use App\Models\ReceiptEntry;
+use App\Models\User;
 use App\Services\Import\OfficialReceiptImportService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
@@ -178,5 +181,107 @@ class OfficialReceiptImportServiceTest extends TestCase
         $this->assertSame('needs_review', $vouchers[0]['status']);
         $this->assertStringContainsString('sudah pernah diimpor', $vouchers[0]['reason']);
         $this->assertSame(1, ReceiptEntry::query()->where('reference_number', 'OR/KE/00007/08/2026')->count());
+    }
+
+    /** Manual entry stores " or/ke/00008/08/2026 " with stray case/whitespace — normalization must still catch it as the same document. */
+    public function test_duplicate_detection_is_case_and_whitespace_insensitive(): void
+    {
+        $customer = Customer::query()->create(['customer_code' => 'C-0001', 'customer_name' => 'Toko Alpha']);
+
+        ReceiptEntry::query()->create([
+            'customer_id' => $customer->id,
+            'receipt_date' => now()->toDateString(),
+            'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
+            'reference_number' => ' or/ke/00008/08/2026 ',
+            'total_amount' => 75000,
+            'payment_method' => 'cash',
+        ]);
+
+        $csv = self::PREAMBLE.self::HEADER
+            .'08/08/2026,OR/KE/00008/08/2026,,,112.01.01,C-0001,"PIUTANG USAHA, Toko Alpha, NOTE",0.00,75000.00,IDR,1,0,75000,Approved'."\r\n"
+            .'08/08/2026,OR/KE/00008/08/2026,,,102.01.01,,"Toko Alpha",75000.00,0.00,IDR,1,75000,0,Approved'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+        $batch->refresh();
+
+        $vouchers = $batch->preview_summary['vouchers'];
+        $this->assertSame('needs_review', $vouchers[0]['status']);
+        $this->assertSame(1, ReceiptEntry::query()->count());
+    }
+
+    public function test_rejected_rows_are_attached_as_a_downloadable_csv(): void
+    {
+        $customer = Customer::query()->create(['customer_code' => 'C-0001', 'customer_name' => 'Toko Alpha']);
+
+        ReceiptEntry::query()->create([
+            'customer_id' => $customer->id,
+            'receipt_date' => now()->toDateString(),
+            'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
+            'reference_number' => 'OR/KE/00011/08/2026',
+            'total_amount' => 75000,
+            'payment_method' => 'cash',
+        ]);
+
+        $csv = self::PREAMBLE.self::HEADER
+            .'11/08/2026,OR/KE/00011/08/2026,,,112.01.01,C-0001,"PIUTANG USAHA, Toko Alpha, NOTE",0.00,75000.00,IDR,1,0,75000,Approved'."\r\n"
+            .'11/08/2026,OR/KE/00011/08/2026,,,102.01.01,,"Toko Alpha",75000.00,0.00,IDR,1,75000,0,Approved'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+        $batch->refresh();
+
+        $this->assertNotNull($batch->error_report_path);
+        $this->assertTrue(Storage::disk('local')->exists($batch->error_report_path));
+        $this->assertStringContainsString('sudah pernah diimpor', Storage::disk('local')->get($batch->error_report_path));
+    }
+
+    /** The rejected-rows CSV is downloaded through ImportController's existing generic endpoint — this proves the permission override actually grants access for this module. */
+    public function test_rejected_rows_csv_is_downloadable_through_the_generic_endpoint(): void
+    {
+        $customer = Customer::query()->create(['customer_code' => 'C-0001', 'customer_name' => 'Toko Alpha']);
+
+        ReceiptEntry::query()->create([
+            'customer_id' => $customer->id,
+            'receipt_date' => now()->toDateString(),
+            'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
+            'reference_number' => 'OR/KE/00012/08/2026',
+            'total_amount' => 75000,
+            'payment_method' => 'cash',
+        ]);
+
+        $csv = self::PREAMBLE.self::HEADER
+            .'12/08/2026,OR/KE/00012/08/2026,,,112.01.01,C-0001,"PIUTANG USAHA, Toko Alpha, NOTE",0.00,75000.00,IDR,1,0,75000,Approved'."\r\n"
+            .'12/08/2026,OR/KE/00012/08/2026,,,102.01.01,,"Toko Alpha",75000.00,0.00,IDR,1,75000,0,Approved'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+
+        Permission::query()->firstOrCreate(['name' => 'finance.incoming_payment.import', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->givePermissionTo('finance.incoming_payment.import');
+        Sanctum::actingAs($user);
+
+        $response = $this->get("/api/v1/import/batches/{$batch->id}/failed-rows");
+
+        $response->assertOk();
+        $this->assertStringContainsString('sudah pernah diimpor', $response->streamedContent());
+    }
+
+    public function test_successful_import_tags_source_and_batch(): void
+    {
+        Customer::query()->create(['customer_code' => 'C-0100', 'customer_name' => 'CV. Sinar Abadi']);
+
+        $csv = self::PREAMBLE.self::HEADER
+            .'02/08/2026,OR/KE/00010/08/2026,,,112.01.01,C-0100,"PIUTANG USAHA, CV. Sinar Abadi, LUNAS",0.00,500000.00,IDR,1,0,500000,Approved'."\r\n"
+            .'02/08/2026,OR/KE/00010/08/2026,,,102.01.01,,"CV. Sinar Abadi",500000.00,0.00,IDR,1,500000,0,Approved'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+
+        $entry = ReceiptEntry::query()->where('reference_number', 'OR/KE/00010/08/2026')->firstOrFail();
+        $this->assertSame('import', $entry->source);
+        $this->assertSame($batch->id, $entry->import_batch_id);
+        $this->assertNotNull($entry->imported_at);
     }
 }

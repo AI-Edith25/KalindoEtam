@@ -581,6 +581,7 @@ export interface PurchaseHistoryImportBatch {
   failed_rows: number
   failure_reason: string | null
   preview_summary: PurchaseHistoryImportPreviewSummary | null
+  has_failed_rows: boolean
 }
 
 /** By Item tab's separate "Data Import Historis" section — a period-level aggregate from a Product Purchase Report import, never merged into the live Goods-Receipt-based table above. */

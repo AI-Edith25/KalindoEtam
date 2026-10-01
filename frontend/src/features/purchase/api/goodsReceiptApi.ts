@@ -6,6 +6,7 @@ export interface GoodsReceiptListParams {
   page: number
   search?: string
   status?: string
+  source?: 'manual' | 'import'
   warehouse_id?: string
   date_from?: string
   date_to?: string

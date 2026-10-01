@@ -123,7 +123,7 @@ class GoodsReceiptController extends Controller
                 filters: $data,
                 documents: $receipts,
                 dateField: 'receipt_date',
-                lastColumn: 'K',
+                lastColumn: 'L',
                 timestampColumn: 'I',
                 numberFormatColumns: $moneyColumns,
             );

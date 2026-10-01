@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, Upload } from 'lucide-react'
+import { Download, Loader2, Upload } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { downloadImportBatchFailedRows } from '@/shared/lib/downloadImportBatchFailedRows'
 import { fetchWarehousesLookup, searchItemsLookup } from '@/features/master/api/lookupsApi'
 import { fetchPurchaseHistoryImportBatch, resolvePurchaseHistoryImport, storePurchaseHistoryImport } from '../api/purchaseHistoryImportApi'
 import type { PurchaseHistoryImportPreviewSummary, PurchaseHistoryImportType, PurchaseHistoryResolutionAction } from '../types'
@@ -141,6 +142,11 @@ export function PurchaseHistoryImportDialog({ open, onClose, expectedType }: Pur
     queryFn: () => fetchPurchaseHistoryImportBatch(batchId as string),
     enabled: batchId !== null && step === 'progress',
     refetchInterval: (query) => (query.state.data && TERMINAL_STATUSES.includes(query.state.data.status) ? false : 1500),
+  })
+
+  const downloadMutation = useMutation({
+    mutationFn: () => downloadImportBatchFailedRows(batchId as string, 'purchase-history'),
+    onError: (error) => toastApiError(error),
   })
 
   const setResolution = (category: string, value: string, action: PurchaseHistoryResolutionAction, targetId: string | null) => {
@@ -395,9 +401,17 @@ export function PurchaseHistoryImportDialog({ open, onClose, expectedType }: Pur
             </Button>
           )}
           {step === 'progress' && (
-            <Button type="button" onClick={handleClose} disabled={!isDone}>
-              {isDone ? 'Selesai' : <Loader2 className="size-4 animate-spin" />}
-            </Button>
+            <>
+              {batch?.has_failed_rows && (
+                <Button type="button" variant="outline" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>
+                  <Download className="size-4" />
+                  Unduh Baris Ditolak
+                </Button>
+              )}
+              <Button type="button" onClick={handleClose} disabled={!isDone}>
+                {isDone ? 'Selesai' : <Loader2 className="size-4 animate-spin" />}
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>

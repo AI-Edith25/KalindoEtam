@@ -3,6 +3,7 @@
 namespace App\Services\Import;
 
 use App\Enums\ImportBatchStatus;
+use App\Models\GoodsReceipt;
 use App\Models\ImportBatch;
 use App\Models\Item;
 use App\Models\PurchaseOrder;
@@ -11,6 +12,9 @@ use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\GoodsReceiptService;
 use App\Services\PurchaseOrderService;
+use App\Support\DocumentDuplicateChecker;
+use App\Support\DuplicateKeyViolation;
+use App\Support\ImportErrorReportWriter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -335,11 +339,12 @@ class PurchaseHistoryImportService
         $failed = 0;
         $skipped = 0;
         $report = array_map(fn ($w) => ['document_number' => 'WARNING', 'status' => 'needs_review', 'reason' => $w], $parsed['warnings']);
+        $seenPoNumbers = [];
 
         foreach ($parsed['rows'] as $row) {
             $batch->increment('processed_rows');
 
-            $outcome = $this->createPurchaseOrderFromSupplierListingRow($row, $placeholderItemId, $supplierClassification, $resolutions, $supplierCache, $importingUser);
+            $outcome = $this->createPurchaseOrderFromSupplierListingRow($row, $placeholderItemId, $supplierClassification, $resolutions, $supplierCache, $importingUser, $batch, $seenPoNumbers);
             $report[] = $outcome;
 
             match ($outcome['status']) {
@@ -355,18 +360,17 @@ class PurchaseHistoryImportService
             'preview_summary' => ['needs_review_rows' => $skipped, 'vouchers' => $report],
             'status' => ImportBatchStatus::COMPLETED,
         ]);
+
+        ImportErrorReportWriter::attachRejectedRows($batch, $report);
     }
 
-    private function createPurchaseOrderFromSupplierListingRow(array $row, ?string $placeholderItemId, array $supplierClassification, array $resolutions, array &$supplierCache, User $importingUser): array
+    private function createPurchaseOrderFromSupplierListingRow(array $row, ?string $placeholderItemId, array $supplierClassification, array $resolutions, array &$supplierCache, User $importingUser, ImportBatch $batch, array &$seenPoNumbers): array
     {
         $base = ['document_number' => $row['document_number']];
+        $rejection = DocumentDuplicateChecker::reject(PurchaseOrder::class, $row['document_number'], $resolutions, $seenPoNumbers);
 
-        if (PurchaseOrder::query()->where('source_document_number', $row['document_number'])->exists()) {
-            $decision = $resolutions['duplicate'][$row['document_number']]['action'] ?? 'skip';
-
-            if ($decision !== 'proceed') {
-                return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah pernah diimpor sebelumnya — dilewati.'];
-            }
+        if ($rejection !== null) {
+            return [...$base, 'status' => 'needs_review', 'reason' => $rejection];
         }
 
         try {
@@ -395,12 +399,19 @@ class PurchaseHistoryImportService
                     'reference_no_2' => $row['reference_no_2'],
                     'supplier_code' => $row['supplier_code'],
                 ],
+                'source' => 'import',
+                'import_batch_id' => $batch->id,
+                'imported_at' => now(),
             ]);
 
             $flow = $this->approvalService->requestApproval($purchaseOrder);
             $this->approvalService->approve($flow, "Auto-approved during historical import (imported by {$importingUser?->name}).");
             $this->purchaseOrderService->submit($purchaseOrder);
         } catch (Throwable $e) {
+            if (DuplicateKeyViolation::detected($e)) {
+                return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah ada pada data yang aktif — ditolak.'];
+            }
+
             return [...$base, 'status' => 'failed', 'reason' => $e->getMessage()];
         }
 
@@ -419,11 +430,13 @@ class PurchaseHistoryImportService
         $failed = 0;
         $skipped = 0;
         $report = array_map(fn ($w) => ['document_number' => 'WARNING', 'status' => 'needs_review', 'reason' => $w], $parsed['warnings']);
+        $seenPoNumbers = [];
+        $seenGrnReferences = [];
 
         foreach ($parsed['rows'] as $row) {
             $batch->increment('processed_rows');
 
-            $outcome = $this->createPurchaseOrderFromRow($row, $warehouseId, $placeholderItemId, $supplierClassification, $resolutions, $supplierCache, $importingUser);
+            $outcome = $this->createPurchaseOrderFromRow($row, $warehouseId, $placeholderItemId, $supplierClassification, $resolutions, $supplierCache, $importingUser, $batch, $seenPoNumbers, $seenGrnReferences);
             $report[] = $outcome;
 
             match ($outcome['status']) {
@@ -439,17 +452,24 @@ class PurchaseHistoryImportService
             'preview_summary' => ['needs_review_rows' => $skipped, 'vouchers' => $report],
             'status' => ImportBatchStatus::COMPLETED,
         ]);
+
+        ImportErrorReportWriter::attachRejectedRows($batch, $report);
     }
 
-    private function createPurchaseOrderFromRow(array $row, ?string $warehouseId, ?string $placeholderItemId, array $supplierClassification, array $resolutions, array &$supplierCache, User $importingUser): array
+    private function createPurchaseOrderFromRow(array $row, ?string $warehouseId, ?string $placeholderItemId, array $supplierClassification, array $resolutions, array &$supplierCache, User $importingUser, ImportBatch $batch, array &$seenPoNumbers, array &$seenGrnReferences): array
     {
         $base = ['document_number' => $row['po_no']];
+        $rejection = DocumentDuplicateChecker::reject(PurchaseOrder::class, $row['po_no'], $resolutions, $seenPoNumbers);
 
-        if (PurchaseOrder::query()->where('source_document_number', $row['po_no'])->exists()) {
-            $decision = $resolutions['duplicate'][$row['po_no']]['action'] ?? 'skip';
+        if ($rejection !== null) {
+            return [...$base, 'status' => 'needs_review', 'reason' => $rejection];
+        }
 
-            if ($decision !== 'proceed') {
-                return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor PO ini sudah pernah diimpor sebelumnya — dilewati.'];
+        if ($row['has_grn']) {
+            $grnRejection = DocumentDuplicateChecker::reject(GoodsReceipt::class, $row['grn_reference'], $resolutions, $seenGrnReferences);
+
+            if ($grnRejection !== null) {
+                return [...$base, 'status' => 'needs_review', 'reason' => "GRN {$row['grn_reference']}: {$grnRejection}"];
             }
         }
 
@@ -493,6 +513,9 @@ class PurchaseHistoryImportService
                 'amount_billed' => $row['amount_billed'],
                 'outstanding_grn_value' => $row['outstd_grn'],
                 'outstanding_po_value' => $row['outstd_po'],
+                'source' => 'import',
+                'import_batch_id' => $batch->id,
+                'imported_at' => now(),
             ]);
 
             $flow = $this->approvalService->requestApproval($purchaseOrder);
@@ -512,9 +535,14 @@ class PurchaseHistoryImportService
                     'source_document_number' => $row['grn_reference'],
                     'items' => [['purchase_order_item_id' => $poItem->id, 'qty' => 1]],
                 ]);
+                $receipt->update(['source' => 'import', 'import_batch_id' => $batch->id, 'imported_at' => now()]);
                 $this->goodsReceiptService->submit($receipt);
             }
         } catch (Throwable $e) {
+            if (DuplicateKeyViolation::detected($e)) {
+                return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah ada pada data yang aktif — ditolak.'];
+            }
+
             return [...$base, 'status' => 'failed', 'reason' => $e->getMessage()];
         }
 

@@ -33,9 +33,13 @@ class PaymentEntry extends Model
         'cash_account_id',
         'branch_id',
         'reference_number',
+        'reference_number_normalized',
         'remarks',
         'total_amount',
         'allocated_amount',
+        'source',
+        'import_batch_id',
+        'imported_at',
     ];
 
     protected $casts = [
@@ -47,11 +51,17 @@ class PaymentEntry extends Model
         'allocated_amount' => 'decimal:2',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'imported_at' => 'datetime',
     ];
 
     public function documentType(): string
     {
         return 'payment';
+    }
+
+    protected function duplicateKeyField(): ?string
+    {
+        return 'reference_number';
     }
 
     public function supplier(): BelongsTo

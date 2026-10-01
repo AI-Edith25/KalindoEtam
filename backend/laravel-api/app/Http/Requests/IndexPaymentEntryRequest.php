@@ -18,6 +18,7 @@ class IndexPaymentEntryRequest extends FormRequest
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
             'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
+            'source' => ['sometimes', 'nullable', Rule::in(['manual', 'import'])],
             'supplier_id' => ['sometimes', 'nullable', 'uuid', 'exists:suppliers,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],

@@ -9,6 +9,7 @@ use App\Models\ApprovalFlow;
 use App\Models\DocumentAttachment;
 use App\Models\DocumentTimeline;
 use App\Services\DocumentTimelineService;
+use App\Support\DocumentKeyNormalizer;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\DB;
 
@@ -38,12 +39,59 @@ trait Documentable
             if (empty($model->revision)) {
                 $model->revision = 1;
             }
+
+            if ($model->duplicateKeyField() !== null && empty($model->source)) {
+                $model->source = 'manual';
+            }
+
+            $model->syncDuplicateKeyNormalization();
+        });
+
+        static::updating(function ($model) {
+            $model->syncDuplicateKeyNormalization();
         });
 
         static::created(function ($model) {
             app(DocumentTimelineService::class)->record($model, 'created');
             $model->afterCreate();
         });
+    }
+
+    /**
+     * Override to name the free-text legacy/reference number column this model's duplicate-import
+     * check keys off (e.g. 'source_document_number', 'reference_number'). A sibling
+     * "{field}_normalized" column must exist — see migration 2026_10_01_000003. Returning null
+     * (the default) opts a Documentable model out of normalization entirely.
+     */
+    protected function duplicateKeyField(): ?string
+    {
+        return null;
+    }
+
+    /**
+     * Kept null whenever this save leaves the model cancelled, regardless of whether that came
+     * through cancel() or a plain update(['status' => ...]) — so the unique index built on this
+     * column (migration 2026_10_01_000003) only ever enforces "unique among live documents": a
+     * cancelled document's legacy number is freed for a later import to reuse, while the raw
+     * column (never cleared) keeps it for audit/display.
+     */
+    public function syncDuplicateKeyNormalization(): void
+    {
+        $field = $this->duplicateKeyField();
+
+        if ($field === null) {
+            return;
+        }
+
+        $normalizedField = "{$field}_normalized";
+
+        if ($this->status === $this->cancelledStatus()) {
+            $this->{$normalizedField} = null;
+
+            return;
+        }
+
+        $this->{$normalizedField} = DocumentKeyNormalizer::normalize($this->{$field});
     }
 
     /**

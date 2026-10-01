@@ -120,6 +120,8 @@ export interface PaymentEntry {
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string
+  source: 'manual' | 'import'
+  imported_at: string | null
 }
 
 /** One line the frontend sends to POST /payment-entries/{id}/submit for a mixed voucher —
@@ -131,6 +133,7 @@ export type PaymentVoucherLineInput =
 
 export interface PaymentEntryFilterValues {
   status: DocumentStatus | null
+  source: 'manual' | 'import' | null
   dateFrom: string
   dateTo: string
   unallocatedOnly: boolean
@@ -167,6 +170,8 @@ export interface LegacyLedgerImportBatch {
   failed_rows: number
   failure_reason: string | null
   preview_summary: LegacyLedgerImportSummary | null
+  /** Optional — GeneralLedgerImportBatch (General Ledger/Trial Balance/etc's own smart imports, which also render through LedgerImportReportDialog) has no rejected-rows CSV concept and doesn't carry this field. */
+  has_failed_rows?: boolean
 }
 
 export interface AccountsReceivable {
@@ -237,6 +242,8 @@ export interface ReceiptEntry {
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string
+  source: 'manual' | 'import'
+  imported_at: string | null
 }
 
 /**
@@ -258,6 +265,7 @@ export interface PaymentAllocation {
 
 export interface ReceiptEntryFilterValues {
   status: DocumentStatus | null
+  source: 'manual' | 'import' | null
   dateFrom: string
   dateTo: string
   unallocatedOnly: boolean

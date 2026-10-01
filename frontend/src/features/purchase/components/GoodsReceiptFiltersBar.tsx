@@ -32,6 +32,22 @@ export function GoodsReceiptFiltersBar({ value, onChange }: GoodsReceiptFiltersB
         </Select>
       </div>
       <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Source</span>
+        <Select
+          value={value.source ?? ALL}
+          onValueChange={(next) => onChange({ ...value, source: next === ALL ? null : (next as 'manual' | 'import') })}
+        >
+          <SelectTrigger className="w-32">
+            <SelectValue placeholder="All sources" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All sources</SelectItem>
+            <SelectItem value="manual">Manual</SelectItem>
+            <SelectItem value="import">Import</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">From</span>
         <Input
           type="date"

@@ -61,6 +61,7 @@ class PurchaseOrderReportService
             (float) $po->tax_amount,
             (float) $po->grand_total,
             $po->remarks,
+            $po->source,
         ])->all();
 
         $rows[] = [
@@ -69,7 +70,7 @@ class PurchaseOrderReportService
             $this->formatTotal(0),
             $this->formatTotal($orders->sum(fn (PurchaseOrder $po) => (float) $po->tax_amount)),
             $this->formatTotal($orders->sum(fn (PurchaseOrder $po) => (float) $po->grand_total)),
-            null,
+            null, null,
         ];
 
         return $rows;
@@ -99,6 +100,7 @@ class PurchaseOrderReportService
                 null,
                 (float) $po->grand_total,
                 $po->remarks,
+                $po->source,
             ];
 
             $rows[] = ['ITEM #', null, 'DESCRIPTION', null, 'UOM', 'QUANTITY', 'UNIT PRICE', 'DISC', 'TAX', 'T.CODE', 'LINE AMOUNT'];
@@ -126,12 +128,12 @@ class PurchaseOrderReportService
     /** @return array<int, mixed> */
     public function summaryHeadings(): array
     {
-        return ['DATE', 'DOCUMENT#', 'SUPPLIER #', 'SUPPLIER NAME', 'CURRENCY', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'NOTES'];
+        return ['DATE', 'DOCUMENT#', 'SUPPLIER #', 'SUPPLIER NAME', 'CURRENCY', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'NOTES', 'SOURCE'];
     }
 
     /** One-time top heading row (row 8 in the reference file) — each PO's own repeating item-label row is emitted inline by detailRows(). @return array<int, mixed> */
     public function detailHeadings(): array
     {
-        return ['DATE', 'DOCUMENT #', 'SUPPLIER#', 'NAME', null, null, null, 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'NOTES'];
+        return ['DATE', 'DOCUMENT #', 'SUPPLIER#', 'NAME', null, null, null, 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'NOTES', 'SOURCE'];
     }
 }

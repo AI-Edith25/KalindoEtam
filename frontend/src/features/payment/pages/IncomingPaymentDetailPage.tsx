@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SourceBadge } from '@/components/shared/SourceBadge'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
@@ -124,7 +125,10 @@ export function IncomingPaymentDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Payment Details</CardTitle>
-          <StatusBadge status={receipt.status} />
+          <div className="flex items-center gap-2">
+            <SourceBadge source={receipt.source} />
+            <StatusBadge status={receipt.status} />
+          </div>
         </CardHeader>
         <CardContent>
           <DetailSection>

@@ -6,6 +6,7 @@ export interface PaymentEntryListParams {
   page: number
   search?: string
   status?: DocumentStatus
+  source?: 'manual' | 'import'
   supplier_id?: string
   date_from?: string
   date_to?: string

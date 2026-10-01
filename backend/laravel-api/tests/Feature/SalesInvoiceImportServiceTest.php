@@ -185,7 +185,7 @@ class SalesInvoiceImportServiceTest extends TestCase
         $this->assertSame($otherItem->id, $invoice->items->first()->item_id);
     }
 
-    public function test_duplicate_source_document_number_is_skipped_by_default_but_can_be_created_anyway(): void
+    public function test_duplicate_source_document_number_is_skipped_by_default(): void
     {
         $csv = $this->csv([
             ...self::PREAMBLE,
@@ -200,12 +200,136 @@ class SalesInvoiceImportServiceTest extends TestCase
         $again = $this->makeBatch($csv);
         $this->service->import($again);
         $this->assertSame(1, Invoice::query()->where('source_document_number', 'SI/KE/00004/09/2026')->count(), 'skipped by default');
+    }
+
+    /** Active duplicates are always rejected — "proceed" no longer has any effect once the existing match isn't cancelled. */
+    public function test_duplicate_against_an_active_invoice_is_rejected_even_with_explicit_override(): void
+    {
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00004/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+        ]);
+
+        $first = $this->makeBatch($csv);
+        $this->service->import($first);
 
         $proceed = $this->makeBatch($csv, [
             'duplicate' => ['SI/KE/00004/09/2026' => ['action' => 'proceed', 'target_id' => null]],
         ]);
         $this->service->import($proceed);
-        $this->assertSame(2, Invoice::query()->where('source_document_number', 'SI/KE/00004/09/2026')->count(), 'explicit override creates it anyway');
+
+        $this->assertSame(1, Invoice::query()->where('source_document_number', 'SI/KE/00004/09/2026')->count(), 'override must not apply to an active match');
+    }
+
+    /** The one case "proceed" still applies — the existing match was cancelled, so its number is no longer in active use. */
+    public function test_duplicate_against_a_cancelled_invoice_can_be_resolved_to_proceed(): void
+    {
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00005/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+        ]);
+
+        $first = $this->makeBatch($csv);
+        $this->service->import($first);
+        Invoice::query()->where('source_document_number', 'SI/KE/00005/09/2026')->firstOrFail()->update(['status' => 'cancelled']);
+
+        $skip = $this->makeBatch($csv);
+        $this->service->import($skip);
+        $this->assertSame(1, Invoice::query()->where('source_document_number', 'SI/KE/00005/09/2026')->count(), 'still needs an explicit proceed');
+
+        $proceed = $this->makeBatch($csv, [
+            'duplicate' => ['SI/KE/00005/09/2026' => ['action' => 'proceed', 'target_id' => null]],
+        ]);
+        $this->service->import($proceed);
+        $this->assertSame(2, Invoice::query()->where('source_document_number', 'SI/KE/00005/09/2026')->count(), 'explicit override allowed against a cancelled match');
+    }
+
+    /** A manual Invoice never fills source_document_number, but may carry the legacy number in REFERENCE 1/2 — the ticket's own fallback for when the file's number format diverges. */
+    public function test_duplicate_against_an_active_manual_invoice_via_reference_field_is_rejected(): void
+    {
+        $manual = Invoice::query()->create([
+            'invoice_type' => 'goods',
+            'warehouse_id' => $this->warehouse->id,
+            'customer_id' => $this->customer->id,
+            'invoice_date' => '2026-09-30',
+            'due_date' => '2026-09-30',
+            'subtotal' => 100000,
+            'discount_amount' => 0,
+            'discount_type' => 'amount',
+            'tax_amount' => 0,
+            'grand_total' => 100000,
+            'reference_1' => 'SI/KE/00006/09/2026',
+        ]);
+        $manual->update(['status' => 'submitted']);
+
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', ' si/ke/00006/09/2026 ', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+        ]);
+
+        $batch = $this->makeBatch($csv, [
+            'duplicate' => [' si/ke/00006/09/2026 ' => ['action' => 'proceed', 'target_id' => null]],
+        ]);
+        $this->service->import($batch);
+
+        $this->assertSame(0, Invoice::query()->where('source_document_number', 'si/ke/00006/09/2026')->count());
+        $this->assertSame(1, Invoice::query()->count(), 'only the pre-existing manual invoice, nothing imported');
+    }
+
+    public function test_duplicate_within_same_file_rejects_second_occurrence(): void
+    {
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00007/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+            ['30/09/2026', 'SI/KE/00007/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+        ]);
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+
+        $this->assertSame(1, Invoice::query()->where('source_document_number', 'SI/KE/00007/09/2026')->count());
+        $this->assertSame(1, $batch->fresh()->success_rows);
+    }
+
+    public function test_duplicate_detection_is_case_and_whitespace_insensitive(): void
+    {
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00008/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+        ]);
+        $this->service->import($this->makeBatch($csv));
+
+        $again = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', ' si/ke/00008/09/2026 ', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+        ]);
+        $this->service->import($this->makeBatch($again));
+
+        $this->assertSame(1, Invoice::query()->count());
+    }
+
+    public function test_successful_import_tags_source_and_batch(): void
+    {
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00009/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+        ]);
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+
+        $invoice = Invoice::query()->where('source_document_number', 'SI/KE/00009/09/2026')->firstOrFail();
+        $this->assertSame('import', $invoice->source);
+        $this->assertSame($batch->id, $invoice->import_batch_id);
+        $this->assertNotNull($invoice->imported_at);
     }
 
     public function test_real_sales_invoice_listing_file_completes_without_crashing(): void

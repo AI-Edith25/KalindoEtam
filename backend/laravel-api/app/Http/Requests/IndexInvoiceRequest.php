@@ -29,6 +29,7 @@ class IndexInvoiceRequest extends FormRequest
             'status' => ['sometimes', 'nullable', 'array'],
             'status.*' => [Rule::enum(DocumentStatus::class)],
             'invoice_type' => ['sometimes', 'nullable', Rule::enum(InvoiceType::class)],
+            'source' => ['sometimes', 'nullable', Rule::in(['manual', 'import'])],
             'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
             'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
             'delivery_id' => ['sometimes', 'nullable', 'uuid', 'exists:deliveries,id'],

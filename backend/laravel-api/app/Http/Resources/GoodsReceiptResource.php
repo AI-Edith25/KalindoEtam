@@ -23,6 +23,8 @@ class GoodsReceiptResource extends JsonResource
             'receipt_date' => $this->receipt_date?->format('Y-m-d'),
             'due_date' => $this->due_date?->format('Y-m-d'),
             'remarks' => $this->remarks,
+            'source' => $this->source,
+            'imported_at' => $this->imported_at,
             'items' => GoodsReceiptItemResource::collection($this->whenLoaded('items')),
             // Mirrors DeliveryResource::is_invoiced — only meaningful once submitted (stock has
             // moved by then), used by Purchase Invoice's "eligible Goods Receipts" picker.

@@ -61,6 +61,8 @@ const STATUS_STYLES: Record<string, string> = {
   success: SUCCESS,
   needs_review: WARNING,
   failed: ERROR,
+  // Source badge (Manual/Import) — Manual renders no badge at all, see callers.
+  import: WARNING,
 }
 
 function formatLabel(status: string): string {

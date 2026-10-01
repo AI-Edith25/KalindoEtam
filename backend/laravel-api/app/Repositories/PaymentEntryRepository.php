@@ -30,6 +30,7 @@ class PaymentEntryRepository extends BaseRepository
         return $this->model->query()
             ->with(self::EAGER)
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['source'] ?? null, fn ($query, $source) => $query->where('source', $source))
             ->when($filters['supplier_id'] ?? null, fn ($query, $supplierId) => $query->where('supplier_id', $supplierId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('payment_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('payment_date', '<=', $date))

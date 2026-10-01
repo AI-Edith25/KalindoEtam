@@ -272,7 +272,7 @@ class PurchaseHistoryImportServiceTest extends TestCase
         $this->assertSame(0, PurchaseOrder::query()->count(), 'nothing is created once the upfront check fails');
     }
 
-    public function test_po_tracking_duplicate_po_number_is_skipped_by_default_but_can_be_created_anyway(): void
+    public function test_po_tracking_duplicate_po_number_is_skipped_by_default(): void
     {
         Supplier::query()->create(['supplier_code' => 'SUP1', 'supplier_name' => 'PT ABC', 'is_active' => true]);
 
@@ -288,12 +288,94 @@ class PurchaseHistoryImportServiceTest extends TestCase
         $again = $this->makeBatch('purchase_order_tracking', $csv, creator: $this->approverUser());
         $this->service->import($again);
         $this->assertSame(1, PurchaseOrder::query()->where('source_document_number', 'PO-103')->count(), 'skipped by default');
+    }
+
+    /** Active duplicates are always rejected — "proceed" no longer has any effect once the existing match isn't cancelled. */
+    public function test_po_tracking_duplicate_against_an_active_po_is_rejected_even_with_explicit_override(): void
+    {
+        Supplier::query()->create(['supplier_code' => 'SUP1', 'supplier_name' => 'PT ABC', 'is_active' => true]);
+
+        $csv = $this->csv([
+            ...self::POT_PREAMBLE,
+            ['05/01/2026', 'PO-103', 'PT ABC', 500000, '', '', '', '', '', '', '', '', '', ''],
+        ]);
+
+        $first = $this->makeBatch('purchase_order_tracking', $csv, creator: $this->approverUser());
+        $this->service->import($first);
 
         $proceed = $this->makeBatch('purchase_order_tracking', $csv, [
             'duplicate' => ['PO-103' => ['action' => 'proceed', 'target_id' => null]],
         ], $this->approverUser());
         $this->service->import($proceed);
-        $this->assertSame(2, PurchaseOrder::query()->where('source_document_number', 'PO-103')->count(), 'explicit override creates it anyway');
+        $this->assertSame(1, PurchaseOrder::query()->where('source_document_number', 'PO-103')->count(), 'override must not apply to an active match');
+    }
+
+    /** The one case "proceed" still applies — the existing match was cancelled, so its number is no longer in active use. */
+    public function test_po_tracking_duplicate_against_a_cancelled_po_can_be_resolved_to_proceed(): void
+    {
+        Supplier::query()->create(['supplier_code' => 'SUP1', 'supplier_name' => 'PT ABC', 'is_active' => true]);
+
+        $csv = $this->csv([
+            ...self::POT_PREAMBLE,
+            ['05/01/2026', 'PO-104', 'PT ABC', 500000, '', '', '', '', '', '', '', '', '', ''],
+        ]);
+
+        $first = $this->makeBatch('purchase_order_tracking', $csv, creator: $this->approverUser());
+        $this->service->import($first);
+        PurchaseOrder::query()->where('source_document_number', 'PO-104')->firstOrFail()->update(['status' => 'cancelled']);
+
+        $proceed = $this->makeBatch('purchase_order_tracking', $csv, [
+            'duplicate' => ['PO-104' => ['action' => 'proceed', 'target_id' => null]],
+        ], $this->approverUser());
+        $this->service->import($proceed);
+        $this->assertSame(2, PurchaseOrder::query()->where('source_document_number', 'PO-104')->count(), 'explicit override allowed against a cancelled match');
+    }
+
+    public function test_po_tracking_successful_import_tags_source_and_batch(): void
+    {
+        Supplier::query()->create(['supplier_code' => 'SUP1', 'supplier_name' => 'PT ABC', 'is_active' => true]);
+
+        $csv = $this->csv([
+            ...self::POT_PREAMBLE,
+            ['05/01/2026', 'PO-105', 'PT ABC', 500000, '', '', '', '', 'DO-105', '10/01/2026', '', '', '', ''],
+        ]);
+
+        $batch = $this->makeBatch('purchase_order_tracking', $csv, creator: $this->approverUser());
+        $this->service->import($batch);
+
+        $po = PurchaseOrder::query()->where('source_document_number', 'PO-105')->firstOrFail();
+        $this->assertSame('import', $po->source);
+        $this->assertSame($batch->id, $po->import_batch_id);
+        $this->assertNotNull($po->imported_at);
+
+        $receipt = GoodsReceipt::query()->where('source_document_number', 'DO-105')->firstOrFail();
+        $this->assertSame('import', $receipt->source);
+        $this->assertSame($batch->id, $receipt->import_batch_id);
+        $this->assertNotNull($receipt->imported_at);
+    }
+
+    public function test_po_tracking_duplicate_grn_reference_is_rejected(): void
+    {
+        Supplier::query()->create(['supplier_code' => 'SUP1', 'supplier_name' => 'PT ABC', 'is_active' => true]);
+
+        $csv = $this->csv([
+            ...self::POT_PREAMBLE,
+            ['05/01/2026', 'PO-106', 'PT ABC', 500000, '', '', '', '', 'DO-106', '10/01/2026', '', '', '', ''],
+        ]);
+
+        $first = $this->makeBatch('purchase_order_tracking', $csv, creator: $this->approverUser());
+        $this->service->import($first);
+        $this->assertSame(1, GoodsReceipt::query()->where('source_document_number', 'DO-106')->count());
+
+        $csvAgain = $this->csv([
+            ...self::POT_PREAMBLE,
+            ['06/01/2026', 'PO-107', 'PT ABC', 500000, '', '', '', '', 'DO-106', '11/01/2026', '', '', '', ''],
+        ]);
+        $again = $this->makeBatch('purchase_order_tracking', $csvAgain, creator: $this->approverUser());
+        $this->service->import($again);
+
+        $this->assertSame(1, GoodsReceipt::query()->where('source_document_number', 'DO-106')->count(), 'duplicate GRN reference rejected even under a different PO number');
+        $this->assertSame(0, PurchaseOrder::query()->where('source_document_number', 'PO-107')->count(), 'all-or-nothing per row — the PO is not created either when its GRN leg is rejected');
     }
 
     /**
@@ -407,12 +489,44 @@ class PurchaseHistoryImportServiceTest extends TestCase
         $again = $this->makeBatch('supplier_purchase_listing', $csv, creator: $this->approverUser());
         $this->service->import($again);
         $this->assertSame(1, PurchaseOrder::query()->where('source_document_number', '1312')->count(), 'skipped by default');
+    }
+
+    /** Active duplicates are always rejected — "proceed" no longer has any effect once the existing match isn't cancelled. */
+    public function test_supplier_purchase_listing_duplicate_against_an_active_po_is_rejected_even_with_explicit_override(): void
+    {
+        Supplier::query()->create(['supplier_code' => 'SUP1', 'supplier_name' => 'PT ABC', 'is_active' => true]);
+
+        $csv = $this->csv([
+            ...self::SPL_PREAMBLE,
+            ['24/08/2026', '1312', '', '', 'S-0275', 'PT ABC', 'SupInv', 480000, 0, 480000],
+        ]);
+
+        $first = $this->makeBatch('supplier_purchase_listing', $csv, creator: $this->approverUser());
+        $this->service->import($first);
 
         $proceed = $this->makeBatch('supplier_purchase_listing', $csv, [
             'duplicate' => ['1312' => ['action' => 'proceed', 'target_id' => null]],
         ], $this->approverUser());
         $this->service->import($proceed);
-        $this->assertSame(2, PurchaseOrder::query()->where('source_document_number', '1312')->count(), 'explicit override creates it anyway');
+        $this->assertSame(1, PurchaseOrder::query()->where('source_document_number', '1312')->count(), 'override must not apply to an active match');
+    }
+
+    public function test_supplier_purchase_listing_successful_import_tags_source_and_batch(): void
+    {
+        Supplier::query()->create(['supplier_code' => 'SUP1', 'supplier_name' => 'PT ABC', 'is_active' => true]);
+
+        $csv = $this->csv([
+            ...self::SPL_PREAMBLE,
+            ['24/08/2026', '1313', '', '', 'S-0275', 'PT ABC', 'SupInv', 480000, 0, 480000],
+        ]);
+
+        $batch = $this->makeBatch('supplier_purchase_listing', $csv, creator: $this->approverUser());
+        $this->service->import($batch);
+
+        $po = PurchaseOrder::query()->where('source_document_number', '1313')->firstOrFail();
+        $this->assertSame('import', $po->source);
+        $this->assertSame($batch->id, $po->import_batch_id);
+        $this->assertNotNull($po->imported_at);
     }
 
     public function test_supplier_purchase_listing_preflight_always_warns_it_wont_appear_in_by_supplier_and_is_not_a_real_invoice(): void

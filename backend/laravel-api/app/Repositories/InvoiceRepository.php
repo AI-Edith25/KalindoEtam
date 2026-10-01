@@ -60,6 +60,7 @@ class InvoiceRepository extends BaseRepository
         return $query
             ->when(! empty($filters['status'] ?? null), fn ($q) => $q->whereIn('status', (array) $filters['status']))
             ->when($filters['invoice_type'] ?? null, fn ($q, $invoiceType) => $q->where('invoice_type', $invoiceType))
+            ->when($filters['source'] ?? null, fn ($q, $source) => $q->where('source', $source))
             ->when($filters['customer_id'] ?? null, fn ($q, $customerId) => $q->where('customer_id', $customerId))
             // Anchor-only: matches the primary Delivery/Sales Order, not every source on a merged Invoice.
             ->when($filters['delivery_id'] ?? null, fn ($q, $deliveryId) => $q->where('delivery_id', $deliveryId))

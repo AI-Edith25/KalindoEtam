@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SourceBadge } from '@/components/shared/SourceBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
@@ -179,7 +180,10 @@ export function PurchaseOrderDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Order Details</CardTitle>
-          <StatusBadge status={order.status} />
+          <div className="flex items-center gap-2">
+            <SourceBadge source={order.source} />
+            <StatusBadge status={order.status} />
+          </div>
         </CardHeader>
         <CardContent>
           <DetailSection>

@@ -30,6 +30,8 @@ class PurchaseOrderResource extends JsonResource
             // PurchaseHistoryImportService.
             'import_source_type' => $this->import_source_type,
             'import_extra' => $this->import_extra,
+            'source' => $this->source,
+            'imported_at' => $this->imported_at,
             'items' => PurchaseOrderItemResource::collection($this->whenLoaded('items')),
             'is_fully_received' => $this->whenLoaded('items', fn () => $this->items->every(fn ($item) => $item->received_qty >= $item->qty)),
             'submitted_at' => $this->submitted_at,

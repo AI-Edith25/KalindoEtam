@@ -53,6 +53,8 @@ export interface PurchaseOrder {
   created_at: string
   requires_approval: boolean
   latest_approval: ApprovalFlow | null
+  source: 'manual' | 'import'
+  imported_at: string | null
 }
 
 export interface PurchaseOrderLineFormValues {
@@ -73,6 +75,7 @@ export interface PurchaseOrderFormValues {
 
 export interface PurchaseOrderFilterValues {
   status: DocumentStatus | null
+  source: 'manual' | 'import' | null
   dateFrom: string
   dateTo: string
 }
@@ -112,6 +115,8 @@ export interface GoodsReceipt {
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string
+  source: 'manual' | 'import'
+  imported_at: string | null
 }
 
 export interface GoodsReceiptFormValues {
@@ -131,6 +136,7 @@ export interface GoodsReceiptFormValues {
 
 export interface GoodsReceiptFilterValues {
   status: DocumentStatus | null
+  source: 'manual' | 'import' | null
   dateFrom: string
   dateTo: string
 }

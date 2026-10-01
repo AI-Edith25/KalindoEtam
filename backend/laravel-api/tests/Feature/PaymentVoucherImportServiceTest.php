@@ -166,4 +166,45 @@ class PaymentVoucherImportServiceTest extends TestCase
         $this->assertStringContainsString('sudah pernah diimpor', $vouchers[0]['reason']);
         $this->assertSame(1, PaymentEntry::query()->where('reference_number', 'PV/KE/00006/08/2026')->count());
     }
+
+    /** Manual entry stores " pv/ke/00009/08/2026 " with stray case/whitespace — normalization must still catch it as the same document. */
+    public function test_duplicate_detection_is_case_and_whitespace_insensitive(): void
+    {
+        PaymentEntry::query()->create([
+            'payment_type' => 'general_expense',
+            'expense_account_id' => ChartOfAccount::query()->where('code', '6100')->firstOrFail()->id,
+            'description' => 'Already imported once',
+            'payment_date' => now()->toDateString(),
+            'cash_account_id' => ChartOfAccount::query()->where('code', '1100')->firstOrFail()->id,
+            'reference_number' => ' pv/ke/00009/08/2026 ',
+            'total_amount' => 75000,
+        ]);
+
+        $csv = self::PREAMBLE.self::HEADER
+            .'09/08/2026,PV/KE/00009/08/2026,,,102.01.01,,"Kas keluar",0.00,75000.00,IDR,1,0,75000,Approved'."\r\n"
+            .'09/08/2026,PV/KE/00009/08/2026,,,610.01.03,,"Beban Transport",75000.00,0.00,IDR,1,75000,0,Approved'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+        $batch->refresh();
+
+        $vouchers = $batch->preview_summary['vouchers'];
+        $this->assertSame('needs_review', $vouchers[0]['status']);
+        $this->assertSame(1, PaymentEntry::query()->count());
+    }
+
+    public function test_successful_import_tags_source_and_batch(): void
+    {
+        $csv = self::PREAMBLE.self::HEADER
+            .'10/08/2026,PV/KE/00010/08/2026,,,102.01.01,,"Kas keluar",0.00,75000.00,IDR,1,0,75000,Approved'."\r\n"
+            .'10/08/2026,PV/KE/00010/08/2026,,,610.01.03,,"Beban Transport",75000.00,0.00,IDR,1,75000,0,Approved'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+
+        $entry = PaymentEntry::query()->where('reference_number', 'PV/KE/00010/08/2026')->firstOrFail();
+        $this->assertSame('import', $entry->source);
+        $this->assertSame($batch->id, $entry->import_batch_id);
+        $this->assertNotNull($entry->imported_at);
+    }
 }

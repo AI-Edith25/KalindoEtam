@@ -63,6 +63,7 @@ class SalesReportService
             $invoice->reference_2,
             $invoice->creator?->name,
             $invoice->updater?->name,
+            $invoice->source,
         ])->all();
 
         $rows[] = [
@@ -71,7 +72,7 @@ class SalesReportService
             $this->formatMoney($invoices->sum(fn (Invoice $i) => (float) $i->discount_amount)),
             $this->formatMoney($invoices->sum(fn (Invoice $i) => (float) $i->tax_amount)),
             $this->formatMoney($invoices->sum(fn (Invoice $i) => (float) $i->grand_total)),
-            null, null, null, null,
+            null, null, null, null, null,
         ];
 
         return $rows;
@@ -127,6 +128,7 @@ class SalesReportService
                     $deliveryTo,
                     $invoice->reference_1,
                     $invoice->reference_2,
+                    $invoice->source,
                 ];
             }
         }
@@ -154,7 +156,7 @@ class SalesReportService
      */
     public function summaryHeadings(): array
     {
-        return ['DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'REFERENCE 1', 'REFERENCE 2', 'ADD BY', 'UPDATE BY'];
+        return ['DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'REFERENCE 1', 'REFERENCE 2', 'ADD BY', 'UPDATE BY', 'SOURCE'];
     }
 
     /** @return array<int, mixed> single flat heading row matching detailRows()' column order */
@@ -162,7 +164,7 @@ class SalesReportService
     {
         return [
             'DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'ITEM', 'DESCRIPTION', 'UOM', 'QUANTITY', 'UNIT PRICE',
-            'LINE AMOUNT', 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'DELIVERY TO', 'REFERENCE 1', 'REFERENCE 2',
+            'LINE AMOUNT', 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'DELIVERY TO', 'REFERENCE 1', 'REFERENCE 2', 'SOURCE',
         ];
     }
 

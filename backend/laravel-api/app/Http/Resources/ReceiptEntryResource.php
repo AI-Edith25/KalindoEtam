@@ -29,6 +29,8 @@ class ReceiptEntryResource extends JsonResource
             'total_amount' => $this->total_amount,
             'allocated_amount' => $this->allocated_amount,
             'unallocated_amount' => $this->unallocatedAmount(),
+            'source' => $this->source,
+            'imported_at' => $this->imported_at,
             'items' => ReceiptEntryItemResource::collection($this->whenLoaded('items')),
             'submitted_at' => $this->submitted_at,
             'cancelled_at' => $this->cancelled_at,

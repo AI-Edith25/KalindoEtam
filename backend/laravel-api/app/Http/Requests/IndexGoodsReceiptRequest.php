@@ -18,6 +18,7 @@ class IndexGoodsReceiptRequest extends FormRequest
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
             'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
+            'source' => ['sometimes', 'nullable', Rule::in(['manual', 'import'])],
             'warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],

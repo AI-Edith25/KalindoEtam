@@ -13,6 +13,9 @@ use App\Models\ReceiptEntry;
 use App\Services\Import\Concerns\ParsesLegacyLedgerExport;
 use App\Services\PaymentAllocationService;
 use App\Services\ReceiptEntryService;
+use App\Support\DocumentKeyNormalizer;
+use App\Support\DuplicateKeyViolation;
+use App\Support\ImportErrorReportWriter;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -94,7 +97,7 @@ final class OfficialReceiptImportService
         $needsReview = 0;
 
         foreach ($groups as $documentNumber => $rows) {
-            $outcome = $this->processGroup((string) $documentNumber, $rows, $customers, $cashAccounts);
+            $outcome = $this->processGroup((string) $documentNumber, $rows, $customers, $cashAccounts, $batch);
             $report[] = $outcome;
 
             match ($outcome['status']) {
@@ -112,13 +115,16 @@ final class OfficialReceiptImportService
             'preview_summary' => ['needs_review_rows' => $needsReview, 'vouchers' => $report],
             'status' => ImportBatchStatus::COMPLETED,
         ]);
+
+        ImportErrorReportWriter::attachRejectedRows($batch, $report);
     }
 
-    private function processGroup(string $documentNumber, array $rows, Collection $customers, Collection $cashAccounts): array
+    private function processGroup(string $documentNumber, array $rows, Collection $customers, Collection $cashAccounts, ImportBatch $batch): array
     {
         $base = ['document_number' => $documentNumber];
+        $normalizedNumber = DocumentKeyNormalizer::normalize($documentNumber);
 
-        if (ReceiptEntry::query()->where('reference_number', $documentNumber)->exists()) {
+        if ($normalizedNumber !== null && ReceiptEntry::query()->where('reference_number_normalized', $normalizedNumber)->exists()) {
             return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah pernah diimpor sebelumnya — dilewati.'];
         }
 
@@ -176,7 +182,7 @@ final class OfficialReceiptImportService
         $customer = $customers->firstWhere('id', $distinctCustomerIds->first());
 
         try {
-            return DB::transaction(function () use ($base, $matches, $customer, $cashAccount, $cashGuessed, $receiptDate, $totalAmount, $paymentMethod, $documentNumber) {
+            return DB::transaction(function () use ($base, $matches, $customer, $cashAccount, $cashGuessed, $receiptDate, $totalAmount, $paymentMethod, $documentNumber, $batch) {
                 $entry = $this->receiptEntryService->create([
                     'customer_id' => $customer->id,
                     'receipt_date' => $receiptDate,
@@ -185,6 +191,7 @@ final class OfficialReceiptImportService
                     'total_amount' => $totalAmount,
                     'payment_method' => $paymentMethod->value,
                 ]);
+                $entry->update(['source' => 'import', 'import_batch_id' => $batch->id, 'imported_at' => now()]);
                 $entry = $this->receiptEntryService->submit($entry);
 
                 $notes = $cashGuessed ? ['Akun Kas/Bank dipilih otomatis (default) — mohon verifikasi.'] : [];
@@ -217,6 +224,10 @@ final class OfficialReceiptImportService
                 return [...$base, 'status' => $notes === [] ? 'success' : 'needs_review', 'reason' => $notes === [] ? null : implode(' ', $notes), 'receipt_entry_id' => $entry->id];
             });
         } catch (Throwable $e) {
+            if (DuplicateKeyViolation::detected($e)) {
+                return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah pernah diimpor sebelumnya — dilewati.'];
+            }
+
             return [...$base, 'status' => 'failed', 'reason' => $e->getMessage()];
         }
     }

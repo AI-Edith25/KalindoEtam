@@ -6,6 +6,7 @@ export interface PurchaseOrderListParams {
   page: number
   search?: string
   status?: string
+  source?: 'manual' | 'import'
   supplier_id?: string
   date_from?: string
   date_to?: string

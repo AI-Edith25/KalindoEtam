@@ -27,6 +27,7 @@ class ReceiptEntryRepository extends BaseRepository
         return $this->model->query()
             ->with(self::EAGER)
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['source'] ?? null, fn ($query, $source) => $query->where('source', $source))
             ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('receipt_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('receipt_date', '<=', $date))

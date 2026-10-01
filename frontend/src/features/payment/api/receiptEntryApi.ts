@@ -6,6 +6,7 @@ export interface ReceiptEntryListParams {
   page: number
   search?: string
   status?: DocumentStatus
+  source?: 'manual' | 'import'
   customer_id?: string
   date_from?: string
   date_to?: string

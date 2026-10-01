@@ -30,6 +30,10 @@ class GoodsReceipt extends Model
         'due_date',
         'remarks',
         'source_document_number',
+        'source_document_number_normalized',
+        'source',
+        'import_batch_id',
+        'imported_at',
     ];
 
     protected $casts = [
@@ -38,11 +42,17 @@ class GoodsReceipt extends Model
         'due_date' => 'date',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'imported_at' => 'datetime',
     ];
 
     public function documentType(): string
     {
         return 'goods_receipt';
+    }
+
+    protected function duplicateKeyField(): ?string
+    {
+        return 'source_document_number';
     }
 
     public function purchaseOrder(): BelongsTo

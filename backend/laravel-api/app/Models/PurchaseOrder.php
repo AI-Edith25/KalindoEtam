@@ -30,11 +30,15 @@ class PurchaseOrder extends Model
         'grand_total',
         'remarks',
         'source_document_number',
+        'source_document_number_normalized',
         'import_source_type',
         'import_extra',
         'amount_billed',
         'outstanding_grn_value',
         'outstanding_po_value',
+        'source',
+        'import_batch_id',
+        'imported_at',
     ];
 
     protected $casts = [
@@ -50,11 +54,17 @@ class PurchaseOrder extends Model
         'amount_billed' => 'decimal:2',
         'outstanding_grn_value' => 'decimal:2',
         'outstanding_po_value' => 'decimal:2',
+        'imported_at' => 'datetime',
     ];
 
     public function documentType(): string
     {
         return 'purchase';
+    }
+
+    protected function duplicateKeyField(): ?string
+    {
+        return 'source_document_number';
     }
 
     /** Operational commitment to a supplier before any Goods Receipt/Payable exists — see docs/APPROVAL_WORKFLOW_DESIGN.md §3. */

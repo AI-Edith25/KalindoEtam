@@ -13,6 +13,9 @@ use App\Models\Supplier;
 use App\Services\Import\Concerns\ParsesLegacyLedgerExport;
 use App\Services\PaymentEntryAllocationService;
 use App\Services\PaymentEntryService;
+use App\Support\DocumentKeyNormalizer;
+use App\Support\DuplicateKeyViolation;
+use App\Support\ImportErrorReportWriter;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -101,7 +104,7 @@ final class PaymentVoucherImportService
         $needsReview = 0;
 
         foreach ($groups as $documentNumber => $rows) {
-            $outcome = $this->processGroup((string) $documentNumber, $rows, $suppliers, $cashAccounts, $expenseAccounts);
+            $outcome = $this->processGroup((string) $documentNumber, $rows, $suppliers, $cashAccounts, $expenseAccounts, $batch);
             $report[] = $outcome;
 
             match ($outcome['status']) {
@@ -119,13 +122,16 @@ final class PaymentVoucherImportService
             'preview_summary' => ['needs_review_rows' => $needsReview, 'vouchers' => $report],
             'status' => ImportBatchStatus::COMPLETED,
         ]);
+
+        ImportErrorReportWriter::attachRejectedRows($batch, $report);
     }
 
-    private function processGroup(string $documentNumber, array $rows, Collection $suppliers, Collection $cashAccounts, Collection $expenseAccounts): array
+    private function processGroup(string $documentNumber, array $rows, Collection $suppliers, Collection $cashAccounts, Collection $expenseAccounts, ImportBatch $batch): array
     {
         $base = ['document_number' => $documentNumber];
+        $normalizedNumber = DocumentKeyNormalizer::normalize($documentNumber);
 
-        if (PaymentEntry::query()->where('reference_number', $documentNumber)->exists()) {
+        if ($normalizedNumber !== null && PaymentEntry::query()->where('reference_number_normalized', $normalizedNumber)->exists()) {
             return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah pernah diimpor sebelumnya — dilewati.'];
         }
 
@@ -165,7 +171,7 @@ final class PaymentVoucherImportService
         $resolved = array_map(fn ($row) => ['row' => $row, 'line' => $this->resolveAllocationLine($row, $suppliers, $expenseAccounts)], $allocationRows);
 
         try {
-            return DB::transaction(function () use ($base, $resolved, $cashAccount, $cashGuessed, $paymentDate, $totalAmount, $documentNumber) {
+            return DB::transaction(function () use ($base, $resolved, $cashAccount, $cashGuessed, $paymentDate, $totalAmount, $documentNumber, $batch) {
                 $notes = $cashGuessed ? ['Akun Kas/Bank dipilih otomatis (default) — mohon verifikasi.'] : [];
 
                 if (count($resolved) === 1) {
@@ -180,6 +186,7 @@ final class PaymentVoucherImportService
                             'reference_number' => $documentNumber,
                             'amount' => $totalAmount,
                         ]);
+                        $entry->update(['source' => 'import', 'import_batch_id' => $batch->id, 'imported_at' => now()]);
                         $entry = $this->paymentEntryService->submit($entry);
 
                         if ($line['accounts_payable_id'] !== null) {
@@ -205,6 +212,7 @@ final class PaymentVoucherImportService
                             'reference_number' => $documentNumber,
                             'amount' => $totalAmount,
                         ]);
+                        $entry->update(['source' => 'import', 'import_batch_id' => $batch->id, 'imported_at' => now()]);
                         $entry = $this->paymentEntryService->submit($entry);
 
                         return [...$base, 'status' => $notes === [] ? 'success' : 'needs_review', 'reason' => $notes[0] ?? null, 'payment_entry_id' => $entry->id];
@@ -221,6 +229,7 @@ final class PaymentVoucherImportService
                     'reference_number' => $documentNumber,
                     'amount' => $totalAmount,
                 ]);
+                $entry->update(['source' => 'import', 'import_batch_id' => $batch->id, 'imported_at' => now()]);
 
                 $submitLines = [];
                 $unresolvedNotes = [];
@@ -254,6 +263,10 @@ final class PaymentVoucherImportService
                 return [...$base, 'status' => $notes === [] ? 'success' : 'needs_review', 'reason' => $notes === [] ? null : implode(' ', $notes), 'payment_entry_id' => $entry->id];
             });
         } catch (Throwable $e) {
+            if (DuplicateKeyViolation::detected($e)) {
+                return [...$base, 'status' => 'needs_review', 'reason' => 'Nomor dokumen ini sudah pernah diimpor sebelumnya — dilewati.'];
+            }
+
             return [...$base, 'status' => 'failed', 'reason' => $e->getMessage()];
         }
     }

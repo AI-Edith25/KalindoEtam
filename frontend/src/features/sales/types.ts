@@ -578,5 +578,6 @@ export interface SalesInvoiceHistoryImportBatch {
   failed_rows: number
   failure_reason: string | null
   preview_summary: SalesInvoiceHistoryImportPreviewSummary | null
+  has_failed_rows: boolean
 }
 

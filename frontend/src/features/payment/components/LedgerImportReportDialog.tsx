@@ -1,15 +1,19 @@
-import { useQuery } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { Download, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { toastApiError } from '@/shared/services/errorHandler'
+import { downloadImportBatchFailedRows } from '@/shared/lib/downloadImportBatchFailedRows'
 import type { LegacyLedgerImportBatch } from '../types'
 
 const TERMINAL_STATUSES = ['completed', 'failed']
 
 interface LedgerImportReportDialogProps {
   title: string
+  /** AuthorizesImportModule::MODULE_PERMISSION_OVERRIDES slug — 'official-receipts' or 'payment-vouchers' — used only for the downloaded failed-rows filename. Other callers (General Ledger/Trial Balance/etc's own smart imports) never set `has_failed_rows`, so the download button never renders for them and this prop is irrelevant there. */
+  module?: string
   batchId: string | null
   fetchBatch: (batchId: string) => Promise<LegacyLedgerImportBatch>
   onClose: () => void
@@ -24,12 +28,17 @@ interface LedgerImportReportDialogProps {
  * review (created but Unallocated/Draft/partially applied), and what failed
  * outright (with why), per voucher.
  */
-export function LedgerImportReportDialog({ title, batchId, fetchBatch, onClose }: LedgerImportReportDialogProps) {
+export function LedgerImportReportDialog({ title, module = 'import', batchId, fetchBatch, onClose }: LedgerImportReportDialogProps) {
   const batchQuery = useQuery({
     queryKey: ['ledger-import-batch', batchId],
     queryFn: () => fetchBatch(batchId as string),
     enabled: batchId !== null,
     refetchInterval: (query) => (query.state.data && TERMINAL_STATUSES.includes(query.state.data.status) ? false : 1000),
+  })
+
+  const downloadMutation = useMutation({
+    mutationFn: () => downloadImportBatchFailedRows(batchId as string, module),
+    onError: (error) => toastApiError(error),
   })
 
   const batch = batchQuery.data
@@ -98,6 +107,12 @@ export function LedgerImportReportDialog({ title, batchId, fetchBatch, onClose }
         )}
 
         <DialogFooter>
+          {batch?.has_failed_rows && (
+            <Button type="button" variant="outline" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>
+              <Download className="size-4" />
+              Unduh Baris Ditolak
+            </Button>
+          )}
           <Button type="button" onClick={onClose} disabled={!isDone}>
             {isDone ? 'Selesai' : <Loader2 className="size-4 animate-spin" />}
           </Button>
