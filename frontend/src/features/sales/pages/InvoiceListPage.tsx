@@ -264,6 +264,9 @@ export function InvoiceListPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => openPrintWindow(`/sales/invoices/print/invoices?ids=${[...selectedIds].join(',')}`)}>
+                    Print Invoices
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => openPrintWindow(`/sales/invoices/print/tanda-terima-invoice?ids=${[...selectedIds].join(',')}`)}>
                     Tanda Terima Invoice
                   </DropdownMenuItem>

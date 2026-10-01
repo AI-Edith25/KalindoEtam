@@ -47,6 +47,7 @@ import { InvoiceListPage } from '@/features/sales/pages/InvoiceListPage'
 import { InvoiceEditorPage } from '@/features/sales/pages/InvoiceEditorPage'
 import { InvoiceDetailPage } from '@/features/sales/pages/InvoiceDetailPage'
 import { InvoicePrintPage } from '@/features/sales/pages/InvoicePrintPage'
+import { InvoiceBulkPrintPage } from '@/features/sales/pages/InvoiceBulkPrintPage'
 import { TandaTerimaInvoicePrintPage } from '@/features/sales/pages/TandaTerimaInvoicePrintPage'
 import { LaporanPenagihanHarianPrintPage } from '@/features/sales/pages/LaporanPenagihanHarianPrintPage'
 import { CreditNoteListPage } from '@/features/sales/pages/CreditNoteListPage'
@@ -480,6 +481,14 @@ export function AppRouter() {
         <Route path="/sales/deliveries/:id/print" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryPrintPage /></ProtectedRoute>} />
         <Route path="/sales/deliveries/print-list" element={<ProtectedRoute permission="sales.deliveries.view"><DeliveryListPrintPage /></ProtectedRoute>} />
         <Route path="/sales/invoices/:id/print" element={<ProtectedRoute permission="sales.invoices.view"><InvoicePrintPage /></ProtectedRoute>} />
+        <Route
+          path="/sales/invoices/print/invoices"
+          element={
+            <ProtectedRoute permission="sales.invoices.view">
+              <InvoiceBulkPrintPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/sales/invoices/print/tanda-terima-invoice"
           element={
