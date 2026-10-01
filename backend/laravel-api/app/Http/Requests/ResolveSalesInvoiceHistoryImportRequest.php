@@ -19,7 +19,7 @@ class ResolveSalesInvoiceHistoryImportRequest extends FormRequest
             // preflight() found nothing to resolve (see StorePurchaseHistoryImportRequest's own
             // identical convention).
             'resolutions' => ['present', 'array'],
-            'resolutions.*.category' => ['required', Rule::in(['customer', 'item', 'duplicate'])],
+            'resolutions.*.category' => ['required', Rule::in(['customer', 'item', 'location', 'duplicate'])],
             'resolutions.*.value' => ['required', 'string'],
             'resolutions.*.action' => ['required', Rule::in(['map', 'skip', 'proceed'])],
             'resolutions.*.target_id' => ['nullable', 'uuid'],

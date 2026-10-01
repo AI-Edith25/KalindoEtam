@@ -75,7 +75,6 @@ class SalesInvoiceHistoryImportControllerTest extends TestCase
     {
         $response = $this->postJson('/api/v1/sales-invoice-history/import', [
             'file' => $this->validFile(),
-            'warehouse_id' => $this->warehouse->id,
         ])->assertCreated();
 
         $batch = $response->json('data');
@@ -100,14 +99,6 @@ class SalesInvoiceHistoryImportControllerTest extends TestCase
 
         $this->postJson('/api/v1/sales-invoice-history/import', [
             'file' => $csv,
-            'warehouse_id' => $this->warehouse->id,
-        ])->assertStatus(422);
-    }
-
-    public function test_store_requires_warehouse_id(): void
-    {
-        $this->postJson('/api/v1/sales-invoice-history/import', [
-            'file' => $this->validFile(),
         ])->assertStatus(422);
     }
 }

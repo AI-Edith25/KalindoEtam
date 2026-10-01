@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\ImportBatch;
 use App\Models\Invoice;
 use App\Models\Item;
+use App\Models\Warehouse;
 use App\Repositories\InvoiceItemRepository;
 use App\Repositories\InvoiceRepository;
 use App\Services\InvoiceService;
@@ -40,6 +41,13 @@ use Throwable;
  *
  * Customer/Item codes that don't resolve are map-to-existing-or-skip only — no auto-create of
  * master data (confirmed with the user), unlike Supplier in PurchaseHistoryImportService.
+ *
+ * Location (SalesInvoiceHistoryParser's per-invoice majority-voted LOCATION code, e.g. "BPP") is
+ * resolved against Warehouse the same way, but unlike customer/item it's optional - an unresolved
+ * code never rejects the document, it just leaves Invoice.location_warehouse_id null. Never written
+ * to Invoice.warehouse_id, which is Direct-Goods-only and drives real FIFO stock consumption
+ * (Invoice::isDirectGoods()) - confirmed with the user that a single file legitimately mixes
+ * multiple real-world locations, so there is no single "the" warehouse for a whole import batch.
  */
 class SalesInvoiceImportService
 {
@@ -65,7 +73,7 @@ class SalesInvoiceImportService
 
         $parsed = $this->parser->parse($rawRows);
 
-        [$customerClassification, $itemClassification, $duplicates] = $this->classify($parsed['invoices']);
+        [$customerClassification, $itemClassification, $locationClassification, $duplicates] = $this->classify($parsed['invoices']);
 
         return [
             'total_rows' => count($parsed['invoices']),
@@ -75,13 +83,13 @@ class SalesInvoiceImportService
                 ...$parsed['warnings'],
                 'Import ini tidak membuat entri Accounts Receivable maupun jurnal GL — AR/GL historis sudah diisi lewat import Customer Outstanding terpisah. Stock juga tidak berubah.',
             ],
-            'needs_resolution' => $this->buildResolutionList($customerClassification, $itemClassification, $duplicates),
+            'needs_resolution' => $this->buildResolutionList($customerClassification, $itemClassification, $locationClassification, $duplicates),
         ];
     }
 
     /**
-     * @return array{0: array, 1: array, 2: array<int,string>} [customerClassification, itemClassification,
-     *                                                           fileDocumentNumbersMatchingACancelledInvoice]
+     * @return array{0: array, 1: array, 2: array, 3: array<int,string>} [customerClassification, itemClassification,
+     *                                                           locationClassification, fileDocumentNumbersMatchingACancelledInvoice]
      *
      * A duplicate against a *live* (non-cancelled) Invoice is always rejected outright in
      * importOne() — see duplicateKeyField()/cancel() on Invoice, which frees its normalized slot
@@ -99,6 +107,8 @@ class SalesInvoiceImportService
 
         $customerClassification = $this->fkResolver->classify(Customer::class, 'customer_code', $customerCodes);
         $itemClassification = $this->fkResolver->classify(Item::class, 'item_code', $itemCodes);
+        $locationCodes = collect($invoices)->pluck('location_code')->filter()->unique()->values()->all();
+        $locationClassification = $this->classifyLocations($locationCodes);
 
         $cancelledNormalizedNumbers = Invoice::query()
             ->where('status', DocumentStatus::CANCELLED)
@@ -116,11 +126,48 @@ class SalesInvoiceImportService
             ->values()
             ->all();
 
-        return [$customerClassification, $itemClassification, $cancelledDuplicates];
+        return [$customerClassification, $itemClassification, $locationClassification, $cancelledDuplicates];
+    }
+
+    /**
+     * Prefix match only (confirmed with the user) — a file's LOCATION code (e.g. "BPP") is a prefix
+     * of an existing Warehouse's own code or name (e.g. "BPP" / "BPP - Gudang Utama"), not an exact
+     * or fuzzy match like FkResolver::classify() uses for customer/item. Kept separate from
+     * FkResolver rather than adding a mode flag there — a distinct matching strategy for a single
+     * caller doesn't belong in that shared, already-used-elsewhere contract.
+     *
+     * @param  array<int, string>  $codes
+     * @return array<string, array{status: string, id: string|null, suggestions: array<int, array{id: string, value: string, score: float}>}>
+     */
+    private function classifyLocations(array $codes): array
+    {
+        $warehouses = Warehouse::query()->get(['id', 'code', 'name']);
+        $result = [];
+
+        foreach ($codes as $code) {
+            $needle = mb_strtolower($code);
+            $match = $warehouses->first(
+                fn ($warehouse) => str_starts_with(mb_strtolower($warehouse->code), $needle) || str_starts_with(mb_strtolower($warehouse->name), $needle)
+            );
+
+            if ($match) {
+                $result[$code] = ['status' => 'match', 'id' => $match->id, 'suggestions' => []];
+
+                continue;
+            }
+
+            $result[$code] = [
+                'status' => 'no_match',
+                'id' => null,
+                'suggestions' => $warehouses->map(fn ($warehouse) => ['id' => $warehouse->id, 'value' => "{$warehouse->code} — {$warehouse->name}", 'score' => 0.0])->take(5)->all(),
+            ];
+        }
+
+        return $result;
     }
 
     /** @return array<int, array{category: string, value: string, status: string, suggestions: array}> */
-    private function buildResolutionList(array $customerClassification, array $itemClassification, array $duplicates): array
+    private function buildResolutionList(array $customerClassification, array $itemClassification, array $locationClassification, array $duplicates): array
     {
         $entries = [];
 
@@ -136,6 +183,12 @@ class SalesInvoiceImportService
             }
         }
 
+        foreach ($locationClassification as $value => $candidate) {
+            if ($candidate['status'] !== 'match') {
+                $entries[] = ['category' => 'location', 'value' => $value, 'status' => $candidate['status'], 'suggestions' => $candidate['suggestions']];
+            }
+        }
+
         foreach ($duplicates as $value) {
             $entries[] = ['category' => 'duplicate', 'value' => $value, 'status' => 'duplicate', 'suggestions' => []];
         }
@@ -145,16 +198,14 @@ class SalesInvoiceImportService
 
     public function import(ImportBatch $batch): void
     {
-        $mapping = $batch->mapping ?? [];
-        $warehouseId = $mapping['warehouse_id'] ?? null;
-        $resolutions = $batch->fk_resolutions ?? ['customer' => [], 'item' => [], 'duplicate' => []];
+        $resolutions = $batch->fk_resolutions ?? ['customer' => [], 'item' => [], 'location' => [], 'duplicate' => []];
 
         $extension = pathinfo($batch->file_path, PATHINFO_EXTENSION);
         $absolutePath = Storage::disk($batch->disk)->path($batch->file_path);
         $rawRows = ImportFileReader::readRaw($absolutePath, $extension);
         $parsed = $this->parser->parse($rawRows);
 
-        [$customerClassification, $itemClassification] = $this->classify($parsed['invoices']);
+        [$customerClassification, $itemClassification, $locationClassification] = $this->classify($parsed['invoices']);
 
         $batch->update(['status' => ImportBatchStatus::PROCESSING, 'started_at' => now(), 'total_rows' => count($parsed['invoices'])]);
 
@@ -164,12 +215,13 @@ class SalesInvoiceImportService
         $report = array_map(fn ($w) => ['document_number' => 'WARNING', 'status' => 'needs_review', 'reason' => $w], $parsed['warnings']);
         $customerCache = [];
         $itemCache = [];
+        $locationCache = [];
         $seenNormalizedNumbers = [];
 
         foreach ($parsed['invoices'] as $group) {
             $batch->increment('processed_rows');
 
-            $outcome = $this->importOne($group, $warehouseId, $customerClassification, $itemClassification, $resolutions, $customerCache, $itemCache, $batch, $seenNormalizedNumbers);
+            $outcome = $this->importOne($group, $customerClassification, $itemClassification, $locationClassification, $resolutions, $customerCache, $itemCache, $locationCache, $batch, $seenNormalizedNumbers);
             $report[] = $outcome;
 
             match ($outcome['status']) {
@@ -189,7 +241,7 @@ class SalesInvoiceImportService
         ImportErrorReportWriter::attachRejectedRows($batch, $report);
     }
 
-    private function importOne(array $group, ?string $warehouseId, array $customerClassification, array $itemClassification, array $resolutions, array &$customerCache, array &$itemCache, ImportBatch $batch, array &$seenNormalizedNumbers): array
+    private function importOne(array $group, array $customerClassification, array $itemClassification, array $locationClassification, array $resolutions, array &$customerCache, array &$itemCache, array &$locationCache, ImportBatch $batch, array &$seenNormalizedNumbers): array
     {
         $base = ['document_number' => $group['document_number']];
         $rejection = DocumentDuplicateChecker::reject(Invoice::class, $group['document_number'], $resolutions, $seenNormalizedNumbers, ['reference_1', 'reference_2']);
@@ -204,14 +256,16 @@ class SalesInvoiceImportService
             return [...$base, 'status' => 'needs_review', 'reason' => "Customer \"{$group['customer_code']}\" tidak di-resolve — dokumen dilewati."];
         }
 
+        // Cosmetic only (Invoice.location_warehouse_id) — an unresolved/blank code never rejects
+        // the document, unlike customer/item above. See this class's own docblock.
+        $locationWarehouseId = $group['location_code'] !== null
+            ? $this->resolveId($group['location_code'], $locationClassification, $resolutions['location'] ?? [], $locationCache)
+            : null;
+
         try {
             if ($group['type'] === 'transportation') {
-                $invoice = $this->createTransportationInvoice($group, $customerId);
+                $invoice = $this->createTransportationInvoice($group, $customerId, $locationWarehouseId);
             } else {
-                if ($warehouseId === null) {
-                    return [...$base, 'status' => 'failed', 'reason' => 'Warehouse belum dipilih untuk import ini.'];
-                }
-
                 $resolvedItemIds = [];
                 foreach ($group['items'] as $itemRow) {
                     $itemId = $this->resolveId($itemRow['item_code'], $itemClassification, $resolutions['item'] ?? [], $itemCache);
@@ -223,7 +277,7 @@ class SalesInvoiceImportService
                     $resolvedItemIds[] = $itemId;
                 }
 
-                $invoice = $this->createGoodsInvoice($group, $customerId, $warehouseId, $resolvedItemIds);
+                $invoice = $this->createGoodsInvoice($group, $customerId, $locationWarehouseId, $resolvedItemIds);
             }
 
             $invoice->update(['source' => 'import', 'import_batch_id' => $batch->id, 'imported_at' => now()]);
@@ -255,7 +309,7 @@ class SalesInvoiceImportService
         );
     }
 
-    private function createGoodsInvoice(array $group, string $customerId, string $warehouseId, array $resolvedItemIds): Invoice
+    private function createGoodsInvoice(array $group, string $customerId, ?string $locationWarehouseId, array $resolvedItemIds): Invoice
     {
         $itemsById = Item::query()->with('uom')->whereIn('id', array_unique($resolvedItemIds))->get()->keyBy('id');
 
@@ -280,11 +334,13 @@ class SalesInvoiceImportService
 
         [$discountAmount, $taxTotal, $grandTotal] = $this->totals($group, $subtotal, $taxTotal);
 
-        return DB::transaction(function () use ($group, $customerId, $warehouseId, $lines, $subtotal, $discountAmount, $taxTotal, $grandTotal) {
+        return DB::transaction(function () use ($group, $customerId, $locationWarehouseId, $lines, $subtotal, $discountAmount, $taxTotal, $grandTotal) {
             $invoice = $this->invoiceRepository->create([
                 'delivery_id' => null,
                 'sales_order_id' => null,
-                'warehouse_id' => $warehouseId,
+                // Never warehouse_id — that column is Direct-Goods-only and drives real FIFO stock
+                // consumption (Invoice::isDirectGoods()); a historical import never moves stock.
+                'location_warehouse_id' => $locationWarehouseId,
                 'customer_id' => $customerId,
                 'invoice_type' => InvoiceType::GOODS->value,
                 'invoice_date' => $group['date'],
@@ -326,7 +382,7 @@ class SalesInvoiceImportService
         });
     }
 
-    private function createTransportationInvoice(array $group, string $customerId): Invoice
+    private function createTransportationInvoice(array $group, string $customerId, ?string $locationWarehouseId): Invoice
     {
         $subtotal = 0.0;
         $taxTotal = 0.0;
@@ -343,10 +399,11 @@ class SalesInvoiceImportService
 
         [$discountAmount, $taxTotal, $grandTotal] = $this->totals($group, $subtotal, $taxTotal);
 
-        return DB::transaction(function () use ($group, $customerId, $lines, $subtotal, $discountAmount, $taxTotal, $grandTotal) {
+        return DB::transaction(function () use ($group, $customerId, $locationWarehouseId, $lines, $subtotal, $discountAmount, $taxTotal, $grandTotal) {
             $invoice = $this->invoiceRepository->create([
                 'delivery_id' => null,
                 'sales_order_id' => null,
+                'location_warehouse_id' => $locationWarehouseId,
                 'customer_id' => $customerId,
                 'invoice_type' => InvoiceType::TRANSPORTATION->value,
                 'invoice_date' => $group['date'],

@@ -5,8 +5,9 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * warehouse_id is only a formality field for Goods rows (createDirectGoods()'s required column) —
- * stock never actually moves for an imported historical invoice, see SalesInvoiceImportService.
+ * No warehouse_id here — Location is resolved per invoice from the file's own LOCATION column
+ * (SalesInvoiceHistoryParser/SalesInvoiceImportService::classifyLocations()), since a single file
+ * legitimately mixes invoices from multiple real-world locations.
  */
 class StoreSalesInvoiceHistoryImportRequest extends FormRequest
 {
@@ -19,7 +20,6 @@ class StoreSalesInvoiceHistoryImportRequest extends FormRequest
     {
         return [
             'file' => ['required', 'file', 'max:20480', 'mimes:csv,txt,xlsx,xls'],
-            'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
         ];
     }
 }

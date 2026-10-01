@@ -47,7 +47,6 @@ class SalesInvoiceHistoryImportController extends Controller
             'original_filename' => $file->getClientOriginalName(),
             'disk' => 'local',
             'file_path' => $path,
-            'mapping' => ['warehouse_id' => $request->string('warehouse_id')->value()],
             'total_rows' => $preflight['total_rows'],
             'preview_summary' => [
                 'valid_count' => $preflight['valid_count'],
@@ -66,7 +65,7 @@ class SalesInvoiceHistoryImportController extends Controller
         abort_unless($batch->module === 'sales-invoice-history', 404);
         abort_unless($batch->status === ImportBatchStatus::PREVIEWED, 422, 'This batch is not awaiting resolution.');
 
-        $resolutions = ['customer' => [], 'item' => [], 'duplicate' => []];
+        $resolutions = ['customer' => [], 'item' => [], 'location' => [], 'duplicate' => []];
 
         foreach ($request->input('resolutions', []) as $entry) {
             $resolutions[$entry['category']][$entry['value']] = ['action' => $entry['action'], 'target_id' => $entry['target_id'] ?? null];

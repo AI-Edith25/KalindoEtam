@@ -83,7 +83,6 @@ class SalesInvoiceImportServiceTest extends TestCase
             'original_filename' => 'test.csv',
             'disk' => 'local',
             'file_path' => $path,
-            'mapping' => ['warehouse_id' => $this->warehouse->id],
             'fk_resolutions' => $resolutions !== [] ? $resolutions : null,
         ]);
     }
@@ -108,6 +107,8 @@ class SalesInvoiceImportServiceTest extends TestCase
         $this->assertSame('submitted', $invoice->status->value);
         $this->assertSame('historical_invoice', $invoice->import_source_type);
         $this->assertSame('goods', $invoice->invoice_type->value);
+        $this->assertNull($invoice->warehouse_id, 'must never be set — that column is Direct-Goods-only and would falsely mark this as a stock-consuming invoice');
+        $this->assertNull($invoice->location_warehouse_id, 'no LOCATION column in this file — stays null, not an error');
         $this->assertEquals(100000, (float) $invoice->subtotal);
         $this->assertEquals(11000, (float) $invoice->tax_amount);
         $this->assertEquals(111000, (float) $invoice->grand_total);
@@ -349,7 +350,6 @@ class SalesInvoiceImportServiceTest extends TestCase
             'original_filename' => 'xlsSalesInvoiceListing_Detail.xlsx',
             'disk' => 'local',
             'file_path' => $path,
-            'mapping' => ['warehouse_id' => $this->warehouse->id],
         ]);
 
         $this->service->import($batch);
@@ -360,5 +360,105 @@ class SalesInvoiceImportServiceTest extends TestCase
         $this->assertSame(0, $batch->failed_rows, 'unresolved master data is reported as needs_review, never a hard failure');
         $this->assertSame(0, AccountsReceivable::query()->count());
         $this->assertSame(0, StockLedger::query()->count());
+    }
+
+    /**
+     * This file variant carries a per-item LOCATION column (BPP/SMD/GROGOT/MP/ANGKUT/MELAK) absent
+     * from the other reference file. Real customer codes in this file aren't seeded here (there are
+     * ~1000 distinct ones), so every row ends up needs_review on customer resolution — same "never
+     * a hard failure" smoke-test shape as the sibling real-file test above, just confirming the
+     * extra LOCATION column doesn't crash the parser.
+     */
+    public function test_real_file_with_a_location_column_completes_without_crashing(): void
+    {
+        $realFile = dirname(__DIR__, 4).'/xlsSalesInvoiceListing_Detail (1).xlsx';
+
+        if (! file_exists($realFile)) {
+            $this->markTestSkipped('Real "xlsSalesInvoiceListing_Detail (1).xlsx" sample not present in the project root.');
+        }
+
+        $path = 'imports/real-sales-invoice-location.xlsx';
+        Storage::disk('local')->put($path, file_get_contents($realFile));
+
+        $batch = ImportBatch::query()->create([
+            'module' => 'sales-invoice-history',
+            'status' => ImportBatchStatus::QUEUED,
+            'original_filename' => 'xlsSalesInvoiceListing_Detail (1).xlsx',
+            'disk' => 'local',
+            'file_path' => $path,
+        ]);
+
+        $this->service->import($batch);
+        $batch->refresh();
+
+        $this->assertEquals(ImportBatchStatus::COMPLETED, $batch->status, (string) $batch->failure_reason);
+        $this->assertGreaterThan(0, $batch->total_rows);
+        $this->assertSame(0, $batch->failed_rows, 'unresolved master data is reported as needs_review, never a hard failure');
+        $this->assertSame(0, AccountsReceivable::query()->count());
+        $this->assertSame(0, StockLedger::query()->count());
+        $this->assertSame(0, Invoice::query()->whereNotNull('warehouse_id')->count(), 'must never set the stock-consumption warehouse_id column');
+    }
+
+    /** Majority-vote: 2 of 3 item lines say "BPP", so the invoice resolves to the warehouse whose code starts with "BPP" — prefix match, not exact (confirmed with the user). */
+    public function test_location_resolves_via_majority_vote_and_prefix_match_to_warehouse(): void
+    {
+        $bpp = Warehouse::query()->create(['name' => 'Gudang BPP Utama', 'code' => 'BPP-01', 'warehouse_type' => WarehouseType::MAIN]);
+
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00010/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 300000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', '', 'BPP'],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', '', 'SMD'],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', '', 'BPP'],
+        ]);
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+        $batch->refresh();
+
+        $this->assertEquals(ImportBatchStatus::COMPLETED, $batch->status, (string) $batch->failure_reason);
+        $this->assertSame(1, $batch->success_rows);
+
+        $invoice = Invoice::query()->where('source_document_number', 'SI/KE/00010/09/2026')->firstOrFail();
+        $this->assertSame($bpp->id, $invoice->location_warehouse_id);
+        $this->assertNull($invoice->warehouse_id);
+    }
+
+    /** An unresolved location code never blocks the document — only customer/item do. */
+    public function test_an_unresolved_location_code_does_not_block_the_invoice(): void
+    {
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00011/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', '', 'NOWHERE'],
+        ]);
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+        $batch->refresh();
+
+        $this->assertSame(1, $batch->success_rows);
+        $invoice = Invoice::query()->where('source_document_number', 'SI/KE/00011/09/2026')->firstOrFail();
+        $this->assertNull($invoice->location_warehouse_id);
+    }
+
+    /** A location resolution entry maps the unresolved code to a chosen Warehouse, same mechanism as customer/item mapping. */
+    public function test_an_unresolved_location_code_can_be_mapped_via_resolution(): void
+    {
+        $other = Warehouse::query()->create(['name' => 'Gudang Lain', 'code' => 'XYZ', 'warehouse_type' => WarehouseType::MAIN]);
+
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00012/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 100000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', '', 'NOWHERE'],
+        ]);
+
+        $batch = $this->makeBatch($csv, [
+            'location' => ['NOWHERE' => ['action' => 'map', 'target_id' => $other->id]],
+        ]);
+        $this->service->import($batch);
+
+        $invoice = Invoice::query()->where('source_document_number', 'SI/KE/00012/09/2026')->firstOrFail();
+        $this->assertSame($other->id, $invoice->location_warehouse_id);
     }
 }

@@ -29,6 +29,15 @@ namespace App\Services\Import;
  * The file ends with a "TAX SUMMARY" block then a "Printed By :" trailer — parsing stops at the
  * first row whose column 0 is exactly "TAX SUMMARY" (fallback: a "Printed By" prefix), same
  * trailer-detection style ProductSalesArchiveImportService already uses.
+ *
+ * Some file exports carry an extra per-item LOCATION column (spreadsheet column N, 0-indexed 13) —
+ * absent in older exports, read defensively via `?? null`. Confirmed against a real multi-location
+ * export: a single file legitimately mixes invoices from different locations (BPP/SMD/GROGOT/MP/
+ * ANGKUT/MELAK), so this is read per item line and majority-voted per invoice (see
+ * majorityLocation()) rather than asking the operator for one warehouse for the whole file —
+ * SalesInvoiceImportService::classifyLocations() resolves the winning code against Warehouse
+ * master. Never used to set Invoice.warehouse_id (that column is Direct-Goods-only, drives real
+ * stock consumption) — only the cosmetic Invoice.location_warehouse_id.
  */
 final class SalesInvoiceHistoryParser
 {
@@ -144,6 +153,7 @@ final class SalesInvoiceHistoryParser
                 'disc' => DataCleaner::normalizeNumber($row[7] ?? null) ?? 0.0,
                 'tax' => DataCleaner::normalizeNumber($row[8] ?? null) ?? 0.0,
                 'line_amount' => $lineAmount,
+                'location' => DataCleaner::normalizeText($this->toStringOrNull($row[13] ?? null)),
             ];
         }
 
@@ -160,10 +170,39 @@ final class SalesInvoiceHistoryParser
                 continue;
             }
 
+            $invoice['location_code'] = $this->majorityLocation($invoice['items']);
             $withItems[] = $invoice;
         }
 
         return ['invoices' => $withItems, 'warnings' => $warnings];
+    }
+
+    /**
+     * The LOCATION code appearing most often among an invoice's own item lines — ties broken by
+     * first-seen order (stable, deterministic). Blank/missing values are ignored entirely; returns
+     * null only when every line is blank (normal for file variants with no LOCATION column at all).
+     */
+    private function majorityLocation(array $items): ?string
+    {
+        $counts = [];
+
+        foreach ($items as $item) {
+            $location = $item['location'] ?? null;
+
+            if ($location === null) {
+                continue;
+            }
+
+            $counts[$location] = ($counts[$location] ?? 0) + 1;
+        }
+
+        if ($counts === []) {
+            return null;
+        }
+
+        arsort($counts);
+
+        return array_key_first($counts);
     }
 
     private function isBlankRow(array $row): bool

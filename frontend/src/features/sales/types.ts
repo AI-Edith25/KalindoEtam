@@ -543,7 +543,7 @@ export interface DebitNoteFormValues {
  * queue step" contract as Purchase History import.
  */
 export type SalesInvoiceHistoryImportBatchStatus = 'previewed' | 'queued' | 'processing' | 'completed' | 'failed'
-export type SalesInvoiceHistoryResolutionCategory = 'customer' | 'item' | 'duplicate'
+export type SalesInvoiceHistoryResolutionCategory = 'customer' | 'item' | 'location' | 'duplicate'
 export type SalesInvoiceHistoryResolutionAction = 'map' | 'skip' | 'proceed'
 
 export interface SalesInvoiceHistoryFkSuggestion {

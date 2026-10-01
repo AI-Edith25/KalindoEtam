@@ -13,11 +13,10 @@ export interface SalesInvoiceHistoryResolutionInput {
   target_id?: string | null
 }
 
-/** warehouseId is only a formality field for Goods rows — stock never actually moves, see the backend's SalesInvoiceImportService. */
-export async function storeSalesInvoiceHistoryImport(file: File, warehouseId: string): Promise<SalesInvoiceHistoryImportBatch> {
+/** Location is resolved per invoice from the file's own LOCATION column (SalesInvoiceImportService::classifyLocations()) — no upfront Warehouse to pick. */
+export async function storeSalesInvoiceHistoryImport(file: File): Promise<SalesInvoiceHistoryImportBatch> {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('warehouse_id', warehouseId)
 
   const { data } = await apiClient.post<ApiResponse<SalesInvoiceHistoryImportBatch>>('/sales-invoice-history/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

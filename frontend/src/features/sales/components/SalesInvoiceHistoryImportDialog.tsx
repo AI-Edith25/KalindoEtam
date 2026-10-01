@@ -7,11 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { downloadImportBatchFailedRows } from '@/shared/lib/downloadImportBatchFailedRows'
-import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import {
   fetchSalesInvoiceHistoryImportBatch,
   resolveSalesInvoiceHistoryImport,
@@ -38,23 +36,21 @@ interface SalesInvoiceHistoryImportDialogProps {
 
 /**
  * One file shape only ("Sales Invoice Listing - Detail") — simpler than
- * PurchaseHistoryImportDialog's multi-type dance. The only setup input is a Warehouse (a formality
- * field for Goods rows; stock never actually moves — see the backend's SalesInvoiceImportService).
+ * PurchaseHistoryImportDialog's multi-type dance. No upfront Warehouse picker — Location is
+ * resolved per invoice from the file's own LOCATION column (see the backend's
+ * SalesInvoiceImportService::classifyLocations()), since a single file legitimately mixes
+ * invoices from multiple real-world locations.
  */
 export function SalesInvoiceHistoryImportDialog({ open, onClose, onImported }: SalesInvoiceHistoryImportDialogProps) {
   const [step, setStep] = useState<Step>('setup')
   const [file, setFile] = useState<File | null>(null)
-  const [warehouseId, setWarehouseId] = useState<string>()
   const [summary, setSummary] = useState<SalesInvoiceHistoryImportPreviewSummary | null>(null)
   const [resolutions, setResolutions] = useState<ResolutionState>({})
   const [batchId, setBatchId] = useState<string | null>(null)
 
-  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup, enabled: open })
-
   const reset = () => {
     setStep('setup')
     setFile(null)
-    setWarehouseId(undefined)
     setSummary(null)
     setResolutions({})
     setBatchId(null)
@@ -66,7 +62,7 @@ export function SalesInvoiceHistoryImportDialog({ open, onClose, onImported }: S
   }
 
   const uploadMutation = useMutation({
-    mutationFn: () => storeSalesInvoiceHistoryImport(file as File, warehouseId as string),
+    mutationFn: () => storeSalesInvoiceHistoryImport(file as File),
     onSuccess: (batch) => {
       setBatchId(batch.id)
       setSummary(batch.preview_summary ?? null)
@@ -110,9 +106,10 @@ export function SalesInvoiceHistoryImportDialog({ open, onClose, onImported }: S
     setResolutions((prev) => ({ ...prev, [resolutionKey(category, value)]: { action, target_id: targetId } }))
   }
 
-  // Duplicates default to skip on the backend even with no entry here, so only
-  // customer/item unresolved values gate the "Process" button.
-  const requiredEntries = (needsResolution ?? []).filter((entry) => entry.category !== 'duplicate')
+  // Duplicates default to skip, and an unresolved location just leaves location_warehouse_id null
+  // (cosmetic-only field) — both resolve themselves with no operator input, so only customer/item
+  // unresolved values gate the "Process" button.
+  const requiredEntries = (needsResolution ?? []).filter((entry) => entry.category !== 'duplicate' && entry.category !== 'location')
   const allResolved = requiredEntries.every((entry) => resolutions[resolutionKey(entry.category, entry.value)] !== undefined)
 
   const batch = batchQuery.data
@@ -122,7 +119,7 @@ export function SalesInvoiceHistoryImportDialog({ open, onClose, onImported }: S
   const warnings = batch?.preview_summary?.warnings ?? []
   const needsReviewCount = batch?.preview_summary?.needs_review_rows ?? 0
 
-  const canUpload = !!file && !!warehouseId
+  const canUpload = !!file
 
   return (
     <Dialog
@@ -155,19 +152,6 @@ export function SalesInvoiceHistoryImportDialog({ open, onClose, onImported }: S
                 accept=".csv,.xlsx,.xls"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 className="text-sm"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Warehouse</label>
-              <p className="text-xs text-muted-foreground">Data historis ini tidak terikat stock — Warehouse hanya diperlukan sebagai kelengkapan data Invoice, tidak memengaruhi stock.</p>
-              <SearchableSelect
-                options={(warehousesQuery.data ?? []).map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` }))}
-                value={warehouseId}
-                onChange={(value) => setWarehouseId(value)}
-                loading={warehousesQuery.isLoading}
-                placeholder="Pilih warehouse…"
-                clearable={false}
               />
             </div>
           </div>
@@ -225,11 +209,13 @@ export function SalesInvoiceHistoryImportDialog({ open, onClose, onImported }: S
                             }}
                           >
                             <SelectTrigger className="w-64">
-                              <SelectValue placeholder={entry.category === 'duplicate' ? 'Skip (default)' : 'Pilih…'} />
+                              <SelectValue placeholder={entry.category === 'duplicate' || entry.category === 'location' ? 'Biarkan kosong (default)' : 'Pilih…'} />
                             </SelectTrigger>
                             <SelectContent>
                               {entry.category === 'duplicate' ? (
                                 <SelectItem value="proceed:">Import ulang (proceed)</SelectItem>
+                              ) : entry.category === 'location' ? (
+                                <SelectItem value="skip:">Biarkan kosong (lokasi tidak diisi)</SelectItem>
                               ) : (
                                 <SelectItem value="skip:">Skip dokumen ini</SelectItem>
                               )}
