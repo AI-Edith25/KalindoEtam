@@ -439,16 +439,17 @@ class PaymentAllocationTest extends TestCase
         $this->assertSoftDeleted('receipt_entries', ['id' => $draftPayment->id]);
     }
 
-    /** "Posted" payment (submitted, per this app's Documentable status) must be immutable — same precedent as every other document module. */
-    public function test_a_submitted_payment_cannot_be_updated_or_deleted(): void
+    /**
+     * Deleting a submitted payment stays blocked — but editing it is now allowed
+     * (reverse+repost its journal), same "allow it, don't lock it forever" policy
+     * as the Goods Receipt confirmed-edit precedent. See ReceiptEntryEditSubmittedTest.
+     */
+    public function test_a_submitted_payment_can_be_updated_but_not_deleted(): void
     {
         $payment = $this->submittedPayment(50000);
 
-        try {
-            $this->receiptEntryService->update($payment, ['total_amount' => 99999]);
-            $this->fail('Expected updating a submitted payment to throw.');
-        } catch (BusinessException) {
-        }
+        $this->receiptEntryService->update($payment, ['total_amount' => 99999]);
+        $this->assertDatabaseHas('receipt_entries', ['id' => $payment->id, 'total_amount' => 99999]);
 
         try {
             $this->receiptEntryService->delete($payment);
@@ -456,7 +457,7 @@ class PaymentAllocationTest extends TestCase
         } catch (BusinessException) {
         }
 
-        $this->assertDatabaseHas('receipt_entries', ['id' => $payment->id, 'total_amount' => 50000, 'deleted_at' => null]);
+        $this->assertDatabaseHas('receipt_entries', ['id' => $payment->id, 'deleted_at' => null]);
     }
 
     public function test_second_allocation_fails_once_receivable_outstanding_is_exhausted(): void

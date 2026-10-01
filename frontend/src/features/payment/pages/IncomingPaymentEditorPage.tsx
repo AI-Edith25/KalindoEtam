@@ -121,8 +121,8 @@ export function IncomingPaymentEditorPage() {
     const receipt = receiptQuery.data
     if (!receipt) return
 
-    if (receipt.status !== 'draft') {
-      toast.error('Only draft payments can be edited.')
+    if (receipt.status === 'cancelled') {
+      toast.error('Cancelled payments cannot be edited.')
       navigate(`/finance/incoming/${receipt.id}`, { replace: true })
       return
     }
@@ -421,7 +421,7 @@ export function IncomingPaymentEditorPage() {
             </Card>
           )}
 
-          {customerId && (
+          {customerId && (!isEdit || receiptQuery.data?.status === 'draft') && (
             <Card>
               <CardHeader>
                 <CardTitle>Outstanding Invoices</CardTitle>
@@ -439,11 +439,13 @@ export function IncomingPaymentEditorPage() {
           )}
 
           <p className="text-right text-sm text-muted-foreground">
-            {isEdit && receiptQuery.data?.status === 'draft'
-              ? allocations.size > 0
-                ? 'Confirming marks the money as received and allocates it to the invoices checked above.'
-                : 'Saving records the payment. Confirming marks the money as received — allocate it to an invoice afterward.'
-              : 'Saving records the payment as a draft — nothing is received until you confirm it.'}
+            {isEdit && receiptQuery.data?.status === 'submitted'
+              ? 'This payment was already confirmed — saving corrects it in place and reposts its journal entry.'
+              : isEdit && receiptQuery.data?.status === 'draft'
+                ? allocations.size > 0
+                  ? 'Confirming marks the money as received and allocates it to the invoices checked above.'
+                  : 'Saving records the payment. Confirming marks the money as received — allocate it to an invoice afterward.'
+                : 'Saving records the payment as a draft — nothing is received until you confirm it.'}
           </p>
 
           <div className="flex justify-end gap-2">
@@ -452,7 +454,7 @@ export function IncomingPaymentEditorPage() {
             </Button>
             <Button type="submit" variant="outline" disabled={saveMutation.isPending}>
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save Draft
+              {isEdit && receiptQuery.data?.status === 'submitted' ? 'Save Changes' : 'Save Draft'}
             </Button>
             {isEdit && receiptQuery.data?.status === 'draft' && (
               <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>

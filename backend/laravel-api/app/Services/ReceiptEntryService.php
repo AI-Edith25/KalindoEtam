@@ -54,15 +54,57 @@ class ReceiptEntryService
     public function update(ReceiptEntry $receiptEntry, array $data): ReceiptEntry
     {
         return DB::transaction(function () use ($receiptEntry, $data) {
-            $this->assertDraft($receiptEntry, 'updated');
+            if ($receiptEntry->status === DocumentStatus::CANCELLED) {
+                throw new BusinessException('Cancelled Receipt Entries cannot be edited.');
+            }
 
-            $this->receiptEntryRepository->update($receiptEntry, $data);
+            if ($receiptEntry->status === DocumentStatus::SUBMITTED) {
+                $this->updateSubmitted($receiptEntry, $data);
+            } else {
+                $this->receiptEntryRepository->update($receiptEntry, $data);
+            }
 
             $receiptEntry = $receiptEntry->fresh(['customer', 'branch']);
             $this->auditLogService->record('updated', 'receipt_entry', "Updated Receipt Entry \"{$receiptEntry->document_number}\".");
 
             return $receiptEntry;
         });
+    }
+
+    /**
+     * Submitted receipts may still be corrected (wrong cash account, amount,
+     * customer) — same "allow it, don't block" policy the GR module uses for
+     * confirmed-document edits. Only the journal needs reverse+repost;
+     * allocation is a separate, later operation (PaymentAllocationService)
+     * so it's left untouched unless the edit would make it inconsistent.
+     */
+    protected function updateSubmitted(ReceiptEntry $receiptEntry, array $data): void
+    {
+        $newTotal = (float) ($data['total_amount'] ?? $receiptEntry->total_amount);
+
+        if ($newTotal < (float) $receiptEntry->allocated_amount) {
+            throw new BusinessException("Total amount cannot be less than the amount already allocated ({$receiptEntry->allocated_amount}). Reverse the allocation first.");
+        }
+
+        if (array_key_exists('customer_id', $data) && $data['customer_id'] !== $receiptEntry->customer_id && (float) $receiptEntry->allocated_amount > 0) {
+            throw new BusinessException('Customer cannot be changed once this payment has been allocated to invoices. Reverse the allocation first.');
+        }
+
+        $journalAffectingFields = ['total_amount', 'cash_account_id', 'customer_id'];
+        $journalChanged = collect($journalAffectingFields)->contains(
+            fn (string $field) => array_key_exists($field, $data) && (string) $data[$field] !== (string) $receiptEntry->{$field}
+        );
+
+        if ($journalChanged) {
+            $this->accountingService->reverseForDocument($receiptEntry);
+        }
+
+        $this->receiptEntryRepository->update($receiptEntry, $data);
+
+        if ($journalChanged) {
+            $receiptEntry = $receiptEntry->fresh(['customer', 'cashAccount']);
+            $this->accountingService->postForDocument($receiptEntry, $receiptEntry->journalLines(), "Receipt {$receiptEntry->document_number}", $receiptEntry->receipt_date->toDateString());
+        }
     }
 
     public function delete(ReceiptEntry $receiptEntry): void

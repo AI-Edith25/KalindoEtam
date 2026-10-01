@@ -100,6 +100,12 @@ export function IncomingPaymentDetailPage() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
+              {receipt.status !== 'cancelled' && (
+                <Button variant="outline" onClick={() => navigate(`/finance/incoming/${receipt.id}/edit`)}>
+                  <Pencil className="size-4" />
+                  Edit
+                </Button>
+              )}
               <Button variant="outline" onClick={() => openPrintWindow(`/finance/incoming/${receipt.id}/print`)}>
                 <Printer className="size-4" />
                 Print

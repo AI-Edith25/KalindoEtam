@@ -103,18 +103,19 @@ export function IncomingPaymentListPage() {
   const actionsFor = (receipt: ReceiptEntry): RowAction[] => {
     const actions: RowAction[] = [{ label: 'View', icon: Eye, onClick: () => navigate(`/finance/incoming/${receipt.id}`) }]
 
+    if (receipt.status !== 'cancelled' && canUpdate) {
+      actions.push({ label: 'Edit', icon: Pencil, onClick: () => navigate(`/finance/incoming/${receipt.id}/edit`) })
+    }
+
     if (receipt.status === 'draft') {
       if (canUpdate) {
-        actions.push(
-          { label: 'Edit', icon: Pencil, onClick: () => navigate(`/finance/incoming/${receipt.id}/edit`) },
-          { label: 'Confirm Payment', icon: Send, onClick: () => submitMutation.mutate(receipt.id) },
-        )
+        actions.push({ label: 'Confirm Payment', icon: Send, onClick: () => submitMutation.mutate(receipt.id) })
       }
       if (canDelete) {
         actions.push({ label: 'Delete', icon: Trash2, variant: 'destructive', onClick: () => setDeletingReceipt(receipt) })
       }
     }
-    // submitted is terminal — Receipt Entry has no cancel action (see receiptEntryApi.ts).
+    // submitted is terminal for delete/confirm — Receipt Entry has no cancel action (see receiptEntryApi.ts). Edit is still allowed; see ReceiptEntryService::updateSubmitted().
 
     return actions
   }
