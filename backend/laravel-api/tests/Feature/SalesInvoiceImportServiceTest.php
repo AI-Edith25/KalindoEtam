@@ -2,15 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AccountType;
 use App\Enums\ImportBatchStatus;
 use App\Enums\WarehouseType;
 use App\Models\AccountsReceivable;
+use App\Models\ChartOfAccount;
 use App\Models\Customer;
 use App\Models\ImportBatch;
 use App\Models\Invoice;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\JournalEntry;
+use App\Models\MiscellaneousItem;
 use App\Models\StockLedger;
 use App\Models\UnitOfMeasurement;
 use App\Models\Warehouse;
@@ -142,6 +145,44 @@ class SalesInvoiceImportServiceTest extends TestCase
         $this->assertNull($invoice->items->first()->item_id);
         $this->assertSame('BIAYA TRANSPORT', $invoice->items->first()->item_name);
         $this->assertEquals(50000, (float) $invoice->grand_total);
+    }
+
+    public function test_goods_row_item_code_falls_back_to_miscellaneous_master_when_not_a_real_item(): void
+    {
+        $salesAccount = ChartOfAccount::query()->create(['code' => '4900', 'name' => 'Misc Sales Income', 'account_type' => AccountType::REVENUE]);
+        $purchaseAccount = ChartOfAccount::query()->create(['code' => '5900', 'name' => 'Misc Purchase Expense', 'account_type' => AccountType::EXPENSE]);
+        $misc = MiscellaneousItem::query()->create([
+            'misc_code' => 'TRANSPORT',
+            'description' => 'Ongkos Angkut',
+            'sales_account_id' => $salesAccount->id,
+            'purchase_account_id' => $purchaseAccount->id,
+        ]);
+
+        $csv = $this->csv([
+            ...self::PREAMBLE,
+            ['30/09/2026', 'SI/KE/00099/09/2026', 'CUST1', 'Test Customer', '', '', '', 0, 0, '', 161000, '', ''],
+            ['ITEM1', '', 'Test Item', '', 'ZAK', 10, 10000, 0, 0, '', 100000, '', ''],
+            ['TRANSPORT', '', 'BIAYA TRANSPORT', '', 'ZAK', 5, 12200, 0, 0, '', 61000, '', ''],
+        ]);
+
+        $batch = $this->makeBatch($csv);
+        $this->service->import($batch);
+        $batch->refresh();
+
+        $this->assertEquals(ImportBatchStatus::COMPLETED, $batch->status, (string) $batch->failure_reason);
+        $this->assertSame(1, $batch->success_rows, (string) json_encode($batch->preview_summary));
+
+        $invoice = Invoice::query()->where('source_document_number', 'SI/KE/00099/09/2026')->with('items')->firstOrFail();
+        $this->assertSame('goods', $invoice->invoice_type->value);
+        $this->assertCount(2, $invoice->items);
+
+        $itemLine = $invoice->items->firstWhere('item_code', 'ITEM1');
+        $this->assertSame($this->item->id, $itemLine->item_id);
+
+        $miscLine = $invoice->items->first(fn ($line) => $line->id !== $itemLine->id);
+        $this->assertNull($miscLine->item_id, 'misc-matched line stays freeform, like a Transportation invoice line');
+        $this->assertNull($miscLine->item_code);
+        $this->assertSame($misc->description, $miscLine->item_name);
     }
 
     public function test_unresolved_customer_is_needs_review_not_a_failure(): void

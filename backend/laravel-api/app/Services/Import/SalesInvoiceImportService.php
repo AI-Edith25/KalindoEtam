@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\ImportBatch;
 use App\Models\Invoice;
 use App\Models\Item;
+use App\Models\MiscellaneousItem;
 use App\Models\Warehouse;
 use App\Repositories\InvoiceItemRepository;
 use App\Repositories\InvoiceRepository;
@@ -41,6 +42,13 @@ use Throwable;
  *
  * Customer/Item codes that don't resolve are map-to-existing-or-skip only — no auto-create of
  * master data (confirmed with the user), unlike Supplier in PurchaseHistoryImportService.
+ *
+ * A Goods invoice's "ITEM" column doesn't only hold Item master codes — a line can also be a
+ * Miscellaneous charge billed alongside real items (e.g. "TRANSPORT" on an SI document, not its
+ * own TR document). classifyItemsOrMisc() tries Item.item_code first, then MiscellaneousItem.
+ * misc_code for whatever didn't match; a misc-matched line is written the same freeform way
+ * Transportation invoices already are (item_id/item_code null, item_name = description) — see
+ * createGoodsInvoice().
  *
  * Location (SalesInvoiceHistoryParser's per-invoice majority-voted LOCATION code, e.g. "BPP") is
  * resolved against Warehouse the same way, but unlike customer/item it's optional - an unresolved
@@ -106,7 +114,7 @@ class SalesInvoiceImportService
             ->all();
 
         $customerClassification = $this->fkResolver->classify(Customer::class, 'customer_code', $customerCodes);
-        $itemClassification = $this->fkResolver->classify(Item::class, 'item_code', $itemCodes);
+        $itemClassification = $this->classifyItemsOrMisc($itemCodes);
         $locationCodes = collect($invoices)->pluck('location_code')->filter()->unique()->values()->all();
         $locationClassification = $this->classifyLocations($locationCodes);
 
@@ -127,6 +135,42 @@ class SalesInvoiceImportService
             ->all();
 
         return [$customerClassification, $itemClassification, $locationClassification, $cancelledDuplicates];
+    }
+
+    /**
+     * Item master first; whatever doesn't match there is retried against MiscellaneousItem — see
+     * this class's own docblock. Each entry gets a 'kind' key ('item'|'misc') alongside FkResolver's
+     * usual status/id/suggestions shape, so downstream code knows which master a match came from.
+     *
+     * @param  array<int, string>  $itemCodes
+     * @return array<string, array{status: string, id: string|null, suggestions: array, kind: string}>
+     */
+    private function classifyItemsOrMisc(array $itemCodes): array
+    {
+        $itemMatches = $this->fkResolver->classify(Item::class, 'item_code', $itemCodes);
+
+        $unresolvedCodes = collect($itemMatches)
+            ->filter(fn ($candidate) => $candidate['status'] !== 'match')
+            ->keys()
+            ->all();
+
+        $miscMatches = $this->fkResolver->classify(MiscellaneousItem::class, 'misc_code', $unresolvedCodes);
+
+        $result = [];
+        foreach ($itemMatches as $code => $candidate) {
+            if ($candidate['status'] === 'match') {
+                $result[$code] = [...$candidate, 'kind' => 'item'];
+
+                continue;
+            }
+
+            $miscCandidate = $miscMatches[$code] ?? null;
+            $result[$code] = $miscCandidate !== null && $miscCandidate['status'] === 'match'
+                ? [...$miscCandidate, 'kind' => 'misc']
+                : [...$candidate, 'kind' => 'item'];
+        }
+
+        return $result;
     }
 
     /**
@@ -266,18 +310,18 @@ class SalesInvoiceImportService
             if ($group['type'] === 'transportation') {
                 $invoice = $this->createTransportationInvoice($group, $customerId, $locationWarehouseId);
             } else {
-                $resolvedItemIds = [];
+                $resolvedItems = [];
                 foreach ($group['items'] as $itemRow) {
-                    $itemId = $this->resolveId($itemRow['item_code'], $itemClassification, $resolutions['item'] ?? [], $itemCache);
+                    $resolved = $this->resolveItemOrMisc($itemRow['item_code'], $itemClassification, $resolutions['item'] ?? [], $itemCache);
 
-                    if ($itemId === null) {
+                    if ($resolved === null) {
                         return [...$base, 'status' => 'needs_review', 'reason' => "Item \"{$itemRow['item_code']}\" tidak di-resolve — dokumen dilewati."];
                     }
 
-                    $resolvedItemIds[] = $itemId;
+                    $resolvedItems[] = $resolved;
                 }
 
-                $invoice = $this->createGoodsInvoice($group, $customerId, $locationWarehouseId, $resolvedItemIds);
+                $invoice = $this->createGoodsInvoice($group, $customerId, $locationWarehouseId, $resolvedItems);
             }
 
             $invoice->update(['source' => 'import', 'import_batch_id' => $batch->id, 'imported_at' => now()]);
@@ -309,18 +353,24 @@ class SalesInvoiceImportService
         );
     }
 
-    private function createGoodsInvoice(array $group, string $customerId, ?string $locationWarehouseId, array $resolvedItemIds): Invoice
+    private function createGoodsInvoice(array $group, string $customerId, ?string $locationWarehouseId, array $resolvedItems): Invoice
     {
-        $itemsById = Item::query()->with('uom')->whereIn('id', array_unique($resolvedItemIds))->get()->keyBy('id');
+        $itemIds = collect($resolvedItems)->where('kind', 'item')->pluck('id')->unique()->all();
+        $miscIds = collect($resolvedItems)->where('kind', 'misc')->pluck('id')->unique()->all();
+
+        $itemsById = Item::query()->with('uom')->whereIn('id', $itemIds)->get()->keyBy('id');
+        $miscById = MiscellaneousItem::query()->whereIn('id', $miscIds)->get()->keyBy('id');
 
         $subtotal = 0.0;
         $taxTotal = 0.0;
         $lines = [];
 
         foreach ($group['items'] as $i => $itemRow) {
-            $item = $itemsById->get($resolvedItemIds[$i]);
+            $resolved = $resolvedItems[$i];
+            $item = $resolved['kind'] === 'item' ? $itemsById->get($resolved['id']) : null;
+            $misc = $resolved['kind'] === 'misc' ? $miscById->get($resolved['id']) : null;
 
-            if ($item === null) {
+            if ($item === null && $misc === null) {
                 throw new BusinessException("Item master tidak ditemukan untuk salah satu baris pada dokumen \"{$group['document_number']}\".");
             }
 
@@ -329,7 +379,7 @@ class SalesInvoiceImportService
             $amount = $qty * $rate;
             $subtotal += $amount;
             $taxTotal += $itemRow['tax'];
-            $lines[] = ['item' => $item, 'qty' => $qty, 'rate' => $rate, 'amount' => $amount, 'tax' => $itemRow['tax']];
+            $lines[] = ['item' => $item, 'description' => $misc?->description ?? $itemRow['description'], 'qty' => $qty, 'rate' => $rate, 'amount' => $amount, 'tax' => $itemRow['tax']];
         }
 
         [$discountAmount, $taxTotal, $grandTotal] = $this->totals($group, $subtotal, $taxTotal);
@@ -366,10 +416,10 @@ class SalesInvoiceImportService
                 $this->invoiceItemRepository->create([
                     'invoice_id' => $invoice->id,
                     'delivery_item_id' => null,
-                    'item_id' => $item->id,
-                    'item_code' => $item->item_code,
-                    'item_name' => $item->item_name,
-                    'uom' => $item->uom?->name,
+                    'item_id' => $item?->id,
+                    'item_code' => $item?->item_code,
+                    'item_name' => $item?->item_name ?? $line['description'],
+                    'uom' => $item?->uom?->name,
                     'rate' => $line['rate'],
                     'qty' => (int) round($line['qty']),
                     'amount' => round($line['amount'], 2),
@@ -455,6 +505,34 @@ class SalesInvoiceImportService
         }
 
         return [$discountAmount, $taxTotal, $grandTotal];
+    }
+
+    /**
+     * Like resolveId(), but the classification carries a 'kind' (item|misc) that the caller needs
+     * to pick the right master when building the InvoiceItem row. A manual resolution's target_id
+     * is always an Item id — the resolution UI only ever surfaces Item suggestions, never Misc ones.
+     *
+     * @return array{kind: string, id: string}|null
+     */
+    private function resolveItemOrMisc(string $code, array $classification, array $resolutions, array &$cache): ?array
+    {
+        if (array_key_exists($code, $cache)) {
+            return $cache[$code];
+        }
+
+        $candidate = $classification[$code] ?? null;
+
+        if ($candidate !== null && $candidate['status'] === 'match') {
+            return $cache[$code] = ['kind' => $candidate['kind'], 'id' => $candidate['id']];
+        }
+
+        $resolution = $resolutions[$code] ?? null;
+
+        if ($resolution === null || $resolution['action'] === 'skip' || ($resolution['target_id'] ?? null) === null) {
+            return $cache[$code] = null;
+        }
+
+        return $cache[$code] = ['kind' => 'item', 'id' => $resolution['target_id']];
     }
 
     /** Map-to-existing-or-skip only, no 'create' — see this class's own docblock. */
