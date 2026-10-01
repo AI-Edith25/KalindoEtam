@@ -46,6 +46,22 @@ import type { Delivery, Invoice, InvoiceFormValues, InvoiceType } from '../types
 
 const NO_TAX = '__none__'
 
+/**
+ * Draft invoice line, editable (Qty/Rate/Tax only — item identity and Delivery/Sales Order
+ * linkage stay locked, same shape as InvoiceSubmittedEditPage's own EditableLine for a
+ * Submitted invoice). Reachable before submit now too, since this is the one place the cement
+ * price (not yet set up as an Item's standard rate) gets corrected by hand.
+ */
+interface EditableInvoiceLine {
+  id: string
+  item_code: string | null
+  item_name: string
+  uom: string | null
+  qty: string
+  rate: string
+  tax_id: string
+}
+
 interface PreviewLine {
   id: string
   item_code: string | null
@@ -375,6 +391,17 @@ function InvoiceForm({
   // invoice_type is 'goods' for both Delivery-based and Direct Goods invoices — warehouse_id's
   // presence is what actually distinguishes them (see Invoice::isDirectGoods() on the backend).
   const isDirectGoods = isEdit ? !!invoice?.warehouse_id : isDirectGoodsCreate
+  // Draft invoices (both Delivery-based and Direct Goods) reaching this form — Submitted ones
+  // already route to InvoiceSubmittedEditPage — can have Qty/Rate/Tax corrected per line.
+  // Transportation keeps its own freestanding add/remove line editor instead (TransportLine).
+  const isEditableItemsMode = isEdit && !isTransportation
+  const [editableLines, setEditableLines] = useState<EditableInvoiceLine[]>(() =>
+    invoice
+      ? invoice.items.map((line) => ({ id: line.id, item_code: line.item_code, item_name: line.item_name, uom: line.uom, qty: String(line.qty), rate: String(line.rate), tax_id: line.tax_id ?? '' }))
+      : [],
+  )
+  const patchEditableLine = (lineId: string, patch: Partial<EditableInvoiceLine>) =>
+    setEditableLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)))
 
   // Transportation only — picked directly here instead of being derived from a Delivery.
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
@@ -515,22 +542,29 @@ function InvoiceForm({
     // []), since StoreInvoiceRequest's array/min:1 sub-rules only skip on null/absent, not on an
     // empty array. Goods (Direct) also sends warehouse_id — the field the backend actually uses
     // to route to that sub-flow (invoice_type stays 'goods' either way).
-    ...(isTransportation
-      ? {
-          customer_id: selectedCustomerId,
-          items: transportLines
-            .filter((line) => line.description.trim() !== '')
-            .map((line) => ({ description: line.description.trim(), qty: Number(line.qty) || 0, rate: Number(line.rate) || 0 })),
-        }
-      : isDirectGoods
+    ...(isEdit
+      ? // Items are only ever sent on edit when this draft's lines are actually editable
+        // (isEditableItemsMode) — UpdateInvoiceRequest has no delivery_ids/customer_id/warehouse_id
+        // fields at all, so those would just be silently dropped if sent.
+        isEditableItemsMode
+        ? { items: editableLines.map((line) => ({ id: line.id, qty: Number(line.qty) || 0, rate: Number(line.rate) || 0, tax_id: line.tax_id || null })) }
+        : {}
+      : isTransportation
         ? {
             customer_id: selectedCustomerId,
-            warehouse_id: directGoodsWarehouseId,
-            items: directGoodsLines
-              .filter((line) => line.item_id !== '')
-              .map((line) => ({ item_id: line.item_id, qty: Number(line.qty) || 0, rate: Number(line.rate) || 0, tax_id: line.tax_id || null })),
+            items: transportLines
+              .filter((line) => line.description.trim() !== '')
+              .map((line) => ({ description: line.description.trim(), qty: Number(line.qty) || 0, rate: Number(line.rate) || 0 })),
           }
-        : { delivery_ids: selectedDeliveries.map((delivery) => delivery.id) }),
+        : isDirectGoods
+          ? {
+              customer_id: selectedCustomerId,
+              warehouse_id: directGoodsWarehouseId,
+              items: directGoodsLines
+                .filter((line) => line.item_id !== '')
+                .map((line) => ({ item_id: line.item_id, qty: Number(line.qty) || 0, rate: Number(line.rate) || 0, tax_id: line.tax_id || null })),
+            }
+          : { delivery_ids: selectedDeliveries.map((delivery) => delivery.id) }),
     // Immutable once created (see invoiceFormSchema.ts) — only sent on create; UpdateInvoiceRequest
     // doesn't accept it, so omitting it here on edit is what the backend already expects.
     ...(isEdit ? {} : { invoice_type: selectedInvoiceType ?? undefined }),
@@ -604,7 +638,9 @@ function InvoiceForm({
     ? computeSubtotal(transportLines)
     : !isEdit && isDirectGoods
       ? computeSubtotal(directGoodsLines)
-      : previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
+      : isEditableItemsMode
+        ? computeSubtotal(editableLines)
+        : previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
   // Preview only — InvoiceService::resolveDiscount() on the backend is the authoritative
   // computation on save; this mirrors that same formula purely for instant visual feedback.
   const discountAmount =
@@ -619,7 +655,9 @@ function InvoiceForm({
     ? lineTaxAmount(subtotal, selectedTax)
     : !isEdit && isDirectGoods
       ? computeLineTaxTotal(directGoodsLines, (line) => taxOptions.find((tax) => tax.id === line.tax_id))
-      : previewLines.reduce((sum, line) => sum + Number(line.tax_amount || 0), 0)
+      : isEditableItemsMode
+        ? computeLineTaxTotal(editableLines, (line) => taxOptions.find((tax) => tax.id === line.tax_id))
+        : previewLines.reduce((sum, line) => sum + Number(line.tax_amount || 0), 0)
   const grandTotal = subtotal - discountAmount + watchedTax
 
   const onSubmit = form.handleSubmit((values) => {
@@ -1124,6 +1162,65 @@ function InvoiceForm({
                     </TableBody>
                   </Table>
                 </LineItemTableScroll>
+              ) : isEditableItemsMode ? (
+                <>
+                  <LineItemTableScroll>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
+                          <TableHead className="w-28 text-right">Qty</TableHead>
+                          <TableHead className="w-40 text-right">Rate</TableHead>
+                          <TableHead className="w-48">Tax</TableHead>
+                          <TableHead className="w-36 text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {editableLines.map((line) => (
+                          <TableRow key={line.id}>
+                            <TableCell className={STICKY_FIRST_COL}>
+                              <div className="truncate font-medium">{line.item_code ?? '—'}</div>
+                              <div className="truncate text-xs text-muted-foreground">
+                                {line.item_name}
+                                {line.uom ? ` · ${line.uom}` : ''}
+                              </div>
+                            </TableCell>
+                            <TableCell className="min-w-28">
+                              <Input
+                                type="number"
+                                min={1}
+                                step="1"
+                                className="text-right"
+                                value={line.qty}
+                                onChange={(event) => patchEditableLine(line.id, { qty: event.target.value })}
+                              />
+                            </TableCell>
+                            <TableCell className="min-w-40">
+                              <RupiahInput value={line.rate} onChange={(value) => patchEditableLine(line.id, { rate: value })} />
+                            </TableCell>
+                            <TableCell className="min-w-48">
+                              <Select value={line.tax_id || NO_TAX} onValueChange={(next) => patchEditableLine(line.id, { tax_id: next === NO_TAX ? '' : next })}>
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={NO_TAX}>No tax</SelectItem>
+                                  {taxOptions.map((tax) => (
+                                    <SelectItem key={tax.id} value={tax.id}>
+                                      {tax.name} ({tax.code}){tax.type === 'vat' ? ` — ${tax.rate}%` : ''}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency((Number(line.qty) || 0) * (Number(line.rate) || 0))}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </LineItemTableScroll>
+                  <p className="mt-2 text-sm text-muted-foreground">Item, UOM, and the Delivery/Sales Order it came from cannot be changed — only Qty, Rate, and Tax.</p>
+                </>
               ) : (
                 <>
                   <DataTable
@@ -1133,7 +1230,7 @@ function InvoiceForm({
                     emptyMessage="No line items."
                   />
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {invoiceType === 'transportation' || isDirectGoods
+                    {invoiceType === 'transportation'
                       ? 'Items cannot be changed after the invoice is created.'
                       : 'Items are copied from the Delivery and cannot be changed here — cancel and re-invoice if the Delivery was wrong.'}
                   </p>

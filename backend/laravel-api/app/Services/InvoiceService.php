@@ -353,7 +353,13 @@ class InvoiceService
         });
     }
 
-    /** Draft: only header fields are editable — never delivery_id, never items. Submitted: see updateSubmitted(). */
+    /**
+     * Draft: header fields are editable; never delivery_id. Qty/Rate/Tax per line are editable
+     * too (applyDraftItemChanges()) — same relaxation Submitted invoices already have
+     * (updateSubmitted()), just reachable before submit, with no stock/GL to reverse-and-repost
+     * since neither has posted yet at Draft. Transportation keeps using its own freestanding
+     * add/remove line editor on create and is never sent `items` here. Submitted: see updateSubmitted().
+     */
     public function update(Invoice $invoice, array $data): Invoice
     {
         if ($invoice->status === DocumentStatus::SUBMITTED) {
@@ -363,30 +369,44 @@ class InvoiceService
         return DB::transaction(function () use ($invoice, $data) {
             $this->assertDraft($invoice, 'updated');
 
+            if (isset($data['items']) && $invoice->invoice_type === InvoiceType::TRANSPORTATION) {
+                throw new BusinessException('Baris Transportation Invoice tidak bisa diubah lewat sini.');
+            }
+
+            if (isset($data['items'])) {
+                $this->applyDraftItemChanges($invoice, $data['items']);
+                $invoice->refresh();
+            }
+
+            $itemsChanged = isset($data['items']) && $invoice->invoice_type !== InvoiceType::TRANSPORTATION;
+            $subtotal = $itemsChanged ? round((float) $invoice->items()->sum('amount'), 2) : (float) $invoice->subtotal;
+
             // Only re-resolve discount when the caller actually touched it — otherwise keep the
             // invoice's existing discount_amount/discount_type/discount_percentage exactly as they were.
             if (array_key_exists('discount_type', $data) || array_key_exists('discount_amount', $data) || array_key_exists('discount_percentage', $data)) {
-                [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, (float) $invoice->subtotal);
+                [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
             } else {
                 $discountAmount = $invoice->discount_amount;
                 $discountType = $invoice->discount_type;
                 $discountPercentage = $invoice->discount_percentage;
             }
 
-            // Goods invoices never accept an independent tax choice — items aren't editable
-            // on Invoice (see this method's own docblock), so tax_id/tax_amount always stay
-            // whatever they were resolved to at creation (a sum of each line's own tax,
-            // copied forward from the source Delivery/Sales Order line), regardless of what
-            // the request sends. Only Transportation (no Sales Order, no Item-backed lines)
-            // re-resolves tax when the caller actually touches it.
+            // Goods invoices have no independent header tax choice — each line already carries
+            // its own tax, so the header figure is always a sum of the lines (copied forward from
+            // the source Delivery/Sales Order line at creation, or recomputed here when the
+            // caller just edited qty/rate/tax per line). Only Transportation (no Item-backed
+            // lines) re-resolves tax when the caller touches the header tax_id/tax_amount.
             if ($invoice->invoice_type === InvoiceType::TRANSPORTATION && (array_key_exists('tax_id', $data) || array_key_exists('tax_amount', $data))) {
-                [$taxId, $taxAmount] = $this->resolveTax($data, (float) $invoice->subtotal);
+                [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
+            } elseif ($itemsChanged) {
+                $taxId = $invoice->tax_id;
+                $taxAmount = round((float) $invoice->items()->sum('tax_amount'), 2);
             } else {
                 $taxId = $invoice->tax_id;
                 $taxAmount = $invoice->tax_amount;
             }
 
-            $grandTotal = $invoice->subtotal - $discountAmount + $taxAmount;
+            $grandTotal = round($subtotal - $discountAmount + $taxAmount, 2);
 
             if ($grandTotal < 0) {
                 throw new BusinessException('Grand total cannot be negative.');
@@ -397,6 +417,7 @@ class InvoiceService
                 'due_date' => $data['due_date'] ?? $invoice->due_date,
                 'terms_of_payment_id' => array_key_exists('terms_of_payment_id', $data) ? $data['terms_of_payment_id'] : $invoice->terms_of_payment_id,
                 'location_warehouse_id' => array_key_exists('location_warehouse_id', $data) ? $data['location_warehouse_id'] : $invoice->location_warehouse_id,
+                'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
                 'discount_type' => $discountType instanceof DiscountType ? $discountType->value : $discountType,
                 'discount_percentage' => $discountPercentage,
@@ -506,14 +527,11 @@ class InvoiceService
     /**
      * Item identity (item_id/item_code/item_name/uom) and Delivery/Sales Order linkage stay
      * locked — every incoming line must reference an existing InvoiceItem id, no add/remove; only
-     * qty/rate/tax_id change. Direct Goods reverses+reposts real stock/FIFO around the edit
-     * (reusing postDirectGoodsStock()/reverseDirectGoodsStock() verbatim — no new stock code);
-     * every other Goods invoice never touches stock (the source Delivery already did), it just
-     * recomputes amount/tax_amount and rescales the frozen COGS snapshot — unit_cost is a
-     * per-unit figure and stays valid, only the extended cost_amount needs to track the new qty
-     * so Gross Profit/Product Sales reporting doesn't go stale against it.
+     * qty/rate/tax_id change. Shared by both a Draft edit (update(), no stock/GL posted yet — see
+     * applyDraftItemChanges' own docblock) and a Submitted edit (applySubmittedItemChanges(),
+     * which wraps this with the stock/GL side effects its own docblock covers).
      */
-    protected function applySubmittedItemChanges(Invoice $invoice, array $items): void
+    protected function applyItemChanges(Invoice $invoice, array $items): void
     {
         $invoice->load('items');
         $existing = $invoice->items->keyBy('id');
@@ -521,12 +539,6 @@ class InvoiceService
 
         if ($incomingIds->count() !== count($items) || $incomingIds->diff($existing->keys())->isNotEmpty() || $existing->keys()->diff($incomingIds)->isNotEmpty()) {
             throw new BusinessException('Baris Invoice tidak bisa ditambah atau dihapus — hanya Qty, Rate, dan Tax yang bisa diubah.');
-        }
-
-        $isDirectGoods = $invoice->isDirectGoods();
-
-        if ($isDirectGoods) {
-            $this->reverseDirectGoodsStock($invoice);
         }
 
         $incomingById = collect($items)->keyBy('id');
@@ -552,6 +564,38 @@ class InvoiceService
 
             $this->invoiceItemRepository->update($line, $attributes);
         }
+    }
+
+    /**
+     * Draft counterpart to applySubmittedItemChanges() — no stock/FIFO or GL/AR side effects to
+     * reverse-and-repost, since a Draft invoice (Direct Goods included — see
+     * postDirectGoodsStock()'s own docblock, "StockLedger/FIFO posting happens at submit(), never
+     * at create") has never posted either yet. Just applies the Qty/Rate/Tax change directly.
+     */
+    protected function applyDraftItemChanges(Invoice $invoice, array $items): void
+    {
+        $this->applyItemChanges($invoice, $items);
+    }
+
+    /**
+     * Item identity (item_id/item_code/item_name/uom) and Delivery/Sales Order linkage stay
+     * locked — every incoming line must reference an existing InvoiceItem id, no add/remove; only
+     * qty/rate/tax_id change (applyItemChanges()). Direct Goods reverses+reposts real stock/FIFO
+     * around the edit (reusing postDirectGoodsStock()/reverseDirectGoodsStock() verbatim — no new
+     * stock code); every other Goods invoice never touches stock (the source Delivery already
+     * did), it just recomputes amount/tax_amount and rescales the frozen COGS snapshot —
+     * unit_cost is a per-unit figure and stays valid, only the extended cost_amount needs to
+     * track the new qty so Gross Profit/Product Sales reporting doesn't go stale against it.
+     */
+    protected function applySubmittedItemChanges(Invoice $invoice, array $items): void
+    {
+        $isDirectGoods = $invoice->isDirectGoods();
+
+        if ($isDirectGoods) {
+            $this->reverseDirectGoodsStock($invoice);
+        }
+
+        $this->applyItemChanges($invoice, $items);
 
         if ($isDirectGoods) {
             $this->postDirectGoodsStock($invoice->fresh(['items']));
