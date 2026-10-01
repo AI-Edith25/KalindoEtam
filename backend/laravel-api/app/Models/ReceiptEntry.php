@@ -89,7 +89,9 @@ class ReceiptEntry extends Model
      */
     public function unallocatedAmount(): float
     {
-        return (float) $this->total_amount - (float) $this->allocated_amount;
+        // Rounded to 2dp — see AccountsReceivableService::assertWithinOutstanding()'s own note on
+        // why raw subtraction of two decimal-cast columns needs this.
+        return round((float) $this->total_amount - (float) $this->allocated_amount, 2);
     }
 
     /**

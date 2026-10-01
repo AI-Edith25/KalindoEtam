@@ -315,7 +315,9 @@ class AccountsReceivableAgingReportService
     /** @return array<string, mixed> */
     private function shapeRow(AccountsReceivable $row, Carbon $asAt): array
     {
-        $outstanding = (float) $row->amount - (float) $row->paid_amount;
+        // Rounded to 2dp — raw subtraction of two decimal-cast columns can leave binary-float noise
+        // past the 2nd decimal (see AccountsReceivableService::assertWithinOutstanding()'s own note).
+        $outstanding = round((float) $row->amount - (float) $row->paid_amount, 2);
         $invoiceDate = $row->invoice?->invoice_date ?? $asAt;
         $overdue = $this->accountsReceivableService->overdueFigures($row->due_date, $outstanding, $asAt);
 

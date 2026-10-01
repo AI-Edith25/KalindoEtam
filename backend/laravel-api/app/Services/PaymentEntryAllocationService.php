@@ -61,7 +61,9 @@ class PaymentEntryAllocationService
             $allocations = new Collection();
 
             foreach ($lines as $line) {
-                $amount = (float) $line['amount'];
+                // Rounded to 2dp — same binary-float-noise reasoning as
+                // AccountsReceivableService::assertWithinOutstanding().
+                $amount = round((float) $line['amount'], 2);
                 $accountsPayable = $accountsPayables->firstWhere('id', $line['accounts_payable_id']);
 
                 if ($accountsPayable === null) {
@@ -95,7 +97,7 @@ class PaymentEntryAllocationService
                     $allocation->allocation_date->toDateString(),
                 );
 
-                $remaining -= $amount;
+                $remaining = round($remaining - $amount, 2);
                 $totalAllocated += $amount;
                 $allocations->push($allocation->fresh(['accountsPayable']));
             }

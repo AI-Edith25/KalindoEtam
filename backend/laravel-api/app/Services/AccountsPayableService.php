@@ -149,7 +149,9 @@ class AccountsPayableService
     public function settle(AccountsPayable $accountsPayable, float $amount): AccountsPayable
     {
         return DB::transaction(function () use ($accountsPayable, $amount) {
-            $newPaidAmount = $accountsPayable->paid_amount + $amount;
+            // Rounded to 2dp — see AccountsReceivableService::settle()'s own note on binary-float
+            // noise from raw arithmetic on decimal-cast columns.
+            $newPaidAmount = round($accountsPayable->paid_amount + $amount, 2);
             $newStatus = AccountsPayableStatus::from(
                 SettlementStatus::resolve((float) $accountsPayable->amount, $newPaidAmount)
             );
@@ -170,7 +172,7 @@ class AccountsPayableService
     public function unsettle(AccountsPayable $accountsPayable, float $amount): AccountsPayable
     {
         return DB::transaction(function () use ($accountsPayable, $amount) {
-            $newPaidAmount = max(0, $accountsPayable->paid_amount - $amount);
+            $newPaidAmount = round(max(0, $accountsPayable->paid_amount - $amount), 2);
             $newStatus = AccountsPayableStatus::from(
                 SettlementStatus::resolve((float) $accountsPayable->amount, $newPaidAmount)
             );
@@ -195,7 +197,10 @@ class AccountsPayableService
             throw new BusinessException('Amount must be greater than zero.');
         }
 
-        $outstanding = (float) $accountsPayable->amount - (float) $accountsPayable->paid_amount;
+        // Both sides rounded to 2dp — see AccountsReceivableService::assertWithinOutstanding()'s
+        // own note on why raw subtraction of two decimal-cast columns needs this.
+        $amount = round($amount, 2);
+        $outstanding = round((float) $accountsPayable->amount - (float) $accountsPayable->paid_amount, 2);
 
         if ($amount > $outstanding) {
             throw new BusinessException("Amount ({$amount}) exceeds outstanding payable ({$outstanding}) for {$accountsPayable->reference_number}.");

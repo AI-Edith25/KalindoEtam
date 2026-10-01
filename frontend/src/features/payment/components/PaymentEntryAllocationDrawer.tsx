@@ -8,7 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { formatCurrency } from '@/lib/utils'
 import { fetchAccountsPayables } from '../api/accountsPayableApi'
 import { allocatePaymentEntry } from '../api/paymentEntryAllocationApi'
 import type { PaymentEntry } from '../types'
@@ -17,6 +16,23 @@ interface PaymentEntryAllocationDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   paymentEntry: PaymentEntry
+}
+
+/** Mirrors PaymentAllocationDrawer's own preciseCurrencyFormatter/round2 — same binary-float-noise
+    fix (AccountsPayableService::assertWithinOutstanding()'s own docblock), retargeted at AP. */
+const preciseCurrencyFormatter = new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+function formatCurrencyPrecise(value: number | string): string {
+  return preciseCurrencyFormatter.format(Number(value))
+}
+
+function round2(value: number): number {
+  const rounded = Math.round(value * 100) / 100
+  return rounded === 0 ? 0 : rounded // normalizes -0 so it never renders as "-Rp 0"
 }
 
 /**
@@ -32,7 +48,7 @@ export function PaymentEntryAllocationDrawer({ open, onOpenChange, paymentEntry 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [amounts, setAmounts] = useState<Record<string, string>>({})
 
-  const unallocated = Number(paymentEntry.unallocated_amount)
+  const unallocated = round2(Number(paymentEntry.unallocated_amount))
 
   const payablesQuery = useQuery({
     queryKey: ['accounts-payables', paymentEntry.supplier_id],
@@ -52,21 +68,20 @@ export function PaymentEntryAllocationDrawer({ open, onOpenChange, paymentEntry 
     }
   }, [open])
 
-  const enteredTotal = outstanding.reduce(
-    (sum, ap) => (selected[ap.id] ? sum + (Number(amounts[ap.id]) || 0) : sum),
-    0,
+  const enteredTotal = round2(
+    outstanding.reduce((sum, ap) => (selected[ap.id] ? sum + (Number(amounts[ap.id]) || 0) : sum), 0),
   )
-  const remaining = unallocated - enteredTotal
+  const remaining = round2(unallocated - enteredTotal)
 
   const lineError = (apId: string, cap: number): string | null => {
-    const value = Number(amounts[apId] ?? 0)
+    const value = round2(Number(amounts[apId] ?? 0))
     if (value < 0) return 'Cannot be negative'
-    if (value > cap) return `Cannot exceed ${formatCurrency(cap)}`
+    if (value > cap) return `Cannot exceed ${formatCurrencyPrecise(cap)}`
     return null
   }
 
   const hasErrors = outstanding.some(
-    (ap) => selected[ap.id] && lineError(ap.id, Math.min(Number(ap.outstanding_amount), unallocated)) !== null,
+    (ap) => selected[ap.id] && lineError(ap.id, round2(Math.min(Number(ap.outstanding_amount), unallocated))) !== null,
   )
   const canSubmit = enteredTotal > 0 && remaining >= 0 && !hasErrors
 
@@ -76,7 +91,7 @@ export function PaymentEntryAllocationDrawer({ open, onOpenChange, paymentEntry 
         paymentEntry.id,
         outstanding
           .filter((ap) => selected[ap.id] && Number(amounts[ap.id]) > 0)
-          .map((ap) => ({ accounts_payable_id: ap.id, amount: Number(amounts[ap.id]) })),
+          .map((ap) => ({ accounts_payable_id: ap.id, amount: round2(Number(amounts[ap.id])) })),
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-entries'] })
@@ -93,11 +108,11 @@ export function PaymentEntryAllocationDrawer({ open, onOpenChange, paymentEntry 
         <SheetHeader>
           <SheetTitle>Allocate Payment</SheetTitle>
           <SheetDescription>
-            {paymentEntry.document_number} — unallocated balance: {formatCurrency(unallocated)}
+            {paymentEntry.document_number} — unallocated balance: {formatCurrencyPrecise(unallocated)}
           </SheetDescription>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Amount to Allocate</span>
-            <span className="font-medium">{formatCurrency(enteredTotal)}</span>
+            <span className="font-medium">{formatCurrencyPrecise(enteredTotal)}</span>
           </div>
         </SheetHeader>
 
@@ -110,7 +125,7 @@ export function PaymentEntryAllocationDrawer({ open, onOpenChange, paymentEntry 
             <p className="py-8 text-center text-sm text-muted-foreground">No outstanding bills for this supplier.</p>
           ) : (
             outstanding.map((ap) => {
-              const cap = Math.min(Number(ap.outstanding_amount), unallocated)
+              const cap = round2(Math.min(Number(ap.outstanding_amount), unallocated))
               const error = lineError(ap.id, cap)
 
               return (
@@ -123,20 +138,33 @@ export function PaymentEntryAllocationDrawer({ open, onOpenChange, paymentEntry 
                     />
                     <Label htmlFor={`select-${ap.id}`} className="flex flex-1 items-center justify-between font-medium">
                       <span>{ap.reference_number}</span>
-                      <span className="text-muted-foreground">{formatCurrency(ap.outstanding_amount)} outstanding</span>
+                      <span className="text-muted-foreground">{formatCurrencyPrecise(ap.outstanding_amount)} outstanding</span>
                     </Label>
                   </div>
                   <Label htmlFor={`allocation-${ap.id}`} className="sr-only">
                     Amount to allocate to {ap.reference_number}
                   </Label>
-                  <Input
-                    id={`allocation-${ap.id}`}
-                    type="number"
-                    step="0.01"
-                    placeholder="0"
-                    value={amounts[ap.id] ?? ''}
-                    onChange={(event) => setAmounts((prev) => ({ ...prev, [ap.id]: event.target.value }))}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={`allocation-${ap.id}`}
+                      type="number"
+                      step="0.01"
+                      placeholder="0"
+                      value={amounts[ap.id] ?? ''}
+                      onChange={(event) => setAmounts((prev) => ({ ...prev, [ap.id]: event.target.value }))}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelected((prev) => ({ ...prev, [ap.id]: true }))
+                        setAmounts((prev) => ({ ...prev, [ap.id]: String(cap) }))
+                      }}
+                    >
+                      Full
+                    </Button>
+                  </div>
                   {error && <p className="text-xs text-destructive">{error}</p>}
                 </div>
               )
@@ -147,7 +175,7 @@ export function PaymentEntryAllocationDrawer({ open, onOpenChange, paymentEntry 
         <SheetFooter>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Remaining to allocate</span>
-            <span className={remaining < 0 ? 'font-medium text-destructive' : 'font-medium'}>{formatCurrency(remaining)}</span>
+            <span className={remaining < 0 ? 'font-medium text-destructive' : 'font-medium'}>{formatCurrencyPrecise(remaining)}</span>
           </div>
           <Button onClick={() => mutation.mutate()} disabled={!canSubmit || mutation.isPending}>
             {mutation.isPending && <Loader2 className="size-4 animate-spin" />}

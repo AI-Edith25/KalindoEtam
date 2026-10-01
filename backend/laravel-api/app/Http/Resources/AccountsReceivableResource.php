@@ -51,7 +51,11 @@ class AccountsReceivableResource extends JsonResource
             'reference_number' => $this->reference_number,
             'amount' => $this->amount,
             'paid_amount' => $this->paid_amount,
-            'outstanding_amount' => $this->amount - $this->paid_amount,
+            // Rounded to 2dp — raw subtraction of two decimal-cast columns coerces to native float
+            // and can leave binary-float noise past the 2nd decimal (e.g. 1.8600000003352761
+            // instead of 1.86), which broke the Allocate Payment dialog's validation for an
+            // exact-cent remainder. See AccountsReceivableService::assertWithinOutstanding().
+            'outstanding_amount' => round($this->amount - $this->paid_amount, 2),
             'due_date' => $this->due_date?->format('Y-m-d'),
             'status' => $this->status,
             'created_at' => $this->created_at,

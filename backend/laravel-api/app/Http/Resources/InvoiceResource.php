@@ -64,13 +64,15 @@ class InvoiceResource extends JsonResource
             'tax_amount' => $this->tax_amount,
             'grand_total' => $this->grand_total,
             'paid_amount' => $paidAmount,
-            'outstanding_amount' => (float) $this->grand_total - $paidAmount,
+            // Rounded to 2dp — raw subtraction of decimal-cast values can leave binary-float noise
+            // past the 2nd decimal. See AccountsReceivableService::assertWithinOutstanding().
+            'outstanding_amount' => round((float) $this->grand_total - $paidAmount, 2),
             'credited_amount' => $creditedAmount,
             'debited_amount' => $debitedAmount,
             // Includes debited_amount — a Debit Note raises what's left to credit, since it
             // grows the same accounts_receivable.amount a Credit Note's own ceiling reads live.
             // See docs/DEBIT_NOTE_DESIGN.md §7 "Interaction with Credit Notes".
-            'creditable_amount' => (float) $this->grand_total - $creditedAmount + $debitedAmount,
+            'creditable_amount' => round((float) $this->grand_total - $creditedAmount + $debitedAmount, 2),
             'remarks' => $this->remarks,
             'reference_1' => $this->reference_1,
             'reference_2' => $this->reference_2,

@@ -60,7 +60,12 @@ class AccountsReceivableService
     public function settle(AccountsReceivable $accountsReceivable, float $amount): AccountsReceivable
     {
         return DB::transaction(function () use ($accountsReceivable, $amount) {
-            $newPaidAmount = $accountsReceivable->paid_amount + $amount;
+            // Rounded to 2dp — decimal-cast columns coerce to native float for `+`/`-`, which can
+            // leave sub-cent binary-float noise (e.g. 7000001.86 - 7000000.00 → 1.8600000003352761,
+            // see AccountsReceivableResource::outstanding_amount's own docblock). Left unrounded,
+            // that noise could keep SettlementStatus::resolve()'s >= comparison from ever reaching
+            // "paid" for a receivable settled down to an exact-cent remainder.
+            $newPaidAmount = round($accountsReceivable->paid_amount + $amount, 2);
             $newStatus = AccountsReceivableStatus::from(
                 SettlementStatus::resolve((float) $accountsReceivable->amount, $newPaidAmount)
             );
@@ -80,7 +85,7 @@ class AccountsReceivableService
     public function unsettle(AccountsReceivable $accountsReceivable, float $amount): AccountsReceivable
     {
         return DB::transaction(function () use ($accountsReceivable, $amount) {
-            $newPaidAmount = max(0, $accountsReceivable->paid_amount - $amount);
+            $newPaidAmount = round(max(0, $accountsReceivable->paid_amount - $amount), 2);
             $newStatus = AccountsReceivableStatus::from(
                 SettlementStatus::resolve((float) $accountsReceivable->amount, $newPaidAmount)
             );
@@ -102,7 +107,12 @@ class AccountsReceivableService
             throw new BusinessException('Amount must be greater than zero.');
         }
 
-        $outstanding = (float) $accountsReceivable->amount - (float) $accountsReceivable->paid_amount;
+        // Both sides rounded to 2dp before comparing — a receivable's true outstanding is always a
+        // clean 2-decimal figure (decimal(15,2) columns); raw PHP subtraction of two already-cast
+        // values can leave binary-float noise past the 2nd decimal (e.g. 1.8600000003352761
+        // instead of 1.86) that made an exact-remainder allocation spuriously fail here.
+        $amount = round($amount, 2);
+        $outstanding = round((float) $accountsReceivable->amount - (float) $accountsReceivable->paid_amount, 2);
 
         if ($amount > $outstanding) {
             throw new BusinessException("Amount ({$amount}) exceeds outstanding receivable ({$outstanding}) for {$accountsReceivable->reference_number}.");

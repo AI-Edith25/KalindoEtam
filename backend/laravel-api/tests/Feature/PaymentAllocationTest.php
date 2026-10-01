@@ -460,6 +460,52 @@ class PaymentAllocationTest extends TestCase
         $this->assertDatabaseHas('receipt_entries', ['id' => $payment->id, 'deleted_at' => null]);
     }
 
+    /**
+     * Reproduces the exact numbers from the bug report: an AR row whose amount/paid_amount are
+     * both clean 2-decimal values, but whose raw difference (amount - paid_amount) is a binary
+     * float with noise past the 2nd decimal — 7000001.86 - 7000000.00 genuinely evaluates to
+     * 1.8600000003352761 in PHP (confirmed via `php -r`), not just a display artifact. Allocating
+     * the clean remainder must succeed and flip status to Paid; allocating the rounded-up display
+     * value (2) must still be rejected, with a clean (not noisy) figure in the error message.
+     */
+    public function test_allocating_the_exact_remainder_of_a_float_noisy_outstanding_succeeds(): void
+    {
+        $invoice = $this->submittedInvoice(qty: 1, rate: 10000);
+        $accountsReceivable = $invoice->accountsReceivable()->firstOrFail();
+        $accountsReceivable->update(['amount' => 7000001.86, 'paid_amount' => 7000000.00]);
+        $payment = $this->submittedPayment(1.86);
+
+        $resource = (new \App\Http\Resources\AccountsReceivableResource($accountsReceivable->fresh()))->toArray(request());
+        $this->assertSame(1.86, $resource['outstanding_amount']);
+
+        $this->paymentAllocationService->allocateBatch($payment, [
+            ['accounts_receivable_id' => $accountsReceivable->id, 'amount' => 1.86],
+        ]);
+
+        $this->assertEquals(7000001.86, (float) $accountsReceivable->fresh()->paid_amount);
+        $this->assertEquals(AccountsReceivableStatus::PAID, $accountsReceivable->fresh()->status);
+    }
+
+    public function test_allocating_the_rounded_up_display_value_is_still_rejected_with_a_clean_message(): void
+    {
+        $invoice = $this->submittedInvoice(qty: 1, rate: 10000);
+        $accountsReceivable = $invoice->accountsReceivable()->firstOrFail();
+        $accountsReceivable->update(['amount' => 7000001.86, 'paid_amount' => 7000000.00]);
+        $payment = $this->submittedPayment(2);
+
+        try {
+            $this->paymentAllocationService->allocateBatch($payment, [
+                ['accounts_receivable_id' => $accountsReceivable->id, 'amount' => 2],
+            ]);
+            $this->fail('Expected allocating 2 against a 1.86 outstanding to throw.');
+        } catch (BusinessException $e) {
+            $this->assertStringContainsString('1.86', $e->getMessage());
+            $this->assertStringNotContainsString('1.86000000', $e->getMessage());
+        }
+
+        $this->assertEquals(7000000.00, (float) $accountsReceivable->fresh()->paid_amount);
+    }
+
     public function test_second_allocation_fails_once_receivable_outstanding_is_exhausted(): void
     {
         $invoice = $this->submittedInvoice(qty: 2, rate: 20000); // 40000 outstanding

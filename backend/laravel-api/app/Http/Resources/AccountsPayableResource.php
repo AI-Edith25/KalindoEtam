@@ -45,7 +45,9 @@ class AccountsPayableResource extends JsonResource
             // never the accounts_payables.paid_amount cache column — per the report's own
             // requirement that "Sudah Dibayar"/"Sisa Hutang" reflect actual allocations.
             'paid_amount' => (float) ($this->paid_amount_computed ?? 0),
-            'outstanding_amount' => (float) $this->amount - (float) ($this->paid_amount_computed ?? 0),
+            // Rounded to 2dp — see AccountsReceivableResource::outstanding_amount's own note on
+            // binary-float noise from raw arithmetic on decimal-cast/computed values.
+            'outstanding_amount' => round((float) $this->amount - (float) ($this->paid_amount_computed ?? 0), 2),
             'due_date' => $this->due_date?->format('Y-m-d'),
             'status' => $this->status,
             'created_at' => $this->created_at,

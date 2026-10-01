@@ -460,6 +460,45 @@ class PaymentEntryAllocationTest extends TestCase
         $this->assertDatabaseCount('journal_entries', 1);
     }
 
+    /**
+     * AP mirror of PaymentAllocationTest::test_allocating_the_exact_remainder_of_a_float_noisy_outstanding_succeeds()
+     * — same binary-float-noise reproduction (7000001.86 - 7000000.00), retargeted at AccountsPayable.
+     */
+    public function test_allocating_the_exact_remainder_of_a_float_noisy_outstanding_succeeds(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 1, rate: 10000);
+        $accountsPayable = AccountsPayable::query()->where('goods_receipt_id', $goodsReceipt->id)->firstOrFail();
+        $accountsPayable->update(['amount' => 7000001.86, 'paid_amount' => 7000000.00]);
+        $payment = $this->submittedPayment(1.86);
+
+        $this->paymentEntryAllocationService->allocateBatch($payment, [
+            ['accounts_payable_id' => $accountsPayable->id, 'amount' => 1.86],
+        ]);
+
+        $this->assertEquals(7000001.86, (float) $accountsPayable->fresh()->paid_amount);
+        $this->assertEquals(AccountsPayableStatus::PAID, $accountsPayable->fresh()->status);
+    }
+
+    public function test_allocating_the_rounded_up_display_value_is_still_rejected_with_a_clean_message(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 1, rate: 10000);
+        $accountsPayable = AccountsPayable::query()->where('goods_receipt_id', $goodsReceipt->id)->firstOrFail();
+        $accountsPayable->update(['amount' => 7000001.86, 'paid_amount' => 7000000.00]);
+        $payment = $this->submittedPayment(2);
+
+        try {
+            $this->paymentEntryAllocationService->allocateBatch($payment, [
+                ['accounts_payable_id' => $accountsPayable->id, 'amount' => 2],
+            ]);
+            $this->fail('Expected allocating 2 against a 1.86 outstanding to throw.');
+        } catch (BusinessException $e) {
+            $this->assertStringContainsString('1.86', $e->getMessage());
+            $this->assertStringNotContainsString('1.86000000', $e->getMessage());
+        }
+
+        $this->assertEquals(7000000.00, (float) $accountsPayable->fresh()->paid_amount);
+    }
+
     public function test_second_allocation_fails_once_payable_outstanding_is_exhausted(): void
     {
         $goodsReceipt = $this->submittedGoodsReceipt(qty: 2, rate: 20000); // 40000 outstanding
