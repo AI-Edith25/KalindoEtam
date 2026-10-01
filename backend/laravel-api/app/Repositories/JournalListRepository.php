@@ -30,6 +30,8 @@ class JournalListRepository
             default => ['receipt_entry', 'payment_entry'],
         };
 
+        $status = $filters['status'] ?? DocumentStatus::SUBMITTED->value;
+
         return JournalEntry::query()
             ->select('journal_entries.*')
             ->selectRaw('COALESCE(receipt_entries.reference_number, payment_entries.reference_number) as resolved_reference_number')
@@ -46,8 +48,25 @@ class JournalListRepository
                     ->where('journal_entries.reference_type', '=', 'payment_entry');
             })
             ->whereIn('journal_entries.reference_type', $referenceTypes)
-            ->where('journal_entries.status', $filters['status'] ?? DocumentStatus::SUBMITTED->value)
+            ->where('journal_entries.status', $status)
             ->whereNull('journal_entries.deleted_at')
+            // A Submitted Receipt/Payment that's since been edited (ReceiptEntryService::
+            // updateSubmitted()/PaymentEntryService's equivalent) reverses its old Journal Entry
+            // and posts a fresh one — but the reversal and the repost are siblings, not a chain
+            // (the repost's own reverses_id/reversed_by_id stay null), so a flat
+            // whereNull('reversed_by_id') still leaves both the reversal and the repost visible.
+            // Keep only the single most-recently-created entry per (reference_type, reference_id)
+            // — the voucher's actual current state — same fix needed regardless of how many
+            // reverse-then-repost cycles it's been through.
+            ->whereRaw('journal_entries.id = (
+                select je2.id from journal_entries je2
+                where je2.reference_type = journal_entries.reference_type
+                  and je2.reference_id = journal_entries.reference_id
+                  and je2.status = ?
+                  and je2.deleted_at is null
+                order by je2.created_at desc, je2.id desc
+                limit 1
+            )', [$status])
             ->when($filters['date_from'] ?? null, fn ($q, $date) => $q->whereDate('journal_entries.posting_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($q, $date) => $q->whereDate('journal_entries.posting_date', '<=', $date))
             ->when($filters['branch_id'] ?? null, fn ($q, $branchId) => $q->where(

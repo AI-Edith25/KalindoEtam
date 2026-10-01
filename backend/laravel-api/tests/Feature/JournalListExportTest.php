@@ -211,6 +211,36 @@ class JournalListExportTest extends TestCase
         $this->assertEquals('Total For :[Cash Book-Payment]', $sheet->getCell('A9')->getValue());
     }
 
+    /**
+     * Editing a Submitted Receipt (ReceiptEntryService::updateSubmitted()) reverses its old
+     * Journal Entry and posts a fresh one — two siblings, neither pointing forward to the other,
+     * so without JournalListRepository's own dedupe both the stale reversal and the final repost
+     * would show up as extra rows (the real-world bug: the same voucher appearing 2-5x, some
+     * rows with Debit/Credit flipped).
+     */
+    public function test_editing_a_submitted_receipt_does_not_duplicate_it_in_the_export(): void
+    {
+        $receipt = $this->receiptEntryService->create([
+            'customer_id' => $this->customer->id, 'receipt_date' => '2026-01-15',
+            'cash_account_id' => $this->bankAccount->id, 'total_amount' => 50000,
+        ]);
+        $receipt = $this->receiptEntryService->submit($receipt);
+
+        $receipt = $this->receiptEntryService->update($receipt, ['total_amount' => 75000]);
+        // A second edit chains a third Journal Entry on top — must still collapse to one voucher.
+        $this->receiptEntryService->update($receipt, ['total_amount' => 90000]);
+
+        $sheet = $this->downloadXlsx('view=receipt');
+
+        // Only one voucher block (2 lines: cash/bank leg + the offsetting leg) — rows 7-8 — then
+        // straight to the trailer at row 9, never a second/third copy of the same document.
+        $this->assertEquals($receipt->document_number, $sheet->getCell('A7')->getValue());
+        $this->assertEquals(90000, $sheet->getCell('E7')->getValue());
+        $this->assertEquals('Total For :[Cash Book-Receipt]', $sheet->getCell('A9')->getValue());
+        $this->assertEquals(90000, $sheet->getCell('E9')->getValue());
+        $this->assertEquals(90000, $sheet->getCell('F9')->getValue());
+    }
+
     public function test_csv_format_produces_the_same_group_header_and_trailer(): void
     {
         $receipt = $this->receiptEntryService->create([
