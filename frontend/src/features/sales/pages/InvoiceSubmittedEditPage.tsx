@@ -15,9 +15,10 @@ import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
+import { DiscountInput } from '@/components/shared/DiscountInput'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { computeLineTaxTotal, computeSubtotal } from '@/shared/lib/documentTotals'
+import { computeLineTaxTotal, computeSubtotal, computeTotalDiscount, lineNetAmount } from '@/shared/lib/documentTotals'
 import { fetchBranches, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { fetchInvoice, updateInvoice } from '../api/invoiceApi'
 import type { InvoiceItem } from '../types'
@@ -29,11 +30,23 @@ interface EditableLine {
   uom: string | null
   qty: string
   rate: string
+  discount_type: string
+  discount_value: string
   tax_id: string
 }
 
 function toEditableLine(line: InvoiceItem): EditableLine {
-  return { id: line.id, item_code: line.item_code, item_name: line.item_name, uom: line.uom, qty: String(line.qty), rate: String(line.rate), tax_id: line.tax_id ?? '' }
+  return {
+    id: line.id,
+    item_code: line.item_code,
+    item_name: line.item_name,
+    uom: line.uom,
+    qty: String(line.qty),
+    rate: String(line.rate),
+    discount_type: line.discount_type,
+    discount_value: String(line.discount_value ?? 0),
+    tax_id: line.tax_id ?? '',
+  }
 }
 
 /**
@@ -113,7 +126,14 @@ export function InvoiceSubmittedEditPage() {
     customer_phone: customerPhone || null,
     remarks: remarks || null,
     lock_version: invoice!.lock_version,
-    items: (lines ?? []).map((line) => ({ id: line.id, qty: Number(line.qty) || 0, rate: Number(line.rate) || 0, tax_id: line.tax_id || null })),
+    items: (lines ?? []).map((line) => ({
+      id: line.id,
+      qty: Number(line.qty) || 0,
+      rate: Number(line.rate) || 0,
+      discount_type: line.discount_type as 'amount' | 'percentage',
+      discount_value: Number(line.discount_value) || 0,
+      tax_id: line.tax_id || null,
+    })),
   })
 
   const saveMutation = useMutation({
@@ -144,8 +164,8 @@ export function InvoiceSubmittedEditPage() {
   }
 
   const subtotal = computeSubtotal(lines)
+  const discount = computeTotalDiscount(lines)
   const tax = computeLineTaxTotal(lines, (line) => taxesQuery.data?.find((tx) => tx.id === line.tax_id))
-  const discount = Number(invoice.discount_amount) || 0
   const grandTotal = subtotal - discount + tax
   const oldGrandTotal = Number(invoice.grand_total)
   const newOutstanding = grandTotal - Number(invoice.paid_amount)
@@ -267,8 +287,10 @@ export function InvoiceSubmittedEditPage() {
                   <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
                   <TableHead className="w-28 text-right">Qty</TableHead>
                   <TableHead className="w-40 text-right">Rate</TableHead>
+                  <TableHead className="w-40">Discount</TableHead>
                   <TableHead className="w-48">Tax</TableHead>
                   <TableHead className="w-36 text-right">Amount</TableHead>
+                  <TableHead className="w-32 text-right">Tax Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -287,6 +309,14 @@ export function InvoiceSubmittedEditPage() {
                     <TableCell className="min-w-40">
                       <RupiahInput value={line.rate} onChange={(value) => patchLine(line.id, { rate: value })} />
                     </TableCell>
+                    <TableCell className="min-w-40">
+                      <DiscountInput
+                        type={line.discount_type}
+                        value={line.discount_value}
+                        onTypeChange={(value) => patchLine(line.id, { discount_type: value })}
+                        onValueChange={(value) => patchLine(line.id, { discount_value: value })}
+                      />
+                    </TableCell>
                     <TableCell className="min-w-48">
                       <SearchableSelect
                         options={[{ value: '', label: 'No tax' }, ...(taxesQuery.data ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.code})` }))]}
@@ -297,7 +327,10 @@ export function InvoiceSubmittedEditPage() {
                         aria-label="Tax"
                       />
                     </TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency((Number(line.qty) || 0) * (Number(line.rate) || 0))}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(lineNetAmount(line))}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {formatCurrency(computeLineTaxTotal([line], (l) => taxesQuery.data?.find((tx) => tx.id === l.tax_id)))}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -313,10 +346,18 @@ export function InvoiceSubmittedEditPage() {
             <span className="text-muted-foreground">Subtotal</span>
             <span>{formatCurrency(subtotal)}</span>
           </div>
-          <div className="flex w-full max-w-64 justify-between text-sm">
-            <span className="text-muted-foreground">Discount</span>
-            <span>-{formatCurrency(discount)}</span>
-          </div>
+          {discount > 0 && (
+            <>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Total Discount</span>
+                <span>-{formatCurrency(discount)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">DPP</span>
+                <span>{formatCurrency(subtotal - discount)}</span>
+              </div>
+            </>
+          )}
           <div className="flex w-full max-w-64 justify-between text-sm">
             <span className="text-muted-foreground">Tax</span>
             <span>{formatCurrency(tax)}</span>

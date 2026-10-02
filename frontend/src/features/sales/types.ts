@@ -28,6 +28,11 @@ export interface SalesOrderItem {
   qty: number
   rate: string | number
   amount: string | number
+  discount_type: DiscountType
+  discount_value: string | number
+  discount_amount: string | number
+  /** amount - discount_amount — the base PPN is actually computed against (DPP). */
+  net_amount: string | number
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
@@ -60,6 +65,9 @@ export interface SalesOrder {
   order_date: string
   expected_delivery_date: string | null
   total_amount: string | number
+  total_discount: string | number
+  /** total_amount - total_discount — the base PPN is actually computed against (DPP). */
+  tax_base: string | number
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
@@ -94,7 +102,7 @@ export interface SalesOrderFormValues {
   reference?: string | null
   terms_of_payment_id?: string | null
   tax_id?: string | null
-  items: { id?: string; item_id: string; uom_id?: string | null; qty: number; rate: number; tax_id?: string | null }[]
+  items: { id?: string; item_id: string; uom_id?: string | null; qty: number; rate: number; discount_type?: DiscountType; discount_value?: number; tax_id?: string | null }[]
   override_credit_block?: boolean
   override_reason?: string | null
   override_stock_block?: boolean
@@ -139,6 +147,12 @@ export interface DeliveryItem {
   qty: number
   rate: string | number
   amount: string | number
+  // SO-sourced lines derive this from the Sales Order line (never user-entered) — see
+  // DeliveryService::buildDeliveryLineAttributes()'s allocation rule. Direct Delivery lines accept it directly.
+  discount_type: DiscountType
+  discount_value: string | number
+  discount_amount: string | number
+  net_amount: string | number
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
@@ -193,6 +207,9 @@ export interface Delivery {
   driver: string | null
   items: DeliveryItem[]
   amount: string | number
+  // Computed live from items — a Delivery has no header total columns (never has).
+  discount_amount: string | number
+  tax_base: string | number
   // Per-line now — only resolves to a single value here when every line shares the same
   // Tax; a mixed-tax shipment leaves these null while tax_amount stays an accurate sum. See DeliveryResource.
   tax_id: string | null
@@ -224,7 +241,9 @@ export interface DeliveryFormValues {
   driver: string | null
   // Required once editing a Complete Delivery (DeliveryService::updateComplete()'s optimistic-lock check).
   lock_version?: number
-  items: { id?: string; sales_order_item_id?: string | null; item_id?: string; qty: number; rate?: number; tax_id?: string | null }[]
+  // discount_type/discount_value are only meaningful for a Direct Delivery line (no sales_order_id)
+  // — an SO-linked line always derives its discount from the linked Sales Order line instead.
+  items: { id?: string; sales_order_item_id?: string | null; item_id?: string; qty: number; rate?: number; discount_type?: DiscountType; discount_value?: number; tax_id?: string | null }[]
 }
 
 export type InvoiceDisplayStatus = 'draft' | 'unpaid' | 'partial' | 'paid' | 'cancelled'
@@ -239,6 +258,10 @@ export interface InvoiceItem {
   qty: number
   rate: string | number
   amount: string | number
+  discount_type: DiscountType
+  discount_value: string | number
+  discount_amount: string | number
+  net_amount: string | number
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
@@ -303,6 +326,8 @@ export interface Invoice {
   discount_amount: string | number
   discount_type: DiscountType
   discount_percentage: string | number | null
+  /** subtotal - discount_amount — the base PPN is actually computed against (DPP). */
+  tax_base: string | number
   tax_id: string | null
   tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
   tax_amount: string | number
@@ -343,9 +368,9 @@ export interface InvoiceFormValues {
   // Item-backed lines, same master data a Sales Order line resolves against. Submitted-edit
   // (InvoiceService::updateSubmitted()): existing line id + qty/rate/tax_id only, no add/remove.
   items?:
-    | { description: string; qty: number; rate: number; uom?: string | null }[]
-    | { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
-    | { id: string; qty?: number; rate?: number; tax_id?: string | null }[]
+    | { description: string; qty: number; rate: number; uom?: string | null; discount_type?: DiscountType; discount_value?: number; tax_id?: string | null }[]
+    | { item_id: string; qty: number; rate: number; discount_type?: DiscountType; discount_value?: number; tax_id?: string | null }[]
+    | { id: string; qty?: number; rate?: number; discount_type?: DiscountType; discount_value?: number; tax_id?: string | null }[]
   // Transportation and Goods (Direct), create-only — no Sales Order to derive Branch from.
   // Also editable on a Submitted Invoice (InvoiceService::updateSubmitted()), hence the
   // nullable variant — null clears the override back to the Sales Order's own Branch.
@@ -358,9 +383,6 @@ export interface InvoiceFormValues {
   invoice_date: string
   due_date: string
   terms_of_payment_id: string | null
-  discount_type: DiscountType
-  discount_amount: number | null
-  discount_percentage: number | null
   // Goods invoices omit this entirely — the backend always inherits it from the Sales Order.
   tax_id?: string | null
   tax_amount: number | null

@@ -17,7 +17,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { computeSubtotal, computeLineTaxTotal } from '@/shared/lib/documentTotals'
+import { computeSubtotal, computeLineTaxTotal, computeTotalDiscount } from '@/shared/lib/documentTotals'
 import {
   fetchBranches,
   fetchSalesPersonsLookup,
@@ -123,6 +123,8 @@ export function SalesOrderEditorPage() {
         available_qty: '',
         qty: String(line.qty),
         rate: String(line.rate),
+        discount_type: line.discount_type ?? 'amount',
+        discount_value: String(line.discount_value ?? 0),
         tax_id: line.tax_id ?? '',
         is_locked: line.is_locked,
       })),
@@ -189,6 +191,8 @@ export function SalesOrderEditorPage() {
       uom_id: line.uom_id || null,
       qty: Number(line.qty),
       rate: Number(line.rate),
+      discount_type: line.discount_type,
+      discount_value: Number(line.discount_value || 0),
       tax_id: line.tax_id || null,
     })),
     ...(values.override_credit_block ? { override_credit_block: true, override_reason: values.override_reason || null } : {}),
@@ -232,13 +236,14 @@ export function SalesOrderEditorPage() {
 
   const watchedItems = form.watch('items')
   const subtotal = computeSubtotal(watchedItems ?? [])
+  const totalDiscount = computeTotalDiscount(watchedItems ?? [])
 
   // Tax is per-line now, defaulting from each line's Item — no header override on Sales Order.
   // Preview only; TaxService::calculate() on the backend always computes and returns the
   // authoritative per-line tax_amount/grand_total on save.
   const activeSalesTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'sales')
   const tax = computeLineTaxTotal(watchedItems ?? [], (line) => activeSalesTaxOptions.find((t) => t.id === line.tax_id))
-  const grandTotal = subtotal + tax
+  const grandTotal = subtotal - totalDiscount + tax
 
   // Customer Credit block — see CustomerCreditService on the backend. Live-rechecked against
   // grandTotal on every line-item change with no extra network call (see useCustomerCreditCheck).
@@ -576,6 +581,18 @@ export function SalesOrderEditorPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
+              {totalDiscount > 0 && (
+                <>
+                  <div className="flex w-full max-w-64 justify-between text-sm">
+                    <span className="text-muted-foreground">Total Discount</span>
+                    <span>-{formatCurrency(totalDiscount)}</span>
+                  </div>
+                  <div className="flex w-full max-w-64 justify-between text-sm">
+                    <span className="text-muted-foreground">DPP</span>
+                    <span>{formatCurrency(subtotal - totalDiscount)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex w-full max-w-64 justify-between text-sm">
                 <span className="text-muted-foreground">Tax</span>
                 <span>{formatCurrency(tax)}</span>

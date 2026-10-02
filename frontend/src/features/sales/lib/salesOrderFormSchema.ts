@@ -52,6 +52,11 @@ export const lineItemFormSchema = z.object({
     .string()
     .min(1, 'Rate is required')
     .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0, 'Must be zero or greater'),
+  // Per-line discount — PPN is computed on the amount after this is applied. 'amount' (Rp) or
+  // 'percentage' (%); value is '0' (no discount) when the row is first appended/loaded — see
+  // SalesOrderLineItemTable's append() and SalesOrderEditorPage's item-load mapping.
+  discount_type: z.enum(['amount', 'percentage']),
+  discount_value: z.string(),
   // Defaults from the selected Item's sales_tax_id when the line is first added,
   // editable per line thereafter — see SalesOrderLineItemTable's handleItemChange().
   tax_id: z.string(),

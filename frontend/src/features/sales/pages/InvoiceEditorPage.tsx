@@ -15,6 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
+import { DiscountInput } from '@/components/shared/DiscountInput'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -34,14 +35,13 @@ import {
   searchMiscellaneousItemsLookup,
 } from '@/features/master/api/lookupsApi'
 import { addDays } from '@/shared/lib/dateMath'
-import { computeLineTaxTotal, computeSubtotal, lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
+import { computeLineTaxTotal, computeSubtotal, computeTotalDiscount, lineNetAmount } from '@/shared/lib/documentTotals'
 import type { Customer, Item, MiscellaneousItem } from '@/features/master/types'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
 import { emptyInvoiceEditorValues, invoiceFormSchema, type InvoiceEditorValues } from '../lib/invoiceFormSchema'
 import { InvoiceSubmittedEditPage } from './InvoiceSubmittedEditPage'
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
-import { discountLabel } from '../lib/discount'
 import type { Delivery, Invoice, InvoiceFormValues, InvoiceType } from '../types'
 
 const NO_TAX = '__none__'
@@ -59,6 +59,8 @@ interface EditableInvoiceLine {
   uom: string | null
   qty: string
   rate: string
+  discount_type: string
+  discount_value: string
   tax_id: string
 }
 
@@ -70,8 +72,10 @@ interface PreviewLine {
   qty: number
   rate: string | number
   amount: string | number
+  discount_amount: string | number
+  net_amount: string | number
   // Already resolved server-side (from the source Delivery/Sales Order line) — never
-  // recomputed here, unlike Transportation's own header-level tax preview below.
+  // recomputed here, unlike Transportation's own per-line tax preview below.
   tax: { id: string; code: string; name: string; type: string; rate: string | number } | null
   tax_amount: string | number
 }
@@ -90,11 +94,26 @@ interface TransportLine {
   uom: string | null
   qty: string
   rate: string
+  discount_type: string
+  discount_value: string
+  // Per-line now (previously a single header-level Tax select) — see decision #3 in
+  // docs plan 2026-10-02-discount-tax-phase-a-backend.md.
+  tax_id: string
 }
 
 let transportLineCounter = 0
 const nextTransportLineKey = () => `transport-${++transportLineCounter}`
-const emptyTransportLine = (): TransportLine => ({ key: nextTransportLineKey(), misc_item_id: '', description: '', uom: null, qty: '1', rate: '0' })
+const emptyTransportLine = (): TransportLine => ({
+  key: nextTransportLineKey(),
+  misc_item_id: '',
+  description: '',
+  uom: null,
+  qty: '1',
+  rate: '0',
+  discount_type: 'amount',
+  discount_value: '0',
+  tax_id: '',
+})
 
 /**
  * Wizard-only, never persisted — the backend still only ever sees invoice_type 'goods' or
@@ -121,19 +140,32 @@ interface DirectGoodsLine {
   uom: string | null
   qty: string
   rate: string
+  discount_type: string
+  discount_value: string
   tax_id: string
 }
 
 let directGoodsLineCounter = 0
 const nextDirectGoodsLineKey = () => `direct-goods-${++directGoodsLineCounter}`
-const emptyDirectGoodsLine = (): DirectGoodsLine => ({ key: nextDirectGoodsLineKey(), item_id: '', item_label: '', uom: null, qty: '1', rate: '0', tax_id: '' })
+const emptyDirectGoodsLine = (): DirectGoodsLine => ({
+  key: nextDirectGoodsLineKey(),
+  item_id: '',
+  item_label: '',
+  uom: null,
+  qty: '1',
+  rate: '0',
+  discount_type: 'amount',
+  discount_value: '0',
+  tax_id: '',
+})
 
 const lineColumns: DataTableColumn<PreviewLine>[] = [
   { header: 'Item Code', accessor: (row) => row.item_code },
   { header: 'Item Name', accessor: (row) => row.item_name },
   { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
-  { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+  { header: 'Discount', accessor: (row) => (Number(row.discount_amount) > 0 ? `-${formatCurrency(row.discount_amount)}` : '—'), className: 'text-right' },
+  { header: 'Amount', accessor: (row) => formatCurrency(row.net_amount), className: 'text-right' },
   { header: 'Tax', accessor: (row) => row.tax?.name ?? '—' },
   { header: 'Tax Amount', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
 ]
@@ -399,7 +431,17 @@ function InvoiceForm({
   const isEditableItemsMode = isEdit && !isTransportation
   const [editableLines, setEditableLines] = useState<EditableInvoiceLine[]>(() =>
     invoice
-      ? invoice.items.map((line) => ({ id: line.id, item_code: line.item_code, item_name: line.item_name, uom: line.uom, qty: String(line.qty), rate: String(line.rate), tax_id: line.tax_id ?? '' }))
+      ? invoice.items.map((line) => ({
+          id: line.id,
+          item_code: line.item_code,
+          item_name: line.item_name,
+          uom: line.uom,
+          qty: String(line.qty),
+          rate: String(line.rate),
+          discount_type: line.discount_type,
+          discount_value: String(line.discount_value ?? 0),
+          tax_id: line.tax_id ?? '',
+        }))
       : [],
   )
   const patchEditableLine = (lineId: string, patch: Partial<EditableInvoiceLine>) =>
@@ -491,10 +533,6 @@ function InvoiceForm({
           invoice_date: invoice.invoice_date,
           due_date: invoice.due_date,
           terms_of_payment_id: invoice.terms_of_payment_id ?? '',
-          discount_type: invoice.discount_type ?? 'amount',
-          discount_amount: String(invoice.discount_amount),
-          discount_percentage: invoice.discount_percentage != null ? String(invoice.discount_percentage) : '',
-          tax_id: invoice.tax_id ?? '',
           remarks: invoice.remarks ?? '',
           sales_person_id: invoice.sales_person_id ?? '',
           reference_1: invoice.reference_1 ?? '',
@@ -549,7 +587,16 @@ function InvoiceForm({
         // (isEditableItemsMode) — UpdateInvoiceRequest has no delivery_ids/customer_id/warehouse_id
         // fields at all, so those would just be silently dropped if sent.
         isEditableItemsMode
-        ? { items: editableLines.map((line) => ({ id: line.id, qty: Number(line.qty) || 0, rate: Number(line.rate) || 0, tax_id: line.tax_id || null })) }
+        ? {
+            items: editableLines.map((line) => ({
+              id: line.id,
+              qty: Number(line.qty) || 0,
+              rate: Number(line.rate) || 0,
+              discount_type: line.discount_type as 'amount' | 'percentage',
+              discount_value: Number(line.discount_value) || 0,
+              tax_id: line.tax_id || null,
+            })),
+          }
         : {}
       : isTransportation
         ? {
@@ -561,6 +608,9 @@ function InvoiceForm({
                 qty: Number(line.qty) || 0,
                 rate: Number(line.rate) || 0,
                 uom: line.uom,
+                discount_type: line.discount_type as 'amount' | 'percentage',
+                discount_value: Number(line.discount_value) || 0,
+                tax_id: line.tax_id || null,
               })),
           }
         : isDirectGoods
@@ -569,7 +619,14 @@ function InvoiceForm({
               warehouse_id: directGoodsWarehouseId,
               items: directGoodsLines
                 .filter((line) => line.item_id !== '')
-                .map((line) => ({ item_id: line.item_id, qty: Number(line.qty) || 0, rate: Number(line.rate) || 0, tax_id: line.tax_id || null })),
+                .map((line) => ({
+                  item_id: line.item_id,
+                  qty: Number(line.qty) || 0,
+                  rate: Number(line.rate) || 0,
+                  discount_type: line.discount_type as 'amount' | 'percentage',
+                  discount_value: Number(line.discount_value) || 0,
+                  tax_id: line.tax_id || null,
+                })),
             }
           : { delivery_ids: selectedDeliveries.map((delivery) => delivery.id) }),
     // Immutable once created (see invoiceFormSchema.ts) — only sent on create; UpdateInvoiceRequest
@@ -581,16 +638,8 @@ function InvoiceForm({
     invoice_date: values.invoice_date,
     due_date: values.due_date,
     terms_of_payment_id: values.terms_of_payment_id || null,
-    discount_type: values.discount_type,
-    // Only the field matching discount_type carries real data — InvoiceService::resolveDiscount()
-    // on the backend derives discount_amount from discount_percentage itself in Percentage mode.
-    discount_amount: values.discount_type === 'amount' ? (values.discount_amount === '' ? 0 : Number(values.discount_amount)) : null,
-    discount_percentage: values.discount_type === 'percentage' ? (values.discount_percentage === '' ? 0 : Number(values.discount_percentage)) : null,
-    // TaxService::calculate() computes tax_amount server-side from tax_id — never sent directly
-    // from here. See docs/TAX_ENGINE_DESIGN.md §6. Goods invoices have no header tax at all
-    // anymore (tax is per-line, resolved when the Sales Order/Delivery line was created) — omitted
-    // entirely so the backend's own null default applies.
-    tax_id: isTransportation ? values.tax_id || null : undefined,
+    // Discount is per-line only now (see the items mapping above) — no header field at all.
+    // Tax is per-line too (TaxService::calculate() runs per line server-side) — never sent here.
     tax_amount: null,
     remarks: values.remarks || null,
     sales_person_id: values.sales_person_id || null,
@@ -628,16 +677,6 @@ function InvoiceForm({
     onError: (error) => toastApiError(error),
   })
 
-  const watchedDiscountType = form.watch('discount_type')
-  const watchedDiscountAmount = form.watch('discount_amount')
-  const watchedDiscountPercentage = form.watch('discount_percentage')
-  const watchedTaxId = form.watch('tax_id')
-  // Transportation (no Item-backed lines) keeps the independent header Select, driven by the
-  // RHF field. Goods invoices have no single header tax anymore — each line already carries
-  // its own resolved tax (inherited from its Sales Order/Delivery line), so the total below is
-  // always a sum of the lines, never a single Select's calculation.
-  const selectedTax = isTransportation ? (taxOptions.find((tax) => tax.id === watchedTaxId) ?? null) : null
-
   const previewLines: PreviewLine[] = isEdit
     ? (invoice?.items ?? []).map((line) => ({ ...line }))
     : selectedDeliveries.flatMap((delivery) => delivery.items.map((line) => ({ ...line })))
@@ -648,18 +687,20 @@ function InvoiceForm({
       : isEditableItemsMode
         ? computeSubtotal(editableLines)
         : previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
-  // Preview only — InvoiceService::resolveDiscount() on the backend is the authoritative
-  // computation on save; this mirrors that same formula purely for instant visual feedback.
-  const discountAmount =
-    watchedDiscountType === 'percentage'
-      ? Math.round(subtotal * (Number(watchedDiscountPercentage || 0) / 100) * 100) / 100
-      : Number(watchedDiscountAmount || 0)
-  // Transportation: preview only, mirrors TaxService::calculate()'s Exclusive/Inclusive
-  // formula (docs/TAX_ENGINE_DESIGN.md §4) purely for instant feedback before the round trip.
-  // Goods: each line's tax_amount is already server-resolved (from the Delivery/Sales Order
-  // line), so this is a real sum, not a preview.
-  const watchedTax = isTransportation
-    ? lineTaxAmount(subtotal, selectedTax)
+  // Discount is per-line now — summed from whichever line source is active. Preview only;
+  // DiscountService::calculate() on the backend is the authoritative computation on save.
+  const discountAmount = !isEdit && isTransportation
+    ? computeTotalDiscount(transportLines)
+    : !isEdit && isDirectGoods
+      ? computeTotalDiscount(directGoodsLines)
+      : isEditableItemsMode
+        ? computeTotalDiscount(editableLines)
+        : previewLines.reduce((sum, line) => sum + Number(line.discount_amount || 0), 0)
+  // Transportation and Direct Goods (create): preview only, mirrors TaxService::calculate() per
+  // line against its own net (post-discount) amount. Goods / already-saved lines: each line's
+  // tax_amount is already server-resolved, so this is a real sum, not a preview.
+  const watchedTax = !isEdit && isTransportation
+    ? computeLineTaxTotal(transportLines, (line) => taxOptions.find((tax) => tax.id === line.tax_id))
     : !isEdit && isDirectGoods
       ? computeLineTaxTotal(directGoodsLines, (line) => taxOptions.find((tax) => tax.id === line.tax_id))
       : isEditableItemsMode
@@ -706,14 +747,6 @@ function InvoiceForm({
       }
     }
 
-    if (values.discount_type === 'amount' && Number(values.discount_amount || 0) > subtotal) {
-      form.setError('discount_amount', { message: 'Cannot exceed subtotal' })
-      return
-    }
-    if (values.discount_type === 'percentage' && Number(values.discount_percentage || 0) > 100) {
-      form.setError('discount_percentage', { message: 'Cannot exceed 100%' })
-      return
-    }
     saveMutation.mutate(values)
   })
 
@@ -924,92 +957,16 @@ function InvoiceForm({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="discount_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Discount Type</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="amount">Amount (Rp)</SelectItem>
-                        <SelectItem value="percentage">Percentage (%)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {watchedDiscountType === 'percentage' ? (
-                <FormField
-                  control={form.control}
-                  name="discount_percentage"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Discount (%)</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input type="number" min="0" max="100" step="0.01" placeholder="0" className="pr-9" {...field} />
-                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
-                <FormField
-                  control={form.control}
-                  name="discount_amount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Discount (Rp)</FormLabel>
-                      <FormControl>
-                        <RupiahInput value={field.value} onChange={field.onChange} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-              {isTransportation ? (
-                <FormField
-                  control={form.control}
-                  name="tax_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tax</FormLabel>
-                      <Select value={field.value || NO_TAX} onValueChange={(next) => field.onChange(next === NO_TAX ? '' : next)}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value={NO_TAX}>No tax</SelectItem>
-                          {taxOptions.map((tax) => (
-                            <SelectItem key={tax.id} value={tax.id}>
-                              {tax.name} ({tax.code}){tax.type === 'vat' ? ` — ${tax.rate}%` : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium">Tax</span>
-                  <span className="text-sm text-muted-foreground">{formatCurrency(watchedTax)}</span>
-                  <p className="text-xs text-muted-foreground">Calculated per line — see the Line Items table below.</p>
-                </div>
-              )}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Discount</span>
+                <span className="text-sm text-muted-foreground">{formatCurrency(discountAmount)}</span>
+                <p className="text-xs text-muted-foreground">Set per line — see the Line Items table below.</p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Tax</span>
+                <span className="text-sm text-muted-foreground">{formatCurrency(watchedTax)}</span>
+                <p className="text-xs text-muted-foreground">Calculated per line — see the Line Items table below.</p>
+              </div>
               <FormField
                 control={form.control}
                 name="remarks"
@@ -1046,14 +1003,17 @@ function InvoiceForm({
                         <TableHead className="w-20">UOM</TableHead>
                         <TableHead className="w-32 text-right">Qty</TableHead>
                         <TableHead className="w-40 text-right">Rate</TableHead>
+                        <TableHead className="w-40">Discount</TableHead>
+                        <TableHead className="w-48">Tax</TableHead>
                         <TableHead className="w-40 text-right">Amount</TableHead>
+                        <TableHead className="w-32 text-right">Tax Amount</TableHead>
                         <TableHead className="w-12" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {transportLines.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={9} className="text-center text-sm text-muted-foreground">
                             No line items yet.
                           </TableCell>
                         </TableRow>
@@ -1090,7 +1050,33 @@ function InvoiceForm({
                           <TableCell className="min-w-40">
                             <RupiahInput value={line.rate} onChange={(value) => setTransportLine(line.key, { rate: value })} />
                           </TableCell>
-                          <TableCell className="text-right">{formatCurrency(lineAmount(line))}</TableCell>
+                          <TableCell className="min-w-40">
+                            <DiscountInput
+                              type={line.discount_type}
+                              value={line.discount_value}
+                              onTypeChange={(value) => setTransportLine(line.key, { discount_type: value })}
+                              onValueChange={(value) => setTransportLine(line.key, { discount_value: value })}
+                            />
+                          </TableCell>
+                          <TableCell className="min-w-48">
+                            <Select value={line.tax_id || NO_TAX} onValueChange={(next) => setTransportLine(line.key, { tax_id: next === NO_TAX ? '' : next })}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder={taxesQuery.isLoading ? 'Loading…' : 'No tax'} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NO_TAX}>No tax</SelectItem>
+                                {taxOptions.map((tax) => (
+                                  <SelectItem key={tax.id} value={tax.id}>
+                                    {tax.name} ({tax.code}){tax.type === 'vat' ? ` — ${tax.rate}%` : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(lineNetAmount(line))}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatCurrency(computeLineTaxTotal([line], (l) => taxOptions.find((tax) => tax.id === l.tax_id)))}
+                          </TableCell>
                           <TableCell>
                             <Button type="button" variant="ghost" size="icon" onClick={() => removeTransportLine(line.key)}>
                               <Trash2 className="size-4" />
@@ -1110,15 +1096,17 @@ function InvoiceForm({
                         <TableHead className="w-20">UOM</TableHead>
                         <TableHead className="w-32 text-right">Qty</TableHead>
                         <TableHead className="w-40 text-right">Rate</TableHead>
+                        <TableHead className="w-40">Discount</TableHead>
                         <TableHead className="w-48">Tax</TableHead>
                         <TableHead className="w-40 text-right">Amount</TableHead>
+                        <TableHead className="w-32 text-right">Tax Amount</TableHead>
                         <TableHead className="w-12" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {directGoodsLines.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={9} className="text-center text-sm text-muted-foreground">
                             No line items yet.
                           </TableCell>
                         </TableRow>
@@ -1149,6 +1137,14 @@ function InvoiceForm({
                           <TableCell className="min-w-40">
                             <RupiahInput value={line.rate} onChange={(value) => setDirectGoodsLine(line.key, { rate: value })} />
                           </TableCell>
+                          <TableCell className="min-w-40">
+                            <DiscountInput
+                              type={line.discount_type}
+                              value={line.discount_value}
+                              onTypeChange={(value) => setDirectGoodsLine(line.key, { discount_type: value })}
+                              onValueChange={(value) => setDirectGoodsLine(line.key, { discount_value: value })}
+                            />
+                          </TableCell>
                           <TableCell className="min-w-48">
                             <Select value={line.tax_id || NO_TAX} onValueChange={(next) => setDirectGoodsLine(line.key, { tax_id: next === NO_TAX ? '' : next })}>
                               <SelectTrigger className="w-full">
@@ -1164,7 +1160,10 @@ function InvoiceForm({
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell className="text-right">{formatCurrency(lineAmount(line))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(lineNetAmount(line))}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatCurrency(computeLineTaxTotal([line], (l) => taxOptions.find((tax) => tax.id === l.tax_id)))}
+                          </TableCell>
                           <TableCell>
                             <Button type="button" variant="ghost" size="icon" onClick={() => removeDirectGoodsLine(line.key)}>
                               <Trash2 className="size-4" />
@@ -1184,8 +1183,10 @@ function InvoiceForm({
                           <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
                           <TableHead className="w-28 text-right">Qty</TableHead>
                           <TableHead className="w-40 text-right">Rate</TableHead>
+                          <TableHead className="w-40">Discount</TableHead>
                           <TableHead className="w-48">Tax</TableHead>
                           <TableHead className="w-36 text-right">Amount</TableHead>
+                          <TableHead className="w-32 text-right">Tax Amount</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1211,6 +1212,14 @@ function InvoiceForm({
                             <TableCell className="min-w-40">
                               <RupiahInput value={line.rate} onChange={(value) => patchEditableLine(line.id, { rate: value })} />
                             </TableCell>
+                            <TableCell className="min-w-40">
+                              <DiscountInput
+                                type={line.discount_type}
+                                value={line.discount_value}
+                                onTypeChange={(value) => patchEditableLine(line.id, { discount_type: value })}
+                                onValueChange={(value) => patchEditableLine(line.id, { discount_value: value })}
+                              />
+                            </TableCell>
                             <TableCell className="min-w-48">
                               <Select value={line.tax_id || NO_TAX} onValueChange={(next) => patchEditableLine(line.id, { tax_id: next === NO_TAX ? '' : next })}>
                                 <SelectTrigger className="w-full">
@@ -1226,7 +1235,10 @@ function InvoiceForm({
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency((Number(line.qty) || 0) * (Number(line.rate) || 0))}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(lineNetAmount(line))}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {formatCurrency(computeLineTaxTotal([line], (l) => taxOptions.find((tax) => tax.id === l.tax_id)))}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1258,10 +1270,18 @@ function InvoiceForm({
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
-              <div className="flex w-full max-w-64 justify-between text-sm">
-                <span className="text-muted-foreground">{discountLabel(watchedDiscountType, watchedDiscountPercentage)}</span>
-                <span>-{formatCurrency(discountAmount)}</span>
-              </div>
+              {discountAmount > 0 && (
+                <>
+                  <div className="flex w-full max-w-64 justify-between text-sm">
+                    <span className="text-muted-foreground">Total Discount</span>
+                    <span>-{formatCurrency(discountAmount)}</span>
+                  </div>
+                  <div className="flex w-full max-w-64 justify-between text-sm">
+                    <span className="text-muted-foreground">DPP</span>
+                    <span>{formatCurrency(subtotal - discountAmount)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex w-full max-w-64 justify-between text-sm">
                 <span className="text-muted-foreground">Tax</span>
                 <span>{formatCurrency(watchedTax)}</span>

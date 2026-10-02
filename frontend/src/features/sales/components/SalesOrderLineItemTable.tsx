@@ -11,8 +11,9 @@ import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineI
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { DiscountInput } from '@/components/shared/DiscountInput'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { lineAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
+import { lineNetAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { fetchItemsByIds, searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { Item, Tax } from '@/features/master/types'
 import type { SalesOrderEditorValues } from '../lib/salesOrderFormSchema'
@@ -152,6 +153,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
               <TableHead className="w-28">Qty</TableHead>
               <TableHead className="w-36">UOM</TableHead>
               <TableHead className="w-36">Unit Price</TableHead>
+              <TableHead className="w-40">Discount</TableHead>
               <TableHead className="w-44">Tax</TableHead>
               <TableHead className="w-36 text-right">Amount</TableHead>
               <TableHead className="w-32 text-right">Tax Amount</TableHead>
@@ -161,7 +163,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="p-0">
+                <TableCell colSpan={9} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start building this order." />
                 </TableCell>
               </TableRow>
@@ -251,6 +253,15 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                       )}
                     />
                   </TableCell>
+                  <TableCell className="min-w-40">
+                    <DiscountInput
+                      type={row?.discount_type || 'amount'}
+                      value={row?.discount_value ?? '0'}
+                      onTypeChange={(value) => setValue(`items.${index}.discount_type`, value as 'amount' | 'percentage')}
+                      onValueChange={(value) => setValue(`items.${index}.discount_value`, value)}
+                      disabled={rowDisabled}
+                    />
+                  </TableCell>
                   <TableCell>
                     <FormField
                       control={control}
@@ -280,12 +291,12 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
                     />
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(lineAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }))}
+                    {formatCurrency(lineNetAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }))}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
                     {formatCurrency(
                       lineTaxAmount(
-                        lineAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }),
+                        lineNetAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }),
                         taxes.find((t) => t.id === watchedItems?.[index]?.tax_id),
                       ),
                     )}
@@ -316,7 +327,7 @@ export function SalesOrderLineItemTable({ form, warehouseId, taxes, disabled }: 
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', uom_id: '', item_uoms: [], qty: '1', rate: '0', tax_id: '' })}
+        onClick={() => append({ item_id: '', uom_id: '', item_uoms: [], qty: '1', rate: '0', discount_type: 'amount', discount_value: '0', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

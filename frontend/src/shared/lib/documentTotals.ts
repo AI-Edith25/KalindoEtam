@@ -11,6 +11,39 @@ export function computeSubtotal(lines: LineLike[]): number {
   return lines.reduce((sum, line) => sum + lineAmount(line), 0)
 }
 
+interface DiscountLike {
+  discount_type?: string | null
+  discount_value?: string | number | null
+}
+
+/**
+ * Client-side preview of DiscountService::calculate() on the backend — percentage mode is a
+ * straight percent of the line's gross amount, amount mode is the typed Rupiah figure, clamped
+ * to the gross amount so a mid-typing value never previews a negative net (the backend is the
+ * authoritative "cannot exceed the line amount" validation on save).
+ */
+export function lineDiscountAmount(amount: number, line: DiscountLike): number {
+  const type = line.discount_type || 'amount'
+  const value = Number(line.discount_value || 0)
+
+  if (type === 'percentage') {
+    return Math.round(amount * (Math.min(value, 100) / 100) * 100) / 100
+  }
+
+  return Math.round(Math.min(Math.max(value, 0), amount) * 100) / 100
+}
+
+/** Gross amount minus its own discount — the amount PPN is actually computed against. */
+export function lineNetAmount<T extends LineLike & DiscountLike>(line: T): number {
+  const amount = lineAmount(line)
+
+  return Math.round((amount - lineDiscountAmount(amount, line)) * 100) / 100
+}
+
+export function computeTotalDiscount<T extends LineLike & DiscountLike>(lines: T[]): number {
+  return lines.reduce((sum, line) => sum + lineDiscountAmount(lineAmount(line), line), 0)
+}
+
 /**
  * Goods Receipt has no tax field on the backend — Tax is fixed at 0 as a
  * placeholder, so Grand Total always equals Subtotal there. Sales Order,
@@ -50,6 +83,11 @@ export function lineTaxAmount(amount: number, tax: TaxLike | null | undefined): 
   return Math.round(((amount * rate) / 100) * 100) / 100
 }
 
-export function computeLineTaxTotal<T extends LineLike>(lines: T[], resolveTax: (line: T) => TaxLike | null | undefined): number {
-  return lines.reduce((sum, line) => sum + lineTaxAmount(lineAmount(line), resolveTax(line)), 0)
+/**
+ * Tax is computed on the line's NET (post-discount) amount — a line with no discount_type/
+ * discount_value present behaves identically to before (net === gross), so every caller that
+ * hasn't yet grown discount inputs keeps working unchanged.
+ */
+export function computeLineTaxTotal<T extends LineLike & DiscountLike>(lines: T[], resolveTax: (line: T) => TaxLike | null | undefined): number {
+  return lines.reduce((sum, line) => sum + lineTaxAmount(lineNetAmount(line), resolveTax(line)), 0)
 }

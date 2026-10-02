@@ -23,7 +23,6 @@ import { NominalChangeRequestPanel } from '../components/NominalChangeRequestPan
 import { CREDIT_NOTE_REASON_LABELS } from '../lib/creditNoteReasonLabels'
 import { DEBIT_NOTE_REASON_LABELS } from '../lib/debitNoteReasonLabels'
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceTypeLabels'
-import { discountLabel } from '../lib/discount'
 import type { InvoiceCreditNoteHistoryLine, InvoiceDebitNoteHistoryLine, InvoiceItem, InvoicePaymentHistoryLine } from '../types'
 
 const lineColumns: DataTableColumn<InvoiceItem>[] = [
@@ -31,7 +30,9 @@ const lineColumns: DataTableColumn<InvoiceItem>[] = [
   { header: 'Item Name', accessor: (row) => row.item_name },
   { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
-  { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+  { header: 'Discount', accessor: (row) => (Number(row.discount_amount) > 0 ? `-${formatCurrency(row.discount_amount)}` : '—'), className: 'text-right' },
+  { header: 'Amount', accessor: (row) => formatCurrency(row.net_amount), className: 'text-right' },
+  { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
 ]
 
 function buildDeliveryColumns(navigate: (path: string) => void): DataTableColumn<{ id: string; document_number: string | null }>[] {
@@ -373,10 +374,18 @@ export function InvoiceDetailPage() {
             <span className="text-muted-foreground">Subtotal</span>
             <span>{formatCurrency(invoice.subtotal)}</span>
           </div>
-          <div className="flex w-full max-w-64 justify-between text-sm">
-            <span className="text-muted-foreground">{discountLabel(invoice.discount_type, invoice.discount_percentage)}</span>
-            <span>-{formatCurrency(invoice.discount_amount)}</span>
-          </div>
+          {Number(invoice.discount_amount) > 0 && (
+            <>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Total Discount</span>
+                <span>-{formatCurrency(invoice.discount_amount)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">DPP</span>
+                <span>{formatCurrency(invoice.tax_base)}</span>
+              </div>
+            </>
+          )}
           <div className="flex w-full max-w-64 justify-between text-sm">
             <span className="text-muted-foreground">Tax</span>
             <span>{formatCurrency(invoice.tax_amount)}</span>
