@@ -489,8 +489,8 @@ function InvoiceForm({
   // Also doubles as that sub-flow's printed/displayed Location (see toPayload()) — Direct Goods
   // never shows the separate location_warehouse_id field below, one Location input is enough.
   const [directGoodsWarehouseId, setDirectGoodsWarehouseId] = useState('')
-  // Always enabled now — every Goods flow (Delivery-based or Direct) can show/edit a Location.
-  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup, enabled: !isTransportation })
+  // Always enabled now — every invoice flow (Goods or Transportation) can show/edit a Location.
+  const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const warehouseOptions = warehousesQuery.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const [directGoodsLines, setDirectGoodsLines] = useState<DirectGoodsLine[]>(() => [emptyDirectGoodsLine()])
   const addDirectGoodsLine = () => setDirectGoodsLines((prev) => [...prev, emptyDirectGoodsLine()])
@@ -873,9 +873,9 @@ function InvoiceForm({
                   </FormItem>
                 )}
               />
-              {/* Delivery-based Goods only — Direct Goods' own Location above already is its
-                  warehouse_id (one input is enough there); Transportation has no Location concept. */}
-              {!isDirectGoods && !isTransportation && (
+              {/* Delivery-based Goods and Transportation — Direct Goods' own Location above
+                  already is its warehouse_id (one input is enough there). */}
+              {!isDirectGoods && (
                 <FormField
                   control={form.control}
                   name="location_warehouse_id"

@@ -239,6 +239,8 @@ class InvoiceService
                 'customer_id' => $data['customer_id'],
                 'sales_person_id' => $data['sales_person_id'] ?? null,
                 'invoice_type' => InvoiceType::TRANSPORTATION->value,
+                // Printed/displayed Location — no Delivery/warehouse to default from, so purely manual (see Invoice::locationWarehouse()).
+                'location_warehouse_id' => $data['location_warehouse_id'] ?? null,
                 'invoice_date' => $data['invoice_date'],
                 'due_date' => $data['due_date'],
                 'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
