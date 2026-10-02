@@ -25,6 +25,8 @@ class SalesOrderResource extends JsonResource
             'order_date' => $this->order_date?->format('Y-m-d'),
             'expected_delivery_date' => $this->expected_delivery_date?->format('Y-m-d'),
             'total_amount' => $this->total_amount,
+            'total_discount' => $this->total_discount,
+            'tax_base' => $this->tax_base,
             'tax_id' => $this->tax_id,
             'tax' => $this->whenLoaded('tax', fn () => $this->tax ? new TaxResource($this->tax) : null),
             'tax_amount' => $this->tax_amount,

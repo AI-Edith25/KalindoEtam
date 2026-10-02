@@ -39,6 +39,10 @@ class DeliveryResource extends JsonResource
             'lock_version' => $this->lock_version,
             'items' => DeliveryItemResource::collection($this->whenLoaded('items')),
             'amount' => $this->whenLoaded('items', fn () => $this->items->sum('amount')),
+            // Computed, not stored — a Delivery has never had header total columns (totals are
+            // always derived live from its items, see docs plan 2026-10-02-discount-tax-phase-a).
+            'discount_amount' => $this->whenLoaded('items', fn () => round((float) $this->items->sum('discount_amount'), 2)),
+            'tax_base' => $this->whenLoaded('items', fn () => round((float) $this->items->sum('net_amount'), 2)),
             // Tax is per-line now (each item's own tax_id/tax_amount, already resolved when
             // the Sales Order line/Delivery line was created) — tax_amount below is always
             // the accurate sum. tax_id/tax only resolve to a single value when every line
