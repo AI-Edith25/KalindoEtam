@@ -1,6 +1,6 @@
 import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
+import { lineTaxAmount } from '@/shared/lib/documentTotals'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { OpeningStockEditorValues } from '../lib/openingStockFormSchema'
@@ -52,12 +53,6 @@ export function OpeningStockLineItemTable({ form, taxes, disabled }: OpeningStoc
     }
   }
 
-  const total = (watchedItems ?? []).reduce((sum, line) => {
-    const qty = Number(line.qty?.replace(',', '.') || 0)
-    const unitCost = Number(line.unitCost?.replace(',', '.') || 0)
-    return sum + qty * unitCost
-  }, 0)
-
   return (
     <div className="flex flex-col gap-3">
       <LineItemTableScroll>
@@ -68,14 +63,15 @@ export function OpeningStockLineItemTable({ form, taxes, disabled }: OpeningStoc
               <TableHead className="w-32 text-right">Qty</TableHead>
               <TableHead className="w-36 text-right">Unit Cost</TableHead>
               <TableHead className="w-44">Tax</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="w-36 text-right">Amount</TableHead>
+              <TableHead className="w-32 text-right">Tax Amount</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="p-0">
+                <TableCell colSpan={7} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start entering opening balances." />
                 </TableCell>
               </TableRow>
@@ -170,6 +166,9 @@ export function OpeningStockLineItemTable({ form, taxes, disabled }: OpeningStoc
                       />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{formatCurrency(qty * unitCost)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {formatCurrency(lineTaxAmount(qty * unitCost, taxes.find((t) => t.id === row?.tax_id)))}
+                    </TableCell>
                     <TableCell>
                       <Button
                         type="button"
@@ -188,17 +187,6 @@ export function OpeningStockLineItemTable({ form, taxes, disabled }: OpeningStoc
               })
             )}
           </TableBody>
-          {fields.length > 0 && (
-            <TableFooter>
-              <TableRow>
-                <TableCell colSpan={4} className="text-right font-medium">
-                  Total
-                </TableCell>
-                <TableCell className="text-right font-medium tabular-nums">{formatCurrency(total)}</TableCell>
-                <TableCell />
-              </TableRow>
-            </TableFooter>
-          )}
         </Table>
       </LineItemTableScroll>
 
