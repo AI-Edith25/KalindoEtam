@@ -106,10 +106,12 @@ class SalesInvoiceImportServiceTest extends TestCase
         $this->assertSame(1, $batch->success_rows);
         $this->assertSame(0, $batch->failed_rows);
 
-        $invoice = Invoice::query()->where('source_document_number', 'SI/KE/00001/09/2026')->with('items')->firstOrFail();
+        $invoice = Invoice::query()->where('source_document_number', 'SI/KE/00001/09/2026')->with(['items', 'accountsReceivable'])->firstOrFail();
         $this->assertSame('submitted', $invoice->status->value);
         $this->assertSame('historical_invoice', $invoice->import_source_type);
         $this->assertSame('goods', $invoice->invoice_type->value);
+        $this->assertSame('SI/KE/00001/09/2026', $invoice->document_number, 'document_number must be the file\'s own legacy number, not an auto-generated one — see resolveDocumentNumber()');
+        $this->assertSame('SI/KE/00001/09/2026', $invoice->accountsReceivable->reference_number);
         $this->assertNull($invoice->warehouse_id, 'must never be set — that column is Direct-Goods-only and would falsely mark this as a stock-consuming invoice');
         $this->assertNull($invoice->location_warehouse_id, 'no LOCATION column in this file — stays null, not an error');
         $this->assertEquals(100000, (float) $invoice->subtotal);
@@ -287,7 +289,15 @@ class SalesInvoiceImportServiceTest extends TestCase
             'duplicate' => ['SI/KE/00005/09/2026' => ['action' => 'proceed', 'target_id' => null]],
         ]);
         $this->service->import($proceed);
-        $this->assertSame(2, Invoice::query()->where('source_document_number', 'SI/KE/00005/09/2026')->count(), 'explicit override allowed against a cancelled match');
+        $invoices = Invoice::query()->where('source_document_number', 'SI/KE/00005/09/2026')->get();
+        $this->assertCount(2, $invoices, 'explicit override allowed against a cancelled match');
+
+        // document_number is globally unique and never freed by cancelling — the legacy number is
+        // already burned by the cancelled row, so the replacement must fall back to an
+        // auto-generated number instead of colliding. See resolveDocumentNumber().
+        $documentNumbers = $invoices->pluck('document_number');
+        $this->assertContains('SI/KE/00005/09/2026', $documentNumbers, 'the first (now-cancelled) invoice keeps the legacy number');
+        $this->assertCount(2, $documentNumbers->unique(), 'the replacement must get a different document_number, not collide');
     }
 
     /** A manual Invoice never fills source_document_number, but may carry the legacy number in REFERENCE 1/2 — the ticket's own fallback for when the file's number format diverges. */

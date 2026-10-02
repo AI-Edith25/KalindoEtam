@@ -397,6 +397,8 @@ class SalesInvoiceImportService
                 // consumption (Invoice::isDirectGoods()); a historical import never moves stock.
                 'location_warehouse_id' => $locationWarehouseId,
                 'customer_id' => $customerId,
+                // See resolveDocumentNumber()'s docblock.
+                'document_number' => $this->resolveDocumentNumber($group['document_number']),
                 'invoice_type' => InvoiceType::GOODS->value,
                 'invoice_date' => $group['date'],
                 'due_date' => $group['date'],
@@ -460,6 +462,7 @@ class SalesInvoiceImportService
                 'sales_order_id' => null,
                 'location_warehouse_id' => $locationWarehouseId,
                 'customer_id' => $customerId,
+                'document_number' => $this->resolveDocumentNumber($group['document_number']),
                 'invoice_type' => InvoiceType::TRANSPORTATION->value,
                 'invoice_date' => $group['date'],
                 'due_date' => $group['date'],
@@ -496,6 +499,26 @@ class SalesInvoiceImportService
 
             return $invoice->fresh(['items']);
         });
+    }
+
+    /**
+     * The file's own legacy number, used as the real document_number — what every screen, search,
+     * print and the invoice's own AccountsReceivable.reference_number show — instead of silently
+     * minting a new one via the live naming series and burning a slot per historical row (fixed
+     * 2026-10-02, see [[project_erp_sales_invoice_history_import]]).
+     *
+     * Falls back to null (Documentable then auto-generates as before) only when that exact number
+     * is already owned by another Invoice — the document_number column is globally unique and,
+     * unlike source_document_number_normalized, is never freed by cancelling a document (cancelled
+     * numbers stay burned, standard accounting practice). That collision only happens when a bad
+     * import was cancelled and the same legacy document is deliberately re-imported via "proceed"
+     * — the replacement earns a fresh number, same as issuing a real corrected document would.
+     */
+    private function resolveDocumentNumber(string $legacyNumber): ?string
+    {
+        $taken = Invoice::query()->where('document_number', $legacyNumber)->exists();
+
+        return $taken ? null : $legacyNumber;
     }
 
     /** @return array{0: float, 1: float, 2: float} [discountAmount, taxTotal, grandTotal] */
