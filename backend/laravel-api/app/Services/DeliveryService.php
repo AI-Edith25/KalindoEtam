@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DeliveryStatus;
+use App\Enums\DiscountType;
 use App\Enums\SalesOrderStatus;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
@@ -37,6 +38,7 @@ class DeliveryService
         protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected TaxService $taxService,
+        protected DiscountService $discountService,
         protected CompanyRepository $companyRepository,
         protected QtyCategoryValidator $qtyCategoryValidator,
         protected TaxRepository $taxRepository,
@@ -230,8 +232,9 @@ class DeliveryService
         $this->qtyCategoryValidator->assertValid($item, $line['qty']);
         $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
         $rate = (float) ($line['rate'] ?? 0);
-        $lineAmount = $qty * $rate;
-        [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $lineAmount);
+        $grossAmount = $qty * $rate;
+        [$discountType, $discountValue, $discountAmount, $netAmount] = $this->discountService->resolveLineDiscount($line, $grossAmount);
+        [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $netAmount);
 
         return [
             'delivery_id' => $delivery->id,
@@ -244,7 +247,11 @@ class DeliveryService
             'rate' => $rate,
             'qty' => $qty,
             'qty_category' => $item->qty_category,
-            'amount' => round($lineAmount, 2),
+            'amount' => round($grossAmount, 2),
+            'discount_type' => $discountType->value,
+            'discount_value' => $discountValue,
+            'discount_amount' => $discountAmount,
+            'net_amount' => $netAmount,
             'tax_id' => $taxId,
             'tax_amount' => round($taxAmount, 2),
         ];
@@ -493,15 +500,28 @@ class DeliveryService
         $qty = $this->qtyCategoryValidator->round($item, $qty);
 
         $rate = $rateOverride ?? $soItem->rate;
-        $lineAmount = $qty * $rate;
+        $grossAmount = $qty * $rate;
+
+        // Discount is derived from the SO line, never re-entered here — a percentage carries over
+        // as-is (it scales naturally against this DO's own, possibly partial, gross amount); a
+        // nominal (Rp) discount is pro-rated by this DO's share of the SO line's total qty, so
+        // several partial Deliveries against the same SO line never sum to more than its own
+        // discount_amount (small rounding dust aside — each line rounds independently, same
+        // discipline tax_amount already uses everywhere in this codebase).
+        $soDiscountType = DiscountType::from($soItem->discount_type);
+        $soDiscountValue = $soDiscountType === DiscountType::PERCENTAGE
+            ? (float) $soItem->discount_value
+            : round((float) $soItem->discount_amount * ($qty / $soItem->qty), 2);
+
+        ['discount_amount' => $discountAmount, 'net_amount' => $netAmount] = $this->discountService->calculate($grossAmount, $soDiscountType, $soDiscountValue);
 
         // tax_id carries forward as-is (or the caller's override); tax_amount is recomputed
-        // against this delivery line's own (possibly partial, possibly overridden) qty/rate, not
-        // simply copied — same "rate inherited, amount recomputed against the real quantity" rule
-        // the old header-level inheritance used, now applied per line.
+        // against this delivery line's own (possibly partial, possibly overridden) net amount,
+        // not simply copied — same "rate inherited, amount recomputed against the real quantity"
+        // rule the old header-level inheritance used, now applied per line, now against net.
         $taxId = $taxIdOverride ?? $soItem->tax_id;
         $tax = $taxId !== null ? $this->taxRepository->findOrFail($taxId) : null;
-        $taxAmount = $tax !== null ? $this->taxService->calculate($lineAmount, $tax)['tax_amount'] : 0.0;
+        $taxAmount = $tax !== null ? $this->taxService->calculate($netAmount, $tax)['tax_amount'] : 0.0;
 
         return [
             'delivery_id' => $delivery->id,
@@ -516,7 +536,11 @@ class DeliveryService
             'rate' => $rate,
             'qty' => $qty,
             'qty_category' => $item->qty_category,
-            'amount' => round($lineAmount, 2),
+            'amount' => round($grossAmount, 2),
+            'discount_type' => $soDiscountType->value,
+            'discount_value' => $soDiscountValue,
+            'discount_amount' => $discountAmount,
+            'net_amount' => $netAmount,
             'tax_id' => $taxId,
             'tax_amount' => round($taxAmount, 2),
         ];

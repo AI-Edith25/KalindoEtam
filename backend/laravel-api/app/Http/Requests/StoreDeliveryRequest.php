@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\DiscountType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreDeliveryRequest extends FormRequest
 {
@@ -34,6 +36,11 @@ class StoreDeliveryRequest extends FormRequest
             // always get their tax copied from the linked sales_order_items row instead, see
             // DeliveryService::create(). Optional and manual, no default.
             'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
+            // Same posture as tax_id above — only meaningful for a Direct Delivery line.
+            // SO-linked items always derive their discount from the linked sales_order_items
+            // row instead (DeliveryService's own allocation rule), never accept one directly.
+            'items.*.discount_type' => ['sometimes', 'nullable', Rule::enum(DiscountType::class)],
+            'items.*.discount_value' => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ];
     }
 }
