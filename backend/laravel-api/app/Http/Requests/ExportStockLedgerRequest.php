@@ -19,6 +19,7 @@ class ExportStockLedgerRequest extends FormRequest
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
             'warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
             'item_id' => ['sometimes', 'nullable', 'uuid', 'exists:items,id'],
+            'item_group_id' => ['sometimes', 'nullable', 'uuid', 'exists:item_groups,id'],
             'voucher_type' => ['sometimes', 'nullable', Rule::enum(StockVoucherType::class)],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],

@@ -39,6 +39,7 @@ export interface StockLedgerEntry {
 export interface StockLedgerFilterValues {
   warehouse_id: string
   item_id: string
+  item_group_id: string
   voucher_type: VoucherType | null
   dateFrom: string
   dateTo: string

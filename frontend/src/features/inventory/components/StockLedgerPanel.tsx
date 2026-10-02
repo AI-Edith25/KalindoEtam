@@ -41,6 +41,7 @@ export function StockLedgerPanel() {
     ...(search ? { search } : {}),
     ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
     ...(filters.item_id ? { item_id: filters.item_id } : {}),
+    ...(filters.item_group_id ? { item_group_id: filters.item_group_id } : {}),
     ...(filters.voucher_type ? { voucher_type: filters.voucher_type } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
@@ -53,6 +54,7 @@ export function StockLedgerPanel() {
       search,
       filters.warehouse_id,
       filters.item_id,
+      filters.item_group_id,
       filters.voucher_type,
       filters.dateFrom,
       filters.dateTo,
@@ -120,7 +122,7 @@ export function StockLedgerPanel() {
     { header: 'Balance Value', accessor: (row) => (row.balance_value !== null ? formatCurrency(row.balance_value) : '—'), className: 'text-right font-medium' },
   ]
 
-  const hasFilters = !!(search || filters.warehouse_id || filters.item_id || filters.voucher_type || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(search || filters.warehouse_id || filters.item_id || filters.item_group_id || filters.voucher_type || filters.dateFrom || filters.dateTo)
 
   return (
     <div className="flex flex-col gap-4">

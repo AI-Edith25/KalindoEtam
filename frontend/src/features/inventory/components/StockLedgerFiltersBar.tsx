@@ -3,7 +3,7 @@ import { FilterPanel } from '@/components/shared/FilterPanel'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
 import { fetchItem } from '@/features/master/api/itemApi'
-import { searchItemsLookup } from '@/features/master/api/lookupsApi'
+import { fetchItemGroups, searchItemsLookup } from '@/features/master/api/lookupsApi'
 import { useWarehousesLookup } from '@/features/master/hooks/useLookups'
 import { emptyStockLedgerFilters, hasActiveStockLedgerFilters } from '../lib/stockLedgerFilters'
 import type { StockLedgerFilterValues, VoucherType } from '../types'
@@ -34,6 +34,8 @@ interface StockLedgerFiltersBarProps {
 export function StockLedgerFiltersBar({ value, onChange }: StockLedgerFiltersBarProps) {
   const warehouses = useWarehousesLookup()
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
+  const itemGroups = useQuery({ queryKey: ['item-groups-lookup'], queryFn: fetchItemGroups })
+  const itemGroupOptions = itemGroups.data?.map((group) => ({ value: group.id, label: group.name })) ?? []
 
   const loadItemOptions = async (query: string) => {
     const items = await searchItemsLookup(query)
@@ -61,6 +63,18 @@ export function StockLedgerFiltersBar({ value, onChange }: StockLedgerFiltersBar
           className="w-44"
           placeholder="All locations"
           aria-label="Location"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Item Group</span>
+        <SearchableSelect
+          options={itemGroupOptions}
+          value={value.item_group_id || undefined}
+          onChange={(next) => onChange({ ...value, item_group_id: next ?? '' })}
+          loading={itemGroups.isLoading}
+          className="w-44"
+          placeholder="All item groups"
+          aria-label="Item Group"
         />
       </div>
       <div className="flex flex-col gap-1.5">

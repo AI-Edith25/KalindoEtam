@@ -90,6 +90,7 @@ class StockLedgerRepository extends BaseRepository
             ->with(['item.itemGroup', 'item.uom', 'warehouse'])
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
             ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->whereHas('item', fn ($iq) => $iq->where('item_group_id', $itemGroupId)))
             ->whereBetween('posting_datetime', ["{$from} 00:00:00", "{$to} 23:59:59"])
             ->orderBy('posting_datetime')
             ->orderBy('created_at')
@@ -110,6 +111,7 @@ class StockLedgerRepository extends BaseRepository
             ->selectRaw('SUM(qty_change) as opening_qty')
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
             ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->whereHas('item', fn ($iq) => $iq->where('item_group_id', $itemGroupId)))
             ->where('posting_datetime', '<', "{$before} 00:00:00")
             ->groupBy('item_id', 'warehouse_id')
             ->get()
@@ -124,6 +126,7 @@ class StockLedgerRepository extends BaseRepository
             ->selectRaw('MIN(posting_datetime) as first_date, MAX(posting_datetime) as last_date')
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
             ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->whereHas('item', fn ($iq) => $iq->where('item_group_id', $itemGroupId)))
             ->first();
 
         return ['from' => $row?->first_date, 'to' => $row?->last_date];
@@ -134,6 +137,7 @@ class StockLedgerRepository extends BaseRepository
         return $query
             ->when($filters['warehouse_id'] ?? null, fn ($q, $warehouseId) => $q->where('warehouse_id', $warehouseId))
             ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->where('item_id', $itemId))
+            ->when($filters['item_group_id'] ?? null, fn ($q, $itemGroupId) => $q->whereHas('item', fn ($iq) => $iq->where('item_group_id', $itemGroupId)))
             ->when($filters['voucher_type'] ?? null, fn ($q, $voucherType) => $q->where('voucher_type', $voucherType))
             ->when($filters['date_from'] ?? null, fn ($q, $date) => $q->whereDate('posting_datetime', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($q, $date) => $q->whereDate('posting_datetime', '<=', $date))
