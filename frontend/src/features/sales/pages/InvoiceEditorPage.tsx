@@ -86,13 +86,15 @@ interface TransportLine {
   key: string
   misc_item_id: string
   description: string
+  // The picked MiscellaneousItem's own UOM — carried along read-only, same as DirectGoodsLine.uom.
+  uom: string | null
   qty: string
   rate: string
 }
 
 let transportLineCounter = 0
 const nextTransportLineKey = () => `transport-${++transportLineCounter}`
-const emptyTransportLine = (): TransportLine => ({ key: nextTransportLineKey(), misc_item_id: '', description: '', qty: '1', rate: '0' })
+const emptyTransportLine = (): TransportLine => ({ key: nextTransportLineKey(), misc_item_id: '', description: '', uom: null, qty: '1', rate: '0' })
 
 /**
  * Wizard-only, never persisted — the backend still only ever sees invoice_type 'goods' or
@@ -554,7 +556,12 @@ function InvoiceForm({
             customer_id: selectedCustomerId,
             items: transportLines
               .filter((line) => line.description.trim() !== '')
-              .map((line) => ({ description: line.description.trim(), qty: Number(line.qty) || 0, rate: Number(line.rate) || 0 })),
+              .map((line) => ({
+                description: line.description.trim(),
+                qty: Number(line.qty) || 0,
+                rate: Number(line.rate) || 0,
+                uom: line.uom,
+              })),
           }
         : isDirectGoods
           ? {
@@ -1036,6 +1043,7 @@ function InvoiceForm({
                     <TableHeader>
                       <TableRow>
                         <TableHead className={STICKY_FIRST_COL}>Description</TableHead>
+                        <TableHead className="w-20">UOM</TableHead>
                         <TableHead className="w-32 text-right">Qty</TableHead>
                         <TableHead className="w-40 text-right">Rate</TableHead>
                         <TableHead className="w-40 text-right">Amount</TableHead>
@@ -1045,7 +1053,7 @@ function InvoiceForm({
                     <TableBody>
                       {transportLines.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                             No line items yet.
                           </TableCell>
                         </TableRow>
@@ -1058,12 +1066,17 @@ function InvoiceForm({
                               selectedOption={line.misc_item_id ? { value: line.misc_item_id, label: line.description } : undefined}
                               value={line.misc_item_id}
                               onChange={(value, option) =>
-                                setTransportLine(line.key, { misc_item_id: value ?? '', description: option?.label ?? '' })
+                                setTransportLine(line.key, {
+                                  misc_item_id: value ?? '',
+                                  description: option?.label ?? '',
+                                  uom: option?.data?.uom?.name ?? null,
+                                })
                               }
                               placeholder="Select description"
                               aria-label="Description"
                             />
                           </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{line.uom ?? '—'}</TableCell>
                           <TableCell className="min-w-32">
                             <Input
                               type="number"

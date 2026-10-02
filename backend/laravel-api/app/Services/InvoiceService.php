@@ -240,7 +240,7 @@ class InvoiceService
                     'item_id' => null,
                     'item_code' => null,
                     'item_name' => $line['description'],
-                    'uom' => null,
+                    'uom' => $line['uom'] ?? null,
                     'rate' => $rate,
                     'qty' => $qty,
                     'amount' => $qty * $rate,

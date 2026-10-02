@@ -52,6 +52,9 @@ class StoreInvoiceRequest extends FormRequest
             // real Item-backed lines, same master data every Sales Order line resolves against.
             'items' => [Rule::when($isTransportationOrDirectGoods, 'required', 'prohibited'), 'array', 'min:1'],
             'items.*.description' => [Rule::when($isTransportation, 'required', 'prohibited'), 'string'],
+            // Transportation only — the MiscellaneousItem's own UOM, carried along for display/print.
+            // Direct Goods derives its UOM from the Item master instead, never from the request.
+            'items.*.uom' => [Rule::when($isTransportation, 'nullable', 'prohibited'), 'string', 'max:50'],
             'items.*.item_id' => [Rule::when($isDirectGoods, 'required', 'prohibited'), 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],

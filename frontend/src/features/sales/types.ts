@@ -343,7 +343,7 @@ export interface InvoiceFormValues {
   // Item-backed lines, same master data a Sales Order line resolves against. Submitted-edit
   // (InvoiceService::updateSubmitted()): existing line id + qty/rate/tax_id only, no add/remove.
   items?:
-    | { description: string; qty: number; rate: number }[]
+    | { description: string; qty: number; rate: number; uom?: string | null }[]
     | { item_id: string; qty: number; rate: number; tax_id?: string | null }[]
     | { id: string; qty?: number; rate?: number; tax_id?: string | null }[]
   // Transportation and Goods (Direct), create-only — no Sales Order to derive Branch from.

@@ -46,9 +46,11 @@ export interface InvoicePaperProps {
  * either layout uses lives in the one shared invoicePrintConstants.ts file.
  *
  * Goods and Transportation invoices share both layouts identically. Two Transportation-only gaps
- * are deliberate, not bugs: ItemCode/UOM render blank (createTransportation() never stores either
- * — no form field collects them), and "Location" renders blank (Transportation invoices carry no
- * sales_order_id/delivery_id, so there is no warehouse/branch to source it from).
+ * are deliberate, not bugs: ItemCode renders blank (createTransportation() never stores one — a
+ * manual line has no Item master to source a code from), and "Location" renders blank
+ * (Transportation invoices carry no sales_order_id/delivery_id, so there is no warehouse/branch
+ * to source it from). UOM is no longer one of these gaps — a Transportation line optionally
+ * carries the picked MiscellaneousItem's own UOM straight through.
  *
  * A separate "Roll" format renders alongside these from the same query/data — an 80mm
  * thermal-receipt style with its own sans-serif font, a Code128 barcode of the document number,

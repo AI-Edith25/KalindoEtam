@@ -368,7 +368,7 @@ class InvoiceWorkflowTest extends TestCase
             'invoice_type' => InvoiceType::TRANSPORTATION->value,
             'customer_id' => $this->customer->id,
             'items' => [
-                ['description' => 'Ongkos Angkut Semen 50kg - Rute A', 'qty' => 3, 'rate' => 25000],
+                ['description' => 'Ongkos Angkut Semen 50kg - Rute A', 'qty' => 3, 'rate' => 25000, 'uom' => 'Trip'],
                 ['description' => 'Ongkos Angkut Semen 50kg - Rute B', 'qty' => 2, 'rate' => 30000],
             ],
             'invoice_date' => now()->toDateString(),
@@ -385,6 +385,8 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertNull($line->delivery_item_id);
         $this->assertNull($line->item_id);
         $this->assertSame('Ongkos Angkut Semen 50kg - Rute A', $line->item_name);
+        $this->assertSame('Trip', $line->uom);
+        $this->assertNull($invoice->items->last()->uom);
     }
 
     public function test_submitting_a_transportation_invoice_creates_the_accounts_receivable_and_posts_the_journal(): void
