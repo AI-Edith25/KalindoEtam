@@ -37,6 +37,8 @@ class SalesOrder extends Model
         'fax',
         'reference',
         'terms_of_payment_id',
+        'total_discount',
+        'tax_base',
     ];
 
     protected $casts = [
@@ -44,6 +46,8 @@ class SalesOrder extends Model
         'order_date' => 'date',
         'expected_delivery_date' => 'date',
         'total_amount' => 'decimal:2',
+        'total_discount' => 'decimal:2',
+        'tax_base' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'submitted_at' => 'datetime',

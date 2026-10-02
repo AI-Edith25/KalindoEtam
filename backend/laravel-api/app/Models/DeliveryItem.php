@@ -26,6 +26,10 @@ class DeliveryItem extends Model
         'qty',
         'qty_category',
         'amount',
+        'discount_type',
+        'discount_value',
+        'discount_amount',
+        'net_amount',
         'tax_id',
         'tax_amount',
     ];
@@ -35,6 +39,9 @@ class DeliveryItem extends Model
         'qty' => 'decimal:4',
         'qty_category' => QtyCategory::class,
         'amount' => 'decimal:2',
+        'discount_value' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'net_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
     ];
 
