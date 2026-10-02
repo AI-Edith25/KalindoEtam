@@ -39,9 +39,11 @@ class UpdateInvoiceRequest extends FormRequest
             // The printed/displayed Location — editable at any status, zero stock/accounting side effects. See Invoice::locationWarehouse().
             'location_warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
-            'discount_type' => ['sometimes', 'nullable', Rule::enum(DiscountType::class)],
-            'discount_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'discount_percentage' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
+            // Discount is per-line only now — the header figure is always derived as the sum of
+            // the (possibly just-edited) lines' own discount_amount, never a direct input here.
+            'discount_type' => ['prohibited'],
+            'discount_amount' => ['prohibited'],
+            'discount_percentage' => ['prohibited'],
             'tax_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('taxes', 'id')->where('is_active', true)],
             'tax_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string'],
@@ -65,6 +67,8 @@ class UpdateInvoiceRequest extends FormRequest
             ],
             'items.*.qty' => ['sometimes', 'numeric', 'min:1'],
             'items.*.rate' => ['sometimes', 'numeric', 'min:0'],
+            'items.*.discount_type' => ['sometimes', 'nullable', Rule::enum(DiscountType::class)],
+            'items.*.discount_value' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
         ];
     }

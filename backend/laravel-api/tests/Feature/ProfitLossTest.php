@@ -94,7 +94,9 @@ class ProfitLossTest extends TestCase
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate]],
+            // Discount is per-line now — applied on the Sales Order line itself, flows through
+            // Delivery to the Invoice line.
+            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'discount_type' => 'amount', 'discount_value' => $discountAmount]],
         ]);
         $this->approveDocument($salesOrder);
         $this->salesOrderService->approve($salesOrder);
@@ -113,7 +115,6 @@ class ProfitLossTest extends TestCase
             'invoice_date' => $invoiceDate ?? now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_amount' => $taxAmount,
-            'discount_amount' => $discountAmount,
         ]);
 
         return $this->invoiceService->submit($invoice);

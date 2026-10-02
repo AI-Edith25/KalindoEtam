@@ -33,6 +33,7 @@ class InvoiceService
         protected AccountingService $accountingService,
         protected TaxRepository $taxRepository,
         protected TaxService $taxService,
+        protected DiscountService $discountService,
         protected AuditLogService $auditLogService,
         protected FifoLayerService $fifoLayerService,
         protected StockLedgerService $stockLedgerService,
@@ -99,12 +100,14 @@ class InvoiceService
             $anchor = $deliveries->first();
 
             $subtotal = $deliveries->sum(fn ($delivery) => (float) $delivery->items->sum('amount'));
-            [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
+            // Discount is inherited verbatim from each DeliveryItem (frozen snapshot, same
+            // treatment as tax_id/tax_amount below) — never a header input on a Goods invoice.
+            $discountAmount = round($deliveries->sum(fn ($delivery) => (float) $delivery->items->sum('discount_amount')), 2);
             // Goods invoices have no single header tax anymore — each line's tax was already
-            // resolved when its Sales Order line/Delivery line was created (Item.sales_tax_id
-            // default or a manual per-line override); this invoice just sums what it copies below.
+            // resolved (on its own net-of-discount amount) when its Sales Order line/Delivery
+            // line was created; this invoice just sums what it copies below.
             $taxAmount = round($deliveries->sum(fn ($delivery) => (float) $delivery->items->sum('tax_amount')), 2);
-            $grandTotal = $subtotal - $discountAmount + $taxAmount;
+            $grandTotal = round($subtotal - $discountAmount + $taxAmount, 2);
 
             if ($grandTotal < 0) {
                 throw new BusinessException('Grand total cannot be negative.');
@@ -126,8 +129,9 @@ class InvoiceService
                 'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
-                'discount_type' => $discountType->value,
-                'discount_percentage' => $discountPercentage,
+                'discount_type' => DiscountType::AMOUNT->value,
+                'discount_percentage' => null,
+                'tax_base' => round($subtotal - $discountAmount, 2),
                 // Header tax_id has no single meaningful value once tax is per-line — always
                 // null for Goods, tax_amount above is the authoritative sum of the lines.
                 'tax_id' => null,
@@ -159,11 +163,15 @@ class InvoiceService
                         'rate' => $line->rate,
                         'qty' => $line->qty,
                         'amount' => $line->amount,
+                        // Copied verbatim from the DeliveryItem — already resolved upstream,
+                        // same frozen-snapshot treatment as item_code/item_name/uom above.
+                        'discount_type' => $line->discount_type,
+                        'discount_value' => $line->discount_value,
+                        'discount_amount' => $line->discount_amount,
+                        'net_amount' => $line->net_amount,
                         // unit_cost is per *base* unit (FIFO), qty is in the line's UOM.
                         'unit_cost' => $unitCost,
                         'cost_amount' => round($unitCost * $line->baseQty(), 2),
-                        // Copied verbatim from the DeliveryItem — already resolved upstream,
-                        // same frozen-snapshot treatment as item_code/item_name/uom above.
                         'tax_id' => $line->tax_id,
                         'tax_amount' => $line->tax_amount,
                     ]);
@@ -194,14 +202,31 @@ class InvoiceService
     protected function createTransportation(array $data): Invoice
     {
         return DB::transaction(function () use ($data) {
-            $subtotal = array_sum(array_map(
-                fn (array $line) => (float) $line['qty'] * (float) $line['rate'],
-                $data['items']
-            ));
+            $subtotal = 0.0;
+            $discountTotal = 0.0;
+            $taxAmountTotal = 0.0;
+            $lines = [];
 
-            [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
-            [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
-            $grandTotal = $subtotal - $discountAmount + $taxAmount;
+            foreach ($data['items'] as $line) {
+                $qty = (float) $line['qty'];
+                $rate = (float) $line['rate'];
+                $grossAmount = $qty * $rate;
+                [$discountType, $discountValue, $discountAmount, $netAmount] = $this->discountService->resolveLineDiscount($line, $grossAmount);
+                [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $netAmount);
+
+                $subtotal += $grossAmount;
+                $discountTotal += $discountAmount;
+                $taxAmountTotal += $taxAmount;
+                $lines[] = [
+                    'line' => $line, 'qty' => $qty, 'rate' => $rate, 'grossAmount' => $grossAmount,
+                    'discountType' => $discountType, 'discountValue' => $discountValue, 'discountAmount' => $discountAmount, 'netAmount' => $netAmount,
+                    'taxId' => $taxId, 'taxAmount' => $taxAmount,
+                ];
+            }
+
+            $discountTotal = round($discountTotal, 2);
+            $taxAmountTotal = round($taxAmountTotal, 2);
+            $grandTotal = round($subtotal - $discountTotal + $taxAmountTotal, 2);
 
             if ($grandTotal < 0) {
                 throw new BusinessException('Grand total cannot be negative.');
@@ -218,11 +243,14 @@ class InvoiceService
                 'due_date' => $data['due_date'],
                 'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
                 'subtotal' => $subtotal,
-                'discount_amount' => $discountAmount,
-                'discount_type' => $discountType->value,
-                'discount_percentage' => $discountPercentage,
-                'tax_id' => $taxId,
-                'tax_amount' => $taxAmount,
+                'discount_amount' => $discountTotal,
+                'discount_type' => DiscountType::AMOUNT->value,
+                'discount_percentage' => null,
+                'tax_base' => round($subtotal - $discountTotal, 2),
+                // Header tax_id is no longer meaningful — tax is per-line now, same convention
+                // Goods already uses. tax_amount above is the authoritative sum of the lines.
+                'tax_id' => null,
+                'tax_amount' => $taxAmountTotal,
                 'grand_total' => $grandTotal,
                 'remarks' => $data['remarks'] ?? null,
                 // No Sales Order to derive from — manual entry only (e.g. the related SI number).
@@ -230,20 +258,23 @@ class InvoiceService
                 'reference_2' => $data['reference_2'] ?? null,
             ]);
 
-            foreach ($data['items'] as $line) {
-                $qty = (float) $line['qty'];
-                $rate = (float) $line['rate'];
-
+            foreach ($lines as $built) {
                 $this->invoiceItemRepository->create([
                     'invoice_id' => $invoice->id,
                     'delivery_item_id' => null,
                     'item_id' => null,
                     'item_code' => null,
-                    'item_name' => $line['description'],
-                    'uom' => $line['uom'] ?? null,
-                    'rate' => $rate,
-                    'qty' => $qty,
-                    'amount' => $qty * $rate,
+                    'item_name' => $built['line']['description'],
+                    'uom' => $built['line']['uom'] ?? null,
+                    'rate' => $built['rate'],
+                    'qty' => $built['qty'],
+                    'amount' => round($built['grossAmount'], 2),
+                    'discount_type' => $built['discountType']->value,
+                    'discount_value' => $built['discountValue'],
+                    'discount_amount' => $built['discountAmount'],
+                    'net_amount' => $built['netAmount'],
+                    'tax_id' => $built['taxId'],
+                    'tax_amount' => round($built['taxAmount'], 2),
                 ]);
             }
 
@@ -271,6 +302,7 @@ class InvoiceService
             $itemsById = Item::query()->with('uom')->whereIn('id', collect($data['items'])->pluck('item_id'))->get()->keyBy('id');
 
             $subtotal = 0.0;
+            $discountTotal = 0.0;
             $taxAmountTotal = 0.0;
             $lines = [];
 
@@ -283,17 +315,23 @@ class InvoiceService
 
                 $qty = (float) $line['qty'];
                 $rate = (float) $line['rate'];
-                $amount = $qty * $rate;
-                [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $item, 'sales_tax_id', $amount);
+                $grossAmount = $qty * $rate;
+                [$discountType, $discountValue, $discountAmount, $netAmount] = $this->discountService->resolveLineDiscount($line, $grossAmount);
+                [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $item, 'sales_tax_id', $netAmount);
 
-                $subtotal += $amount;
+                $subtotal += $grossAmount;
+                $discountTotal += $discountAmount;
                 $taxAmountTotal += $taxAmount;
-                $lines[] = ['item' => $item, 'qty' => $qty, 'rate' => $rate, 'amount' => $amount, 'tax_id' => $taxId, 'tax_amount' => $taxAmount];
+                $lines[] = [
+                    'item' => $item, 'qty' => $qty, 'rate' => $rate, 'amount' => $grossAmount,
+                    'discount_type' => $discountType, 'discount_value' => $discountValue, 'discount_amount' => $discountAmount, 'net_amount' => $netAmount,
+                    'tax_id' => $taxId, 'tax_amount' => $taxAmount,
+                ];
             }
 
+            $discountTotal = round($discountTotal, 2);
             $taxAmountTotal = round($taxAmountTotal, 2);
-            [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
-            $grandTotal = $subtotal - $discountAmount + $taxAmountTotal;
+            $grandTotal = round($subtotal - $discountTotal + $taxAmountTotal, 2);
 
             if ($grandTotal < 0) {
                 throw new BusinessException('Grand total cannot be negative.');
@@ -313,9 +351,10 @@ class InvoiceService
                 'due_date' => $data['due_date'],
                 'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
                 'subtotal' => $subtotal,
-                'discount_amount' => $discountAmount,
-                'discount_type' => $discountType->value,
-                'discount_percentage' => $discountPercentage,
+                'discount_amount' => $discountTotal,
+                'discount_type' => DiscountType::AMOUNT->value,
+                'discount_percentage' => null,
+                'tax_base' => round($subtotal - $discountTotal, 2),
                 // Header tax_id has no single meaningful value once tax is per-line — same
                 // convention as Delivery-based Goods invoices, see createGoods() above.
                 'tax_id' => null,
@@ -341,6 +380,10 @@ class InvoiceService
                     'rate' => $line['rate'],
                     'qty' => $line['qty'],
                     'amount' => $line['amount'],
+                    'discount_type' => $line['discount_type']->value,
+                    'discount_value' => $line['discount_value'],
+                    'discount_amount' => $line['discount_amount'],
+                    'net_amount' => $line['net_amount'],
                     'tax_id' => $line['tax_id'],
                     'tax_amount' => $line['tax_amount'],
                 ]);
@@ -379,32 +422,14 @@ class InvoiceService
             }
 
             $itemsChanged = isset($data['items']) && $invoice->invoice_type !== InvoiceType::TRANSPORTATION;
+
+            // Discount and tax are always derived from the lines now (Goods: copied forward from
+            // the source Delivery/Sales Order line, or recomputed here when the caller just edited
+            // qty/rate/discount/tax per line; Transportation: items are rejected above, so its
+            // lines — already resolved at creation — are simply re-summed if nothing changed).
             $subtotal = $itemsChanged ? round((float) $invoice->items()->sum('amount'), 2) : (float) $invoice->subtotal;
-
-            // Only re-resolve discount when the caller actually touched it — otherwise keep the
-            // invoice's existing discount_amount/discount_type/discount_percentage exactly as they were.
-            if (array_key_exists('discount_type', $data) || array_key_exists('discount_amount', $data) || array_key_exists('discount_percentage', $data)) {
-                [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
-            } else {
-                $discountAmount = $invoice->discount_amount;
-                $discountType = $invoice->discount_type;
-                $discountPercentage = $invoice->discount_percentage;
-            }
-
-            // Goods invoices have no independent header tax choice — each line already carries
-            // its own tax, so the header figure is always a sum of the lines (copied forward from
-            // the source Delivery/Sales Order line at creation, or recomputed here when the
-            // caller just edited qty/rate/tax per line). Only Transportation (no Item-backed
-            // lines) re-resolves tax when the caller touches the header tax_id/tax_amount.
-            if ($invoice->invoice_type === InvoiceType::TRANSPORTATION && (array_key_exists('tax_id', $data) || array_key_exists('tax_amount', $data))) {
-                [$taxId, $taxAmount] = $this->resolveTax($data, $subtotal);
-            } elseif ($itemsChanged) {
-                $taxId = $invoice->tax_id;
-                $taxAmount = round((float) $invoice->items()->sum('tax_amount'), 2);
-            } else {
-                $taxId = $invoice->tax_id;
-                $taxAmount = $invoice->tax_amount;
-            }
+            $discountAmount = $itemsChanged ? round((float) $invoice->items()->sum('discount_amount'), 2) : (float) $invoice->discount_amount;
+            $taxAmount = $itemsChanged ? round((float) $invoice->items()->sum('tax_amount'), 2) : (float) $invoice->tax_amount;
 
             $grandTotal = round($subtotal - $discountAmount + $taxAmount, 2);
 
@@ -419,9 +444,7 @@ class InvoiceService
                 'location_warehouse_id' => array_key_exists('location_warehouse_id', $data) ? $data['location_warehouse_id'] : $invoice->location_warehouse_id,
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
-                'discount_type' => $discountType instanceof DiscountType ? $discountType->value : $discountType,
-                'discount_percentage' => $discountPercentage,
-                'tax_id' => $taxId,
+                'tax_base' => round($subtotal - $discountAmount, 2),
                 'tax_amount' => $taxAmount,
                 'grand_total' => $grandTotal,
                 'remarks' => $data['remarks'] ?? $invoice->remarks,
@@ -480,16 +503,8 @@ class InvoiceService
             }
 
             $subtotal = round((float) $invoice->items()->sum('amount'), 2);
+            $discountAmount = round((float) $invoice->items()->sum('discount_amount'), 2);
             $taxAmount = round((float) $invoice->items()->sum('tax_amount'), 2);
-
-            if (array_key_exists('discount_type', $data) || array_key_exists('discount_amount', $data) || array_key_exists('discount_percentage', $data)) {
-                [$discountAmount, $discountType, $discountPercentage] = $this->resolveDiscount($data, $subtotal);
-            } else {
-                $discountAmount = (float) $invoice->discount_amount;
-                $discountType = $invoice->discount_type;
-                $discountPercentage = $invoice->discount_percentage;
-            }
-
             $grandTotal = round($subtotal - $discountAmount + $taxAmount, 2);
 
             if ($grandTotal < 0) {
@@ -499,8 +514,7 @@ class InvoiceService
             $headerData['subtotal'] = $subtotal;
             $headerData['tax_amount'] = $taxAmount;
             $headerData['discount_amount'] = $discountAmount;
-            $headerData['discount_type'] = $discountType instanceof DiscountType ? $discountType->value : $discountType;
-            $headerData['discount_percentage'] = $discountPercentage;
+            $headerData['tax_base'] = round($subtotal - $discountAmount, 2);
             $headerData['grand_total'] = $grandTotal;
             $headerData['lock_version'] = $invoice->lock_version + 1;
 
@@ -553,10 +567,19 @@ class InvoiceService
 
             $rate = (float) ($incoming['rate'] ?? $line->rate);
             $amount = round($qty * $rate, 2);
-            $taxId = array_key_exists('tax_id', $incoming) ? $incoming['tax_id'] : $line->tax_id;
-            $taxAmount = $taxId !== null ? round($this->taxService->calculate($amount, $this->taxRepository->findOrFail($taxId))['tax_amount'], 2) : 0.0;
 
-            $attributes = ['qty' => $qty, 'rate' => $rate, 'amount' => $amount, 'tax_id' => $taxId, 'tax_amount' => $taxAmount];
+            $discountType = array_key_exists('discount_type', $incoming) ? DiscountType::from($incoming['discount_type']) : DiscountType::from($line->discount_type);
+            $discountValue = array_key_exists('discount_value', $incoming) ? (float) $incoming['discount_value'] : (float) $line->discount_value;
+            ['discount_amount' => $discountAmount, 'net_amount' => $netAmount] = $this->discountService->calculate($amount, $discountType, $discountValue);
+
+            $taxId = array_key_exists('tax_id', $incoming) ? $incoming['tax_id'] : $line->tax_id;
+            $taxAmount = $taxId !== null ? round($this->taxService->calculate($netAmount, $this->taxRepository->findOrFail($taxId))['tax_amount'], 2) : 0.0;
+
+            $attributes = [
+                'qty' => $qty, 'rate' => $rate, 'amount' => $amount,
+                'discount_type' => $discountType->value, 'discount_value' => $discountValue, 'discount_amount' => $discountAmount, 'net_amount' => $netAmount,
+                'tax_id' => $taxId, 'tax_amount' => $taxAmount,
+            ];
 
             if ($line->unit_cost !== null) {
                 $attributes['cost_amount'] = round((float) $line->unit_cost * $qty * (float) ($line->uom_factor ?? 1), 2);
@@ -600,60 +623,6 @@ class InvoiceService
         if ($isDirectGoods) {
             $this->postDirectGoodsStock($invoice->fresh(['items']));
         }
-    }
-
-    /**
-     * Mirrors resolveTax()'s shape: Amount mode trusts discount_amount directly (the same
-     * behavior this field already had before Discount Type existed, so pre-Sprint-3.1 rows
-     * and callers keep working untouched — they default to Amount via the migration/enum
-     * default). Percentage mode derives discount_amount from discount_percentage here, the
-     * one place both create() and update() compute it from.
-     *
-     * @return array{0: float, 1: DiscountType, 2: ?float} [discountAmount, discountType, discountPercentage]
-     */
-    protected function resolveDiscount(array $data, float $subtotal): array
-    {
-        $type = isset($data['discount_type']) ? DiscountType::from($data['discount_type']) : DiscountType::AMOUNT;
-
-        if ($type === DiscountType::PERCENTAGE) {
-            $percentage = (float) ($data['discount_percentage'] ?? 0);
-
-            if ($percentage < 0 || $percentage > 100) {
-                throw new BusinessException('Discount percentage must be between 0 and 100.');
-            }
-
-            $amount = round($subtotal * $percentage / 100, 2);
-
-            return [$amount, $type, $percentage];
-        }
-
-        $amount = (float) ($data['discount_amount'] ?? 0);
-
-        if ($amount > $subtotal) {
-            throw new BusinessException('Discount amount cannot exceed the subtotal.');
-        }
-
-        return [$amount, $type, null];
-    }
-
-    /**
-     * The single integration point with the Tax Engine — when tax_id is present, TaxService
-     * becomes the sole source of truth for tax_amount, overriding any tax_amount also sent in
-     * the same payload. When tax_id is absent, tax_amount is trusted directly, the same
-     * behavior this field already had before the Tax Engine existed (docs/TAX_ENGINE_DESIGN.md §5).
-     *
-     * @return array{0: ?string, 1: float} [taxId, taxAmount]
-     */
-    protected function resolveTax(array $data, float $subtotal): array
-    {
-        if (! empty($data['tax_id'])) {
-            $tax = $this->taxRepository->findOrFail($data['tax_id']);
-            $taxAmount = $this->taxService->calculate($subtotal, $tax)['tax_amount'];
-
-            return [$tax->id, $taxAmount];
-        }
-
-        return [null, (float) ($data['tax_amount'] ?? 0)];
     }
 
     public function delete(Invoice $invoice): void

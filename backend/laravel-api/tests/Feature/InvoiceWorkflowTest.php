@@ -79,12 +79,12 @@ class InvoiceWorkflowTest extends TestCase
         $this->seedStock($this->item->id, $this->warehouse->id, 100);
     }
 
-    protected function submittedDelivery(int $qty = 10, float $rate = 10000, ?string $taxId = null): \App\Models\Delivery
+    protected function submittedDelivery(int $qty = 10, float $rate = 10000, ?string $taxId = null, ?string $discountType = null, float $discountValue = 0): \App\Models\Delivery
     {
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
             'order_date' => now()->toDateString(),
-            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'tax_id' => $taxId]],
+            'items' => [['item_id' => $this->item->id, 'qty' => $qty, 'rate' => $rate, 'tax_id' => $taxId, 'discount_type' => $discountType, 'discount_value' => $discountValue]],
         ]);
         $this->approveDocument($salesOrder);
         $this->salesOrderService->approve($salesOrder);
@@ -119,60 +119,49 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertCount(1, $invoice->items);
     }
 
+    /** Discount is per-line now — set on the Sales Order line, flows through Delivery to the Invoice line and sums into the header. */
     public function test_invoice_supports_a_fixed_amount_discount(): void
     {
-        $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
+        $delivery = $this->submittedDelivery(qty: 10, rate: 10000, discountType: 'amount', discountValue: 15000);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'discount_type' => 'amount',
-            'discount_amount' => 15000,
         ]);
 
         $this->assertEquals(100000, (float) $invoice->subtotal);
         $this->assertEquals(15000, (float) $invoice->discount_amount);
-        $this->assertSame('amount', $invoice->discount_type->value);
-        $this->assertNull($invoice->discount_percentage);
+        $this->assertEquals(85000, (float) $invoice->tax_base);
         $this->assertEquals(85000, (float) $invoice->grand_total);
     }
 
     public function test_invoice_supports_a_percentage_discount_derived_from_subtotal(): void
     {
-        $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
+        $delivery = $this->submittedDelivery(qty: 10, rate: 10000, discountType: 'percentage', discountValue: 10);
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'discount_type' => 'percentage',
-            'discount_percentage' => 10,
         ]);
 
         $this->assertEquals(100000, (float) $invoice->subtotal);
         $this->assertEquals(10000, (float) $invoice->discount_amount);
-        $this->assertSame('percentage', $invoice->discount_type->value);
-        $this->assertEquals(10, (float) $invoice->discount_percentage);
+        $this->assertEquals(90000, (float) $invoice->tax_base);
         $this->assertEquals(90000, (float) $invoice->grand_total);
     }
 
     public function test_a_fixed_discount_amount_cannot_exceed_the_subtotal(): void
     {
-        $delivery = $this->submittedDelivery(qty: 1, rate: 10000);
-
         $this->expectException(BusinessException::class);
 
-        $this->invoiceService->create([
-            'delivery_ids' => [$delivery->id],
-            'invoice_date' => now()->toDateString(),
-            'due_date' => now()->addDays(30)->toDateString(),
-            'discount_type' => 'amount',
-            'discount_amount' => 20000,
-        ]);
+        // The line's own gross amount is 10000 — a 20000 discount is rejected at the Sales
+        // Order line itself (DiscountService::calculate()), before any Delivery/Invoice exists.
+        $this->submittedDelivery(qty: 1, rate: 10000, discountType: 'amount', discountValue: 20000);
     }
 
-    public function test_an_invoice_without_a_discount_type_defaults_to_amount_mode(): void
+    public function test_a_line_without_a_discount_type_defaults_to_amount_mode_with_zero_discount(): void
     {
         $delivery = $this->submittedDelivery(qty: 1, rate: 10000);
 
@@ -180,15 +169,16 @@ class InvoiceWorkflowTest extends TestCase
             'delivery_ids' => [$delivery->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'discount_amount' => 1000,
         ]);
 
-        $this->assertSame('amount', $invoice->discount_type->value);
-        $this->assertEquals(1000, (float) $invoice->discount_amount);
-        $this->assertNull($invoice->discount_percentage);
+        $line = $invoice->items->first();
+        $this->assertSame('amount', $line->discount_type);
+        $this->assertEquals(0, (float) $line->discount_amount);
+        $this->assertEquals(0, (float) $invoice->discount_amount);
     }
 
-    public function test_updating_an_invoice_can_switch_it_to_a_percentage_discount(): void
+    /** Discount editing on a Draft Invoice goes through its lines (applyItemChanges()), not a header field. */
+    public function test_updating_an_invoice_lines_discount_recomputes_the_header(): void
     {
         $delivery = $this->submittedDelivery(qty: 10, rate: 10000);
 
@@ -197,14 +187,15 @@ class InvoiceWorkflowTest extends TestCase
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
+        $lineId = $invoice->items->first()->id;
 
         $invoice = $this->invoiceService->update($invoice, [
-            'discount_type' => 'percentage',
-            'discount_percentage' => 25,
+            'items' => [['id' => $lineId, 'discount_type' => 'percentage', 'discount_value' => 25]],
         ]);
 
-        $this->assertSame('percentage', $invoice->discount_type->value);
-        $this->assertEquals(25, (float) $invoice->discount_percentage);
+        $line = $invoice->items->first();
+        $this->assertEquals(25, (float) $line->discount_value);
+        $this->assertEquals(25000, (float) $line->discount_amount);
         $this->assertEquals(25000, (float) $invoice->discount_amount);
         $this->assertEquals(75000, (float) $invoice->grand_total);
     }

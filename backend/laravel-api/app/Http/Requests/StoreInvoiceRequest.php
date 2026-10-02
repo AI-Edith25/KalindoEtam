@@ -58,9 +58,15 @@ class StoreInvoiceRequest extends FormRequest
             'items.*.item_id' => [Rule::when($isDirectGoods, 'required', 'prohibited'), 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],
-            // Direct Goods only — an optional per-line override of the Item's own default sales
-            // tax, same TaxService::resolveLineTax() contract Sales Order/Delivery lines already use.
-            'items.*.tax_id' => [Rule::when($isDirectGoods, 'nullable', 'prohibited'), 'uuid', Rule::exists('taxes', 'id')->where('is_active', true)],
+            // Transportation and Direct Goods only — per-line discount, replacing the old header
+            // field (discount is per-item now, never a document-wide figure).
+            'items.*.discount_type' => [Rule::when($isTransportationOrDirectGoods, 'nullable', 'prohibited'), Rule::enum(DiscountType::class)],
+            'items.*.discount_value' => [Rule::when($isTransportationOrDirectGoods, 'nullable', 'prohibited'), 'numeric', 'min:0'],
+            // Transportation and Direct Goods only — an optional per-line override of the Item's
+            // own default sales tax (Direct Goods) or a plain manual pick (Transportation, which
+            // previously had only a single header-level tax select), same TaxService::
+            // resolveLineTax() contract Sales Order/Delivery lines already use.
+            'items.*.tax_id' => [Rule::when($isTransportationOrDirectGoods, 'nullable', 'prohibited'), 'uuid', Rule::exists('taxes', 'id')->where('is_active', true)],
             // Drives which Naming Series generates document_number — see Invoice::documentType().
             // Direct Goods stays 'goods' on purpose (Invoice::isDirectGoods() distinguishes it via
             // warehouse_id instead), so it shares the exact same invoice_goods series as a
@@ -69,11 +75,12 @@ class StoreInvoiceRequest extends FormRequest
             'invoice_date' => ['required', 'date'],
             'due_date' => ['required', 'date', 'after_or_equal:invoice_date'],
             'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
-            // Type decides which of the next two fields InvoiceService::resolveDiscount() reads —
-            // 'amount cannot exceed subtotal' is enforced there, since subtotal isn't known yet here.
-            'discount_type' => ['nullable', Rule::enum(DiscountType::class)],
-            'discount_amount' => ['nullable', 'numeric', 'min:0'],
-            'discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            // Discount is per-line only now (never a document-wide figure) — these three fields
+            // are no longer valid client input; discount_amount on the created Invoice is always
+            // derived as the sum of its lines' own discount_amount.
+            'discount_type' => ['prohibited'],
+            'discount_amount' => ['prohibited'],
+            'discount_percentage' => ['prohibited'],
             // Only an Active tax may be selected for a new document — docs/TAX_ENGINE_DESIGN.md §9 (Tax Status).
             'tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('is_active', true)],
             // Fallback only — ignored once tax_id resolves to a real Tax (InvoiceService::create()).
