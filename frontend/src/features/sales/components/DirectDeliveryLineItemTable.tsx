@@ -9,8 +9,9 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
+import { DiscountInput } from '@/components/shared/DiscountInput'
 import { formatCurrency } from '@/lib/utils'
-import { lineAmount } from '@/shared/lib/documentTotals'
+import { lineNetAmount } from '@/shared/lib/documentTotals'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { DirectDeliveryEditorValues } from '../lib/deliveryFormSchema'
@@ -67,6 +68,7 @@ export function DirectDeliveryLineItemTable({ form, taxes, disabled }: DirectDel
               <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="w-28">Qty</TableHead>
               <TableHead className="w-36">Rate</TableHead>
+              <TableHead className="w-40">Discount</TableHead>
               <TableHead className="w-44">Tax</TableHead>
               <TableHead className="w-36 text-right">Amount</TableHead>
               <TableHead className="w-10" />
@@ -75,7 +77,7 @@ export function DirectDeliveryLineItemTable({ form, taxes, disabled }: DirectDel
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="p-0">
+                <TableCell colSpan={7} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start building this delivery." />
                 </TableCell>
               </TableRow>
@@ -143,6 +145,15 @@ export function DirectDeliveryLineItemTable({ form, taxes, disabled }: DirectDel
                       )}
                     />
                   </TableCell>
+                  <TableCell className="min-w-40">
+                    <DiscountInput
+                      type={row?.discount_type || 'amount'}
+                      value={row?.discount_value ?? '0'}
+                      onTypeChange={(value) => setValue(`items.${index}.discount_type`, value as 'amount' | 'percentage')}
+                      onValueChange={(value) => setValue(`items.${index}.discount_value`, value)}
+                      disabled={disabled}
+                    />
+                  </TableCell>
                   <TableCell>
                     <FormField
                       control={control}
@@ -172,7 +183,7 @@ export function DirectDeliveryLineItemTable({ form, taxes, disabled }: DirectDel
                     />
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(lineAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }))}
+                    {formatCurrency(lineNetAmount(watchedItems?.[index] ?? { qty: 0, rate: 0 }))}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -200,7 +211,7 @@ export function DirectDeliveryLineItemTable({ form, taxes, disabled }: DirectDel
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '1', rate: '0', tax_id: '' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '1', rate: '0', discount_type: 'amount', discount_value: '0', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

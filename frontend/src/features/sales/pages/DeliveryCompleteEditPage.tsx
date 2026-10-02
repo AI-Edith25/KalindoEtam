@@ -16,13 +16,15 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/shar
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
+import { DiscountInput } from '@/components/shared/DiscountInput'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { computeLineTaxTotal, computeSubtotal } from '@/shared/lib/documentTotals'
+import { computeSubtotal, lineDiscountAmount, lineNetAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { searchCustomersLookup, searchItemsLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import type { Customer, Item } from '@/features/master/types'
 import { fetchDelivery, updateDelivery } from '../api/deliveryApi'
 import { fetchSalesOrder } from '../api/salesOrderApi'
+import { allocateSoLineDiscount } from '../lib/deliveryDiscount'
 import type { DeliveryItem } from '../types'
 
 interface EditableLine {
@@ -36,6 +38,10 @@ interface EditableLine {
   uom: string
   qty: string
   rate: string
+  // Only meaningful (editable) for a Direct Delivery line — an SO-sourced line's discount is
+  // always derived from its Sales Order line instead, see rowDiscount() below.
+  discount_type: string
+  discount_value: string
   tax_id: string
   is_invoiced: boolean
 }
@@ -54,6 +60,8 @@ function toEditableLine(line: DeliveryItem): EditableLine {
     uom: line.uom,
     qty: String(line.qty),
     rate: String(line.rate),
+    discount_type: line.discount_type,
+    discount_value: String(line.discount_value ?? 0),
     tax_id: line.tax_id ?? '',
     is_invoiced: line.is_invoiced,
   }
@@ -147,6 +155,8 @@ export function DeliveryCompleteEditPage() {
         uom: soItem.uom ?? '',
         qty: '1',
         rate: String(soItem.rate),
+        discount_type: soItem.discount_type,
+        discount_value: String(soItem.discount_value ?? 0),
         tax_id: soItem.tax_id ?? '',
         is_invoiced: false,
       },
@@ -172,6 +182,8 @@ export function DeliveryCompleteEditPage() {
         uom: item.uom ? `${item.uom.name}${item.uom.symbol ? ` (${item.uom.symbol})` : ''}` : '',
         qty: '1',
         rate: String(item.standard_rate),
+        discount_type: 'amount',
+        discount_value: '0',
         tax_id: '',
         is_invoiced: false,
       },
@@ -202,6 +214,10 @@ export function DeliveryCompleteEditPage() {
       item_id: line.item_id,
       qty: Number(line.qty) || 0,
       rate: Number(line.rate) || 0,
+      // Only meaningful for a Direct Delivery line — an SO-sourced line's discount is always
+      // re-derived server-side from its Sales Order line, same as creation.
+      discount_type: line.discount_type as 'amount' | 'percentage',
+      discount_value: Number(line.discount_value) || 0,
       tax_id: line.tax_id || null,
     })),
   })
@@ -234,9 +250,24 @@ export function DeliveryCompleteEditPage() {
     )
   }
 
+  // An SO-sourced line's discount is always derived from its Sales Order line (never entered
+  // here, see allocateSoLineDiscount()'s own docblock); a Direct line's own discount_type/
+  // discount_value (editable) drives it directly instead.
+  const rowDiscount = (line: EditableLine): { discount_amount: number; net_amount: number } => {
+    if (line.sales_order_item_id) {
+      const soItem = salesOrderQuery.data?.items.find((item) => item.id === line.sales_order_item_id)
+      if (soItem) return allocateSoLineDiscount(soItem, Number(line.qty) || 0, line.rate)
+    }
+
+    const grossAmount = (Number(line.qty) || 0) * (Number(line.rate) || 0)
+
+    return { discount_amount: lineDiscountAmount(grossAmount, line), net_amount: lineNetAmount(line) }
+  }
+
   const subtotal = computeSubtotal(lines)
-  const tax = computeLineTaxTotal(lines, (line) => taxesQuery.data?.find((tx) => tx.id === line.tax_id))
-  const grandTotal = subtotal + tax
+  const discount = lines.reduce((sum, line) => sum + rowDiscount(line).discount_amount, 0)
+  const tax = lines.reduce((sum, line) => sum + lineTaxAmount(rowDiscount(line).net_amount, taxesQuery.data?.find((tx) => tx.id === line.tax_id)), 0)
+  const grandTotal = subtotal - discount + tax
 
   return (
     <div className="flex flex-col gap-4">
@@ -375,13 +406,18 @@ export function DeliveryCompleteEditPage() {
                   <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
                   <TableHead className="w-28 text-right">Qty</TableHead>
                   <TableHead className="w-40 text-right">Rate</TableHead>
+                  <TableHead className="w-40">Discount</TableHead>
                   <TableHead className="w-48">Tax</TableHead>
                   <TableHead className="w-36 text-right">Amount</TableHead>
+                  <TableHead className="w-32 text-right">Tax Amount</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lines.map((line) => (
+                {lines.map((line) => {
+                  const { discount_amount: lineDiscount, net_amount: lineNet } = rowDiscount(line)
+
+                  return (
                   <TableRow key={line.key}>
                     <TableCell className={STICKY_FIRST_COL}>
                       <div className="flex items-center gap-1.5">
@@ -410,6 +446,18 @@ export function DeliveryCompleteEditPage() {
                     <TableCell className="min-w-40">
                       <RupiahInput value={line.rate} onChange={(value) => patchLine(line.key, { rate: value })} />
                     </TableCell>
+                    <TableCell className="min-w-40">
+                      {line.sales_order_item_id ? (
+                        <span className="text-sm text-muted-foreground">{lineDiscount > 0 ? `-${formatCurrency(lineDiscount)}` : '—'}</span>
+                      ) : (
+                        <DiscountInput
+                          type={line.discount_type}
+                          value={line.discount_value}
+                          onTypeChange={(value) => patchLine(line.key, { discount_type: value })}
+                          onValueChange={(value) => patchLine(line.key, { discount_value: value })}
+                        />
+                      )}
+                    </TableCell>
                     <TableCell className="min-w-48">
                       <SearchableSelect
                         options={[{ value: '', label: 'No tax' }, ...(taxesQuery.data ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.code})` }))]}
@@ -420,7 +468,10 @@ export function DeliveryCompleteEditPage() {
                         aria-label="Tax"
                       />
                     </TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency((Number(line.qty) || 0) * (Number(line.rate) || 0))}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(lineNet)}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {formatCurrency(lineTaxAmount(lineNet, taxesQuery.data?.find((tx) => tx.id === line.tax_id)))}
+                    </TableCell>
                     <TableCell>
                       <Button
                         type="button"
@@ -434,7 +485,8 @@ export function DeliveryCompleteEditPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </LineItemTableScroll>
@@ -447,6 +499,18 @@ export function DeliveryCompleteEditPage() {
             <span className="text-muted-foreground">Subtotal</span>
             <span>{formatCurrency(subtotal)}</span>
           </div>
+          {discount > 0 && (
+            <>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Total Discount</span>
+                <span>-{formatCurrency(discount)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">DPP</span>
+                <span>{formatCurrency(subtotal - discount)}</span>
+              </div>
+            </>
+          )}
           <div className="flex w-full max-w-64 justify-between text-sm">
             <span className="text-muted-foreground">Tax</span>
             <span>{formatCurrency(tax)}</span>

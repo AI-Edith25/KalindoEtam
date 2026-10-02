@@ -17,7 +17,8 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { computeGrandTotal, computeSubtotal, lineTaxAmount } from '@/shared/lib/documentTotals'
+import { computeSubtotal, computeTotalDiscount, lineDiscountAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
+import { allocateSoLineDiscount } from '../lib/deliveryDiscount'
 import { fetchWarehousesLookup, fetchTermsOfPaymentLookup, fetchTaxesLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
 import { fetchStockBalances } from '@/features/inventory/api/stockApi'
 import { addDays } from '@/shared/lib/dateMath'
@@ -347,15 +348,27 @@ function DeliveryForm({
   const watchedItems = form.watch('items')
   const deliveringNowLines = (watchedItems ?? []).map((line) => ({ qty: line.deliverNow, rate: line.rate }))
   const subtotal = computeSubtotal(deliveringNowLines)
+  // Discount is derived from each line's own Sales Order line (never entered here) — see
+  // allocateSoLineDiscount()'s own docblock for the allocation rule. Preview only;
+  // DeliveryService::buildDeliveryLineAttributes() on the backend is authoritative.
+  const discount = (watchedItems ?? []).reduce((sum, line) => {
+    const soItem = salesOrder.items.find((item) => item.id === line.sales_order_item_id)
+    if (!soItem) return sum
+
+    return sum + allocateSoLineDiscount(soItem, Number(line.deliverNow || 0)).discount_amount
+  }, 0)
   // Tax is per-line now — each line's tax comes from its own Sales Order line (already
-  // resolved there), recomputed against this delivery's own (possibly partial) qty, not a
-  // single document-wide rate. Preview only; DeliveryResource on the backend is authoritative.
+  // resolved there), recomputed against this delivery's own (possibly partial) net amount, not
+  // a single document-wide rate. Preview only; DeliveryResource on the backend is authoritative.
   const tax = (watchedItems ?? []).reduce((sum, line) => {
     const soItem = salesOrder.items.find((item) => item.id === line.sales_order_item_id)
+    if (!soItem) return sum
 
-    return sum + lineTaxAmount(Number(line.deliverNow || 0) * Number(line.rate || 0), soItem?.tax)
+    const { net_amount: netAmount } = allocateSoLineDiscount(soItem, Number(line.deliverNow || 0))
+
+    return sum + lineTaxAmount(netAmount, soItem.tax)
   }, 0)
-  const grandTotal = computeGrandTotal(deliveringNowLines) + tax
+  const grandTotal = subtotal - discount + tax
 
   return (
     <div className="flex flex-col gap-4">
@@ -504,6 +517,18 @@ function DeliveryForm({
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
+              {discount > 0 && (
+                <>
+                  <div className="flex w-full max-w-64 justify-between text-sm">
+                    <span className="text-muted-foreground">Total Discount</span>
+                    <span>-{formatCurrency(discount)}</span>
+                  </div>
+                  <div className="flex w-full max-w-64 justify-between text-sm">
+                    <span className="text-muted-foreground">DPP</span>
+                    <span>{formatCurrency(subtotal - discount)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex w-full max-w-64 justify-between text-sm">
                 <span className="text-muted-foreground">Tax</span>
                 <span>{formatCurrency(tax)}</span>
@@ -598,6 +623,8 @@ function DirectDeliveryForm({
         qtyCategory: 'unit',
         qty: String(line.qty),
         rate: String(line.rate),
+        discount_type: line.discount_type ?? 'amount',
+        discount_value: String(line.discount_value ?? 0),
         tax_id: line.tax_id ?? '',
       })),
     },
@@ -609,6 +636,8 @@ function DirectDeliveryForm({
         item_id: line.item_id,
         qty: parseLocaleQty(line.qty),
         rate: Number(line.rate),
+        discount_type: line.discount_type,
+        discount_value: Number(line.discount_value) || 0,
         tax_id: line.tax_id || null,
       }))
 
@@ -661,11 +690,14 @@ function DirectDeliveryForm({
 
   const watchedItems = form.watch('items')
   const subtotal = computeSubtotal(watchedItems ?? [])
+  const discount = computeTotalDiscount(watchedItems ?? [])
   const tax = (watchedItems ?? []).reduce((sum, line) => {
     const taxRecord = activeSalesTaxOptions.find((t) => t.id === line.tax_id)
-    return sum + lineTaxAmount(Number(parseLocaleQty(line.qty || '0')) * Number(line.rate || 0), taxRecord)
+    const grossAmount = Number(parseLocaleQty(line.qty || '0')) * Number(line.rate || 0)
+
+    return sum + lineTaxAmount(grossAmount - lineDiscountAmount(grossAmount, line), taxRecord)
   }, 0)
-  const grandTotal = computeGrandTotal(watchedItems ?? []) + tax
+  const grandTotal = subtotal - discount + tax
 
   return (
     <div className="flex flex-col gap-4">
@@ -827,6 +859,18 @@ function DirectDeliveryForm({
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
+              {discount > 0 && (
+                <>
+                  <div className="flex w-full max-w-64 justify-between text-sm">
+                    <span className="text-muted-foreground">Total Discount</span>
+                    <span>-{formatCurrency(discount)}</span>
+                  </div>
+                  <div className="flex w-full max-w-64 justify-between text-sm">
+                    <span className="text-muted-foreground">DPP</span>
+                    <span>{formatCurrency(subtotal - discount)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex w-full max-w-64 justify-between text-sm">
                 <span className="text-muted-foreground">Tax</span>
                 <span>{formatCurrency(tax)}</span>

@@ -87,6 +87,8 @@ export const directDeliveryLineRowSchema = z
     item_uom: z.string().optional().or(z.literal('')),
     qtyCategory: z.enum(['unit', 'weight']),
     qty: z.string().min(1, 'Qty is required'),
+    discount_type: z.enum(['amount', 'percentage']),
+    discount_value: z.string(),
     tax_id: z.string().optional().or(z.literal('')),
     rate: z
       .string()
