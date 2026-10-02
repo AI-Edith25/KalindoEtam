@@ -10,10 +10,15 @@ use App\Models\Branch;
 use App\Models\ChartOfAccount;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Enums\InvoiceType;
+use App\Enums\StockVoucherType;
+use App\Models\FifoLayer;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\ReceiptEntry;
+use App\Models\StockLedger;
 use App\Models\UnitOfMeasurement;
 use App\Models\Warehouse;
 use App\Services\DeliveryService;
@@ -121,6 +126,147 @@ class InvoiceEditSubmittedTest extends TestCase
         $this->paymentAllocationService->allocateBatch($payment, [
             ['accounts_receivable_id' => $accountsReceivable->id, 'amount' => $amount],
         ]);
+    }
+
+    /**
+     * Mirrors exactly what SalesInvoiceImportService::createGoodsInvoice() does — created Draft
+     * via the repository directly (no Delivery/Sales Order, import_source_type set, affects_stock
+     * left at its column default of false), then submit()ted. One real-item line and, optionally,
+     * one Miscellaneous/freeform line (item_id null) to mirror a GOODS-type import's own mixed
+     * line shape.
+     */
+    protected function importedInvoice(bool $withMiscLine = false): Invoice
+    {
+        $invoice = Invoice::query()->create([
+            'invoice_type' => InvoiceType::GOODS,
+            'customer_id' => $this->customer->id,
+            'location_warehouse_id' => $this->warehouse->id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->toDateString(),
+            'subtotal' => 100000,
+            'grand_total' => 100000,
+            'tax_amount' => 0,
+            'source_document_number' => 'LEGACY-1',
+            'import_source_type' => 'historical_invoice',
+        ]);
+
+        InvoiceItem::query()->create([
+            'invoice_id' => $invoice->id,
+            'item_id' => $this->item->id,
+            'item_code' => $this->item->item_code,
+            'item_name' => $this->item->item_name,
+            'uom' => 'Pcs',
+            'rate' => 10000,
+            'qty' => 10,
+            'amount' => 100000,
+            'net_amount' => 100000,
+        ]);
+
+        if ($withMiscLine) {
+            InvoiceItem::query()->create([
+                'invoice_id' => $invoice->id,
+                'item_id' => null,
+                'item_code' => null,
+                'item_name' => 'Ongkos Kirim',
+                'uom' => null,
+                'rate' => 5000,
+                'qty' => 1,
+                'amount' => 5000,
+                'net_amount' => 5000,
+            ]);
+        }
+
+        return $this->invoiceService->submit($invoice->fresh());
+    }
+
+    public function test_imported_invoice_does_not_move_stock_by_default(): void
+    {
+        $invoice = $this->importedInvoice();
+
+        $this->assertSame(0, StockLedger::query()->where('voucher_type', StockVoucherType::DIRECT_INVOICE)->count());
+        $this->assertSame(0, FifoLayer::query()->where('source_type', StockVoucherType::DIRECT_INVOICE)->where('source_id', $invoice->id)->count());
+        $this->assertFalse($invoice->affects_stock);
+    }
+
+    public function test_turning_on_affects_stock_consumes_fifo_stock_for_real_item_lines_only(): void
+    {
+        $invoice = $this->importedInvoice(withMiscLine: true);
+
+        $updated = $this->invoiceService->update($invoice, [
+            'affects_stock' => true,
+            'lock_version' => $invoice->lock_version,
+        ]);
+
+        $this->assertTrue($updated->affects_stock);
+
+        $consumption = StockLedger::query()->where('voucher_type', StockVoucherType::DIRECT_INVOICE)->where('item_id', $this->item->id)->sole();
+        $this->assertEquals(-10, (float) $consumption->qty_change);
+
+        // The misc line (item_id null) has nothing to consume against — no entry for it, and no error.
+        $this->assertSame(1, StockLedger::query()->where('voucher_type', StockVoucherType::DIRECT_INVOICE)->count());
+
+        $realLine = $updated->items->firstWhere('item_id', $this->item->id);
+        $this->assertNotNull($realLine->unit_cost, 'FIFO-resolved cost written back onto the line');
+    }
+
+    public function test_turning_affects_stock_back_off_reverses_the_consumption(): void
+    {
+        $invoice = $this->importedInvoice();
+        $invoice = $this->invoiceService->update($invoice, ['affects_stock' => true, 'lock_version' => $invoice->lock_version]);
+
+        $updated = $this->invoiceService->update($invoice, ['affects_stock' => false, 'lock_version' => $invoice->lock_version]);
+
+        $this->assertFalse($updated->affects_stock);
+        $this->assertSame(0, FifoLayer::query()->where('source_type', StockVoucherType::DIRECT_INVOICE)->where('source_id', $invoice->id)->where('qty_remaining', '>', 0)->count());
+
+        $netQtyChange = StockLedger::query()->where('voucher_type', StockVoucherType::DIRECT_INVOICE)->where('item_id', $this->item->id)->sum('qty_change');
+        $this->assertEquals(0, (float) $netQtyChange, 'posted OUT then reversed IN nets to zero');
+    }
+
+    public function test_affects_stock_is_rejected_without_a_resolved_location(): void
+    {
+        $invoice = $this->importedInvoice();
+        $invoice = $this->invoiceService->update($invoice, ['location_warehouse_id' => null, 'lock_version' => $invoice->lock_version]);
+
+        try {
+            $this->invoiceService->update($invoice, ['affects_stock' => true, 'lock_version' => $invoice->lock_version]);
+            $this->fail('Expected enabling affects_stock without a Location to throw.');
+        } catch (BusinessException $e) {
+            $this->assertStringContainsString('Pilih Location', $e->getMessage());
+        }
+    }
+
+    public function test_affects_stock_is_rejected_for_a_transportation_invoice(): void
+    {
+        $invoice = Invoice::query()->create([
+            'invoice_type' => InvoiceType::TRANSPORTATION,
+            'customer_id' => $this->customer->id,
+            'location_warehouse_id' => $this->warehouse->id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->toDateString(),
+            'subtotal' => 50000,
+            'grand_total' => 50000,
+            'tax_amount' => 0,
+            'source_document_number' => 'LEGACY-2',
+            'import_source_type' => 'historical_invoice',
+        ]);
+        InvoiceItem::query()->create([
+            'invoice_id' => $invoice->id,
+            'item_id' => null,
+            'item_name' => 'Angkutan',
+            'rate' => 50000,
+            'qty' => 1,
+            'amount' => 50000,
+            'net_amount' => 50000,
+        ]);
+        $invoice = $this->invoiceService->submit($invoice->fresh());
+
+        try {
+            $this->invoiceService->update($invoice, ['affects_stock' => true, 'lock_version' => $invoice->lock_version]);
+            $this->fail('Expected enabling affects_stock on a Transportation invoice to throw.');
+        } catch (BusinessException $e) {
+            $this->assertStringContainsString('hanya berlaku untuk Invoice bertipe Goods', $e->getMessage());
+        }
     }
 
     public function test_header_fields_are_editable_on_a_submitted_invoice(): void

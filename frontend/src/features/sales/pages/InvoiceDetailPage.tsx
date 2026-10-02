@@ -317,6 +317,9 @@ export function InvoiceDetailPage() {
             <DetailField label="Fax" value={invoice.sales_order?.fax || '—'} />
             <DetailField label="Reference 1" value={invoice.reference_1 || '—'} />
             <DetailField label="Reference 2" value={invoice.reference_2 || '—'} />
+            {invoice.import_source_type !== null && invoice.invoice_type === 'goods' && (
+              <DetailField label="Affects Stock" value={invoice.affects_stock ? 'Yes' : 'No'} />
+            )}
             <DetailField label="Notes" value={invoice.remarks || '—'} />
           </DetailSection>
         </CardContent>

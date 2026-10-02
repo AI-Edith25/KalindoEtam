@@ -466,9 +466,10 @@ class InvoiceService
      * A stakeholder-driven relaxation, same posture as PurchaseOrderService::updateSubmitted()/
      * SalesOrderService::updateApproved(): a Submitted Invoice used to be fully locked (Cancel ->
      * Create New was the only correction path). Item identity (item_id/item_code/item_name/uom)
-     * and Delivery/Sales Order linkage stay locked — no add/remove, see
-     * applySubmittedItemChanges(); only qty/rate/tax_id per line and a set of header fields are
-     * editable. Any change to grand_total reverses this Invoice's previously-posted Journal Entry
+     * and Delivery/Sales Order linkage stay locked — no add/remove, see applyItemChanges();
+     * only qty/rate/tax_id per line and a set of header fields (including affects_stock — see
+     * Invoice::movesStock()) are editable. Any change to grand_total reverses this Invoice's
+     * previously-posted Journal Entry
      * and posts a fresh one with the final totals (AccountingService::reverseForDocument()/
      * postForDocument(), both already-generic, already used by Credit Note/Debit Note/Purchase
      * Return) and resizes the existing Accounts Receivable row by the same delta
@@ -493,14 +494,42 @@ class InvoiceService
                 throw new BusinessException('Gunakan menu "Ubah Nominal" untuk mengubah Rate pada Transportation Invoice.');
             }
 
-            $editableFields = ['invoice_date', 'due_date', 'terms_of_payment_id', 'sales_person_id', 'branch_id', 'attention', 'tel', 'fax', 'reference_1', 'reference_2', 'customer_address', 'customer_phone', 'remarks', 'location_warehouse_id'];
+            $editableFields = ['invoice_date', 'due_date', 'terms_of_payment_id', 'sales_person_id', 'branch_id', 'attention', 'tel', 'fax', 'reference_1', 'reference_2', 'customer_address', 'customer_phone', 'remarks', 'location_warehouse_id', 'affects_stock'];
             $before = $invoice->only([...$editableFields, 'discount_amount', 'discount_type', 'discount_percentage', 'subtotal', 'tax_amount', 'grand_total']);
             $headerData = collect($data)->only($editableFields)->all();
 
+            $effectiveLocationWarehouseId = array_key_exists('location_warehouse_id', $headerData) ? $headerData['location_warehouse_id'] : $invoice->location_warehouse_id;
+            $effectiveAffectsStock = array_key_exists('affects_stock', $headerData) ? (bool) $headerData['affects_stock'] : (bool) $invoice->affects_stock;
+
+            if ($effectiveAffectsStock) {
+                if ($invoice->invoice_type !== InvoiceType::GOODS) {
+                    throw new BusinessException('Affects Stock hanya berlaku untuk Invoice bertipe Goods.');
+                }
+
+                if (! $effectiveLocationWarehouseId) {
+                    throw new BusinessException('Pilih Location (warehouse) sebelum mengaktifkan Affects Stock.');
+                }
+            }
+
             $oldGrandTotal = (float) $invoice->grand_total;
 
+            // location_warehouse_id/affects_stock/items can all change in this same request, any
+            // of which can change what stockWarehouseId()/movesStock() resolve to — so stock is
+            // always reversed against the PRE-change state first (if it was moving any), then
+            // reposted once every change below has landed, against the final state. A Direct
+            // Goods invoice's own warehouse_id never changes here, so for it this only ever
+            // triggers on an items edit, exactly like before.
+            $wasMovingStock = $invoice->movesStock();
+            $stockMayBeAffected = isset($data['items'])
+                || array_key_exists('affects_stock', $headerData)
+                || (array_key_exists('location_warehouse_id', $headerData) && ! $invoice->isDirectGoods() && $wasMovingStock);
+
+            if ($wasMovingStock && $stockMayBeAffected) {
+                $this->reverseDirectGoodsStock($invoice);
+            }
+
             if (isset($data['items'])) {
-                $this->applySubmittedItemChanges($invoice, $data['items']);
+                $this->applyItemChanges($invoice, $data['items']);
                 $invoice->refresh();
             }
 
@@ -521,6 +550,11 @@ class InvoiceService
             $headerData['lock_version'] = $invoice->lock_version + 1;
 
             $this->invoiceRepository->update($invoice, $headerData);
+            $invoice->refresh();
+
+            if ($stockMayBeAffected && $invoice->movesStock()) {
+                $this->postDirectGoodsStock($invoice->fresh(['items']));
+            }
 
             $delta = round($grandTotal - $oldGrandTotal, 2);
 
@@ -544,8 +578,8 @@ class InvoiceService
      * Item identity (item_id/item_code/item_name/uom) and Delivery/Sales Order linkage stay
      * locked — every incoming line must reference an existing InvoiceItem id, no add/remove; only
      * qty/rate/tax_id change. Shared by both a Draft edit (update(), no stock/GL posted yet — see
-     * applyDraftItemChanges' own docblock) and a Submitted edit (applySubmittedItemChanges(),
-     * which wraps this with the stock/GL side effects its own docblock covers).
+     * applyDraftItemChanges' own docblock) and a Submitted edit (updateSubmitted(), which wraps
+     * this with the stock/GL side effects its own docblock covers — see movesStock()).
      */
     protected function applyItemChanges(Invoice $invoice, array $items): void
     {
@@ -592,8 +626,8 @@ class InvoiceService
     }
 
     /**
-     * Draft counterpart to applySubmittedItemChanges() — no stock/FIFO or GL/AR side effects to
-     * reverse-and-repost, since a Draft invoice (Direct Goods included — see
+     * Draft counterpart to updateSubmitted()'s own items handling — no stock/FIFO or GL/AR side
+     * effects to reverse-and-repost, since a Draft invoice (Direct Goods included — see
      * postDirectGoodsStock()'s own docblock, "StockLedger/FIFO posting happens at submit(), never
      * at create") has never posted either yet. Just applies the Qty/Rate/Tax change directly.
      */
@@ -602,30 +636,6 @@ class InvoiceService
         $this->applyItemChanges($invoice, $items);
     }
 
-    /**
-     * Item identity (item_id/item_code/item_name/uom) and Delivery/Sales Order linkage stay
-     * locked — every incoming line must reference an existing InvoiceItem id, no add/remove; only
-     * qty/rate/tax_id change (applyItemChanges()). Direct Goods reverses+reposts real stock/FIFO
-     * around the edit (reusing postDirectGoodsStock()/reverseDirectGoodsStock() verbatim — no new
-     * stock code); every other Goods invoice never touches stock (the source Delivery already
-     * did), it just recomputes amount/tax_amount and rescales the frozen COGS snapshot —
-     * unit_cost is a per-unit figure and stays valid, only the extended cost_amount needs to
-     * track the new qty so Gross Profit/Product Sales reporting doesn't go stale against it.
-     */
-    protected function applySubmittedItemChanges(Invoice $invoice, array $items): void
-    {
-        $isDirectGoods = $invoice->isDirectGoods();
-
-        if ($isDirectGoods) {
-            $this->reverseDirectGoodsStock($invoice);
-        }
-
-        $this->applyItemChanges($invoice, $items);
-
-        if ($isDirectGoods) {
-            $this->postDirectGoodsStock($invoice->fresh(['items']));
-        }
-    }
 
     public function delete(Invoice $invoice): void
     {
@@ -642,17 +652,22 @@ class InvoiceService
         return DB::transaction(function () use ($invoice) {
             $invoice->submit();
 
-            // Imported historical Invoices (import_source_type set — see SalesInvoiceImportService)
-            // never move stock and never post their own GL entry — stock was never really consumed
-            // by these rows, and GL's AR control-account balance already comes from the Trial
-            // Balance import as one aggregate journal entry (TrialBalanceImportService); posting a
-            // per-invoice entry too would double-count it. Status still flips to Submitted above
-            // either way, so an imported invoice looks and behaves like a real one everywhere else.
-            if ($invoice->import_source_type === null) {
-                if ($invoice->isDirectGoods()) {
-                    $this->postDirectGoodsStock($invoice);
-                }
+            // Stock is independent of import status now — a normal Direct Goods invoice always
+            // moves stock, and an imported invoice moves stock only once an operator has
+            // explicitly turned affects_stock on for it (see Invoice::movesStock()). An imported
+            // invoice never had any stock movement at creation time, so this is always a no-op
+            // for it unless that flag is already on by the time submit() runs.
+            if ($invoice->movesStock()) {
+                $this->postDirectGoodsStock($invoice);
+            }
 
+            // Imported historical Invoices (import_source_type set — see SalesInvoiceImportService)
+            // never post their own GL entry — GL's AR control-account balance already comes from
+            // the Trial Balance import as one aggregate journal entry (TrialBalanceImportService);
+            // posting a per-invoice entry too would double-count it. Status still flips to
+            // Submitted above either way, so an imported invoice looks and behaves like a real one
+            // everywhere else (including, now, optionally moving its own stock).
+            if ($invoice->import_source_type === null) {
                 $this->accountingService->postForDocument($invoice, $invoice->journalLines(), "Invoice {$invoice->document_number}", $invoice->invoice_date->toDateString());
             }
 
@@ -693,7 +708,7 @@ class InvoiceService
                 $this->accountsReceivableRepository->delete($accountsReceivable);
             }
 
-            if ($invoice->import_source_type === null && $invoice->isDirectGoods()) {
+            if ($invoice->movesStock()) {
                 $this->reverseDirectGoodsStock($invoice);
             }
 
@@ -715,15 +730,21 @@ class InvoiceService
     protected function postDirectGoodsStock(Invoice $invoice): void
     {
         $invoice->load('items');
+        $warehouseId = $invoice->stockWarehouseId();
 
-        foreach ($invoice->items as $line) {
-            $this->assertSufficientStock($invoice->warehouse_id, $line->item_id, (float) $line->qty);
+        // Miscellaneous/freeform lines (item_id null — only possible on an imported invoice's
+        // Goods lines, see SalesInvoiceImportService::createGoodsInvoice()) have nothing to
+        // consume against; a real Direct Goods line always has a real item_id.
+        $stockLines = $invoice->items->filter(fn ($line) => $line->item_id !== null);
+
+        foreach ($stockLines as $line) {
+            $this->assertSufficientStock($warehouseId, $line->item_id, (float) $line->qty);
         }
 
-        foreach ($invoice->items as $line) {
+        foreach ($stockLines as $line) {
             $this->stockLedgerService->record(
                 itemId: $line->item_id,
-                warehouseId: $invoice->warehouse_id,
+                warehouseId: $warehouseId,
                 transactionType: StockTransactionType::OUT,
                 voucherType: StockVoucherType::DIRECT_INVOICE,
                 voucherId: $invoice->id,
@@ -733,7 +754,7 @@ class InvoiceService
                 remarks: "Direct Invoice {$invoice->document_number}",
             );
 
-            $result = $this->fifoLayerService->consume($line->item_id, $invoice->warehouse_id, (float) $line->qty, StockVoucherType::DIRECT_INVOICE, $invoice->id);
+            $result = $this->fifoLayerService->consume($line->item_id, $warehouseId, (float) $line->qty, StockVoucherType::DIRECT_INVOICE, $invoice->id);
 
             $this->invoiceItemRepository->update($line, [
                 'unit_cost' => $result->weightedAverageUnitCost,
@@ -751,11 +772,12 @@ class InvoiceService
     protected function reverseDirectGoodsStock(Invoice $invoice): void
     {
         $invoice->load('items');
+        $warehouseId = $invoice->stockWarehouseId();
 
-        foreach ($invoice->items as $line) {
+        foreach ($invoice->items->filter(fn ($line) => $line->item_id !== null) as $line) {
             $this->stockLedgerService->record(
                 itemId: $line->item_id,
-                warehouseId: $invoice->warehouse_id,
+                warehouseId: $warehouseId,
                 transactionType: StockTransactionType::IN,
                 voucherType: StockVoucherType::DIRECT_INVOICE,
                 voucherId: $invoice->id,

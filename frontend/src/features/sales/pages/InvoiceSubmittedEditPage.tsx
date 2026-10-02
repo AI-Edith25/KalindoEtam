@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -86,6 +87,7 @@ export function InvoiceSubmittedEditPage() {
   const [customerAddress, setCustomerAddress] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [remarks, setRemarks] = useState('')
+  const [affectsStock, setAffectsStock] = useState(false)
   const [lines, setLines] = useState<EditableLine[] | null>(null)
   const [confirmingPaid, setConfirmingPaid] = useState(false)
 
@@ -104,6 +106,7 @@ export function InvoiceSubmittedEditPage() {
     setCustomerAddress(invoice.customer_address ?? '')
     setCustomerPhone(invoice.customer_phone ?? '')
     setRemarks(invoice.remarks ?? '')
+    setAffectsStock(invoice.affects_stock)
     setLines(invoice.items.map(toEditableLine))
   }
 
@@ -125,6 +128,7 @@ export function InvoiceSubmittedEditPage() {
     customer_address: customerAddress || null,
     customer_phone: customerPhone || null,
     remarks: remarks || null,
+    affects_stock: affectsStock,
     lock_version: invoice!.lock_version,
     items: (lines ?? []).map((line) => ({
       id: line.id,
@@ -240,6 +244,17 @@ export function InvoiceSubmittedEditPage() {
               aria-label="Location (Warehouse)"
             />
           </div>
+          {invoice.import_source_type !== null && invoice.invoice_type === 'goods' && (
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <div className="flex items-center gap-2">
+                <Switch checked={affectsStock} onCheckedChange={setAffectsStock} />
+                <label className="text-sm font-medium">Affects Stock</label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This is an imported invoice — stock was never deducted for it. Turning this on deducts FIFO stock from the Location (Warehouse) above when you save.
+              </p>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Attention</label>
             <Input value={attention} onChange={(e) => setAttention(e.target.value)} placeholder={invoice.sales_order?.attention || 'Optional'} />

@@ -36,8 +36,12 @@ class UpdateInvoiceRequest extends FormRequest
             'invoice_date' => ['sometimes', 'required', 'date'],
             'due_date' => ['sometimes', 'required', 'date', 'after_or_equal:invoice_date'],
             'terms_of_payment_id' => ['sometimes', 'nullable', 'uuid', 'exists:terms_of_payments,id'],
-            // The printed/displayed Location — editable at any status, zero stock/accounting side effects. See Invoice::locationWarehouse().
+            // The printed/displayed Location — editable at any status, zero stock/accounting side effects by itself. See Invoice::locationWarehouse().
             'location_warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
+            // Imported invoices only (enforced in InvoiceService::updateSubmitted(), not here —
+            // depends on model state) — switches this invoice to actually consume FIFO stock from
+            // location_warehouse_id above. See Invoice::movesStock().
+            'affects_stock' => ['sometimes', 'boolean'],
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
             // Discount is per-line only now — the header figure is always derived as the sum of
             // the (possibly just-edited) lines' own discount_amount, never a direct input here.
@@ -58,7 +62,7 @@ class UpdateInvoiceRequest extends FormRequest
             // Required only once this Invoice is Submitted (InvoiceService::updateSubmitted()'s
             // optimistic-lock check) — a Draft-Invoice edit ignores it, unchanged from before.
             'lock_version' => ['sometimes', 'integer', 'min:1'],
-            // Only meaningful once Submitted (InvoiceService::applySubmittedItemChanges()) — no
+            // Only meaningful once Submitted (InvoiceService::updateSubmitted()) — no
             // add/remove, every id must already belong to this Invoice.
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.id' => [

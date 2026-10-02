@@ -304,6 +304,10 @@ export interface Invoice {
   // cosmetic, never affects stock — unlike warehouse_id above.
   location_warehouse_id: string | null
   location_warehouse: { id: string; name: string; code: string } | null
+  // Imported invoices only — see Invoice::movesStock() on the backend. import_source_type is
+  // set once at import and never changes; affects_stock is the toggle editable afterward.
+  import_source_type: string | null
+  affects_stock: boolean
   sales_order_id: string | null
   sales_orders: { id: string; document_number: string | null }[]
   sales_order: {
@@ -401,6 +405,8 @@ export interface InvoiceFormValues {
   customer_phone?: string | null
   // Required once editing a Submitted Invoice (InvoiceService::updateSubmitted()'s optimistic-lock check).
   lock_version?: number
+  // Imported invoices only — see Invoice::movesStock() on the backend.
+  affects_stock?: boolean
 }
 
 export interface InvoiceFilterValues {

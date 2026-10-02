@@ -30,6 +30,7 @@ class Invoice extends Model
         'sales_order_id',
         'warehouse_id',
         'location_warehouse_id',
+        'affects_stock',
         'branch_id',
         'customer_id',
         'sales_person_id',
@@ -78,6 +79,7 @@ class Invoice extends Model
         'cancelled_at' => 'datetime',
         'import_extra' => 'array',
         'imported_at' => 'datetime',
+        'affects_stock' => 'boolean',
     ];
 
     /**
@@ -145,6 +147,27 @@ class Invoice extends Model
     public function isDirectGoods(): bool
     {
         return $this->invoice_type === InvoiceType::GOODS && $this->warehouse_id !== null;
+    }
+
+    /**
+     * Which warehouse (if any) actually drives stock consumption for this invoice. Direct Goods
+     * always uses warehouse_id (untouched, existing behavior). Every other invoice only consumes
+     * stock when an operator has explicitly turned affects_stock on for an imported invoice — see
+     * migration 2026_10_03_000005 — using location_warehouse_id as the source. Never true for a
+     * normal Delivery-based invoice: that stock was already consumed at Delivery submission.
+     */
+    public function stockWarehouseId(): ?string
+    {
+        if ($this->isDirectGoods()) {
+            return $this->warehouse_id;
+        }
+
+        return ($this->import_source_type !== null && $this->affects_stock) ? $this->location_warehouse_id : null;
+    }
+
+    public function movesStock(): bool
+    {
+        return $this->stockWarehouseId() !== null;
     }
 
     /** Transportation only — captured directly at creation, since there's no Sales Order to derive it from. Null for Goods. */
