@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexInventoryValuationRequest;
 use App\Http\Resources\InventoryValuationResource;
+use App\Models\Warehouse;
 use App\Services\InventoryValuationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
@@ -42,5 +43,25 @@ class InventoryValuationController extends Controller
         $rows = $this->inventoryValuationService->exportRows($filters);
 
         return Excel::download(new InventoryValuationExport($rows), "InventoryValuation.{$format}");
+    }
+
+    /** Reports > Inventory Stock > Valuation tab's Print button — every filtered (item, warehouse) row, flat and sorted by item code, same source as export() above. */
+    public function print(IndexInventoryValuationRequest $request): JsonResponse
+    {
+        $filters = $request->validated();
+        unset($filters['per_page']);
+
+        return $this->success([
+            'meta' => [
+                'company_name' => 'PT. KALINDO ETAM',
+                'period_from' => $filters['date_from'],
+                'period_to' => $filters['date_to'],
+                'location_label' => ($filters['warehouse_id'] ?? null) ? (Warehouse::find($filters['warehouse_id'])?->name ?? 'All') : 'All',
+                'generated_at' => now()->toIso8601String(),
+                'printed_by' => auth()->user()?->name ?? 'System',
+            ],
+            'rows' => $this->inventoryValuationService->exportRows($filters)->values(),
+            'summary' => $this->inventoryValuationService->summary($filters),
+        ]);
     }
 }

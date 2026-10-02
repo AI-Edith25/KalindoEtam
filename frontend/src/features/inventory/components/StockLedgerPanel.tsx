@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Download, ExternalLink, RotateCw, Upload } from 'lucide-react'
+import { Download, ExternalLink, Printer, RotateCw, Upload } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -14,6 +14,7 @@ import { StockLedgerFiltersBar } from './StockLedgerFiltersBar'
 import { resolveVoucherLink } from '../lib/voucherLinks'
 import { emptyStockLedgerFilters } from '../lib/stockLedgerFilters'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import type { StockLedgerEntry, StockLedgerFilterValues } from '../types'
 
@@ -64,6 +65,12 @@ export function StockLedgerPanel() {
   })
 
   const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
+
+  const printReport = () => {
+    const params = new URLSearchParams()
+    Object.entries(activeParams).forEach(([key, value]) => params.set(key, String(value)))
+    openPrintWindow(`/reports/inventory-stock/print-ledger?${params.toString()}`)
+  }
 
   const exportReport = async () => {
     setIsExporting(true)
@@ -131,6 +138,7 @@ export function StockLedgerPanel() {
         <ActionBar
           actions={[
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+            { label: 'Print', icon: Printer, onClick: printReport },
             { label: 'Export', icon: Download, onClick: exportReport, disabled: isExporting },
             { label: 'Import', icon: Upload, disabled: true },
           ]}

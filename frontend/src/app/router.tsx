@@ -84,6 +84,9 @@ import { DeliveryReportPrintPage } from '@/features/reports/pages/DeliveryReport
 import { InventoryStockReportPage } from '@/features/reports/pages/InventoryStockReportPage'
 import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/AccountsReceivableDetailReportPage'
 import { AccountsReceivableDetailReportPrintPage } from '@/features/reports/pages/AccountsReceivableDetailReportPrintPage'
+import { StockBalancePrintPage } from '@/features/reports/pages/StockBalancePrintPage'
+import { StockLedgerPrintPage } from '@/features/reports/pages/StockLedgerPrintPage'
+import { StockValuationPrintPage } from '@/features/reports/pages/StockValuationPrintPage'
 import { AccountsReceivableStatementPrintPage } from '@/features/reports/pages/AccountsReceivableStatementPrintPage'
 import { AccountsPayableDetailReportPage } from '@/features/reports/pages/AccountsPayableDetailReportPage'
 import { AccountsPayableDetailReportPrintPage } from '@/features/reports/pages/AccountsPayableDetailReportPrintPage'
@@ -510,6 +513,9 @@ export function AppRouter() {
         <Route path="/reports/sales/print" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/gross-profit/print" element={<ProtectedRoute permission="reports.gross_profit.view"><GrossProfitReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries/print" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory-stock/print-balance" element={<ProtectedRoute permission="reports.inventory_stock.view"><StockBalancePrintPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory-stock/print-ledger" element={<ProtectedRoute permission="reports.inventory_stock.view"><StockLedgerPrintPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory-stock/print-valuation" element={<ProtectedRoute permission="reports.inventory_stock.view"><StockValuationPrintPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail/print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableDetailReportPrintPage /></ProtectedRoute>} />
         <Route path="/reports/ar-detail/statement-print" element={<ProtectedRoute permission="reports.ar_detail.view"><AccountsReceivableStatementPrintPage /></ProtectedRoute>} />
         <Route path="/reports/ap-detail/print" element={<ProtectedRoute permission="reports.ap_detail.view"><AccountsPayableDetailReportPrintPage /></ProtectedRoute>} />

@@ -71,6 +71,94 @@ export interface StockBalanceFilterValues {
   item_id: string
 }
 
+/** One flat row per (item, warehouse) for the Stock Balance print — see StockLedgerExportService::balanceReportRows(). */
+export interface StockBalancePrintRow {
+  item_code: string | null
+  item_name: string | null
+  location_code: string | null
+  item_group_name: string | null
+  bf: number
+  in: number
+  out: number
+  balance: number
+  unit_cost: number
+}
+
+export interface StockBalancePrintReport {
+  meta: {
+    company_name: string
+    period_from: string
+    period_to: string
+    location_label: string
+    generated_at: string
+    printed_by: string
+  }
+  rows: StockBalancePrintRow[]
+  totals: { bf: number; in: number; out: number; balance: number }
+}
+
+/** One transaction line inside a StockLedgerPrintItem — see StockLedgerExportService::summaryStructureForPrint(). */
+export interface StockLedgerPrintTxnRow {
+  date: string | null
+  reference_no: string | null
+  /** Only ever populated for a Delivery voucher (derived from its own linked Invoice) — null for every other voucher type. */
+  invoice_reference: string | null
+  voucher_type: string | null
+  customer_name: string | null
+  uom: string | null
+  qty_in: number | null
+  qty_out: number | null
+  unit_cost: number | null
+  amount: number | null
+  balance_qty: number
+  balance_value: number
+}
+
+export interface StockLedgerPrintItem {
+  code: string | null
+  name: string | null
+  openingQty: number
+  openingValue: number
+  txnRows: StockLedgerPrintTxnRow[]
+  qtyInTotal: number
+  qtyOutTotal: number
+  closingQty: number
+  closingValue: number
+}
+
+export interface StockLedgerPrintItemGroup {
+  name: string
+  items: StockLedgerPrintItem[]
+  qtyInTotal: number
+  qtyOutTotal: number
+  closingQty: number
+  closingValue: number
+}
+
+export interface StockLedgerPrintLocation {
+  name: string
+  code: string | null
+  itemGroups: StockLedgerPrintItemGroup[]
+  qtyInTotal: number
+  qtyOutTotal: number
+  closingQty: number
+  closingValue: number
+}
+
+export interface StockLedgerSummaryPrintReport {
+  meta: {
+    company_name: string
+    period_from: string
+    period_to: string
+    location_label: string
+    item_label: string
+    generated_at: string
+    printed_by: string
+  }
+  locations: StockLedgerPrintLocation[]
+  grandTotals: { qtyInTotal: number; qtyOutTotal: number; closingQty: number; closingValue: number }
+}
+
 export interface StockValuationRow {
   item_id: string
   warehouse_id: string
@@ -91,6 +179,25 @@ export interface StockValuationRow {
 export interface StockValuationSummary {
   closing_value: number
   item_count: number
+}
+
+/** Stock Valuation print row — same shape as StockValuationRow plus the two fields only the print view needs. */
+export interface StockValuationPrintRow extends StockValuationRow {
+  warehouse_code: string | null
+  item_group_name: string | null
+}
+
+export interface StockValuationPrintReport {
+  meta: {
+    company_name: string
+    period_from: string
+    period_to: string
+    location_label: string
+    generated_at: string
+    printed_by: string
+  }
+  rows: StockValuationPrintRow[]
+  summary: StockValuationSummary
 }
 
 export interface StockValuationFilterValues {

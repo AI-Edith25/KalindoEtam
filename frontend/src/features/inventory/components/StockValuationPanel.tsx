@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Coins, Download, Package, RotateCw } from 'lucide-react'
+import { Coins, Download, Package, Printer, RotateCw } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { exportStockValuationReport, fetchStockValuationReport } from '../api/stockValuationApi'
@@ -44,6 +45,12 @@ export function StockValuationPanel() {
   const rows = listQuery.data?.data ?? []
   const summary = listQuery.data?.meta.summary
 
+  const printReport = () => {
+    const params = new URLSearchParams()
+    Object.entries(queryParams).forEach(([key, value]) => params.set(key, String(value)))
+    openPrintWindow(`/reports/inventory-stock/print-valuation?${params.toString()}`)
+  }
+
   const handleExport = async () => {
     setIsExporting(true)
     try {
@@ -79,6 +86,7 @@ export function StockValuationPanel() {
         <ActionBar
           actions={[
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+            { label: 'Print', icon: Printer, onClick: printReport },
             { label: 'Export', icon: Download, onClick: handleExport, disabled: isExporting },
           ]}
         />

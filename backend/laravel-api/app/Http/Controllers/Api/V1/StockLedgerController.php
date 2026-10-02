@@ -9,6 +9,7 @@ use App\Http\Requests\ExportStockLedgerRequest;
 use App\Http\Requests\IndexStockBalanceReportRequest;
 use App\Http\Requests\IndexStockBalanceRequest;
 use App\Http\Requests\IndexStockLedgerRequest;
+use App\Http\Requests\PrintStockBalanceRequest;
 use App\Http\Resources\StockBalanceResource;
 use App\Http\Resources\StockLedgerResource;
 use App\Models\Item;
@@ -58,6 +59,12 @@ class StockLedgerController extends Controller
         );
     }
 
+    /** Reports > Inventory Stock > Ledger tab's Print button — see StockLedgerExportService::summaryStructureForPrint(). */
+    public function summaryPrint(ExportStockLedgerRequest $request): JsonResponse
+    {
+        return $this->success($this->stockLedgerExportService->summaryStructureForPrint($request->validated()));
+    }
+
     /**
      * Bulk, warehouse-scoped current balance for a set of items — thin
      * pass-through to StockLedgerService::getCurrentBalance() (already the
@@ -90,5 +97,11 @@ class StockLedgerController extends Controller
             200,
             ['summary' => $this->stockLedgerService->totalValueSummary($filters)],
         );
+    }
+
+    /** Reports > Inventory Stock > Balance tab's Print button — see StockLedgerExportService::balanceReportRows(). */
+    public function balancePrint(PrintStockBalanceRequest $request): JsonResponse
+    {
+        return $this->success($this->stockLedgerExportService->balanceReportRows($request->validated()));
     }
 }

@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Coins, Download, Package, RotateCw, Upload } from 'lucide-react'
+import { Coins, Download, Package, Printer, RotateCw, Upload } from 'lucide-react'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+import { openPrintWindow } from '@/shared/lib/printOptions'
 import { fetchStockBalanceReport } from '../api/stockBalanceApi'
 import { StockBalanceFiltersBar } from './StockBalanceFiltersBar'
 import { emptyStockBalanceFilters } from '../lib/stockBalanceFilters'
@@ -55,6 +56,15 @@ export function StockBalancePanel() {
 
   const hasFilters = !!(search || filters.warehouse_id || filters.item_group_id || filters.item_id)
 
+  const printReport = () => {
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    if (filters.warehouse_id) params.set('warehouse_id', filters.warehouse_id)
+    if (filters.item_group_id) params.set('item_group_id', filters.item_group_id)
+    if (filters.item_id) params.set('item_id', filters.item_id)
+    openPrintWindow(`/reports/inventory-stock/print-balance?${params.toString()}`)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -62,6 +72,7 @@ export function StockBalancePanel() {
         <ActionBar
           actions={[
             { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+            { label: 'Print', icon: Printer, onClick: printReport },
             { label: 'Export', icon: Download, disabled: true },
             { label: 'Import', icon: Upload, disabled: true },
           ]}

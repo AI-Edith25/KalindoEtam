@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse, PaginationMeta } from '@/shared/types/api'
-import type { StockValuationRow, StockValuationSummary } from '../types'
+import type { StockValuationPrintReport, StockValuationRow, StockValuationSummary } from '../types'
 
 export interface StockValuationReportParams {
   page: number
@@ -26,4 +26,10 @@ export async function fetchStockValuationReport(params: StockValuationReportPara
 export async function exportStockValuationReport(params: Omit<StockValuationReportParams, 'page'>, format: 'xlsx' | 'csv'): Promise<Blob> {
   const { data } = await apiClient.get('/inventory-valuation/export', { params: { ...params, format }, responseType: 'blob' })
   return data as Blob
+}
+
+/** Reports > Inventory Stock > Valuation tab's Print button — every filtered (item, warehouse) row, flat. */
+export async function fetchStockValuationPrintReport(params: Omit<StockValuationReportParams, 'page' | 'per_page'>): Promise<StockValuationPrintReport> {
+  const { data } = await apiClient.get<{ data: StockValuationPrintReport }>('/inventory-valuation/print', { params })
+  return data.data
 }

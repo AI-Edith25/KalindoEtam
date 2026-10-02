@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiListResponse } from '@/shared/types/api'
-import type { StockLedgerEntry } from '../types'
+import type { StockLedgerEntry, StockLedgerSummaryPrintReport } from '../types'
 
 export interface StockLedgerListParams {
   page: number
@@ -31,4 +31,12 @@ export async function exportStockLedger(params: Omit<StockLedgerListParams, 'pag
   const disposition = response.headers['content-disposition'] as string | undefined
   const filename = disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? 'Stock_Ledger.xlsx'
   return { blob: response.data as Blob, filename }
+}
+
+/** Reports > Inventory Stock > Ledger tab's Print button — Location > Item Group > Item nested structure, see StockLedgerExportService::summaryStructureForPrint(). */
+export async function fetchStockLedgerSummaryPrint(
+  params: Pick<StockLedgerListParams, 'warehouse_id' | 'item_id' | 'item_group_id' | 'date_from' | 'date_to'>,
+): Promise<StockLedgerSummaryPrintReport> {
+  const { data } = await apiClient.get<{ data: StockLedgerSummaryPrintReport }>('/stock-ledger/summary/print', { params })
+  return data.data
 }

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\StockVoucherType;
+use App\Models\Delivery;
 use App\Models\Item;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
@@ -122,8 +124,165 @@ class StockLedgerExportService
         ];
     }
 
+    /**
+     * Reports > Inventory Stock > Balance tab's Print button — one flat row per (item, warehouse)
+     * with a Brought-Forward opening qty, period In/Out, and closing Balance, sorted by item code
+     * then location code (matches the legacy "Stock Balance" paper report this replicates). Reuses
+     * the exact same opening-balance + period-transaction primitives as summaryRows() below (same
+     * Location/Item/Item-Group-only filtering, same "priced at today's average cost" convention),
+     * just flattened instead of nested into Location > Item Group > Item sections. `search` has no
+     * SQL-level support in those primitives (deliberately, see summaryRows()'s own docblock), so it
+     * is applied as a plain post-filter on the assembled rows here instead.
+     */
+    public function balanceReportRows(array $filters): array
+    {
+        [$from, $to] = $this->resolveDateRange($filters);
+
+        $openingBalances = $this->stockLedgerRepository->openingBalances($filters, $from);
+        $transactions = $this->annotate($this->stockLedgerRepository->summaryTransactions($filters, $from, $to));
+        $txByPair = $transactions->groupBy(fn (StockLedger $t) => "{$t->item_id}|{$t->warehouse_id}");
+
+        $pairs = collect(array_keys($openingBalances))
+            ->merge($txByPair->keys())
+            ->unique()
+            ->filter(fn (string $pair) => abs($openingBalances[$pair] ?? 0.0) > 0.00005 || $txByPair->has($pair))
+            ->values();
+
+        $rows = [];
+
+        if ($pairs->isNotEmpty()) {
+            $itemIds = $pairs->map(fn ($pair) => explode('|', $pair)[0])->unique()->values();
+            $warehouseIds = $pairs->map(fn ($pair) => explode('|', $pair)[1])->unique()->values();
+
+            $items = Item::query()->with('itemGroup')->whereIn('id', $itemIds)->get()->keyBy('id');
+            $warehouses = Warehouse::query()->whereIn('id', $warehouseIds)->get()->keyBy('id');
+            $currentCosts = $this->stockLedgerService->currentAverageCostsFor($pairs);
+
+            foreach ($pairs as $pair) {
+                [$itemId, $warehouseId] = explode('|', $pair);
+                $item = $items[$itemId] ?? null;
+                $warehouse = $warehouses[$warehouseId] ?? null;
+                $openingQty = (float) ($openingBalances[$pair] ?? 0.0);
+                $cost = $currentCosts[$pair] ?? 0.0;
+
+                $runningQty = $openingQty;
+                $qtyInTotal = 0.0;
+                $qtyOutTotal = 0.0;
+
+                foreach ($txByPair->get($pair, collect()) as $txn) {
+                    /** @var StockLedger $txn */
+                    $qtyChange = (float) $txn->qty_change;
+                    $runningQty += $qtyChange;
+
+                    if ($qtyChange > 0) {
+                        $qtyInTotal += $qtyChange;
+                    } else {
+                        $qtyOutTotal += abs($qtyChange);
+                    }
+                }
+
+                $rows[] = [
+                    'item_code' => $item?->item_code,
+                    'item_name' => $item?->item_name,
+                    'location_code' => $warehouse?->code,
+                    'item_group_name' => $item?->itemGroup?->name,
+                    'bf' => $openingQty,
+                    'in' => $qtyInTotal,
+                    'out' => $qtyOutTotal,
+                    'balance' => $runningQty,
+                    'unit_cost' => $cost,
+                ];
+            }
+        }
+
+        if ($search = $filters['search'] ?? null) {
+            $needle = mb_strtolower($search);
+            $rows = array_values(array_filter(
+                $rows,
+                fn (array $row) => str_contains(mb_strtolower((string) $row['item_code']), $needle)
+                    || str_contains(mb_strtolower((string) $row['item_name']), $needle)
+            ));
+        }
+
+        usort($rows, fn ($a, $b) => [$a['item_code'], $a['location_code']] <=> [$b['item_code'], $b['location_code']]);
+
+        return [
+            'meta' => [
+                'company_name' => self::COMPANY_NAME,
+                'period_from' => $from,
+                'period_to' => $to,
+                'location_label' => ($filters['warehouse_id'] ?? null) ? (Warehouse::find($filters['warehouse_id'])?->name ?? 'All') : 'All',
+                'generated_at' => now()->toIso8601String(),
+                'printed_by' => auth()->user()?->name ?? 'System',
+            ],
+            'rows' => $rows,
+            'totals' => [
+                'bf' => array_sum(array_column($rows, 'bf')),
+                'in' => array_sum(array_column($rows, 'in')),
+                'out' => array_sum(array_column($rows, 'out')),
+                'balance' => array_sum(array_column($rows, 'balance')),
+            ],
+        ];
+    }
+
+    /**
+     * Reports > Inventory Stock > Ledger tab's Print button — the same Location > Item Group >
+     * Item nested structure buildSummaryStructure() below produces, as plain JSON instead of
+     * flattened xlsx rows. The print page walks this to render the grouped table with B/F,
+     * per-item/per-item-group/per-location subtotals, and a grand total, matching the legacy
+     * "Stock Ledger" paper report this replicates.
+     */
+    public function summaryStructureForPrint(array $filters): array
+    {
+        [$from, $to, $locations] = $this->buildSummaryStructure($filters);
+
+        $grandTotals = [
+            'qtyInTotal' => array_sum(array_column($locations, 'qtyInTotal')),
+            'qtyOutTotal' => array_sum(array_column($locations, 'qtyOutTotal')),
+            'closingQty' => array_sum(array_column($locations, 'closingQty')),
+            'closingValue' => array_sum(array_column($locations, 'closingValue')),
+        ];
+
+        $locationLabel = ($filters['warehouse_id'] ?? null)
+            ? (Warehouse::find($filters['warehouse_id'])?->name ?? 'All')
+            : 'All';
+        $itemLabel = 'All';
+        if ($filters['item_id'] ?? null) {
+            $item = Item::find($filters['item_id']);
+            $itemLabel = $item ? "{$item->item_code} — {$item->item_name}" : 'All';
+        }
+
+        return [
+            'meta' => [
+                'company_name' => self::COMPANY_NAME,
+                'period_from' => $from,
+                'period_to' => $to,
+                'location_label' => $locationLabel,
+                'item_label' => $itemLabel,
+                'generated_at' => now()->toIso8601String(),
+                'printed_by' => auth()->user()?->name ?? 'System',
+            ],
+            'locations' => $locations,
+            'grandTotals' => $grandTotals,
+        ];
+    }
+
     /** @return array{rows: array<int, array>, meta: array} */
     public function summaryRows(array $filters): array
+    {
+        [$from, $to, $locations] = $this->buildSummaryStructure($filters);
+
+        return $this->assemble($locations, $filters, $from, $to);
+    }
+
+    /**
+     * The Location -> Item Group -> Item nested array shared by summaryRows() (xlsx export) and
+     * summaryStructureForPrint() (print page) — see either caller's docblock for what each row
+     * level carries. Extracted so both consumers build this exact same structure from one place.
+     *
+     * @return array{0: string, 1: string, 2: array<int, mixed>} [from, to, locations]
+     */
+    private function buildSummaryStructure(array $filters): array
     {
         [$from, $to] = $this->resolveDateRange($filters);
 
@@ -138,8 +297,23 @@ class StockLedgerExportService
             ->values();
 
         if ($pairs->isEmpty()) {
-            return $this->assemble([], $filters, $from, $to);
+            return [$from, $to, []];
         }
+
+        // D/O# (reference_no) and Invoice # are two separate columns on the legacy paper report
+        // this replicates, but StockLedger only ever stored one reference_no — only a Delivery
+        // voucher has a cheaply-derivable second reference (its own invoices() pivot, see
+        // Delivery::invoices()); every other voucher type's Invoice # column is simply blank, same
+        // as the legacy report's own sample output. Batched to avoid an N+1 per transaction row.
+        $deliveryVoucherIds = $transactions
+            ->filter(fn (StockLedger $t) => $t->voucher_type === StockVoucherType::DELIVERY)
+            ->pluck('voucher_id')->unique()->values();
+        $invoiceRefByDeliveryId = $deliveryVoucherIds->isEmpty() ? [] : Delivery::query()
+            ->with('invoices')
+            ->whereIn('id', $deliveryVoucherIds)
+            ->get()
+            ->mapWithKeys(fn (Delivery $delivery) => [$delivery->id => $delivery->invoices->first()?->document_number])
+            ->all();
 
         $itemIds = $pairs->map(fn ($pair) => explode('|', $pair)[0])->unique()->values();
         $warehouseIds = $pairs->map(fn ($pair) => explode('|', $pair)[1])->unique()->values();
@@ -188,17 +362,20 @@ class StockLedgerExportService
                         }
 
                         $txnRows[] = [
-                            optional($txn->posting_datetime)->format('d/m/Y'),
-                            $txn->reference_no,
-                            $this->formatLabel($txn->voucher_type?->value),
-                            $txn->customer_name,
-                            $item?->uom?->name,
-                            $qtyChange > 0 ? $qtyChange : null,
-                            $qtyChange < 0 ? abs($qtyChange) : null,
-                            $txn->unit_cost ?: null,
-                            $qtyChange > 0 ? ($txn->value_in ?: null) : ($txn->value_out ? -$txn->value_out : null),
-                            $runningQty,
-                            round($runningQty * $cost, 2),
+                            'date' => optional($txn->posting_datetime)->format('d/m/Y'),
+                            'reference_no' => $txn->reference_no,
+                            'invoice_reference' => $txn->voucher_type === StockVoucherType::DELIVERY
+                                ? ($invoiceRefByDeliveryId[$txn->voucher_id] ?? null)
+                                : null,
+                            'voucher_type' => $this->formatLabel($txn->voucher_type?->value),
+                            'customer_name' => $txn->customer_name,
+                            'uom' => $item?->uom?->name,
+                            'qty_in' => $qtyChange > 0 ? $qtyChange : null,
+                            'qty_out' => $qtyChange < 0 ? abs($qtyChange) : null,
+                            'unit_cost' => $txn->unit_cost ?: null,
+                            'amount' => $qtyChange > 0 ? ($txn->value_in ?: null) : ($txn->value_out ? -$txn->value_out : null),
+                            'balance_qty' => $runningQty,
+                            'balance_value' => round($runningQty * $cost, 2),
                         ];
                     }
 
@@ -229,6 +406,7 @@ class StockLedgerExportService
 
             $locations[] = [
                 'name' => $warehouse?->name ?? 'Unknown',
+                'code' => $warehouse?->code,
                 'itemGroups' => $itemGroups,
                 'qtyInTotal' => array_sum(array_column($itemGroups, 'qtyInTotal')),
                 'qtyOutTotal' => array_sum(array_column($itemGroups, 'qtyOutTotal')),
@@ -239,7 +417,7 @@ class StockLedgerExportService
 
         usort($locations, fn ($a, $b) => strcmp($a['name'], $b['name']));
 
-        return $this->assemble($locations, $filters, $from, $to);
+        return [$from, $to, $locations];
     }
 
     /** @param array<int, mixed> $rows already-annotated StockLedger models via a throwaway paginator, so attachCostInfo()/attachCustomerInfo() (LengthAwarePaginator-shaped) can be reused as-is. */
@@ -330,7 +508,12 @@ class StockLedgerExportService
 
                     foreach ($item['txnRows'] as $txnRow) {
                         $rowNum++;
-                        $rows[] = $txnRow;
+                        // invoice_reference (print-only, see summaryStructureForPrint()) has no
+                        // column of its own here — SUMMARY_COLUMNS/this sheet's shape is unchanged.
+                        $rows[] = [
+                            $txnRow['date'], $txnRow['reference_no'], $txnRow['voucher_type'], $txnRow['customer_name'], $txnRow['uom'],
+                            $txnRow['qty_in'], $txnRow['qty_out'], $txnRow['unit_cost'], $txnRow['amount'], $txnRow['balance_qty'], $txnRow['balance_value'],
+                        ];
                     }
 
                     $rowNum++;

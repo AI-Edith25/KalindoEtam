@@ -120,7 +120,11 @@ class FifoLayerRepository extends BaseRepository
         $query = $this->model->query()
             ->join('items', 'items.id', '=', 'fifo_layers.item_id')
             ->join('warehouses', 'warehouses.id', '=', 'fifo_layers.warehouse_id')
-            ->select(['fifo_layers.*', 'items.item_code', 'items.item_name', 'warehouses.name as warehouse_name'])
+            ->leftJoin('item_groups', 'item_groups.id', '=', 'items.item_group_id')
+            ->select([
+                'fifo_layers.*', 'items.item_code', 'items.item_name', 'warehouses.name as warehouse_name',
+                'warehouses.code as warehouse_code', 'item_groups.name as item_group_name',
+            ])
             ->when($filters['warehouse_id'] ?? null, fn ($q, $warehouseId) => $q->where('fifo_layers.warehouse_id', $warehouseId))
             ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->where('fifo_layers.item_id', $itemId))
             ->when($filters['item_group_id'] ?? null, fn ($q, $groupId) => $q->where('items.item_group_id', $groupId))
