@@ -20,7 +20,10 @@ class ProcessSalesInvoiceHistoryImportJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 1200;
+    // A 16k-row file (6000+ invoices) measured ~8600 rows processed in the old 1200s budget
+    // (~7.2 rows/sec) before being killed — same ceiling ProcessSalesPurchaseJournalImportJob
+    // already uses for its own large exports.
+    public int $timeout = 7200;
 
     public function __construct(public string $importBatchId) {}
 
