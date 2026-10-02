@@ -35,6 +35,7 @@ class OpeningStockService
         protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected QtyCategoryValidator $qtyCategoryValidator,
+        protected TaxService $taxService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -204,6 +205,11 @@ class OpeningStockService
 
             $this->assertCutoffPrecedesExistingActivity($item->id, $openingStock->warehouse_id, $openingStock->cutoff_date, $item->item_code);
 
+            $amount = round($qty * $line['unit_cost'], 2);
+            // No Item default fallback (item: null) — Opening Stock has no source document to
+            // inherit tax from (and never posts to GL), so Tax is purely optional/manual/informational.
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $amount);
+
             $this->openingStockItemRepository->create([
                 'opening_stock_id' => $openingStock->id,
                 'item_id' => $item->id,
@@ -213,7 +219,9 @@ class OpeningStockService
                 'qty_category' => $item->qty_category,
                 'qty' => $qty,
                 'unit_cost' => $line['unit_cost'],
-                'amount' => round($qty * $line['unit_cost'], 2),
+                'amount' => $amount,
+                'tax_id' => $taxId,
+                'tax_amount' => $taxAmount,
             ]);
         }
     }

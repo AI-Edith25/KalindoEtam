@@ -21,6 +21,7 @@ class UpdateOpeningStockRequest extends FormRequest
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required_with:items', 'numeric', 'min:0.0001'],
             'items.*.unit_cost' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }

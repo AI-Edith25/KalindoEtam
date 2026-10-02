@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchTaxesLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { parseLocaleQty } from '@/shared/lib/qty'
 import { createOpeningStock, fetchOpeningStock, submitOpeningStock, updateOpeningStock } from '../api/openingStockApi'
 import { OpeningStockLineItemTable } from '../components/OpeningStockLineItemTable'
@@ -35,6 +35,9 @@ export function OpeningStockEditorPage() {
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
+  // Unfiltered — Opening Stock is neither a purchase nor a sales document, so every active Tax is offered.
+  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
+  const activeTaxes = (taxesQuery.data ?? []).filter((tax) => tax.is_active)
 
   const form = useForm<OpeningStockEditorValues>({
     resolver: zodResolver(openingStockFormSchema),
@@ -67,6 +70,7 @@ export function OpeningStockEditorPage() {
         qtyCategory: line.qty_category,
         qty: String(line.qty),
         unitCost: String(line.unit_cost),
+        tax_id: line.tax_id ?? '',
       })),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,6 +84,7 @@ export function OpeningStockEditorPage() {
       item_id: line.item_id,
       qty: parseLocaleQty(line.qty),
       unit_cost: parseLocaleQty(line.unitCost),
+      tax_id: line.tax_id || null,
     })),
   })
 
@@ -186,7 +191,7 @@ export function OpeningStockEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <OpeningStockLineItemTable form={form} />
+              <OpeningStockLineItemTable form={form} taxes={activeTaxes} />
               {form.formState.errors.items?.message && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.message}</p>
               )}

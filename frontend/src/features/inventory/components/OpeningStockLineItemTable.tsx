@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
@@ -11,7 +12,9 @@ import { formatCurrency } from '@/lib/utils'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { OpeningStockEditorValues } from '../lib/openingStockFormSchema'
-import type { Item } from '@/features/master/types'
+import type { Item, Tax } from '@/features/master/types'
+
+const NO_TAX = '__none__'
 
 function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
   return `${item.item_code} — ${item.item_name}`
@@ -19,6 +22,7 @@ function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
 
 interface OpeningStockLineItemTableProps {
   form: UseFormReturn<OpeningStockEditorValues>
+  taxes: Tax[]
   disabled?: boolean
 }
 
@@ -27,7 +31,7 @@ interface OpeningStockLineItemTableProps {
  * appear on more than one row (different cost = a different FIFO layer, the whole point of this
  * page), so rows are never deduplicated or merged by item_id.
  */
-export function OpeningStockLineItemTable({ form, disabled }: OpeningStockLineItemTableProps) {
+export function OpeningStockLineItemTable({ form, taxes, disabled }: OpeningStockLineItemTableProps) {
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
@@ -63,6 +67,7 @@ export function OpeningStockLineItemTable({ form, disabled }: OpeningStockLineIt
               <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="w-32 text-right">Qty</TableHead>
               <TableHead className="w-36 text-right">Unit Cost</TableHead>
+              <TableHead className="w-44">Tax</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -70,7 +75,7 @@ export function OpeningStockLineItemTable({ form, disabled }: OpeningStockLineIt
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={6} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start entering opening balances." />
                 </TableCell>
               </TableRow>
@@ -136,6 +141,34 @@ export function OpeningStockLineItemTable({ form, disabled }: OpeningStockLineIt
                         )}
                       />
                     </TableCell>
+                    <TableCell>
+                      <FormField
+                        control={control}
+                        name={`items.${index}.tax_id`}
+                        render={({ field: taxField }) => (
+                          <FormItem className="gap-0">
+                            <Select
+                              value={taxField.value || NO_TAX}
+                              onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
+                              disabled={disabled}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="No tax" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NO_TAX}>No tax</SelectItem>
+                                {taxes.map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>
+                                    {t.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{formatCurrency(qty * unitCost)}</TableCell>
                     <TableCell>
                       <Button
@@ -158,7 +191,7 @@ export function OpeningStockLineItemTable({ form, disabled }: OpeningStockLineIt
           {fields.length > 0 && (
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={3} className="text-right font-medium">
+                <TableCell colSpan={4} className="text-right font-medium">
                   Total
                 </TableCell>
                 <TableCell className="text-right font-medium tabular-nums">{formatCurrency(total)}</TableCell>
@@ -174,7 +207,7 @@ export function OpeningStockLineItemTable({ form, disabled }: OpeningStockLineIt
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '', unitCost: '' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '', unitCost: '', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

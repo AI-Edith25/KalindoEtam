@@ -17,6 +17,7 @@ export const openingStockLineRowSchema = z
       .string()
       .min(1, 'Unit Cost is required')
       .refine((value) => !Number.isNaN(Number(value.replace(',', '.'))) && Number(value.replace(',', '.')) >= 0, 'Must be zero or greater'),
+    tax_id: z.string().optional().or(z.literal('')),
   })
   .superRefine((line, ctx) => {
     if (!isValidQtyForCategory(line.qty, line.qtyCategory) || Number(line.qty.replace(',', '.')) <= 0) {

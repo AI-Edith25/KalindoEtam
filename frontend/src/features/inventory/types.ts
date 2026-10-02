@@ -153,6 +153,8 @@ export interface OpeningStockItem {
   qty: string | number
   unit_cost: string | number
   amount: string | number
+  tax_id: string | null
+  tax_amount: string | number
 }
 
 export interface OpeningStock {
@@ -178,7 +180,7 @@ export interface OpeningStockFormValues {
   warehouse_id: string
   cutoff_date: string
   remarks: string | null
-  items: { item_id: string; qty: number; unit_cost: number }[]
+  items: { item_id: string; qty: number; unit_cost: number; tax_id: string | null }[]
 }
 
 export interface OpeningStockFilterValues {

@@ -23,6 +23,7 @@ class StoreOpeningStockRequest extends FormRequest
             // QtyCategoryValidator (needs the Item loaded, not available here).
             'items.*.qty' => ['required', 'numeric', 'min:0.0001'],
             'items.*.unit_cost' => ['required', 'numeric', 'min:0'],
+            'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }
