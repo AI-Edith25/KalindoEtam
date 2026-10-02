@@ -475,7 +475,9 @@ export function InvoiceLandscapeLayout({
                             content = fmt(item.tax_amount, 2)
                             break
                           case 'lineAmt':
-                            content = fmt(item.amount, 2)
+                            // Net of this line's own discount — reconciles with the Tax column,
+                            // which is already computed against net.
+                            content = fmt(item.net_amount, 2)
                             break
                         }
                         return (

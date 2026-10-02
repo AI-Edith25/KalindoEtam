@@ -158,7 +158,9 @@ function renderCell(key: string, item: Invoice['items'][number], index: number):
     case 'tax':
       return fmt(item.tax_amount, 2)
     case 'lineAmt':
-      return fmt(item.amount, 2)
+      // Net of this line's own discount — reconciles with the Tax column, which is already
+      // computed against net, and with the TOTALS box's own DISC row (document-level sum).
+      return fmt(item.net_amount, 2)
     default:
       return ''
   }

@@ -287,7 +287,8 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
                 <td className="pt-1 pr-1 align-top">{item.uom ?? ''}</td>
                 <td className="pt-1 pr-1 text-right align-top">{formatNum(item.rate, 2)}</td>
                 {showTax && <td className="pt-1 pr-1 text-right align-top">{formatNum(item.tax_amount, 2)}</td>}
-                <td className="pt-1 text-right align-top">{formatNum(item.amount, 2)}</td>
+                {/* Net of this line's own discount — reconciles with the TAX column (already net-based). */}
+                <td className="pt-1 text-right align-top">{formatNum(item.net_amount, 2)}</td>
               </tr>,
               <tr key={`${item.id}-desc`}>
                 <td className="pb-1" colSpan={showTax ? 7 : 6}>
