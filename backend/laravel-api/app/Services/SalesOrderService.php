@@ -27,6 +27,7 @@ class SalesOrderService
         protected CustomerCreditService $customerCreditService,
         protected SalesOrderStockService $salesOrderStockService,
         protected TaxService $taxService,
+        protected DiscountService $discountService,
         protected CompanyRepository $companyRepository,
     ) {}
 
@@ -133,15 +134,19 @@ class SalesOrderService
                 // own "Apply to all lines" convenience — the authoritative tax_amount below
                 // is always a sum of the per-line amounts resolveLineTax() computes.
                 'tax_id' => $data['tax_id'] ?? null,
+                'total_discount' => 0,
+                'tax_base' => $subtotal,
                 'tax_amount' => 0,
                 'grand_total' => $subtotal,
             ]);
 
-            $taxAmount = $this->replaceItems($salesOrder, $data['items']);
+            [$totalDiscount, $taxAmount] = $this->replaceItems($salesOrder, $data['items']);
 
             $this->salesOrderRepository->update($salesOrder, [
+                'total_discount' => $totalDiscount,
+                'tax_base' => round($subtotal - $totalDiscount, 2),
                 'tax_amount' => $taxAmount,
-                'grand_total' => round($subtotal + $taxAmount, 2),
+                'grand_total' => round($subtotal - $totalDiscount + $taxAmount, 2),
             ]);
 
             $salesOrder = $salesOrder->fresh(['customer', 'salesPerson', 'branch', 'warehouse', 'termsOfPayment', 'tax', 'items.item', 'items.tax']);
@@ -183,10 +188,12 @@ class SalesOrderService
                 }
 
                 $subtotal = $this->sumLines($data['items']);
-                $taxAmount = $this->replaceItems($salesOrder, $data['items']);
+                [$totalDiscount, $taxAmount] = $this->replaceItems($salesOrder, $data['items']);
                 $headerData['total_amount'] = $subtotal;
+                $headerData['total_discount'] = $totalDiscount;
+                $headerData['tax_base'] = round($subtotal - $totalDiscount, 2);
                 $headerData['tax_amount'] = $taxAmount;
-                $headerData['grand_total'] = round($subtotal + $taxAmount, 2);
+                $headerData['grand_total'] = round($subtotal - $totalDiscount + $taxAmount, 2);
             }
 
             // tax_id is display-only (the "last bulk-applied tax" marker) — store verbatim
@@ -247,10 +254,13 @@ class SalesOrderService
 
                 $freshItems = $salesOrder->items()->get();
                 $totalAmount = round((float) $freshItems->sum('amount'), 2);
+                $totalDiscount = round((float) $freshItems->sum('discount_amount'), 2);
                 $taxAmount = round((float) $freshItems->sum('tax_amount'), 2);
                 $headerData['total_amount'] = $totalAmount;
+                $headerData['total_discount'] = $totalDiscount;
+                $headerData['tax_base'] = round($totalAmount - $totalDiscount, 2);
                 $headerData['tax_amount'] = $taxAmount;
-                $headerData['grand_total'] = round($totalAmount + $taxAmount, 2);
+                $headerData['grand_total'] = round($totalAmount - $totalDiscount + $taxAmount, 2);
             }
 
             if (array_key_exists('tax_id', $data)) {
@@ -294,7 +304,9 @@ class SalesOrderService
                 && (int) $incomingLine['qty'] === (int) $existingLine->qty
                 && $itemsById->get($incomingLine['item_id'])->resolveLineUom($incomingLine['uom_id'] ?? null)['uom_id'] === $existingLine->uom_id
                 && abs((float) $incomingLine['rate'] - (float) $existingLine->rate) < 0.005
-                && ($incomingLine['tax_id'] ?? null) === $existingLine->tax_id;
+                && ($incomingLine['tax_id'] ?? null) === $existingLine->tax_id
+                && ($incomingLine['discount_type'] ?? 'amount') === $existingLine->discount_type
+                && abs((float) ($incomingLine['discount_value'] ?? 0) - (float) $existingLine->discount_value) < 0.005;
 
             if (! $unchanged) {
                 throw new BusinessException("Line item \"{$existingLine->item?->item_name}\" already has a Delivery against it and cannot be changed or removed.");
@@ -319,8 +331,9 @@ class SalesOrderService
                 continue; // Locked — already verified unchanged above, never rewritten.
             }
 
-            $lineAmount = $line['qty'] * $line['rate'];
-            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'sales_tax_id', $lineAmount);
+            $grossAmount = $line['qty'] * $line['rate'];
+            [$discountType, $discountValue, $discountAmount, $netAmount] = $this->discountService->resolveLineDiscount($line, $grossAmount);
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'sales_tax_id', $netAmount);
 
             $uomLine = $itemsById->get($line['item_id'])->resolveLineUom($line['uom_id'] ?? null);
 
@@ -331,7 +344,11 @@ class SalesOrderService
                 'uom_factor' => $uomLine['uom_factor'],
                 'qty' => $line['qty'],
                 'rate' => $line['rate'],
-                'amount' => $lineAmount,
+                'amount' => $grossAmount,
+                'discount_type' => $discountType->value,
+                'discount_value' => $discountValue,
+                'discount_amount' => $discountAmount,
+                'net_amount' => $netAmount,
                 'tax_id' => $taxId,
                 'tax_amount' => $taxAmount,
             ];
@@ -522,17 +539,19 @@ class SalesOrderService
         }
     }
 
-    /** @return float the sum of every line's resolved tax_amount, for the header's own cache column. */
-    protected function replaceItems(SalesOrder $salesOrder, array $items): float
+    /** @return array{0: float, 1: float} [totalDiscount, totalTax] — the header's own cache columns. */
+    protected function replaceItems(SalesOrder $salesOrder, array $items): array
     {
         $salesOrder->items()->delete();
 
         $itemsById = Item::query()->with('itemUoms')->whereIn('id', collect($items)->pluck('item_id')->unique())->get()->keyBy('id');
+        $totalDiscount = 0.0;
         $totalTax = 0.0;
 
         foreach ($items as $line) {
-            $lineAmount = $line['qty'] * $line['rate'];
-            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'sales_tax_id', $lineAmount);
+            $grossAmount = $line['qty'] * $line['rate'];
+            [$discountType, $discountValue, $discountAmount, $netAmount] = $this->discountService->resolveLineDiscount($line, $grossAmount);
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, $itemsById->get($line['item_id']), 'sales_tax_id', $netAmount);
             // qty/rate are in the chosen UOM; the factor is snapshotted from the item's own UOM list.
             $uomLine = $itemsById->get($line['item_id'])->resolveLineUom($line['uom_id'] ?? null);
 
@@ -543,16 +562,21 @@ class SalesOrderService
                 'uom_factor' => $uomLine['uom_factor'],
                 'qty' => $line['qty'],
                 'rate' => $line['rate'],
-                'amount' => $lineAmount,
+                'amount' => $grossAmount,
+                'discount_type' => $discountType->value,
+                'discount_value' => $discountValue,
+                'discount_amount' => $discountAmount,
+                'net_amount' => $netAmount,
                 'delivered_qty' => 0,
                 'tax_id' => $taxId,
                 'tax_amount' => $taxAmount,
             ]);
 
+            $totalDiscount += $discountAmount;
             $totalTax += $taxAmount;
         }
 
-        return round($totalTax, 2);
+        return [round($totalDiscount, 2), round($totalTax, 2)];
     }
 
     protected function sumLines(array $items): float

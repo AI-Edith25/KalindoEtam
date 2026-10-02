@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\DiscountType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -44,6 +45,8 @@ class UpdateSalesOrderRequest extends FormRequest
             'items.*.uom_id' => ['nullable', 'uuid', 'exists:uoms,id'],
             'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.discount_type' => ['nullable', Rule::enum(DiscountType::class)],
+            'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
             'items.*.tax_id' => ['nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
