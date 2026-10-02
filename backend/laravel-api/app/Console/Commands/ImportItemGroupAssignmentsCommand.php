@@ -79,11 +79,16 @@ class ImportItemGroupAssignmentsCommand extends Command
                 continue;
             }
 
-            $group = ItemGroup::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($groupName)])->first();
+            // withTrashed(): the name column's unique index still rejects a soft-deleted
+            // row's name, so a lookup that ignores trashed rows would try to recreate it
+            // and hit a duplicate-entry error instead of finding and restoring it.
+            $group = ItemGroup::withTrashed()->whereRaw('LOWER(name) = ?', [mb_strtolower($groupName)])->first();
 
             if (! $group) {
                 $group = ItemGroup::query()->create(['name' => $groupName]);
                 $groupsCreated++;
+            } elseif ($group->trashed()) {
+                $group->restore();
             }
 
             if ($item->item_group_id === $group->id) {

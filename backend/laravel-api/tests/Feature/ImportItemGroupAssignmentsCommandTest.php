@@ -94,6 +94,20 @@ class ImportItemGroupAssignmentsCommandTest extends TestCase
         $this->assertSame($group->id, $item->refresh()->item_group_id);
     }
 
+    public function test_restores_a_soft_deleted_group_instead_of_duplicating_it(): void
+    {
+        $group = ItemGroup::query()->create(['name' => 'CAT']);
+        $group->delete();
+        $item = $this->createItem('ITM-005');
+        $path = $this->buildFixture([['ITM-005', 'CAT']]);
+
+        $this->artisan('items:import-item-groups', ['path' => $path])->assertExitCode(0);
+
+        $this->assertSame(1, ItemGroup::withTrashed()->where('name', 'CAT')->count());
+        $this->assertNull($group->refresh()->deleted_at);
+        $this->assertSame($group->id, $item->refresh()->item_group_id);
+    }
+
     public function test_leaves_an_unmatched_item_code_untouched(): void
     {
         $path = $this->buildFixture([['NO-SUCH-CODE', 'PAKU']]);
