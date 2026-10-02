@@ -125,17 +125,17 @@ export function DeliveryDetailPage() {
           <DetailSection>
             <DetailField label="Document Number" value={delivery.document_number ?? '—'} />
             <DetailField
-              label="Sales Order"
+              label={`Sales Order${delivery.sales_orders.length > 1 ? 's' : ''}`}
               value={
-                delivery.sales_order_id ? (
-                  <Button
-                    variant="link"
-                    className="h-auto p-0"
-                    onClick={() => navigate(`/sales/orders/${delivery.sales_order_id}`)}
-                  >
-                    View Sales Order
-                    <ExternalLink className="size-3.5" />
-                  </Button>
+                delivery.sales_orders.length > 0 ? (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {delivery.sales_orders.map((so) => (
+                      <Button key={so.id} variant="link" className="h-auto p-0" onClick={() => navigate(`/sales/orders/${so.id}`)}>
+                        {so.document_number ?? 'View Sales Order'}
+                        <ExternalLink className="size-3.5" />
+                      </Button>
+                    ))}
+                  </div>
                 ) : (
                   'Direct Delivery (no Sales Order)'
                 )

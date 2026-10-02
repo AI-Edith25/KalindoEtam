@@ -148,19 +148,39 @@ class DeliveryService
     public function create(array $data): Delivery
     {
         return DB::transaction(function () use ($data) {
-            if (empty($data['sales_order_id'])) {
+            $salesOrderIds = $this->resolveRequestedSalesOrderIds($data);
+
+            if (empty($salesOrderIds)) {
                 return $this->createDirect($data);
             }
 
-            $salesOrder = $this->salesOrderRepository->findOrFail($data['sales_order_id']);
+            // Deterministic anchor regardless of selection order — same tie-break as
+            // InvoiceService::createGoods()'s $deliveries->sortBy(delivery_date, id).
+            $salesOrders = collect($salesOrderIds)
+                ->map(fn (string $id) => $this->salesOrderRepository->findOrFail($id))
+                ->sortBy(fn ($salesOrder) => [$salesOrder->order_date, $salesOrder->id])
+                ->values();
 
-            if ($salesOrder->status !== SalesOrderStatus::APPROVED) {
-                throw new BusinessException('Sales Order must be approved before a Delivery can be created against it.');
+            foreach ($salesOrders as $salesOrder) {
+                if ($salesOrder->status !== SalesOrderStatus::APPROVED) {
+                    throw new BusinessException("Sales Order {$salesOrder->document_number} must be approved before a Delivery can be created against it.");
+                }
             }
 
+            if ($salesOrders->pluck('customer_id')->unique()->count() > 1) {
+                throw new BusinessException('All selected Sales Orders must belong to the same Customer.');
+            }
+
+            if ($salesOrders->pluck('warehouse_id')->unique()->count() > 1) {
+                throw new BusinessException('All selected Sales Orders must belong to the same Warehouse.');
+            }
+
+            $anchor = $salesOrders->first();
+            $salesOrderIds = $salesOrders->pluck('id')->all();
+
             $delivery = $this->deliveryRepository->create([
-                'sales_order_id' => $salesOrder->id,
-                'customer_id' => $salesOrder->customer_id,
+                'sales_order_id' => $anchor->id,
+                'customer_id' => $anchor->customer_id,
                 'warehouse_id' => $data['warehouse_id'],
                 'delivery_date' => $data['delivery_date'],
                 'due_date' => $data['due_date'],
@@ -171,14 +191,32 @@ class DeliveryService
             ]);
 
             foreach ($data['items'] as $line) {
-                $this->addLine($delivery, $salesOrder->id, $line['sales_order_item_id'], $line['qty']);
+                $this->addLine($delivery, $salesOrderIds, $line['sales_order_item_id'], $line['qty']);
             }
 
-            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items', 'termsOfPayment']);
+            $delivery->salesOrders()->sync($salesOrderIds);
+
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'salesOrders', 'items', 'termsOfPayment']);
             $this->auditLogService->record('created', 'delivery', "Created Delivery \"{$delivery->document_number}\".");
 
             return $delivery;
         });
+    }
+
+    /**
+     * `sales_order_ids` (array, one or more) is the current shape — mirrors InvoiceService's
+     * own `delivery_ids`. The older singular `sales_order_id` is still accepted so every
+     * existing direct-service caller (tests, imports, seeders) keeps working unchanged.
+     *
+     * @return string[]
+     */
+    protected function resolveRequestedSalesOrderIds(array $data): array
+    {
+        if (! empty($data['sales_order_ids'])) {
+            return $data['sales_order_ids'];
+        }
+
+        return ! empty($data['sales_order_id']) ? [$data['sales_order_id']] : [];
     }
 
     /**
@@ -272,11 +310,13 @@ class DeliveryService
             if (isset($data['items'])) {
                 $delivery->items()->delete();
 
+                $salesOrderIds = $delivery->sales_order_id !== null ? $delivery->salesOrders()->pluck('sales_order_id')->all() : [];
+
                 foreach ($data['items'] as $line) {
                     if ($delivery->sales_order_id === null) {
                         $this->addDirectLine($delivery, $line);
                     } else {
-                        $this->addLine($delivery, $delivery->sales_order_id, $line['sales_order_item_id'], $line['qty']);
+                        $this->addLine($delivery, $salesOrderIds, $line['sales_order_item_id'], $line['qty']);
                     }
                 }
             }
@@ -339,12 +379,13 @@ class DeliveryService
                 $delivery->items()->whereNotIn('id', $keepIds)->delete();
 
                 $existingById = $delivery->items->keyBy('id');
+                $salesOrderIds = $delivery->sales_order_id !== null ? $delivery->salesOrders()->pluck('sales_order_id')->all() : [];
 
                 foreach ($data['items'] as $line) {
                     if ($delivery->sales_order_id === null) {
                         $attributes = $this->buildDirectDeliveryLineAttributes($delivery, $line);
                     } else {
-                        $soItem = $this->resolveSalesOrderItem($delivery->sales_order_id, $line['sales_order_item_id']);
+                        $soItem = $this->resolveSalesOrderItem($salesOrderIds, $line['sales_order_item_id']);
                         $this->assertWithinOutstanding($soItem, $line['qty']);
 
                         $attributes = $this->buildDeliveryLineAttributes($delivery, $soItem, $line['qty'], $line['rate'] ?? null, $line['tax_id'] ?? null);
@@ -462,10 +503,12 @@ class DeliveryService
     public function complete(Delivery $delivery): Delivery
     {
         return DB::transaction(function () use ($delivery) {
-            $delivery->load(['items.salesOrderItem', 'salesOrder']);
+            $delivery->load(['items.salesOrderItem', 'salesOrder', 'salesOrders']);
 
-            if ($delivery->salesOrder !== null && $delivery->salesOrder->status !== SalesOrderStatus::APPROVED) {
-                throw new BusinessException('Sales Order is no longer approved; cannot deliver against it.');
+            foreach ($delivery->salesOrders as $salesOrder) {
+                if ($salesOrder->status !== SalesOrderStatus::APPROVED) {
+                    throw new BusinessException("Sales Order {$salesOrder->document_number} is no longer approved; cannot deliver against it.");
+                }
             }
 
             $this->postDeliveryStock($delivery);
@@ -479,9 +522,9 @@ class DeliveryService
         });
     }
 
-    protected function addLine(Delivery $delivery, string $salesOrderId, string $salesOrderItemId, int|float $qty): void
+    protected function addLine(Delivery $delivery, array $salesOrderIds, string $salesOrderItemId, int|float $qty): void
     {
-        $soItem = $this->resolveSalesOrderItem($salesOrderId, $salesOrderItemId);
+        $soItem = $this->resolveSalesOrderItem($salesOrderIds, $salesOrderItemId);
         $this->assertWithinOutstanding($soItem, $qty);
 
         $this->deliveryItemRepository->create($this->buildDeliveryLineAttributes($delivery, $soItem, $qty, null, null));
@@ -546,12 +589,12 @@ class DeliveryService
         ];
     }
 
-    protected function resolveSalesOrderItem(string $salesOrderId, string $salesOrderItemId): SalesOrderItem
+    protected function resolveSalesOrderItem(array $salesOrderIds, string $salesOrderItemId): SalesOrderItem
     {
         $soItem = $this->salesOrderItemRepository->findOrFail($salesOrderItemId);
 
-        if ($soItem->sales_order_id !== $salesOrderId) {
-            throw new BusinessException('Sales Order item does not belong to the specified Sales Order.');
+        if (! in_array($soItem->sales_order_id, $salesOrderIds, true)) {
+            throw new BusinessException('Sales Order item does not belong to any of the selected Sales Orders.');
         }
 
         return $soItem;

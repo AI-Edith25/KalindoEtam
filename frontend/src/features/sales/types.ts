@@ -180,6 +180,9 @@ export interface Delivery {
     tax: { id: string; code: string; name: string; type: string; rate: string | number; calculation_mode: string } | null
     remarks: string | null
   } | null
+  // Every Sales Order this Delivery was created from, one or many — sales_order/sales_order_id
+  // above stay the anchor (earliest order_date) for backward compatibility. See DeliveryService::create().
+  sales_orders: { id: string; document_number: string | null }[]
   customer_id: string
   customer: {
     id: string
@@ -224,9 +227,10 @@ export interface Delivery {
 }
 
 export interface DeliveryFormValues {
-  // Null/omitted for a Direct Delivery (no source Sales Order) — customer_id is required instead.
-  // See DeliveryService::createDirect().
-  sales_order_id?: string | null
+  // Omitted for a Direct Delivery (no source Sales Order) — customer_id is required instead.
+  // One or more Sales Orders may be combined into a single Delivery (mirrors delivery_ids on
+  // Invoice) — see DeliveryService::create().
+  sales_order_ids?: string[]
   customer_id?: string
   warehouse_id: string
   sales_person_id?: string | null

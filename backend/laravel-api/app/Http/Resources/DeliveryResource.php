@@ -17,6 +17,13 @@ class DeliveryResource extends JsonResource
             'revision' => $this->revision,
             'sales_order_id' => $this->sales_order_id,
             'sales_order' => new SalesOrderResource($this->whenLoaded('salesOrder')),
+            // Every Sales Order this Delivery was created from, one or many — see
+            // DeliveryService::create(). Lightweight (id + document_number only), same
+            // treatment as InvoiceResource's own 'deliveries'/'sales_orders' arrays.
+            'sales_orders' => $this->whenLoaded('salesOrders', fn () => $this->salesOrders->map(fn ($salesOrder) => [
+                'id' => $salesOrder->id,
+                'document_number' => $salesOrder->document_number,
+            ])),
             'customer_id' => $this->customer_id,
             'customer' => new CustomerResource($this->whenLoaded('customer')),
             'warehouse_id' => $this->warehouse_id,

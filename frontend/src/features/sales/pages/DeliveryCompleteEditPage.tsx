@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2, Lock, Save, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -86,11 +86,15 @@ export function DeliveryCompleteEditPage() {
 
   // A Direct Delivery (no source Sales Order) has no Sales Order to fetch — see
   // DeliveryService::createDirect(). Its "Add item" control picks an Item directly instead.
-  const salesOrderQuery = useQuery({
-    queryKey: ['sales-orders', delivery?.sales_order_id],
-    queryFn: () => fetchSalesOrder(delivery!.sales_order_id!),
-    enabled: !!delivery && delivery.sales_order_id !== null,
+  // A Delivery may combine several Sales Orders (sales_orders pivot, falling back to the anchor
+  // sales_order_id for a pre-pivot Delivery) — "Add item from Sales Order" must offer lines from
+  // every one of them, not just the anchor.
+  const salesOrderIds = delivery?.sales_orders?.map((so) => so.id) ?? (delivery?.sales_order_id ? [delivery.sales_order_id] : [])
+  const salesOrderQueries = useQueries({
+    queries: salesOrderIds.map((soId) => ({ queryKey: ['sales-orders', soId], queryFn: () => fetchSalesOrder(soId) })),
   })
+  const allSoItems = salesOrderQueries.flatMap((query) => query.data?.items ?? [])
+  const salesOrdersLoaded = salesOrderIds.length > 0 && salesOrderQueries.every((query) => !!query.data)
 
   const warehousesQuery = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const salesPersonsQuery = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
@@ -138,10 +142,10 @@ export function DeliveryCompleteEditPage() {
   }
 
   const usedSoItemIds = new Set((lines ?? []).map((line) => line.sales_order_item_id))
-  const addableSoItems = (salesOrderQuery.data?.items ?? []).filter((soItem) => !usedSoItemIds.has(soItem.id))
+  const addableSoItems = allSoItems.filter((soItem) => !usedSoItemIds.has(soItem.id))
 
   const addLine = (soItemId: string) => {
-    const soItem = salesOrderQuery.data?.items.find((i) => i.id === soItemId)
+    const soItem = allSoItems.find((i) => i.id === soItemId)
     if (!soItem) return
 
     setLines((prev) => [
@@ -242,7 +246,7 @@ export function DeliveryCompleteEditPage() {
 
   const isDirect = delivery?.sales_order_id === null
 
-  if (deliveryQuery.isLoading || !delivery || (!isDirect && !salesOrderQuery.data) || lines === null) {
+  if (deliveryQuery.isLoading || !delivery || (!isDirect && !salesOrdersLoaded) || lines === null) {
     return (
       <div className="flex min-h-64 items-center justify-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -255,7 +259,7 @@ export function DeliveryCompleteEditPage() {
   // discount_value (editable) drives it directly instead.
   const rowDiscount = (line: EditableLine): { discount_amount: number; net_amount: number } => {
     if (line.sales_order_item_id) {
-      const soItem = salesOrderQuery.data?.items.find((item) => item.id === line.sales_order_item_id)
+      const soItem = allSoItems.find((item) => item.id === line.sales_order_item_id)
       if (soItem) return allocateSoLineDiscount(soItem, Number(line.qty) || 0, line.rate)
     }
 
@@ -273,7 +277,11 @@ export function DeliveryCompleteEditPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={`Edit ${delivery.document_number ?? 'Delivery'}`}
-        description={delivery.sales_order ? `Delivering against ${delivery.sales_order.document_number}.` : 'Direct delivery (no Sales Order).'}
+        description={
+          delivery.sales_orders.length > 0
+            ? `Delivering against ${delivery.sales_orders.map((so) => so.document_number).join(', ')}.`
+            : 'Direct delivery (no Sales Order).'
+        }
       />
 
       <Card>
@@ -287,8 +295,8 @@ export function DeliveryCompleteEditPage() {
             <span className="text-sm font-medium">{delivery.document_number ?? '—'}</span>
           </div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-muted-foreground">Sales Order</span>
-            <span className="text-sm font-medium">{delivery.sales_order?.document_number ?? '—'}</span>
+            <span className="text-xs text-muted-foreground">Sales Order{delivery.sales_orders.length > 1 ? 's' : ''}</span>
+            <span className="text-sm font-medium">{delivery.sales_orders.map((so) => so.document_number).join(', ') || '—'}</span>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Customer</label>

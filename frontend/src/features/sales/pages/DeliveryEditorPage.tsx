@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2, Save, Send } from 'lucide-react'
 import type { NavigateFunction } from 'react-router-dom'
@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
@@ -41,8 +43,21 @@ export function DeliveryEditorPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [selectedSalesOrderId, setSelectedSalesOrderId] = useState<string | null>(null)
+  const [selectedSalesOrderIds, setSelectedSalesOrderIds] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<DeliveryMode>(null)
+  // Checking boxes must not auto-advance past the selection screen — with multi-select, the
+  // user needs to be able to tick a second/third Sales Order before moving on. An explicit
+  // Continue click is what commits the selection and mounts DeliveryForm. Mirrors InvoiceEditorPage.
+  const [selectionConfirmed, setSelectionConfirmed] = useState(false)
+
+  const toggleSalesOrder = (salesOrderId: string, checked: boolean) => {
+    setSelectedSalesOrderIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(salesOrderId)
+      else next.delete(salesOrderId)
+      return next
+    })
+  }
 
   const deliveryQuery = useQuery({
     queryKey: ['deliveries', id],
@@ -54,22 +69,40 @@ export function DeliveryEditorPage() {
   // retroactively gain a Sales Order, same mechanism as GoodsReceiptEditorPage's isDirectMode.
   const isDirectMode = isEdit ? deliveryQuery.data?.sales_order_id === null : mode === 'direct'
 
-  const salesOrderId = isEdit ? deliveryQuery.data?.sales_order_id : (selectedSalesOrderId ?? undefined)
+  // One or more Sales Orders this Delivery is (or will be) built from. In edit mode, every
+  // Sales Order already linked (sales_orders pivot — falling back to the anchor sales_order_id
+  // for a Delivery created before this pivot existed); in create mode, whatever the user has
+  // checked so far.
+  const salesOrderIds = isEdit
+    ? (deliveryQuery.data?.sales_orders?.map((so) => so.id) ?? (deliveryQuery.data?.sales_order_id ? [deliveryQuery.data.sales_order_id] : []))
+    : Array.from(selectedSalesOrderIds)
 
-  // Eligible = approved and not fully delivered. Fetched only in create mode, before an SO is picked.
+  // Eligible = approved and not fully delivered. Fetched only in create mode, before any Sales Order is picked.
   const eligibleOrdersQuery = useQuery({
     queryKey: ['sales-orders-eligible-for-delivery'],
     queryFn: () => fetchSalesOrders({ page: 1, per_page: 100, status: 'approved' }),
     enabled: !isEdit && mode === 'from_so',
   })
   const eligibleOrders = (eligibleOrdersQuery.data?.data ?? []).filter((so) => !so.is_fully_delivered)
+  const selectedOrders = eligibleOrders.filter((so) => selectedSalesOrderIds.has(so.id))
+  // Once ≥1 Sales Order is checked, only orders from the same Customer *and* Warehouse remain
+  // selectable — mirrors InvoiceEditorPage's same-Customer narrowing, extended with the Warehouse
+  // constraint DeliveryService::create() also enforces server-side.
+  const selectedCustomerId = selectedOrders[0]?.customer_id ?? null
+  const selectedWarehouseId = selectedOrders[0]?.warehouse_id ?? null
+  const selectableOrders = eligibleOrders.filter(
+    (so) => (!selectedCustomerId || so.customer_id === selectedCustomerId) && (!selectedWarehouseId || so.warehouse_id === selectedWarehouseId),
+  )
 
-  // Always re-fetched fresh (not reused from the eligible-list cache) so outstanding quantities are current at the moment of delivering.
-  const salesOrderQuery = useQuery({
-    queryKey: ['sales-orders', salesOrderId],
-    queryFn: () => fetchSalesOrder(salesOrderId!),
-    enabled: !!salesOrderId,
+  // Always re-fetched fresh (not reused from the eligible-list cache) so outstanding quantities
+  // are current at the moment of delivering — one query per selected/linked Sales Order.
+  const salesOrderQueries = useQueries({
+    queries: salesOrderIds.map((soId) => ({
+      queryKey: ['sales-orders', soId],
+      queryFn: () => fetchSalesOrder(soId),
+    })),
   })
+  const salesOrders = salesOrderQueries.map((query) => query.data).filter((so): so is SalesOrder => !!so)
 
   useEffect(() => {
     const delivery = deliveryQuery.data
@@ -98,14 +131,20 @@ export function DeliveryEditorPage() {
   }
 
   // Step 1 (create mode only): choose From Sales Order or Direct/no Sales Order, then (for From
-  // Sales Order) pick the order. Mirrors GoodsReceiptEditorPage's "How was this received?" step.
-  if (!isEdit && (mode === null || (mode === 'from_so' && !selectedSalesOrderId))) {
+  // Sales Order) pick one or more orders. An explicit Continue commits the selection, same as
+  // InvoiceEditorPage's own Delivery picker one level up the chain.
+  if (!isEdit && (mode === null || (mode === 'from_so' && !selectionConfirmed))) {
+    const allSelectableChecked = selectableOrders.length > 0 && selectableOrders.every((so) => selectedSalesOrderIds.has(so.id))
+
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="New Delivery" description="Deliver against an existing Sales Order, or record a direct delivery with no Sales Order." />
+        <PageHeader
+          title="New Delivery"
+          description="Deliver against one or more existing Sales Orders from the same Customer and Warehouse, or record a direct delivery with no Sales Order."
+        />
         <Card>
           <CardHeader>
-            <CardTitle>{mode === 'from_so' ? 'Select Sales Order' : 'How was this delivered?'}</CardTitle>
+            <CardTitle>{mode === 'from_so' ? 'Select Sales Order(s)' : 'How was this delivered?'}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {mode === null ? (
@@ -119,23 +158,65 @@ export function DeliveryEditorPage() {
               </div>
             ) : (
               <>
-                <SearchableSelect
-                  className="w-full sm:w-96"
-                  options={eligibleOrders.map((so) => ({ value: so.id, label: `${so.document_number} — ${so.customer?.customer_name ?? ''}` }))}
-                  value=""
-                  onChange={(value) => setSelectedSalesOrderId(value ?? null)}
-                  loading={eligibleOrdersQuery.isLoading}
-                  placeholder={eligibleOrders.length === 0 ? 'No sales orders with outstanding items' : 'Select sales order'}
-                  aria-label="Sales Order"
-                />
+                {eligibleOrdersQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : selectableOrders.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No sales orders with outstanding items.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">
+                            <Checkbox
+                              checked={allSelectableChecked}
+                              onCheckedChange={(checked) => selectableOrders.forEach((so) => toggleSalesOrder(so.id, checked === true))}
+                              aria-label="Select all eligible sales orders"
+                            />
+                          </TableHead>
+                          <TableHead>Document Number</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Order Date</TableHead>
+                          <TableHead className="text-right">Items</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectableOrders.map((so) => {
+                          const checked = selectedSalesOrderIds.has(so.id)
+                          return (
+                            <TableRow key={so.id} data-state={checked ? 'selected' : undefined}>
+                              <TableCell>
+                                <Checkbox checked={checked} onCheckedChange={(value) => toggleSalesOrder(so.id, value === true)} aria-label={`Select ${so.document_number}`} />
+                              </TableCell>
+                              <TableCell className="font-medium">{so.document_number}</TableCell>
+                              <TableCell>{so.customer?.customer_name}</TableCell>
+                              <TableCell>{so.order_date}</TableCell>
+                              <TableCell className="text-right">{so.items.length}</TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground">
-                  Only approved sales orders with outstanding (not yet fully delivered) items are shown.
+                  Only approved sales orders with outstanding (not yet fully delivered) items are shown — once you select one, only orders from the same
+                  Customer and Warehouse remain selectable.
                 </p>
               </>
             )}
-            <Button type="button" variant="outline" className="self-start" onClick={() => (mode === null ? navigate('/sales/deliveries') : setMode(null))}>
-              {mode === null ? 'Cancel' : 'Back'}
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => (mode === null ? navigate('/sales/deliveries') : setMode(null))}>
+                {mode === null ? 'Cancel' : 'Back'}
+              </Button>
+              {mode === 'from_so' && (
+                <Button type="button" disabled={selectedSalesOrderIds.size === 0} onClick={() => setSelectionConfirmed(true)}>
+                  Continue
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -154,11 +235,10 @@ export function DeliveryEditorPage() {
     )
   }
 
-  const salesOrder = salesOrderQuery.data
-
-  // In edit mode, salesOrderId derives from deliveryQuery.data, so deliveryQuery.data is
-  // already guaranteed loaded here — this is just the type-narrowing companion to it.
-  if (!salesOrder || (isEdit && !deliveryQuery.data)) {
+  // In edit mode, salesOrderIds derives from deliveryQuery.data, so deliveryQuery.data is
+  // already guaranteed loaded here — this is just the type-narrowing companion to it. Waits for
+  // every selected/linked Sales Order to have loaded, not just the first.
+  if (salesOrders.length === 0 || salesOrders.length !== salesOrderIds.length || (isEdit && !deliveryQuery.data)) {
     return (
       <div className="flex min-h-64 items-center justify-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -168,12 +248,12 @@ export function DeliveryEditorPage() {
 
   return (
     <DeliveryForm
-      key={isEdit ? id : salesOrderId}
-      salesOrder={salesOrder}
+      key={isEdit ? id : Array.from(selectedSalesOrderIds).sort().join(',')}
+      salesOrders={salesOrders}
       delivery={deliveryQuery.data}
       isEdit={isEdit}
       id={id}
-      salesOrderId={salesOrderId!}
+      salesOrderIds={salesOrderIds}
       navigate={navigate}
       queryClient={queryClient}
     />
@@ -181,29 +261,29 @@ export function DeliveryEditorPage() {
 }
 
 /**
- * Only mounts once its Sales Order (and, in edit mode, its Delivery) have already loaded —
- * so useForm's defaultValues can be computed directly from real data on first render.
- * Earlier versions tried to populate these values via a form.reset() effect firing after
- * an async fetch resolved; that raced against react-hook-form's own field registration
- * (Terms of Payment intermittently ended up correct in _defaultValues but not in
- * _formValues) across multiple production-verified attempts. Mounting fresh with the
- * right defaultValues from the start sidesteps that class of bug entirely — remounted via
- * `key` if the user picks a different Sales Order.
+ * Only mounts once every selected/linked Sales Order (and, in edit mode, the Delivery itself)
+ * has already loaded — so useForm's defaultValues can be computed directly from real data on
+ * first render. Earlier versions tried to populate these values via a form.reset() effect firing
+ * after an async fetch resolved; that raced against react-hook-form's own field registration
+ * (Terms of Payment intermittently ended up correct in _defaultValues but not in _formValues)
+ * across multiple production-verified attempts. Mounting fresh with the right defaultValues from
+ * the start sidesteps that class of bug entirely — remounted via `key` if the user picks a
+ * different set of Sales Orders.
  */
 function DeliveryForm({
-  salesOrder,
+  salesOrders,
   delivery,
   isEdit,
   id,
-  salesOrderId,
+  salesOrderIds,
   navigate,
   queryClient,
 }: {
-  salesOrder: SalesOrder
+  salesOrders: SalesOrder[]
   delivery: Delivery | undefined
   isEdit: boolean
   id: string | undefined
-  salesOrderId: string
+  salesOrderIds: string[]
   navigate: NavigateFunction
   queryClient: QueryClient
 }) {
@@ -211,6 +291,11 @@ function DeliveryForm({
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
+
+  // Every Sales Order line across every selected/linked order, flattened into one combined
+  // table — the multi-source analog of a single Sales Order's own .items list. sales_order_item_id
+  // is already globally unique, so no per-source tagging is needed to tell rows apart.
+  const allSoItems = useMemo(() => salesOrders.flatMap((so) => so.items), [salesOrders])
 
   const existingQtyBySoItemId = useMemo(
     () => new Map((delivery?.items ?? []).map((line) => [line.sales_order_item_id, line.qty])),
@@ -224,11 +309,11 @@ function DeliveryForm({
       warehouse_id: delivery?.warehouse_id ?? '',
       delivery_date: delivery?.delivery_date ?? '',
       due_date: delivery?.due_date ?? '',
-      terms_of_payment_id: isEdit ? (delivery?.terms_of_payment_id ?? '') : (salesOrder.customer?.terms_of_payment_id ?? ''),
-      remarks: isEdit ? (delivery?.remarks ?? '') : (salesOrder.remarks ?? ''),
+      terms_of_payment_id: isEdit ? (delivery?.terms_of_payment_id ?? '') : (salesOrders[0]?.customer?.terms_of_payment_id ?? ''),
+      remarks: isEdit ? (delivery?.remarks ?? '') : (salesOrders[0]?.remarks ?? ''),
       fleet: delivery?.fleet ?? '',
       driver: delivery?.driver ?? '',
-      items: salesOrder.items.map((soItem) => ({
+      items: allSoItems.map((soItem) => ({
         sales_order_item_id: soItem.id,
         item_id: soItem.item_id,
         item_code: soItem.item_code ?? '',
@@ -247,7 +332,7 @@ function DeliveryForm({
 
   const warehouseId = form.watch('warehouse_id')
 
-  const itemIds = useMemo(() => salesOrder.items.map((line) => line.item_id), [salesOrder])
+  const itemIds = useMemo(() => allSoItems.map((line) => line.item_id), [allSoItems])
 
   // Available Stock is warehouse-scoped, so it can only be known once a warehouse is chosen — refetches whenever the warehouse selection changes.
   const stockBalancesQuery = useQuery({
@@ -261,7 +346,7 @@ function DeliveryForm({
     const balances = stockBalancesQuery.data
     if (!balances) return
 
-    salesOrder.items.forEach((soItem, index) => {
+    allSoItems.forEach((soItem, index) => {
       form.setValue(`items.${index}.availableStock`, balances[soItem.item_id] ?? 0, { shouldValidate: true })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -313,7 +398,7 @@ function DeliveryForm({
       }
 
       return createDelivery({
-        sales_order_id: salesOrderId,
+        sales_order_ids: salesOrderIds,
         warehouse_id: values.warehouse_id,
         delivery_date: values.delivery_date,
         due_date: values.due_date,
@@ -352,7 +437,7 @@ function DeliveryForm({
   // allocateSoLineDiscount()'s own docblock for the allocation rule. Preview only;
   // DeliveryService::buildDeliveryLineAttributes() on the backend is authoritative.
   const discount = (watchedItems ?? []).reduce((sum, line) => {
-    const soItem = salesOrder.items.find((item) => item.id === line.sales_order_item_id)
+    const soItem = allSoItems.find((item) => item.id === line.sales_order_item_id)
     if (!soItem) return sum
 
     return sum + allocateSoLineDiscount(soItem, Number(line.deliverNow || 0)).discount_amount
@@ -361,7 +446,7 @@ function DeliveryForm({
   // resolved there), recomputed against this delivery's own (possibly partial) net amount, not
   // a single document-wide rate. Preview only; DeliveryResource on the backend is authoritative.
   const tax = (watchedItems ?? []).reduce((sum, line) => {
-    const soItem = salesOrder.items.find((item) => item.id === line.sales_order_item_id)
+    const soItem = allSoItems.find((item) => item.id === line.sales_order_item_id)
     if (!soItem) return sum
 
     const { net_amount: netAmount } = allocateSoLineDiscount(soItem, Number(line.deliverNow || 0))
@@ -374,7 +459,7 @@ function DeliveryForm({
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${delivery?.document_number ?? 'Delivery'}` : 'New Delivery'}
-        description={`Delivering against ${salesOrder.document_number} — ${salesOrder.customer?.customer_name ?? ''}.`}
+        description={`Delivering against ${salesOrders.map((so) => so.document_number).join(', ')} — ${salesOrders[0]?.customer?.customer_name ?? ''}.`}
       />
 
       <Form {...form}>
@@ -386,9 +471,9 @@ function DeliveryForm({
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-0.5 sm:col-span-2">
-                <span className="text-xs text-muted-foreground">Sales Order</span>
+                <span className="text-xs text-muted-foreground">Sales Order{salesOrders.length > 1 ? 's' : ''}</span>
                 <span className="text-sm font-medium">
-                  {salesOrder.document_number} — {salesOrder.customer?.customer_name}
+                  {salesOrders.map((so) => so.document_number).join(', ')} — {salesOrders[0]?.customer?.customer_name}
                 </span>
               </div>
               <FormField
@@ -656,7 +741,6 @@ function DirectDeliveryForm({
       }
 
       return createDelivery({
-        sales_order_id: null,
         customer_id: values.customer_id,
         warehouse_id: values.warehouse_id,
         delivery_date: values.delivery_date,

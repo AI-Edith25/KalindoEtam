@@ -64,9 +64,16 @@ class Delivery extends Model
         return DeliveryStatus::COMPLETE;
     }
 
+    /** Anchor only (earliest order_date, tie-broken by id) — kept for backward compatibility with existing readers. salesOrders() below is the authoritative full source history. */
     public function salesOrder(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class);
+    }
+
+    /** Every Sales Order this Delivery was created from, one or many — see DeliveryService::create(). */
+    public function salesOrders(): BelongsToMany
+    {
+        return $this->belongsToMany(SalesOrder::class, 'delivery_sales_orders');
     }
 
     /** This Delivery's own override — null falls back to salesOrder->sales_person for display, see DeliveryResource. */

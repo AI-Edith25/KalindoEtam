@@ -108,7 +108,11 @@ export function SalesOrderDetailPage() {
     queryFn: () => fetchDeliveries({ page: 1, per_page: 100 }),
     enabled: orderQuery.data?.status === 'approved',
   })
-  const relatedDeliveries = (relatedDeliveriesQuery.data?.data ?? []).filter((delivery) => delivery.sales_order_id === id)
+  // A Delivery may combine several Sales Orders — sales_order_id is only the anchor
+  // (earliest order_date), so a non-anchor source Sales Order is matched via sales_orders too.
+  const relatedDeliveries = (relatedDeliveriesQuery.data?.data ?? []).filter(
+    (delivery) => delivery.sales_order_id === id || delivery.sales_orders?.some((so) => so.id === id),
+  )
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
 
