@@ -24,7 +24,9 @@ const lineColumns: DataTableColumn<DeliveryItem>[] = [
   { header: 'Item Name', accessor: (row) => row.item_name },
   { header: 'Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
-  { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+  { header: 'Discount', accessor: (row) => (Number(row.discount_amount) > 0 ? `-${formatCurrency(row.discount_amount)}` : '—'), className: 'text-right' },
+  { header: 'Amount', accessor: (row) => formatCurrency(row.net_amount), className: 'text-right' },
+  { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
 ]
 
 /** Read-only, section-grouped — same shell as GoodsReceiptDetailPage (DetailField/DetailSection outside a Drawer, DataTable for read-only lines). */
@@ -74,6 +76,7 @@ export function DeliveryDetailPage() {
   if (!delivery) return null
 
   const subtotal = delivery.items.reduce((sum, line) => sum + lineAmount(line), 0)
+  const discount = Number(delivery.discount_amount) || 0
   const tax = Number(delivery.tax_amount) || 0
 
   return (
@@ -171,6 +174,18 @@ export function DeliveryDetailPage() {
             <span className="text-muted-foreground">Subtotal</span>
             <span>{formatCurrency(subtotal)}</span>
           </div>
+          {discount > 0 && (
+            <>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Total Discount</span>
+                <span>-{formatCurrency(discount)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">DPP</span>
+                <span>{formatCurrency(subtotal - discount)}</span>
+              </div>
+            </>
+          )}
           <div className="flex w-full max-w-64 justify-between text-sm">
             <span className="text-muted-foreground">Tax</span>
             <span>{formatCurrency(tax)}</span>
@@ -178,7 +193,7 @@ export function DeliveryDetailPage() {
           <Separator className="w-full max-w-64" />
           <div className="flex w-full max-w-64 justify-between text-base font-semibold">
             <span>Grand Total</span>
-            <span>{formatCurrency(subtotal + tax)}</span>
+            <span>{formatCurrency(subtotal - discount + tax)}</span>
           </div>
         </CardContent>
       </Card>

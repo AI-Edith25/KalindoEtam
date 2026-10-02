@@ -31,7 +31,9 @@ const lineColumns: DataTableColumn<SalesOrderItem>[] = [
   { header: 'Item Name', accessor: (row) => row.item_name ?? '—' },
   { header: 'Ordered Qty', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
-  { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
+  { header: 'Discount', accessor: (row) => (Number(row.discount_amount) > 0 ? `-${formatCurrency(row.discount_amount)}` : '—'), className: 'text-right' },
+  { header: 'Amount', accessor: (row) => formatCurrency(row.net_amount), className: 'text-right' },
+  { header: 'Tax', accessor: (row) => formatCurrency(row.tax_amount), className: 'text-right' },
   { header: 'Delivered Qty', accessor: (row) => formatNumber(row.delivered_qty), className: 'text-right' },
   { header: 'Remaining Qty', accessor: (row) => formatNumber(row.outstanding_qty), className: 'text-right' },
 ]
@@ -154,6 +156,7 @@ export function SalesOrderDetailPage() {
   if (!order) return null
 
   const subtotal = Number(order.total_amount)
+  const discount = Number(order.total_discount)
   const tax = Number(order.tax_amount)
   const blockedByApproval = order.requires_approval && order.latest_approval?.status !== 'approved'
 
@@ -333,6 +336,18 @@ export function SalesOrderDetailPage() {
             <span className="text-muted-foreground">Subtotal</span>
             <span>{formatCurrency(subtotal)}</span>
           </div>
+          {discount > 0 && (
+            <>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Total Discount</span>
+                <span>-{formatCurrency(discount)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">DPP</span>
+                <span>{formatCurrency(order.tax_base)}</span>
+              </div>
+            </>
+          )}
           <div className="flex w-full max-w-64 justify-between text-sm">
             <span className="text-muted-foreground">Tax</span>
             <span>{formatCurrency(tax)}</span>
