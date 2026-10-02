@@ -246,8 +246,9 @@ export function SalesOrderEditorPage() {
   const { blocked: creditBlocked, message: creditMessage } = useCustomerCreditCheck(watchedCustomerId || undefined, grandTotal)
   const canOverrideCredit = useHasPermission('sales.orders.override_credit_check')
   const overrideChecked = form.watch('override_credit_block')
-  const overrideReasonFilled = !!form.watch('override_reason')?.trim()
-  const creditBlockActive = creditBlocked && !(overrideChecked && overrideReasonFilled)
+  // Reason is optional — the override switch alone is enough to proceed, the reason field
+  // below is just for an audit trail when the user chooses to explain themselves.
+  const creditBlockActive = creditBlocked && !overrideChecked
 
   // Stock availability block — see SalesOrderStockService on the backend. Pure client-side
   // preview against each line's own available_qty, kept fresh by SalesOrderLineItemTable
@@ -336,9 +337,9 @@ export function SalesOrderEditorPage() {
                           name="override_reason"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Override Reason</FormLabel>
+                              <FormLabel>Override Reason (optional)</FormLabel>
                               <FormControl>
-                                <Textarea placeholder="Required — explain the manual approval for this exception" {...field} />
+                                <Textarea placeholder="Optional — explain the manual approval for this exception" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>

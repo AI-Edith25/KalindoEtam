@@ -83,7 +83,8 @@ export function SalesOrderDetailPage() {
   const canOverrideCredit = useHasPermission('sales.orders.override_credit_check')
   const canApprove = useHasPermission('sales.orders.approve')
   const canUpdate = useHasPermission('sales.orders.update')
-  const creditBlockActive = creditBlocked && !(overrideCreditBlock && overrideReason.trim())
+  // Reason is optional — the override switch alone is enough to proceed.
+  const creditBlockActive = creditBlocked && !overrideCreditBlock
 
   // Stock availability block — see SalesOrderStockService on the backend. Same "own independent
   // Approve button needs the identical pre-check" reasoning as the credit block above; no live
@@ -224,7 +225,7 @@ export function SalesOrderDetailPage() {
                 </div>
                 {overrideCreditBlock && (
                   <Textarea
-                    placeholder="Required — explain the manual approval for this exception"
+                    placeholder="Optional — explain the manual approval for this exception"
                     value={overrideReason}
                     onChange={(event) => setOverrideReason(event.target.value)}
                   />
