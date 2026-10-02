@@ -1,17 +1,21 @@
 import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
+import { lineTaxAmount } from '@/shared/lib/documentTotals'
 import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import type { ReceiptStockEditorValues } from '../lib/receiptStockFormSchema'
-import type { Item } from '@/features/master/types'
+import type { Item, Tax } from '@/features/master/types'
+
+const NO_TAX = '__none__'
 
 function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
   return `${item.item_code} — ${item.item_name}`
@@ -19,11 +23,12 @@ function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
 
 interface ReceiptStockLineItemTableProps {
   form: UseFormReturn<ReceiptStockEditorValues>
+  taxes: Tax[]
   disabled?: boolean
 }
 
 /** Same free-form field array pattern as OpeningStockLineItemTable — Unit Cost is user-entered here too, since this is incoming stock with no natural cost source. */
-export function ReceiptStockLineItemTable({ form, disabled }: ReceiptStockLineItemTableProps) {
+export function ReceiptStockLineItemTable({ form, taxes, disabled }: ReceiptStockLineItemTableProps) {
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
@@ -44,12 +49,6 @@ export function ReceiptStockLineItemTable({ form, disabled }: ReceiptStockLineIt
     }
   }
 
-  const total = (watchedItems ?? []).reduce((sum, line) => {
-    const qty = Number(line.qty?.replace(',', '.') || 0)
-    const unitCost = Number(line.unitCost?.replace(',', '.') || 0)
-    return sum + qty * unitCost
-  }, 0)
-
   return (
     <div className="flex flex-col gap-3">
       <LineItemTableScroll>
@@ -59,14 +58,16 @@ export function ReceiptStockLineItemTable({ form, disabled }: ReceiptStockLineIt
               <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="w-32 text-right">Qty</TableHead>
               <TableHead className="w-36 text-right">Unit Cost</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="w-44">Tax</TableHead>
+              <TableHead className="w-36 text-right">Amount</TableHead>
+              <TableHead className="w-32 text-right">Tax Amount</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={7} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start entering incoming stock." />
                 </TableCell>
               </TableRow>
@@ -132,7 +133,38 @@ export function ReceiptStockLineItemTable({ form, disabled }: ReceiptStockLineIt
                         )}
                       />
                     </TableCell>
+                    <TableCell>
+                      <FormField
+                        control={control}
+                        name={`items.${index}.tax_id`}
+                        render={({ field: taxField }) => (
+                          <FormItem className="gap-0">
+                            <Select
+                              value={taxField.value || NO_TAX}
+                              onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
+                              disabled={disabled}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="No tax" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NO_TAX}>No tax</SelectItem>
+                                {taxes.map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>
+                                    {t.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{formatCurrency(qty * unitCost)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {formatCurrency(lineTaxAmount(qty * unitCost, taxes.find((t) => t.id === row?.tax_id)))}
+                    </TableCell>
                     <TableCell>
                       <Button
                         type="button"
@@ -151,17 +183,6 @@ export function ReceiptStockLineItemTable({ form, disabled }: ReceiptStockLineIt
               })
             )}
           </TableBody>
-          {fields.length > 0 && (
-            <TableFooter>
-              <TableRow>
-                <TableCell colSpan={3} className="text-right font-medium">
-                  Total
-                </TableCell>
-                <TableCell className="text-right font-medium tabular-nums">{formatCurrency(total)}</TableCell>
-                <TableCell />
-              </TableRow>
-            </TableFooter>
-          )}
         </Table>
       </LineItemTableScroll>
 
@@ -170,7 +191,7 @@ export function ReceiptStockLineItemTable({ form, disabled }: ReceiptStockLineIt
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '', unitCost: '' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '', unitCost: '', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

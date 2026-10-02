@@ -19,6 +19,10 @@ class ReceiptStockItemResource extends JsonResource
             'qty' => $this->qty,
             'unit_cost' => $this->unit_cost,
             'amount' => $this->amount,
+            // Informational only (see ReceiptStockItem::tax()) — exposed so the editor can
+            // round-trip its own optional/manual Tax selection on edit.
+            'tax_id' => $this->tax_id,
+            'tax_amount' => $this->tax_amount,
         ];
     }
 }

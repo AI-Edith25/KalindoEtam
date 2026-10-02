@@ -33,6 +33,7 @@ class IssueStockService
         protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected QtyCategoryValidator $qtyCategoryValidator,
+        protected TaxService $taxService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -128,9 +129,17 @@ class IssueStockService
                     remarks: "Issue Stock {$issueStock->document_number}",
                 );
 
+                $amount = round((float) $line->qty * $result->weightedAverageUnitCost, 2);
+                // No Item default fallback (item: null) — Issue Stock has no source document to
+                // inherit tax from (and never posts to GL), so Tax is purely optional/manual/informational.
+                // tax_id itself was already picked (or left empty) back at Draft time (replaceItems());
+                // only tax_amount is deferred here, since the taxable amount isn't known until now.
+                [, $taxAmount] = $this->taxService->resolveLineTax(['tax_id' => $line->tax_id], null, '', $amount);
+
                 $line->update([
                     'unit_cost' => $result->weightedAverageUnitCost,
-                    'amount' => round((float) $line->qty * $result->weightedAverageUnitCost, 2),
+                    'amount' => $amount,
+                    'tax_amount' => $taxAmount,
                 ]);
             }
 
@@ -201,6 +210,7 @@ class IssueStockService
                 'uom' => $item->uom->name,
                 'qty_category' => $item->qty_category,
                 'qty' => $qty,
+                'tax_id' => $line['tax_id'] ?? null,
             ]);
         }
     }

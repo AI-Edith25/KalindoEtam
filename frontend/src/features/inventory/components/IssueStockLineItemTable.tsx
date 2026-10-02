@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
@@ -13,7 +14,9 @@ import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import { previewIssueStockCost } from '../api/issueStockApi'
 import type { IssueStockEditorValues } from '../lib/issueStockFormSchema'
-import type { Item } from '@/features/master/types'
+import type { Item, Tax } from '@/features/master/types'
+
+const NO_TAX = '__none__'
 
 function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
   return `${item.item_code} — ${item.item_name}`
@@ -22,6 +25,7 @@ function itemLabel(item: Pick<Item, 'item_code' | 'item_name'>) {
 interface IssueStockLineItemTableProps {
   form: UseFormReturn<IssueStockEditorValues>
   warehouseId: string
+  taxes: Tax[]
   disabled?: boolean
 }
 
@@ -53,7 +57,7 @@ function CostCell({ itemId, warehouseId, qty }: { itemId: string; warehouseId: s
   )
 }
 
-export function IssueStockLineItemTable({ form, warehouseId, disabled }: IssueStockLineItemTableProps) {
+export function IssueStockLineItemTable({ form, warehouseId, taxes, disabled }: IssueStockLineItemTableProps) {
   const { control, setValue } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const watchedItems = useWatch({ control, name: 'items' })
@@ -83,13 +87,14 @@ export function IssueStockLineItemTable({ form, warehouseId, disabled }: IssueSt
               <TableHead className={STICKY_FIRST_COL}>Item</TableHead>
               <TableHead className="w-32 text-right">Qty</TableHead>
               <TableHead className="w-40 text-right">Unit Cost (FIFO)</TableHead>
+              <TableHead className="w-44">Tax</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {fields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="p-0">
+                <TableCell colSpan={5} className="p-0">
                   <EmptyState message="No line items yet." description="Use Add Row to start recording issued stock." />
                 </TableCell>
               </TableRow>
@@ -147,6 +152,34 @@ export function IssueStockLineItemTable({ form, warehouseId, disabled }: IssueSt
                       <CostCell itemId={itemId} warehouseId={warehouseId} qty={qty} />
                     </TableCell>
                     <TableCell>
+                      <FormField
+                        control={control}
+                        name={`items.${index}.tax_id`}
+                        render={({ field: taxField }) => (
+                          <FormItem className="gap-0">
+                            <Select
+                              value={taxField.value || NO_TAX}
+                              onValueChange={(value) => taxField.onChange(value === NO_TAX ? '' : value)}
+                              disabled={disabled}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="No tax" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NO_TAX}>No tax</SelectItem>
+                                {taxes.map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>
+                                    {t.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
                       <Button
                         type="button"
                         variant="ghost"
@@ -170,7 +203,7 @@ export function IssueStockLineItemTable({ form, warehouseId, disabled }: IssueSt
                 <TableCell colSpan={2} className="text-right font-medium">
                   Total
                 </TableCell>
-                <TableCell colSpan={2} className="text-right text-xs text-muted-foreground">
+                <TableCell colSpan={3} className="text-right text-xs text-muted-foreground">
                   Confirmed once Submitted
                 </TableCell>
               </TableRow>
@@ -184,7 +217,7 @@ export function IssueStockLineItemTable({ form, warehouseId, disabled }: IssueSt
         variant="outline"
         size="sm"
         className="self-start"
-        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '' })}
+        onClick={() => append({ item_id: '', item_code: '', item_name: '', qtyCategory: 'unit', qty: '', tax_id: '' })}
         disabled={disabled}
       >
         <Plus className="size-4" />

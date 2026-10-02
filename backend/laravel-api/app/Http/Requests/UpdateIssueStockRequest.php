@@ -20,6 +20,7 @@ class UpdateIssueStockRequest extends FormRequest
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.item_id' => ['required_with:items', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required_with:items', 'numeric', 'min:0.0001'],
+            'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }

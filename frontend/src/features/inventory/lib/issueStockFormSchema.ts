@@ -13,6 +13,7 @@ export const issueStockLineRowSchema = z
     item_name: z.string(),
     qtyCategory: z.enum(['unit', 'weight']),
     qty: z.string().min(1, 'Qty is required'),
+    tax_id: z.string().optional().or(z.literal('')),
   })
   .superRefine((line, ctx) => {
     if (!isValidQtyForCategory(line.qty, line.qtyCategory) || Number(line.qty.replace(',', '.')) <= 0) {

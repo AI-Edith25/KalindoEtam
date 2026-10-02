@@ -20,6 +20,10 @@ class IssueStockItemResource extends JsonResource
             // Null while Draft — filled from FIFO consumption only once Submitted.
             'unit_cost' => $this->unit_cost,
             'amount' => $this->amount,
+            // Informational only (see IssueStockItem::tax()). tax_id is pickable at Draft time;
+            // tax_amount stays null until Submit, same deferral as unit_cost/amount above.
+            'tax_id' => $this->tax_id,
+            'tax_amount' => $this->tax_amount,
         ];
     }
 }

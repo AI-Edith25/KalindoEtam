@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchTaxesLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { parseLocaleQty } from '@/shared/lib/qty'
 import { createIssueStock, fetchIssueStock, submitIssueStock, updateIssueStock } from '../api/issueStockApi'
 import { IssueStockLineItemTable } from '../components/IssueStockLineItemTable'
@@ -35,6 +35,9 @@ export function IssueStockEditorPage() {
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
+  // Unfiltered — Issue Stock is neither a purchase nor a sales document, so every active Tax is offered.
+  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
+  const activeTaxes = (taxesQuery.data ?? []).filter((tax) => tax.is_active)
 
   const form = useForm<IssueStockEditorValues>({
     resolver: zodResolver(issueStockFormSchema),
@@ -68,6 +71,7 @@ export function IssueStockEditorPage() {
         item_name: line.item_name,
         qtyCategory: line.qty_category,
         qty: String(line.qty),
+        tax_id: line.tax_id ?? '',
       })),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,6 +84,7 @@ export function IssueStockEditorPage() {
     items: values.items.map((line) => ({
       item_id: line.item_id,
       qty: parseLocaleQty(line.qty),
+      tax_id: line.tax_id || null,
     })),
   })
 
@@ -186,7 +191,7 @@ export function IssueStockEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <IssueStockLineItemTable form={form} warehouseId={warehouseId ?? ''} />
+              <IssueStockLineItemTable form={form} warehouseId={warehouseId ?? ''} taxes={activeTaxes} />
               {form.formState.errors.items?.message && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.message}</p>
               )}

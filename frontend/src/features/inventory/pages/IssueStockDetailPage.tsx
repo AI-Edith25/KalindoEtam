@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Loader2, Pencil, Send, Trash2, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
@@ -22,7 +23,13 @@ const lineColumns: DataTableColumn<IssueStockItem>[] = [
   { header: 'Qty', accessor: (row) => formatQty(row.qty, row.qty_category), className: 'text-right' },
   // Null while Draft — only Submit's FIFO consumption fills these in.
   { header: 'Unit Cost', accessor: (row) => (row.unit_cost === null ? '—' : formatCurrency(row.unit_cost)), className: 'text-right' },
-  { header: 'Amount', accessor: (row) => (row.amount === null ? '—' : formatCurrency(row.amount)), className: 'text-right font-medium' },
+  { header: 'Amount', accessor: (row) => (row.amount === null ? '—' : formatCurrency(row.amount)), className: 'text-right' },
+  { header: 'Tax Amount', accessor: (row) => (row.tax_amount === null ? '—' : formatCurrency(row.tax_amount)), className: 'text-right text-muted-foreground' },
+  {
+    header: 'Total',
+    accessor: (row) => (row.amount === null ? '—' : formatCurrency(Number(row.amount) + Number(row.tax_amount ?? 0))),
+    className: 'text-right font-medium',
+  },
 ]
 
 /** Read-only, section-grouped — same shell as OpeningStockDetailPage, including a working Cancel action. */
@@ -83,7 +90,9 @@ export function IssueStockDetailPage() {
   const issueStock = issueStockQuery.data
   if (!issueStock) return null
 
-  const total = issueStock.items.reduce((sum, line) => sum + Number(line.amount ?? 0), 0)
+  const subtotal = issueStock.items.reduce((sum, line) => sum + Number(line.amount ?? 0), 0)
+  const tax = issueStock.items.reduce((sum, line) => sum + Number(line.tax_amount ?? 0), 0)
+  const grandTotal = subtotal + tax
 
   return (
     <div className="flex flex-col gap-4">
@@ -136,7 +145,25 @@ export function IssueStockDetailPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <DataTable columns={lineColumns} data={issueStock.items} rowKey={(row) => row.id} emptyMessage="No line items." />
-          <p className="text-right text-sm font-medium">Total: {issueStock.status === 'draft' ? '—' : formatCurrency(total)}</p>
+          {issueStock.status === 'draft' ? (
+            <p className="text-right text-sm text-muted-foreground">Confirmed once Submitted.</p>
+          ) : (
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Tax</span>
+                <span>{formatCurrency(tax)}</span>
+              </div>
+              <Separator className="w-full max-w-64" />
+              <div className="flex w-full max-w-64 justify-between text-base font-semibold">
+                <span>Grand Total</span>
+                <span>{formatCurrency(grandTotal)}</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

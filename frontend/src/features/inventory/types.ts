@@ -202,6 +202,9 @@ export interface IssueStockItem {
   // Null while Draft — filled from FIFO consumption's weighted-average cost only once Submitted.
   unit_cost: string | number | null
   amount: string | number | null
+  tax_id: string | null
+  // Null while Draft — same deferral as amount above, resolved against it once Submitted.
+  tax_amount: string | number | null
 }
 
 export interface IssueStock {
@@ -225,7 +228,7 @@ export interface IssueStockFormValues {
   warehouse_id: string
   issue_date: string
   remarks: string | null
-  items: { item_id: string; qty: number }[]
+  items: { item_id: string; qty: number; tax_id: string | null }[]
 }
 
 export interface IssueStockFilterValues {
@@ -245,6 +248,8 @@ export interface ReceiptStockItem {
   qty: string | number
   unit_cost: string | number
   amount: string | number
+  tax_id: string | null
+  tax_amount: string | number
 }
 
 export interface ReceiptStock {
@@ -268,7 +273,7 @@ export interface ReceiptStockFormValues {
   warehouse_id: string
   receipt_date: string
   remarks: string | null
-  items: { item_id: string; qty: number; unit_cost: number }[]
+  items: { item_id: string; qty: number; unit_cost: number; tax_id: string | null }[]
 }
 
 export interface ReceiptStockFilterValues {

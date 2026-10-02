@@ -10,11 +10,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { formatCurrency } from '@/lib/utils'
+import { fetchTaxesLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { lineTaxAmount } from '@/shared/lib/documentTotals'
 import { parseLocaleQty } from '@/shared/lib/qty'
 import { createReceiptStock, fetchReceiptStock, submitReceiptStock, updateReceiptStock } from '../api/receiptStockApi'
 import { ReceiptStockLineItemTable } from '../components/ReceiptStockLineItemTable'
@@ -35,6 +38,9 @@ export function ReceiptStockEditorPage() {
 
   const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
+  // Unfiltered — Receipt Stock is neither a purchase nor a sales document, so every active Tax is offered.
+  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
+  const activeTaxes = (taxesQuery.data ?? []).filter((tax) => tax.is_active)
 
   const form = useForm<ReceiptStockEditorValues>({
     resolver: zodResolver(receiptStockFormSchema),
@@ -67,6 +73,7 @@ export function ReceiptStockEditorPage() {
         qtyCategory: line.qty_category,
         qty: String(line.qty),
         unitCost: String(line.unit_cost),
+        tax_id: line.tax_id ?? '',
       })),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,6 +87,7 @@ export function ReceiptStockEditorPage() {
       item_id: line.item_id,
       qty: parseLocaleQty(line.qty),
       unit_cost: parseLocaleQty(line.unitCost),
+      tax_id: line.tax_id || null,
     })),
   })
 
@@ -109,6 +117,14 @@ export function ReceiptStockEditorPage() {
     },
     onError: (error) => toastApiError(error),
   })
+
+  const watchedItems = form.watch('items')
+  const subtotal = (watchedItems ?? []).reduce((sum, line) => sum + parseLocaleQty(line.qty || '0') * parseLocaleQty(line.unitCost || '0'), 0)
+  const tax = (watchedItems ?? []).reduce((sum, line) => {
+    const amount = parseLocaleQty(line.qty || '0') * parseLocaleQty(line.unitCost || '0')
+    return sum + lineTaxAmount(amount, activeTaxes.find((t) => t.id === line.tax_id))
+  }, 0)
+  const grandTotal = subtotal + tax
 
   if (isEdit && receiptStockQuery.isLoading) {
     return (
@@ -186,10 +202,28 @@ export function ReceiptStockEditorPage() {
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <ReceiptStockLineItemTable form={form} />
+              <ReceiptStockLineItemTable form={form} taxes={activeTaxes} />
               {form.formState.errors.items?.message && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.message}</p>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col items-end gap-1.5 py-4">
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex w-full max-w-64 justify-between text-sm">
+                <span className="text-muted-foreground">Tax</span>
+                <span>{formatCurrency(tax)}</span>
+              </div>
+              <Separator className="w-full max-w-64" />
+              <div className="flex w-full max-w-64 justify-between text-base font-semibold">
+                <span>Grand Total</span>
+                <span>{formatCurrency(grandTotal)}</span>
+              </div>
             </CardContent>
           </Card>
 

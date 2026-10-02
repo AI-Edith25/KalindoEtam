@@ -32,6 +32,7 @@ class ReceiptStockService
         protected FifoLayerService $fifoLayerService,
         protected AuditLogService $auditLogService,
         protected QtyCategoryValidator $qtyCategoryValidator,
+        protected TaxService $taxService,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -178,6 +179,11 @@ class ReceiptStockService
                 throw new BusinessException("Unit Cost cannot be negative for item {$item->item_code}.");
             }
 
+            $amount = round($qty * $line['unit_cost'], 2);
+            // No Item default fallback (item: null) — Receipt Stock has no source document to
+            // inherit tax from (and never posts to GL), so Tax is purely optional/manual/informational.
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $amount);
+
             $this->receiptStockItemRepository->create([
                 'receipt_stock_id' => $receiptStock->id,
                 'item_id' => $item->id,
@@ -187,7 +193,9 @@ class ReceiptStockService
                 'qty_category' => $item->qty_category,
                 'qty' => $qty,
                 'unit_cost' => $line['unit_cost'],
-                'amount' => round($qty * $line['unit_cost'], 2),
+                'amount' => $amount,
+                'tax_id' => $taxId,
+                'tax_amount' => $taxAmount,
             ]);
         }
     }

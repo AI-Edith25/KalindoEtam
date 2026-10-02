@@ -21,6 +21,7 @@ class StoreReceiptStockRequest extends FormRequest
             'items.*.item_id' => ['required', 'uuid', 'exists:items,id'],
             'items.*.qty' => ['required', 'numeric', 'min:0.0001'],
             'items.*.unit_cost' => ['required', 'numeric', 'min:0'],
+            'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }

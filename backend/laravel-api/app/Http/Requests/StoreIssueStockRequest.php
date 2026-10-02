@@ -23,6 +23,7 @@ class StoreIssueStockRequest extends FormRequest
             // QtyCategoryValidator. Unit Cost is never accepted from the client — it's
             // computed by FifoLayerService::consume() at submit() time.
             'items.*.qty' => ['required', 'numeric', 'min:0.0001'],
+            'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
         ];
     }
 }

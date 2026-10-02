@@ -23,6 +23,8 @@ class ReceiptStockItem extends Model
         'qty',
         'unit_cost',
         'amount',
+        'tax_id',
+        'tax_amount',
     ];
 
     protected $casts = [
@@ -30,6 +32,7 @@ class ReceiptStockItem extends Model
         'qty' => 'decimal:4',
         'unit_cost' => 'decimal:2',
         'amount' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
     ];
 
     public function receiptStock(): BelongsTo
@@ -40,5 +43,11 @@ class ReceiptStockItem extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    /** Informational only — Receipt Stock never posts to GL, so this has no accounting effect. */
+    public function tax(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class);
     }
 }
