@@ -6,7 +6,7 @@ import { useAuth } from '@/app/AuthContext'
 import type { Invoice } from '../types'
 import { InvoiceLandscapeLayout } from './InvoiceLandscapeLayout'
 import { InvoicePortraitLayout } from './InvoicePortraitLayout'
-import { DOTMATRIX_HALF_PAGE_SIZE_MM, PAPER_SIZES } from './invoicePrintConstants'
+import { DOTMATRIX_AUTO_PAGE_HEIGHT_MM, DOTMATRIX_HALF_PAGE_SIZE_MM, PAPER_SIZES } from './invoicePrintConstants'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -124,10 +124,12 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
   // see Invoice::locationWarehouse()); the old derived chain stays as a fallback only for a
   // pre-backfill invoice where it's somehow still null. Transportation still renders blank, unaffected.
   const location = invoice.location_warehouse?.name ?? invoice.delivery?.warehouse?.name ?? invoice.warehouse?.name ?? ''
-  // dotmatrix_auto borrows 'half' sizing purely as the pagination budget InvoicePortraitLayout
-  // bin-packs against (see its own `autoHeight` doc comment) — it does not force the rendered
-  // page to that height, and its width (210mm) still matches the physical stationery this mode's
-  // one real-world stakeholder actually loads into their dot-matrix printer.
+  // dotmatrix_auto borrows 'half' only for its 210mm WIDTH (the physical stationery this mode's
+  // one real-world stakeholder actually loads into their dot-matrix printer) — NOT its 148.5mm
+  // height, which would otherwise double as InvoicePortraitLayout's pagination budget and is far
+  // too short for that layout's own header+footer overhead (see DOTMATRIX_AUTO_PAGE_HEIGHT_MM's
+  // own comment). The wrapper's own minHeight is separately skipped below for this mode too — it
+  // never forces the rendered page to 148.5mm either.
   const paperKey =
     printOptions.paperType === 'half' || isDotMatrix || isDotMatrixAuto
       ? 'half'
@@ -233,7 +235,7 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
           showTax={showTax}
           showDiscount={showDiscount}
           showDecimalTotals={printOptions.showDecimalTotals}
-          pageHeightMm={paperSize.heightMm}
+          pageHeightMm={isDotMatrixAuto ? DOTMATRIX_AUTO_PAGE_HEIGHT_MM : paperSize.heightMm}
           autoHeight={isDotMatrixAuto}
         />
       )}

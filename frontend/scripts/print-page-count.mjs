@@ -144,13 +144,14 @@ async function run() {
       // size entirely and substitutes its own (the actual SIMPLIDOTS/EPSON LX-310 failure mode).
       // Nothing above tests this: every 'half' variant asserts the OPPOSITE premise
       // (preferCSSPageSize:true, i.e. @page IS honored).
-      // items=15 intentionally expects 3, not 1 — dotmatrix_auto's pagination budget is
-      // deliberately conservative (it can't know the real physical page height), so it safely
-      // uses more pages than optimal once item count runs past the ticket's own stated 1-10 range.
-      // Never overlapping content — just not page-count-optimal past that range.
+      // items=15 intentionally expects 2, not 1 — dotmatrix_auto's pagination budget
+      // (DOTMATRIX_AUTO_PAGE_HEIGHT_MM, invoicePrintConstants.ts) is deliberately generous (reuses
+      // Continuous's own 279.4mm, not Half's 148.5mm — see that constant's own comment for why
+      // 148.5mm was forcing every invoice onto 2 pages regardless of item count), so this only
+      // uses more than 1 page once content genuinely runs long. Never overlapping content.
       ...(
         [
-          [1, 1], [5, 1], [15, 3],
+          [1, 1], [5, 1], [15, 2],
         ].map(([itemCount, expectedPages]) => ({
           label: `dotmatrix_auto items=${itemCount}`, itemCount, deviceScaleFactor: 1, fontOverride: null, extraHeightPx: 0, paperType: 'dotmatrix_auto', preferCSSPageSize: false, expectedPages,
         }))

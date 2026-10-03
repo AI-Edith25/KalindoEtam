@@ -65,6 +65,21 @@ export const PAPER_SIZES: Record<InvoicePaperKey, { widthMm: number; heightMm: n
     custom paper form is registered in a given device's printer driver. */
 export const DOTMATRIX_HALF_PAGE_SIZE_MM = { widthMm: 241.3, heightMm: 139.7 } as const
 
+/**
+ * Dot Matrix (Auto)'s own pagination height budget — deliberately NOT PAPER_SIZES.half.heightMm
+ * (148.5mm), even though that's still where this mode borrows its 210mm WIDTH from (InvoicePaper's
+ * own paperKey comment). InvoicePortraitLayout's header+footer blocks (company header, title,
+ * customer/meta grid, terbilang, E.&O.E note, totals box, two signature blocks) were sized for
+ * A4/Continuous, not Half's compact 148.5mm — on real invoices (fuller metadata than a minimal
+ * test fixture: both References filled, a wrapped customer address, etc.) that overhead alone can
+ * approach or exceed Half's ~128.5mm usable height, forcing every invoice onto 2 pages regardless
+ * of item count, which defeats the whole point of this mode. Reusing Continuous's own 279.4mm
+ * here is safe specifically because this mode's real physical page height is unknown by design
+ * (that's why it exists at all) — a generous budget only risks an extra page for a genuinely long
+ * invoice, never a false split from header/footer overhead alone.
+ */
+export const DOTMATRIX_AUTO_PAGE_HEIGHT_MM = PAPER_SIZES.continuous.heightMm
+
 /** Content width after MARGIN_MM on both sides: 190mm for A4/Half, 221.3mm for Continuous. */
 export function contentWidthMm(paper: InvoicePaperKey): number {
   return PAPER_SIZES[paper].widthMm - 2 * MARGIN_MM
