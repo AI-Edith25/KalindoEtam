@@ -37,6 +37,7 @@ class ReceiptEntryGiroTest extends TestCase
     protected function basePayload(array $overrides = []): array
     {
         return array_merge([
+            'payment_type' => 'customer',
             'customer_id' => $this->customer->id,
             'receipt_date' => now()->toDateString(),
             'cash_account_id' => $this->cashAccount->id,

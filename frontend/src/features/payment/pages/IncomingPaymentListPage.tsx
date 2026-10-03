@@ -127,7 +127,11 @@ export function IncomingPaymentListPage() {
 
   const columns: DataTableColumn<ReceiptEntry>[] = [
     { header: 'Document', accessor: (row) => row.document_number ?? '—' },
-    { header: 'Customer', accessor: (row) => row.customer?.customer_name ?? '—' },
+    { header: 'Type', accessor: (row) => <StatusBadge status={row.payment_type} /> },
+    {
+      header: 'Customer',
+      accessor: (row) => (row.payment_type === 'other_income' ? (row.income_account?.name ?? '—') : (row.customer?.customer_name ?? '—')),
+    },
     { header: 'Reference', accessor: (row) => row.reference_number ?? '—' },
     { header: 'Payment method', accessor: (row) => row.cash_account?.name ?? '—' },
     { header: 'Date', accessor: (row) => formatDate(row.receipt_date) },
@@ -136,7 +140,9 @@ export function IncomingPaymentListPage() {
       header: 'Unallocated',
       sortKey: 'unallocated_amount',
       accessor: (row) =>
-        row.status === 'submitted' ? (
+        row.payment_type === 'other_income' ? (
+          <span className="text-muted-foreground">N/A</span>
+        ) : row.status === 'submitted' ? (
           <span className={Number(row.unallocated_amount) > 0 ? 'text-amber-600' : undefined}>
             {formatCurrency(row.unallocated_amount)}
           </span>

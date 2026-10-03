@@ -44,6 +44,9 @@ const STATUS_STYLES: Record<string, string> = {
   supplier: INFO,
   general_expense: WARNING,
   mixed: SUCCESS,
+  // Official Receipt's own Payment Type (Customer vs. Other Income) — same list-type-indicator convention.
+  customer: INFO,
+  other_income: WARNING,
   // Outstanding view (Sales Order / Delivery inline badges) — self-describing rows on the "Semua" view.
   outstanding: WARNING,
   // Piutang Customer (Arsip Import) — per-line status derived from the snapshot's own stored figures.

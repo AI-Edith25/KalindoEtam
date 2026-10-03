@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DocumentStatus;
+use App\Enums\ReceiptEntryType;
 use App\Exceptions\BusinessException;
 use App\Models\ReceiptEntry;
 use App\Repositories\ReceiptEntryRepository;
@@ -31,8 +32,13 @@ class ReceiptEntryService
     public function create(array $data): ReceiptEntry
     {
         return DB::transaction(function () use ($data) {
+            $paymentType = ReceiptEntryType::from($data['payment_type'] ?? ReceiptEntryType::CUSTOMER->value);
+
             $receiptEntry = $this->receiptEntryRepository->create([
-                'customer_id' => $data['customer_id'],
+                'payment_type' => $paymentType,
+                'customer_id' => $paymentType === ReceiptEntryType::CUSTOMER ? $data['customer_id'] : null,
+                'income_account_id' => $paymentType === ReceiptEntryType::OTHER_INCOME ? $data['income_account_id'] : null,
+                'description' => $paymentType === ReceiptEntryType::OTHER_INCOME ? $data['description'] : null,
                 'receipt_date' => $data['receipt_date'],
                 'cash_account_id' => $data['cash_account_id'],
                 'branch_id' => $data['branch_id'] ?? null,
@@ -64,7 +70,7 @@ class ReceiptEntryService
                 $this->receiptEntryRepository->update($receiptEntry, $data);
             }
 
-            $receiptEntry = $receiptEntry->fresh(['customer', 'branch']);
+            $receiptEntry = $receiptEntry->fresh(['customer', 'branch', 'incomeAccount']);
             $this->auditLogService->record('updated', 'receipt_entry', "Updated Receipt Entry \"{$receiptEntry->document_number}\".");
 
             return $receiptEntry;
@@ -90,7 +96,7 @@ class ReceiptEntryService
             throw new BusinessException('Customer cannot be changed once this payment has been allocated to invoices. Reverse the allocation first.');
         }
 
-        $journalAffectingFields = ['total_amount', 'cash_account_id', 'customer_id'];
+        $journalAffectingFields = ['total_amount', 'cash_account_id', 'customer_id', 'income_account_id', 'description'];
         $journalChanged = collect($journalAffectingFields)->contains(
             fn (string $field) => array_key_exists($field, $data) && (string) $data[$field] !== (string) $receiptEntry->{$field}
         );
@@ -102,7 +108,7 @@ class ReceiptEntryService
         $this->receiptEntryRepository->update($receiptEntry, $data);
 
         if ($journalChanged) {
-            $receiptEntry = $receiptEntry->fresh(['customer', 'cashAccount']);
+            $receiptEntry = $receiptEntry->fresh(['customer', 'cashAccount', 'incomeAccount']);
             $this->accountingService->postForDocument($receiptEntry, $receiptEntry->journalLines(), "Receipt {$receiptEntry->document_number}", $receiptEntry->receipt_date->toDateString());
         }
     }
@@ -125,7 +131,7 @@ class ReceiptEntryService
 
             $this->accountingService->postForDocument($receiptEntry, $receiptEntry->journalLines(), "Receipt {$receiptEntry->document_number}", $receiptEntry->receipt_date->toDateString());
 
-            $receiptEntry = $receiptEntry->fresh(['customer']);
+            $receiptEntry = $receiptEntry->fresh(['customer', 'incomeAccount']);
             $this->auditLogService->record('submitted', 'receipt_entry', "Submitted Receipt Entry \"{$receiptEntry->document_number}\".");
 
             return $receiptEntry;

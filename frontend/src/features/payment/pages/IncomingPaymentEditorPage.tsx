@@ -25,9 +25,13 @@ import { fetchAccountsReceivables } from '../api/accountsReceivableApi'
 import { allocatePayment } from '../api/paymentAllocationApi'
 import { OutstandingInvoicesTable } from '../components/OutstandingInvoicesTable'
 import { receiptEntryFormSchema, type ReceiptEntryEditorValues } from '../lib/receiptEntryFormSchema'
+import type { ReceiptEntryType } from '../types'
 
 const emptyValues: ReceiptEntryEditorValues = {
+  payment_type: 'customer',
   customer_id: '',
+  income_account_id: '',
+  description: '',
   total_amount: '',
   receipt_date: '',
   cash_account_id: '',
@@ -54,6 +58,8 @@ export function IncomingPaymentEditorPage() {
 
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
   const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
+  const incomeAccountOptions =
+    chartOfAccounts.data?.filter((account) => account.account_type === 'revenue').map((account) => ({ value: account.id, label: account.name })) ?? []
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
   const branchOptions = branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []
 
@@ -62,6 +68,8 @@ export function IncomingPaymentEditorPage() {
     defaultValues: emptyValues,
   })
 
+  const paymentType = form.watch('payment_type')
+  const isOtherIncome = paymentType === 'other_income'
   const customerId = form.watch('customer_id')
   const watchedPaymentMethod = form.watch('payment_method')
 
@@ -128,7 +136,10 @@ export function IncomingPaymentEditorPage() {
     }
 
     form.reset({
-      customer_id: receipt.customer_id,
+      payment_type: receipt.payment_type,
+      customer_id: receipt.customer_id ?? '',
+      income_account_id: receipt.income_account_id ?? '',
+      description: receipt.description ?? '',
       total_amount: String(receipt.total_amount),
       receipt_date: receipt.receipt_date,
       cash_account_id: receipt.cash_account_id ?? '',
@@ -145,7 +156,10 @@ export function IncomingPaymentEditorPage() {
   const saveMutation = useMutation({
     mutationFn: (values: ReceiptEntryEditorValues) => {
       const payload = {
-        customer_id: values.customer_id,
+        payment_type: values.payment_type,
+        customer_id: values.payment_type === 'customer' ? values.customer_id : null,
+        income_account_id: values.payment_type === 'other_income' ? values.income_account_id : null,
+        description: values.payment_type === 'other_income' ? values.description : null,
         receipt_date: values.receipt_date,
         cash_account_id: values.cash_account_id,
         branch_id: values.branch_id || null,
@@ -198,6 +212,8 @@ export function IncomingPaymentEditorPage() {
         toastApiError(allocationError)
       } else if (allocations.size > 0) {
         toast.success('Payment received and allocated to the selected invoice(s).')
+      } else if (isOtherIncome) {
+        toast.success('Other income recorded.')
       } else {
         toast.success('Payment received. Allocate it to an invoice from the detail page.')
       }
@@ -232,31 +248,100 @@ export function IncomingPaymentEditorPage() {
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
-                name="customer_id"
+                name="payment_type"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Customer</FormLabel>
-                    <SearchableSelect
-                      loadOptions={loadCustomerOptions}
-                      selectedOption={customerSelectedOption}
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Payment Type</FormLabel>
+                    <Select
                       value={field.value}
-                      onChange={(value, option) => {
-                        field.onChange(value ?? '')
-                        setSelectedCustomerOption(option)
-                        // A customer switch invalidates any invoice selection made for the
-                        // previous one. Scoped to this handler (not a customerId-watching
-                        // effect) so it never fires from form.reset() restoring an existing
-                        // draft's customer_id/total_amount on edit-mode load.
+                      onValueChange={(next) => {
+                        field.onChange(next as ReceiptEntryType)
+                        form.setValue('customer_id', '')
+                        form.setValue('income_account_id', '')
+                        form.setValue('description', '')
+                        setSelectedCustomerOption(undefined)
                         commitAllocations(new Map())
                       }}
-                      clearable={false}
-                      placeholder="Select customer"
-                      aria-label="Customer"
-                    />
+                      disabled={isEdit}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full sm:w-72">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="customer">Against Customer (Invoice Settlement)</SelectItem>
+                        <SelectItem value="other_income">Other Income (Not From a Customer)</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              {isOtherIncome ? (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="income_account_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Income Account</FormLabel>
+                        <SearchableSelect
+                          options={incomeAccountOptions}
+                          value={field.value}
+                          onChange={(value) => field.onChange(value ?? '')}
+                          loading={chartOfAccounts.isLoading}
+                          clearable={false}
+                          placeholder="Select account"
+                          aria-label="Income Account"
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. Penjualan scrap besi" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="customer_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer</FormLabel>
+                      <SearchableSelect
+                        loadOptions={loadCustomerOptions}
+                        selectedOption={customerSelectedOption}
+                        value={field.value}
+                        onChange={(value, option) => {
+                          field.onChange(value ?? '')
+                          setSelectedCustomerOption(option)
+                          // A customer switch invalidates any invoice selection made for the
+                          // previous one. Scoped to this handler (not a customerId-watching
+                          // effect) so it never fires from form.reset() restoring an existing
+                          // draft's customer_id/total_amount on edit-mode load.
+                          commitAllocations(new Map())
+                        }}
+                        clearable={false}
+                        placeholder="Select customer"
+                        aria-label="Customer"
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="total_amount"
@@ -269,7 +354,9 @@ export function IncomingPaymentEditorPage() {
                     <FormDescription>
                       {allocations.size > 0
                         ? 'Calculated automatically from the invoices checked below.'
-                        : 'Type an amount to record an unapplied payment, or check an invoice below to allocate directly.'}
+                        : isOtherIncome
+                          ? 'Amount received for this income.'
+                          : 'Type an amount to record an unapplied payment, or check an invoice below to allocate directly.'}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

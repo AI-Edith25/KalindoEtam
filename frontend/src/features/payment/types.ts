@@ -3,6 +3,8 @@ import type { Branch, ChartOfAccount, Customer, Supplier } from '@/features/mast
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 export type SettlementStatus = 'unpaid' | 'partially_paid' | 'paid'
 export type PaymentEntryType = 'supplier' | 'general_expense' | 'mixed'
+/** Official Receipt's own Payment Type — 'customer' is the pre-existing AR-settlement flow, 'other_income' is money received that isn't a customer AR (mirrors PaymentEntryType's supplier/general_expense split, no 'mixed' equivalent). */
+export type ReceiptEntryType = 'customer' | 'other_income'
 /** Distinct from cash_account_id (the Chart-of-Accounts picker, labeled "Cash/Bank Account") — this is the actual "Payment Method" field (D2, UAT review 2026-08-12). */
 export type PaymentEntryMethod = 'cash' | 'bank_transfer' | 'cheque' | 'giro' | 'qris' | 'credit_card'
 
@@ -223,8 +225,12 @@ export interface ReceiptEntry {
   document_number: string | null
   status: DocumentStatus
   revision: number
-  customer_id: string
+  payment_type: ReceiptEntryType
+  customer_id: string | null
   customer: Customer | null
+  income_account_id: string | null
+  income_account: ChartOfAccount | null
+  description: string | null
   receipt_date: string
   cash_account_id: string | null
   cash_account: ChartOfAccount | null

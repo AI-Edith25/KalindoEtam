@@ -58,7 +58,8 @@ export function PaymentAllocationDrawer({ open, onOpenChange, receiptEntry }: Pa
 
   const receivablesQuery = useQuery({
     queryKey: ['accounts-receivables', receiptEntry.customer_id],
-    queryFn: () => fetchAccountsReceivables({ customer_id: receiptEntry.customer_id, per_page: 100 }),
+    // Only ever opened for payment_type=customer (see IncomingPaymentDetailPage's own guard) — customer_id is always real here.
+    queryFn: () => fetchAccountsReceivables({ customer_id: receiptEntry.customer_id ?? undefined, per_page: 100 }),
     enabled: open,
   })
 

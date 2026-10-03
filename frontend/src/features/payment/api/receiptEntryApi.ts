@@ -15,7 +15,10 @@ export interface ReceiptEntryListParams {
 }
 
 export interface ReceiptEntryPayload {
-  customer_id: string
+  payment_type: 'customer' | 'other_income'
+  customer_id: string | null
+  income_account_id: string | null
+  description: string | null
   receipt_date: string
   cash_account_id: string
   branch_id?: string | null

@@ -96,7 +96,7 @@ export function IncomingPaymentPrintPage() {
         <div className={`grid grid-cols-2 gap-4 border-b-2 border-foreground/80 ${compact ? 'p-2' : 'p-3'}`}>
           <div>
             <p className="font-medium">Received From</p>
-            <p className="font-semibold">{receipt.customer?.customer_name ?? '—'}</p>
+            <p className="font-semibold">{receipt.customer?.customer_name ?? receipt.description ?? '—'}</p>
           </div>
           <div className="text-right">
             <p className="font-medium">Cash/Bank Account</p>

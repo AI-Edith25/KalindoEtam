@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ReceiptEntryRepository extends BaseRepository
 {
-    protected const EAGER = ['customer', 'cashAccount', 'branch', 'items.accountsReceivable.invoice', 'items.accountsReceivable.delivery'];
+    protected const EAGER = ['customer', 'cashAccount', 'incomeAccount', 'branch', 'items.accountsReceivable.invoice', 'items.accountsReceivable.delivery'];
 
     public function __construct(ReceiptEntry $model)
     {
@@ -35,8 +35,12 @@ class ReceiptEntryRepository extends BaseRepository
                 fn ($q) => $q->where('document_number', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($sq) => $sq->where('customer_name', 'like', "%{$search}%"))
             ))
+            // 'other_income' is never allocated by design (ReceiptEntryService never applies it
+            // to an invoice) — excluded here so it doesn't permanently clutter a filter meant for
+            // customer payments still awaiting allocation.
             ->when($filters['unallocated_only'] ?? null, fn ($query) => $query
                 ->where('status', 'submitted')
+                ->where('payment_type', 'customer')
                 ->whereColumn('allocated_amount', '<', 'total_amount'))
             ->latest('receipt_date')
             ->paginate($perPage);

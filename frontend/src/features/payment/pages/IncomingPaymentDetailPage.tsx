@@ -76,6 +76,7 @@ export function IncomingPaymentDetailPage() {
   const receipt = receiptQuery.data
   if (!receipt) return null
 
+  const isOtherIncome = receipt.payment_type === 'other_income'
   const unallocated = Number(receipt.unallocated_amount)
 
   return (
@@ -111,7 +112,7 @@ export function IncomingPaymentDetailPage() {
                 <Printer className="size-4" />
                 Print
               </Button>
-              {unallocated > 0 && (
+              {!isOtherIncome && unallocated > 0 && (
                 <Button onClick={() => setAllocating(true)}>
                   <SplitSquareHorizontal className="size-4" />
                   Allocate Payment
@@ -133,7 +134,15 @@ export function IncomingPaymentDetailPage() {
         <CardContent>
           <DetailSection>
             <DetailField label="Payment No" value={receipt.document_number ?? '—'} />
-            <DetailField label="Customer" value={receipt.customer?.customer_name ?? '—'} />
+            <DetailField label="Type" value={isOtherIncome ? 'Other Income' : 'Against Customer'} />
+            {isOtherIncome ? (
+              <>
+                <DetailField label="Income Account" value={receipt.income_account?.name ?? '—'} />
+                <DetailField label="Description" value={receipt.description ?? '—'} />
+              </>
+            ) : (
+              <DetailField label="Customer" value={receipt.customer?.customer_name ?? '—'} />
+            )}
             <DetailField label="Payment Date" value={formatDate(receipt.receipt_date)} />
             <DetailField label="Cash/Bank Account" value={receipt.cash_account?.name ?? '—'} />
             <DetailField label="Payment Method" value={receipt.payment_method ? PAYMENT_METHOD_LABELS[receipt.payment_method] : '—'} />
@@ -154,7 +163,7 @@ export function IncomingPaymentDetailPage() {
 
       <ReceiptEntryAttachments receiptEntryId={receipt.id} />
 
-      {receipt.status === 'submitted' && (
+      {!isOtherIncome && receipt.status === 'submitted' && (
         <Card>
           <CardHeader>
             <CardTitle>Allocation Summary</CardTitle>

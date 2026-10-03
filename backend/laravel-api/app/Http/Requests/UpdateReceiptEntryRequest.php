@@ -13,10 +13,18 @@ class UpdateReceiptEntryRequest extends FormRequest
         return true;
     }
 
+    /**
+     * payment_type is deliberately not accepted here — it's immutable after create()
+     * (ReceiptEntryService::update() doesn't branch on it, the record's own type never changes),
+     * same convention as UpdatePaymentEntryRequest. A draft can't be switched between Customer
+     * and Other Income mid-edit.
+     */
     public function rules(): array
     {
         return [
-            'customer_id' => ['sometimes', 'required', 'uuid', 'exists:customers,id'],
+            'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
+            'income_account_id' => ['sometimes', 'nullable', 'uuid', 'exists:chart_of_accounts,id'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:255'],
             'receipt_date' => ['sometimes', 'required', 'date'],
             'cash_account_id' => ['sometimes', 'required', 'uuid', Rule::exists('chart_of_accounts', 'id')->where('is_cash_bank', true)],
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\DocumentStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\ReceiptEntryType;
 use App\Exceptions\BusinessException;
 use App\Models\Concerns\Documentable;
 use App\Models\Concerns\HasAuditTrail;
@@ -24,6 +25,9 @@ class ReceiptEntry extends Model
         'submitted_at',
         'cancelled_at',
         'customer_id',
+        'payment_type',
+        'income_account_id',
+        'description',
         'receipt_date',
         'payment_method',
         'giro_number',
@@ -42,6 +46,7 @@ class ReceiptEntry extends Model
 
     protected $casts = [
         'status' => DocumentStatus::class,
+        'payment_type' => ReceiptEntryType::class,
         'payment_method' => PaymentMethod::class,
         'giro_due_date' => 'date',
         'receipt_date' => 'date',
@@ -70,6 +75,12 @@ class ReceiptEntry extends Model
     public function cashAccount(): BelongsTo
     {
         return $this->belongsTo(ChartOfAccount::class, 'cash_account_id');
+    }
+
+    /** Only set for payment_type=other_income — the credited GL account for money received that isn't a customer's AR. */
+    public function incomeAccount(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'income_account_id');
     }
 
     public function branch(): BelongsTo
@@ -108,9 +119,25 @@ class ReceiptEntry extends Model
      * only ever reads a *sibling* line's description, never the row's own —
      * 1150 is this cash line's one sibling, so that's the leg it has to sit
      * on, not the cash line itself.
+     *
+     * payment_type=other_income (money received that isn't a customer AR
+     * settlement — mirrors PaymentEntry::journalLines()'s own
+     * GENERAL_EXPENSE branch) credits the chosen income_account directly
+     * instead — no suspense leg, no customer, standalone from the moment
+     * it's submitted (never allocated, see ReceiptEntryService).
      */
     public function journalLines(): array
     {
+        if ($this->payment_type === ReceiptEntryType::OTHER_INCOME) {
+            return [
+                ['account' => $this->cashAccount->code, 'type' => 'debit', 'amount' => (float) $this->total_amount],
+                [
+                    'account' => $this->incomeAccount->code, 'type' => 'credit', 'amount' => (float) $this->total_amount,
+                    'description' => "{$this->description}; {$this->cashAccount->name}",
+                ],
+            ];
+        }
+
         return [
             ['account' => $this->cashAccount->code, 'type' => 'debit', 'amount' => (float) $this->total_amount],
             [

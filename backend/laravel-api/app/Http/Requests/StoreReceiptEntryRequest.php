@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\PaymentMethod;
+use App\Enums\ReceiptEntryType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,7 +17,10 @@ class StoreReceiptEntryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_id' => ['required', 'uuid', 'exists:customers,id'],
+            'payment_type' => ['required', Rule::enum(ReceiptEntryType::class)],
+            'customer_id' => ['required_if:payment_type,customer', 'nullable', 'uuid', 'exists:customers,id'],
+            'income_account_id' => ['required_if:payment_type,other_income', 'nullable', 'uuid', 'exists:chart_of_accounts,id'],
+            'description' => ['required_if:payment_type,other_income', 'nullable', 'string', 'max:255'],
             'receipt_date' => ['required', 'date'],
             'cash_account_id' => ['required', 'uuid', Rule::exists('chart_of_accounts', 'id')->where('is_cash_bank', true)],
             'branch_id' => ['nullable', 'uuid', 'exists:branches,id'],
