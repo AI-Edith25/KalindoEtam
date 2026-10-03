@@ -37,7 +37,7 @@ export function InvoicePrintPage() {
     priceDecimals: 2,
     amountDecimals: 2,
     showDiscount: loadShowDiscountPreference(),
-    showTax: false,
+    showTax: true,
     // Left unset (not false) — both layouts treat unset as ON (2 decimals, matching the legacy
     // Half output invoice-print-spec.md was extracted from). Roll keeps its own separate
     // "unset = off" default (see totalsDecimals).
@@ -51,8 +51,9 @@ export function InvoicePrintPage() {
   // Persists paperType/showDiscount the same way OutgoingPaymentPrintPage/IncomingPaymentPrintPage
   // already do — load-on-init above, save-on-every-change here. paperType is saved through the
   // Invoice-specific key (loadInvoicePaperTypePreference's own doc comment explains why it isn't
-  // the shared PRINT_PAPER_TYPE_STORAGE_KEY Payment print uses). showTax/showDecimalTotals are
-  // new and deliberately NOT persisted — every print starts from the "Default OFF" ticket spec.
+  // the shared PRINT_PAPER_TYPE_STORAGE_KEY Payment print uses). showDecimalTotals is deliberately
+  // NOT persisted. showTax defaults to checked on every print open — a fixed default, not a
+  // remembered preference — so it isn't persisted either.
   const handlePrintOptionsChange = (next: PrintOptions) => {
     setPrintOptions(next)
     saveInvoicePaperTypePreference(next.paperType)

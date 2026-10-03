@@ -52,7 +52,7 @@ export function InvoiceBulkPrintPage() {
     priceDecimals: 2,
     amountDecimals: 2,
     showDiscount: loadShowDiscountPreference(),
-    showTax: false,
+    showTax: true,
     showDecimalTotals: undefined,
     fontFamily: undefined,
     signatureLeftLabel: 'AUTHORISED SIGNATURE',
