@@ -17,7 +17,8 @@ class StoreWarehouseRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:255', 'unique:warehouses,code'],
+            // whereNull('deleted_at') — see StoreChartOfAccountRequest's own comment.
+            'code' => ['required', 'string', 'max:255', Rule::unique('warehouses', 'code')->whereNull('deleted_at')],
             'warehouse_type' => ['required', Rule::enum(WarehouseType::class)],
         ];
     }

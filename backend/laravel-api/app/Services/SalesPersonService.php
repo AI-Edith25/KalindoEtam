@@ -27,6 +27,12 @@ class SalesPersonService
         return $this->salesPersonRepository->paginate($perPage);
     }
 
+    /**
+     * `code` has a real DB-level unique index unaware of `deleted_at` — see
+     * ChartOfAccountService::create()'s own comment for why a trashed match is restored instead
+     * of inserted fresh. Only reachable via an explicitly-supplied code (the auto-generated path
+     * below draws from documentNumberGenerator's own counter, which never reissues a spent number).
+     */
     public function create(array $data): SalesPerson
     {
         return DB::transaction(function () use ($data) {
@@ -37,6 +43,17 @@ class SalesPersonService
             if (! filled($data['code'] ?? null)) {
                 $data['code'] = $generated;
             }
+
+            $trashed = SalesPerson::onlyTrashed()->where('code', $data['code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $salesPerson = $this->salesPersonRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'sales_person', "Created sales person \"{$salesPerson->name}\" (restored from an archived sales person with the same code).");
+
+                return $salesPerson;
+            }
+
             $salesPerson = $this->salesPersonRepository->create($data);
             $this->auditLogService->record('created', 'sales_person', "Created sales person \"{$salesPerson->name}\".");
 

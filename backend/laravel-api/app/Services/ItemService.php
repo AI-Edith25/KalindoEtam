@@ -62,6 +62,7 @@ class ItemService
         });
     }
 
+    /** `item_code` has a real DB-level unique index unaware of `deleted_at` — see ChartOfAccountService::create()'s own comment for why a trashed match is restored instead of inserted fresh. */
     public function create(array $data): Item
     {
         return DB::transaction(function () use ($data) {
@@ -70,6 +71,18 @@ class ItemService
             $data['qty_category'] ??= QtyCategory::UNIT->value;
 
             $uoms = $this->pullUoms($data);
+            $trashed = Item::onlyTrashed()->where('item_code', $data['item_code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $item = $this->itemRepository->update($trashed, $data);
+                if ($uoms !== null) {
+                    $this->syncUoms($item, $uoms);
+                }
+                $this->auditLogService->record('created', 'item', "Created item \"{$item->item_name}\" (restored from an archived item with the same code).");
+
+                return $item;
+            }
 
             $item = $this->itemRepository->create($data);
             if ($uoms !== null) {

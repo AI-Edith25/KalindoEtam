@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCompanyRequest extends FormRequest
 {
@@ -15,7 +16,8 @@ class StoreCompanyRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:255', 'unique:companies,code'],
+            // whereNull('deleted_at') — see StoreChartOfAccountRequest's own comment.
+            'code' => ['required', 'string', 'max:255', Rule::unique('companies', 'code')->whereNull('deleted_at')],
             'address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],

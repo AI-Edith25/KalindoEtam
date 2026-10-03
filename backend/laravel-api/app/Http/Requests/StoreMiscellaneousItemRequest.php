@@ -16,7 +16,8 @@ class StoreMiscellaneousItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'misc_code' => ['required', 'string', 'max:255', 'unique:miscellaneous_items,misc_code'],
+            // whereNull('deleted_at') — see StoreChartOfAccountRequest's own comment.
+            'misc_code' => ['required', 'string', 'max:255', Rule::unique('miscellaneous_items', 'misc_code')->whereNull('deleted_at')],
             'description' => ['required', 'string', 'max:255'],
             'rate' => ['sometimes', 'numeric', 'min:0'],
             'uom_id' => ['nullable', 'uuid', 'exists:uoms,id'],

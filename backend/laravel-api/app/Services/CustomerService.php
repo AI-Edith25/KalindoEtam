@@ -43,6 +43,12 @@ class CustomerService
         return $this->customerRepository->exportQuery($search, $isActive)->get();
     }
 
+    /**
+     * `customer_code` has a real DB-level unique index unaware of `deleted_at` — see
+     * ChartOfAccountService::create()'s own comment for why a trashed match is restored instead
+     * of inserted fresh. Only reachable via an explicitly-supplied code (the auto-generated path
+     * below draws from documentNumberGenerator's own counter, which never reissues a spent number).
+     */
     public function create(array $data): Customer
     {
         return DB::transaction(function () use ($data) {
@@ -53,6 +59,17 @@ class CustomerService
             if (! filled($data['customer_code'] ?? null)) {
                 $data['customer_code'] = $generated;
             }
+
+            $trashed = Customer::onlyTrashed()->where('customer_code', $data['customer_code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $customer = $this->customerRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'customer', "Created customer \"{$customer->customer_name}\" (restored from an archived customer with the same code).");
+
+                return $customer;
+            }
+
             $customer = $this->customerRepository->create($data);
             $this->auditLogService->record('created', 'customer', "Created customer \"{$customer->customer_name}\".");
 

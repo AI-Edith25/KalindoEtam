@@ -19,9 +19,20 @@ class ItemGroupService
         return $this->itemGroupRepository->paginate($perPage);
     }
 
+    /** `name` has a real DB-level unique index unaware of `deleted_at` — see ChartOfAccountService::create()'s own comment for why a trashed match is restored instead of inserted fresh. */
     public function create(array $data): ItemGroup
     {
         return DB::transaction(function () use ($data) {
+            $trashed = ItemGroup::onlyTrashed()->where('name', $data['name'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $itemGroup = $this->itemGroupRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'item_group', "Created item group \"{$itemGroup->name}\" (restored from an archived item group with the same name).");
+
+                return $itemGroup;
+            }
+
             $itemGroup = $this->itemGroupRepository->create($data);
             $this->auditLogService->record('created', 'item_group', "Created item group \"{$itemGroup->name}\".");
 

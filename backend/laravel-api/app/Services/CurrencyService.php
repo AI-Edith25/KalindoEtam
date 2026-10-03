@@ -19,9 +19,20 @@ class CurrencyService
         return $this->currencyRepository->paginate($perPage);
     }
 
+    /** `code` has a real DB-level unique index unaware of `deleted_at` — see ChartOfAccountService::create()'s own comment for why a trashed match is restored instead of inserted fresh. */
     public function create(array $data): Currency
     {
         return DB::transaction(function () use ($data) {
+            $trashed = Currency::onlyTrashed()->where('code', $data['code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $currency = $this->currencyRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'currency', "Created currency \"{$currency->name}\" (restored from an archived currency with the same code).");
+
+                return $currency;
+            }
+
             $currency = $this->currencyRepository->create($data);
             $this->auditLogService->record('created', 'currency', "Created currency \"{$currency->name}\".");
 

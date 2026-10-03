@@ -23,7 +23,8 @@ class StoreItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'item_code' => ['required', 'string', 'max:255', 'unique:items,item_code'],
+            // whereNull('deleted_at') — see StoreChartOfAccountRequest's own comment.
+            'item_code' => ['required', 'string', 'max:255', Rule::unique('items', 'item_code')->whereNull('deleted_at')],
             'item_name' => ['required', 'string', 'max:255'],
             'item_group_id' => ['required', 'uuid', 'exists:item_groups,id'],
             'uom_id' => ['required', 'uuid', 'exists:uoms,id'],

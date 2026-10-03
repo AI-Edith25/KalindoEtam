@@ -19,9 +19,20 @@ class CompanyService
         return $this->companyRepository->paginate($perPage);
     }
 
+    /** `code` has a real DB-level unique index unaware of `deleted_at` — see ChartOfAccountService::create()'s own comment for why a trashed match is restored instead of inserted fresh. */
     public function create(array $data): Company
     {
         return DB::transaction(function () use ($data) {
+            $trashed = Company::onlyTrashed()->where('code', $data['code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $company = $this->companyRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'company', "Created company \"{$company->name}\" (restored from an archived company with the same code).");
+
+                return $company;
+            }
+
             $company = $this->companyRepository->create($data);
             $this->auditLogService->record('created', 'company', "Created company \"{$company->name}\".");
 

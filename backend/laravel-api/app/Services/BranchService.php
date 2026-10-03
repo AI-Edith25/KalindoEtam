@@ -19,9 +19,20 @@ class BranchService
         return $this->branchRepository->paginate($perPage);
     }
 
+    /** `code` has a real DB-level unique index unaware of `deleted_at` — see ChartOfAccountService::create()'s own comment for why a trashed match is restored instead of inserted fresh. */
     public function create(array $data): Branch
     {
         return DB::transaction(function () use ($data) {
+            $trashed = Branch::onlyTrashed()->where('code', $data['code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $branch = $this->branchRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'branch', "Created branch \"{$branch->name}\" (restored from an archived branch with the same code).");
+
+                return $branch;
+            }
+
             $branch = $this->branchRepository->create($data);
             $this->auditLogService->record('created', 'branch', "Created branch \"{$branch->name}\".");
 

@@ -21,10 +21,21 @@ class WarehouseService
         return $this->warehouseRepository->paginate($perPage);
     }
 
+    /** `code` has a real DB-level unique index unaware of `deleted_at` — see ChartOfAccountService::create()'s own comment for why a trashed match is restored instead of inserted fresh. */
     public function create(array $data): Warehouse
     {
         return DB::transaction(function () use ($data) {
             $this->assertSingleMainWarehouse($data['warehouse_type'] ?? null);
+
+            $trashed = Warehouse::onlyTrashed()->where('code', $data['code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $warehouse = $this->warehouseRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'warehouse', "Created warehouse \"{$warehouse->name}\" (restored from an archived warehouse with the same code).");
+
+                return $warehouse;
+            }
 
             $warehouse = $this->warehouseRepository->create($data);
             $this->auditLogService->record('created', 'warehouse', "Created warehouse \"{$warehouse->name}\".");

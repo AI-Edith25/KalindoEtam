@@ -24,9 +24,26 @@ class SupplierService
         return $this->supplierRepository->paginate($perPage, $search);
     }
 
+    /**
+     * `supplier_code` has a real DB-level unique index that, like any plain unique column on a
+     * SoftDeletes table, doesn't know about `deleted_at` — StoreSupplierRequest's own
+     * whereNull('deleted_at') makes validation accept a code that only collides with a trashed
+     * row, but a plain INSERT would still hit the raw SQL unique constraint. Restore and overwrite
+     * the trashed row instead (same fix/reasoning as ChartOfAccountService::create()).
+     */
     public function create(array $data): Supplier
     {
         return DB::transaction(function () use ($data) {
+            $trashed = Supplier::onlyTrashed()->where('supplier_code', $data['supplier_code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $supplier = $this->supplierRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'supplier', "Created supplier \"{$supplier->supplier_name}\" (restored from an archived supplier with the same code).");
+
+                return $supplier;
+            }
+
             $supplier = $this->supplierRepository->create($data);
             $this->auditLogService->record('created', 'supplier', "Created supplier \"{$supplier->supplier_name}\".");
 

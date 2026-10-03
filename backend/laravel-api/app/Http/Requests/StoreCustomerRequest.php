@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCustomerRequest extends FormRequest
 {
@@ -14,8 +15,10 @@ class StoreCustomerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Editable — CustomerService::create() only auto-fills this when omitted/blank, a supplied value is honored (still validated unique below).
-            'customer_code' => ['nullable', 'string', 'max:255', 'unique:customers,customer_code'],
+            // Editable — CustomerService::create() only auto-fills this when omitted/blank, a
+            // supplied value is honored (still validated unique below). whereNull('deleted_at') —
+            // see StoreChartOfAccountRequest's own comment.
+            'customer_code' => ['nullable', 'string', 'max:255', Rule::unique('customers', 'customer_code')->whereNull('deleted_at')],
             'customer_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'telephone' => ['nullable', 'string', 'max:50'],

@@ -19,9 +19,20 @@ class TermsOfPaymentService
         return $this->termsOfPaymentRepository->paginate($perPage);
     }
 
+    /** `code` has a real DB-level unique index unaware of `deleted_at` — see ChartOfAccountService::create()'s own comment for why a trashed match is restored instead of inserted fresh. */
     public function create(array $data): TermsOfPayment
     {
         return DB::transaction(function () use ($data) {
+            $trashed = TermsOfPayment::onlyTrashed()->where('code', $data['code'])->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $termsOfPayment = $this->termsOfPaymentRepository->update($trashed, $data);
+                $this->auditLogService->record('created', 'terms_of_payment', "Created terms of payment \"{$termsOfPayment->name}\" (restored from an archived terms of payment with the same code).");
+
+                return $termsOfPayment;
+            }
+
             $termsOfPayment = $this->termsOfPaymentRepository->create($data);
             $this->auditLogService->record('created', 'terms_of_payment', "Created terms of payment \"{$termsOfPayment->name}\".");
 
