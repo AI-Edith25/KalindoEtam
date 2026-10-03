@@ -202,10 +202,18 @@ export function SkybizLedgerReconciliationDialog({ open, onClose, onImported }: 
             </Button>
           )}
           {batch?.status === 'previewed' && (
-            <Button type="button" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending}>
-              {confirmMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-              Jalankan Import
-            </Button>
+            <>
+              {batch.has_failed_rows && (
+                <Button type="button" variant="outline" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>
+                  <Download className="size-4" />
+                  Unduh Baris Perlu Review
+                </Button>
+              )}
+              <Button type="button" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending}>
+                {confirmMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                Jalankan Import
+              </Button>
+            </>
           )}
           {batch?.status === 'completed' && (
             <>

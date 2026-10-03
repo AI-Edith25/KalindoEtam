@@ -228,6 +228,25 @@ class SkybizLedgerReconciliationImportServiceTest extends TestCase
         $this->assertSame(1, $batch->preview_summary['unmatched_unparseable_ref']);
     }
 
+    /** The ticket's spot-check requirement — flagged rows must be reviewable before anyone presses "Jalankan Import", not only after. */
+    public function test_preview_mode_already_attaches_a_downloadable_review_csv(): void
+    {
+        $customer = $this->makeCustomer('C-0006b');
+
+        $csv = self::PREAMBLE.self::HEADER
+            ."C-0006b - Customer C-0006b,,,,,,,\r\n"
+            ."06/08/2026,Sales lama,300920222,SJ,,75000,0,75000\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->run($batch, false);
+        $batch->refresh();
+
+        $this->assertEquals(ImportBatchStatus::PREVIEWED, $batch->status);
+        $this->assertNotNull($batch->error_report_path);
+        $this->assertTrue(Storage::disk('local')->exists($batch->error_report_path));
+        $this->assertStringContainsString('unmatched_unparseable_ref', Storage::disk('local')->get($batch->error_report_path));
+    }
+
     public function test_ke_paid_amount_higher_than_ledger_is_never_decreased(): void
     {
         $customer = $this->makeCustomer('C-0007');

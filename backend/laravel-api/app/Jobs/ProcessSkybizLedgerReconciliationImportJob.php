@@ -28,7 +28,11 @@ class ProcessSkybizLedgerReconciliationImportJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 1800;
+    // Benchmarked locally at ~51ms/Official Receipt on sqlite — a run creating 15k-17k receipts
+    // (this ticket's real preview numbers) extrapolates to ~15 minutes there, but production MySQL
+    // plus real network/journal-posting overhead could run meaningfully slower, so this is a 1-hour
+    // safety margin, not a measured ceiling. The queue worker's own --timeout must be >= this.
+    public int $timeout = 3600;
 
     public function __construct(public string $importBatchId, public bool $commit) {}
 

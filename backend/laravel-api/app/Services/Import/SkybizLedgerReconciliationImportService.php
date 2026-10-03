@@ -120,9 +120,11 @@ final class SkybizLedgerReconciliationImportService
             'status' => $commit ? ImportBatchStatus::COMPLETED : ImportBatchStatus::PREVIEWED,
         ]);
 
-        if ($commit) {
-            ImportErrorReportWriter::attachRejectedRows($batch, $reportRows);
-        }
+        // Also written at preview time (not just after commit) — every one of these rows is
+        // 'needs_review', never 'success'/'failed' until commit runs, so this is exactly the
+        // ticket's "preview_sample ... untuk spot-check manusia" in full, downloadable before
+        // anyone presses "Jalankan Import".
+        ImportErrorReportWriter::attachRejectedRows($batch, $reportRows);
     }
 
     /** @return ImportFieldDefinition[] */
