@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DiscountInput } from '@/components/shared/DiscountInput'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { SearchBox } from '@/components/shared/SearchBox'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { LineItemTableScroll, STICKY_FIRST_COL } from '@/components/shared/LineItemTableScroll'
 import { RupiahInput } from '@/components/shared/RupiahInput'
@@ -178,6 +179,7 @@ export function InvoiceEditorPage() {
 
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<Set<string>>(new Set())
   const [selectedMode, setSelectedMode] = useState<WizardMode | null>(null)
+  const [deliverySearch, setDeliverySearch] = useState('')
   // Checking boxes must not auto-advance past the selection screen — with multi-select, the
   // user needs to be able to tick a second/third Delivery before moving on. An explicit
   // Continue click is what commits the selection and mounts InvoiceForm.
@@ -200,8 +202,8 @@ export function InvoiceEditorPage() {
 
   // Eligible = complete and not yet invoiced. Fetched only in create mode, before any Delivery is picked.
   const eligibleDeliveriesQuery = useQuery({
-    queryKey: ['deliveries-eligible-for-invoice'],
-    queryFn: () => fetchDeliveries({ page: 1, per_page: 100, status: 'complete' }),
+    queryKey: ['deliveries-eligible-for-invoice', deliverySearch],
+    queryFn: () => fetchDeliveries({ page: 1, per_page: 100, status: 'complete', ...(deliverySearch ? { search: deliverySearch } : {}) }),
     enabled: !isEdit,
   })
   const eligibleDeliveries = (eligibleDeliveriesQuery.data?.data ?? []).filter((delivery) => !delivery.is_invoiced)
@@ -283,6 +285,7 @@ export function InvoiceEditorPage() {
             {!skipDeliveryStep && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Delivery</label>
+                <SearchBox value={deliverySearch} onChange={setDeliverySearch} placeholder="Search document number, customer, or sales order…" />
                 {eligibleDeliveriesQuery.isLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="size-6 animate-spin text-muted-foreground" />

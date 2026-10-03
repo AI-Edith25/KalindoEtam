@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { SearchBox } from '@/components/shared/SearchBox'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeSubtotal, computeTotalDiscount, lineDiscountAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
@@ -44,6 +45,7 @@ export function DeliveryEditorPage() {
   const queryClient = useQueryClient()
 
   const [selectedSalesOrderIds, setSelectedSalesOrderIds] = useState<Set<string>>(new Set())
+  const [soSearch, setSoSearch] = useState('')
   const [mode, setMode] = useState<DeliveryMode>(null)
   // Checking boxes must not auto-advance past the selection screen — with multi-select, the
   // user needs to be able to tick a second/third Sales Order before moving on. An explicit
@@ -79,8 +81,8 @@ export function DeliveryEditorPage() {
 
   // Eligible = approved and not fully delivered. Fetched only in create mode, before any Sales Order is picked.
   const eligibleOrdersQuery = useQuery({
-    queryKey: ['sales-orders-eligible-for-delivery'],
-    queryFn: () => fetchSalesOrders({ page: 1, per_page: 100, status: 'approved' }),
+    queryKey: ['sales-orders-eligible-for-delivery', soSearch],
+    queryFn: () => fetchSalesOrders({ page: 1, per_page: 100, status: 'approved', ...(soSearch ? { search: soSearch } : {}) }),
     enabled: !isEdit && mode === 'from_so',
   })
   const eligibleOrders = (eligibleOrdersQuery.data?.data ?? []).filter((so) => !so.is_fully_delivered)
@@ -158,6 +160,7 @@ export function DeliveryEditorPage() {
               </div>
             ) : (
               <>
+                <SearchBox value={soSearch} onChange={setSoSearch} placeholder="Search document number or customer…" />
                 {eligibleOrdersQuery.isLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="size-6 animate-spin text-muted-foreground" />
