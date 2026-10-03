@@ -9,7 +9,7 @@ export interface StockValuationReportParams {
   search?: string
   warehouse_id?: string
   item_group_id?: string
-  item_id?: string
+  item_id?: string[]
   per_page?: number
 }
 

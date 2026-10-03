@@ -34,14 +34,14 @@ export function StockLedgerPanel() {
   const [isExporting, setIsExporting] = useState(false)
   const [filters, setFilters] = useState<StockLedgerFilterValues>(() => ({
     ...emptyStockLedgerFilters,
-    item_id: searchParams.get('item_id') ?? '',
+    item_id: searchParams.get('item_id') ? [searchParams.get('item_id')!] : [],
     warehouse_id: searchParams.get('warehouse_id') ?? '',
   }))
 
   const activeParams = {
     ...(search ? { search } : {}),
     ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
-    ...(filters.item_id ? { item_id: filters.item_id } : {}),
+    ...(filters.item_id.length > 0 ? { item_id: filters.item_id } : {}),
     ...(filters.item_group_id ? { item_group_id: filters.item_group_id } : {}),
     ...(filters.voucher_type ? { voucher_type: filters.voucher_type } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
@@ -68,7 +68,9 @@ export function StockLedgerPanel() {
 
   const printReport = () => {
     const params = new URLSearchParams()
-    Object.entries(activeParams).forEach(([key, value]) => params.set(key, String(value)))
+    Object.entries(activeParams).forEach(([key, value]) =>
+      Array.isArray(value) ? value.forEach((v) => params.append(`${key}[]`, v)) : params.set(key, String(value)),
+    )
     openPrintWindow(`/reports/inventory-stock/print-ledger?${params.toString()}`)
   }
 
@@ -129,7 +131,7 @@ export function StockLedgerPanel() {
     { header: 'Balance Value', accessor: (row) => (row.balance_value !== null ? formatCurrency(row.balance_value) : '—'), className: 'text-right font-medium' },
   ]
 
-  const hasFilters = !!(search || filters.warehouse_id || filters.item_id || filters.item_group_id || filters.voucher_type || filters.dateFrom || filters.dateTo)
+  const hasFilters = !!(search || filters.warehouse_id || filters.item_id.length > 0 || filters.item_group_id || filters.voucher_type || filters.dateFrom || filters.dateTo)
 
   return (
     <div className="flex flex-col gap-4">

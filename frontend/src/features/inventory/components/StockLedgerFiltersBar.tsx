@@ -2,15 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
-import { fetchItem } from '@/features/master/api/itemApi'
-import { fetchItemGroups, searchItemsLookup } from '@/features/master/api/lookupsApi'
+import { fetchItemGroups } from '@/features/master/api/lookupsApi'
 import { useWarehousesLookup } from '@/features/master/hooks/useLookups'
 import { emptyStockLedgerFilters, hasActiveStockLedgerFilters } from '../lib/stockLedgerFilters'
+import { ItemMultiFilter } from './ItemMultiFilter'
 import type { StockLedgerFilterValues, VoucherType } from '../types'
-
-function itemLabel(item: { item_code: string; item_name: string }) {
-  return `${item.item_code} — ${item.item_name}`
-}
 
 const VOUCHER_TYPE_OPTIONS: SearchableSelectOption<never>[] = [
   { value: 'stock_in', label: 'Stock In' },
@@ -36,20 +32,6 @@ export function StockLedgerFiltersBar({ value, onChange }: StockLedgerFiltersBar
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const itemGroups = useQuery({ queryKey: ['item-groups-lookup'], queryFn: fetchItemGroups })
   const itemGroupOptions = itemGroups.data?.map((group) => ({ value: group.id, label: group.name })) ?? []
-
-  const loadItemOptions = async (query: string) => {
-    const items = await searchItemsLookup(query)
-    return items.map((item) => ({ value: item.id, label: itemLabel(item) }))
-  }
-
-  // Resolves the label for an item_id arriving pre-set (e.g. StockBalancePanel's "View in Ledger"
-  // cross-navigation link) — the async dropdown has no other way to know its label without this.
-  const selectedItemQuery = useQuery({
-    queryKey: ['item', value.item_id],
-    queryFn: () => fetchItem(value.item_id),
-    enabled: !!value.item_id,
-  })
-  const selectedItemOption = selectedItemQuery.data ? { value: selectedItemQuery.data.id, label: itemLabel(selectedItemQuery.data) } : undefined
 
   return (
     <FilterPanel onClear={() => onChange(emptyStockLedgerFilters)} hasActiveFilters={hasActiveStockLedgerFilters(value)}>
@@ -77,18 +59,7 @@ export function StockLedgerFiltersBar({ value, onChange }: StockLedgerFiltersBar
           aria-label="Item Group"
         />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Item</span>
-        <SearchableSelect
-          loadOptions={loadItemOptions}
-          selectedOption={selectedItemOption}
-          value={value.item_id || undefined}
-          onChange={(next) => onChange({ ...value, item_id: next ?? '' })}
-          className="w-44"
-          placeholder="All items"
-          aria-label="Item"
-        />
-      </div>
+      <ItemMultiFilter value={value.item_id} onChange={(next) => onChange({ ...value, item_id: next })} className="w-44" />
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Voucher Type</span>
         <SearchableSelect

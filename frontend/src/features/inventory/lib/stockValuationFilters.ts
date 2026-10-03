@@ -12,7 +12,7 @@ function defaultFilters(): StockValuationFilterValues {
   return {
     warehouse_id: '',
     item_group_id: '',
-    item_id: '',
+    item_id: [],
     dateFrom: toIsoDate(monthStart),
     dateTo: toIsoDate(today),
   }
@@ -21,5 +21,5 @@ function defaultFilters(): StockValuationFilterValues {
 export const emptyStockValuationFilters: StockValuationFilterValues = defaultFilters()
 
 export function hasActiveStockValuationFilters(filters: StockValuationFilterValues): boolean {
-  return filters.warehouse_id !== '' || filters.item_group_id !== '' || filters.item_id !== ''
+  return filters.warehouse_id !== '' || filters.item_group_id !== '' || filters.item_id.length > 0
 }

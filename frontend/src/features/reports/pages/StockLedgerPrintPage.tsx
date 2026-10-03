@@ -28,7 +28,7 @@ export function StockLedgerPrintPage() {
   const [searchParams] = useSearchParams()
   const warehouseId = searchParams.get('warehouse_id') ?? undefined
   const itemGroupId = searchParams.get('item_group_id') ?? undefined
-  const itemId = searchParams.get('item_id') ?? undefined
+  const itemIds = searchParams.getAll('item_id[]')
 
   const today = new Date().toISOString().slice(0, 10)
   const monthStart = `${today.slice(0, 7)}-01`
@@ -36,12 +36,12 @@ export function StockLedgerPrintPage() {
   const [dateTo, setDateTo] = useState(searchParams.get('date_to') ?? today)
 
   const reportQuery = useQuery({
-    queryKey: ['stock-ledger-summary-print', warehouseId, itemGroupId, itemId, dateFrom, dateTo],
+    queryKey: ['stock-ledger-summary-print', warehouseId, itemGroupId, itemIds, dateFrom, dateTo],
     queryFn: () =>
       fetchStockLedgerSummaryPrint({
         ...(warehouseId ? { warehouse_id: warehouseId } : {}),
         ...(itemGroupId ? { item_group_id: itemGroupId } : {}),
-        ...(itemId ? { item_id: itemId } : {}),
+        ...(itemIds.length > 0 ? { item_id: itemIds } : {}),
         date_from: dateFrom,
         date_to: dateTo,
       }),

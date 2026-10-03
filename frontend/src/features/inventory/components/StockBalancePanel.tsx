@@ -35,7 +35,7 @@ export function StockBalancePanel() {
         ...(search ? { search } : {}),
         ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
         ...(filters.item_group_id ? { item_group_id: filters.item_group_id } : {}),
-        ...(filters.item_id ? { item_id: filters.item_id } : {}),
+        ...(filters.item_id.length > 0 ? { item_id: filters.item_id } : {}),
       }),
     placeholderData: (previous) => previous,
   })
@@ -54,14 +54,14 @@ export function StockBalancePanel() {
     { header: 'Total Value', accessor: (row) => formatCurrency(row.total_value), className: 'text-right font-medium' },
   ]
 
-  const hasFilters = !!(search || filters.warehouse_id || filters.item_group_id || filters.item_id)
+  const hasFilters = !!(search || filters.warehouse_id || filters.item_group_id || filters.item_id.length > 0)
 
   const printReport = () => {
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (filters.warehouse_id) params.set('warehouse_id', filters.warehouse_id)
     if (filters.item_group_id) params.set('item_group_id', filters.item_group_id)
-    if (filters.item_id) params.set('item_id', filters.item_id)
+    filters.item_id.forEach((id) => params.append('item_id[]', id))
     openPrintWindow(`/reports/inventory-stock/print-balance?${params.toString()}`)
   }
 

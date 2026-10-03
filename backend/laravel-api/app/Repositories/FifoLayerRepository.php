@@ -126,7 +126,7 @@ class FifoLayerRepository extends BaseRepository
                 'warehouses.code as warehouse_code', 'item_groups.name as item_group_name',
             ])
             ->when($filters['warehouse_id'] ?? null, fn ($q, $warehouseId) => $q->where('fifo_layers.warehouse_id', $warehouseId))
-            ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->where('fifo_layers.item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->whereIn('fifo_layers.item_id', (array) $itemId))
             ->when($filters['item_group_id'] ?? null, fn ($q, $groupId) => $q->where('items.item_group_id', $groupId))
             ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(
                 fn ($sub) => $sub->where('items.item_code', 'like', "%{$search}%")->orWhere('items.item_name', 'like', "%{$search}%"),

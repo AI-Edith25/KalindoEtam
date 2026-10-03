@@ -246,19 +246,13 @@ class StockLedgerExportService
         $locationLabel = ($filters['warehouse_id'] ?? null)
             ? (Warehouse::find($filters['warehouse_id'])?->name ?? 'All')
             : 'All';
-        $itemLabel = 'All';
-        if ($filters['item_id'] ?? null) {
-            $item = Item::find($filters['item_id']);
-            $itemLabel = $item ? "{$item->item_code} — {$item->item_name}" : 'All';
-        }
-
         return [
             'meta' => [
                 'company_name' => self::COMPANY_NAME,
                 'period_from' => $from,
                 'period_to' => $to,
                 'location_label' => $locationLabel,
-                'item_label' => $itemLabel,
+                'item_label' => $this->itemLabel($filters),
                 'generated_at' => now()->toIso8601String(),
                 'printed_by' => auth()->user()?->name ?? 'System',
             ],
@@ -443,6 +437,23 @@ class StockLedgerExportService
         return implode(' ', array_map('ucfirst', explode('_', $value)));
     }
 
+    /** "All" / one item's "CODE — Name" / "N items" for the print/export header, depending on how many item_id values are filtered. */
+    private function itemLabel(array $filters): string
+    {
+        $itemIds = (array) ($filters['item_id'] ?? []);
+        if ($itemIds === []) {
+            return 'All';
+        }
+
+        if (count($itemIds) === 1) {
+            $item = Item::find($itemIds[0]);
+
+            return $item ? "{$item->item_code} — {$item->item_name}" : 'All';
+        }
+
+        return count($itemIds).' items';
+    }
+
     /** @param array<int, mixed> $locations built by summaryRows() */
     private function assemble(array $locations, array $filters, string $from, string $to): array
     {
@@ -451,11 +462,7 @@ class StockLedgerExportService
         $locationLabel = ($filters['warehouse_id'] ?? null)
             ? (Warehouse::find($filters['warehouse_id'])?->name ?? 'All')
             : 'All';
-        $itemLabel = 'All';
-        if ($filters['item_id'] ?? null) {
-            $item = Item::find($filters['item_id']);
-            $itemLabel = $item ? "{$item->item_code} — {$item->item_name}" : 'All';
-        }
+        $itemLabel = $this->itemLabel($filters);
 
         $rows = [
             [self::COMPANY_NAME],

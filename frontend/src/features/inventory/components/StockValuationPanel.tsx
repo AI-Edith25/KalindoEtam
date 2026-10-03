@@ -33,7 +33,7 @@ export function StockValuationPanel() {
     ...(search ? { search } : {}),
     ...(filters.warehouse_id ? { warehouse_id: filters.warehouse_id } : {}),
     ...(filters.item_group_id ? { item_group_id: filters.item_group_id } : {}),
-    ...(filters.item_id ? { item_id: filters.item_id } : {}),
+    ...(filters.item_id.length > 0 ? { item_id: filters.item_id } : {}),
   }
 
   const listQuery = useQuery({
@@ -47,7 +47,9 @@ export function StockValuationPanel() {
 
   const printReport = () => {
     const params = new URLSearchParams()
-    Object.entries(queryParams).forEach(([key, value]) => params.set(key, String(value)))
+    Object.entries(queryParams).forEach(([key, value]) =>
+      Array.isArray(value) ? value.forEach((v) => params.append(`${key}[]`, v)) : params.set(key, String(value)),
+    )
     openPrintWindow(`/reports/inventory-stock/print-valuation?${params.toString()}`)
   }
 
@@ -77,7 +79,7 @@ export function StockValuationPanel() {
     { header: 'Closing Value', accessor: (row) => formatCurrency(row.closing_value), className: 'text-right font-medium' },
   ]
 
-  const hasFilters = !!(search || filters.warehouse_id || filters.item_group_id || filters.item_id)
+  const hasFilters = !!(search || filters.warehouse_id || filters.item_group_id || filters.item_id.length > 0)
 
   return (
     <div className="flex flex-col gap-4">

@@ -23,7 +23,7 @@ export function StockValuationPrintPage() {
   const [searchParams] = useSearchParams()
   const warehouseId = searchParams.get('warehouse_id') ?? undefined
   const itemGroupId = searchParams.get('item_group_id') ?? undefined
-  const itemId = searchParams.get('item_id') ?? undefined
+  const itemIds = searchParams.getAll('item_id[]')
   const search = searchParams.get('search') ?? undefined
 
   const today = new Date().toISOString().slice(0, 10)
@@ -32,14 +32,14 @@ export function StockValuationPrintPage() {
   const [dateTo, setDateTo] = useState(searchParams.get('date_to') ?? today)
 
   const reportQuery = useQuery({
-    queryKey: ['stock-valuation-print', warehouseId, itemGroupId, itemId, search, dateFrom, dateTo],
+    queryKey: ['stock-valuation-print', warehouseId, itemGroupId, itemIds, search, dateFrom, dateTo],
     queryFn: () =>
       fetchStockValuationPrintReport({
         date_from: dateFrom,
         date_to: dateTo,
         ...(warehouseId ? { warehouse_id: warehouseId } : {}),
         ...(itemGroupId ? { item_group_id: itemGroupId } : {}),
-        ...(itemId ? { item_id: itemId } : {}),
+        ...(itemIds.length > 0 ? { item_id: itemIds } : {}),
         ...(search ? { search } : {}),
       }),
   })

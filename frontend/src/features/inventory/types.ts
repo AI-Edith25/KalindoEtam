@@ -38,7 +38,7 @@ export interface StockLedgerEntry {
 
 export interface StockLedgerFilterValues {
   warehouse_id: string
-  item_id: string
+  item_id: string[]
   item_group_id: string
   voucher_type: VoucherType | null
   dateFrom: string
@@ -68,7 +68,7 @@ export interface StockBalanceSummary {
 export interface StockBalanceFilterValues {
   warehouse_id: string
   item_group_id: string
-  item_id: string
+  item_id: string[]
 }
 
 /** One flat row per (item, warehouse) for the Stock Balance print — see StockLedgerExportService::balanceReportRows(). */
@@ -203,7 +203,7 @@ export interface StockValuationPrintReport {
 export interface StockValuationFilterValues {
   warehouse_id: string
   item_group_id: string
-  item_id: string
+  item_id: string[]
   dateFrom: string
   dateTo: string
 }

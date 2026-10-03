@@ -6,7 +6,7 @@ export interface StockLedgerListParams {
   page: number
   search?: string
   warehouse_id?: string
-  item_id?: string
+  item_id?: string[]
   item_group_id?: string
   voucher_type?: string
   date_from?: string

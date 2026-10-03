@@ -89,7 +89,7 @@ class StockLedgerRepository extends BaseRepository
         return $this->model->query()
             ->with(['item.itemGroup', 'item.uom', 'warehouse'])
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
-            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->whereIn('item_id', (array) $itemId))
             ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->whereHas('item', fn ($iq) => $iq->where('item_group_id', $itemGroupId)))
             ->whereBetween('posting_datetime', ["{$from} 00:00:00", "{$to} 23:59:59"])
             ->orderBy('posting_datetime')
@@ -110,7 +110,7 @@ class StockLedgerRepository extends BaseRepository
             ->select('item_id', 'warehouse_id')
             ->selectRaw('SUM(qty_change) as opening_qty')
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
-            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->whereIn('item_id', (array) $itemId))
             ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->whereHas('item', fn ($iq) => $iq->where('item_group_id', $itemGroupId)))
             ->where('posting_datetime', '<', "{$before} 00:00:00")
             ->groupBy('item_id', 'warehouse_id')
@@ -125,7 +125,7 @@ class StockLedgerRepository extends BaseRepository
         $row = $this->model->query()
             ->selectRaw('MIN(posting_datetime) as first_date, MAX(posting_datetime) as last_date')
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
-            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->whereIn('item_id', (array) $itemId))
             ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->whereHas('item', fn ($iq) => $iq->where('item_group_id', $itemGroupId)))
             ->first();
 
@@ -136,7 +136,7 @@ class StockLedgerRepository extends BaseRepository
     {
         return $query
             ->when($filters['warehouse_id'] ?? null, fn ($q, $warehouseId) => $q->where('warehouse_id', $warehouseId))
-            ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->where('item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($q, $itemId) => $q->whereIn('item_id', (array) $itemId))
             ->when($filters['item_group_id'] ?? null, fn ($q, $itemGroupId) => $q->whereHas('item', fn ($iq) => $iq->where('item_group_id', $itemGroupId)))
             ->when($filters['voucher_type'] ?? null, fn ($q, $voucherType) => $q->where('voucher_type', $voucherType))
             ->when($filters['date_from'] ?? null, fn ($q, $date) => $q->whereDate('posting_datetime', '>=', $date))
@@ -256,7 +256,7 @@ class StockLedgerRepository extends BaseRepository
             ])
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('qty_totals.warehouse_id', $warehouseId))
             ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->where('items.item_group_id', $itemGroupId))
-            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('qty_totals.item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->whereIn('qty_totals.item_id', (array) $itemId))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
                 fn ($q) => $q->where('items.item_code', 'like', "%{$search}%")
                     ->orWhere('items.item_name', 'like', "%{$search}%")
@@ -297,7 +297,7 @@ class StockLedgerRepository extends BaseRepository
             ])
             ->when($filters['warehouse_id'] ?? null, fn ($query, $warehouseId) => $query->where('qty_totals.warehouse_id', $warehouseId))
             ->when($filters['item_group_id'] ?? null, fn ($query, $itemGroupId) => $query->where('items.item_group_id', $itemGroupId))
-            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->where('qty_totals.item_id', $itemId))
+            ->when($filters['item_id'] ?? null, fn ($query, $itemId) => $query->whereIn('qty_totals.item_id', (array) $itemId))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(
                 fn ($q) => $q->where('items.item_code', 'like', "%{$search}%")
                     ->orWhere('items.item_name', 'like', "%{$search}%")

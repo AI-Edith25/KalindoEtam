@@ -2,15 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
-import { fetchItem } from '@/features/master/api/itemApi'
-import { fetchItemGroups, searchItemsLookup } from '@/features/master/api/lookupsApi'
+import { fetchItemGroups } from '@/features/master/api/lookupsApi'
 import { useWarehousesLookup } from '@/features/master/hooks/useLookups'
 import { emptyStockValuationFilters, hasActiveStockValuationFilters } from '../lib/stockValuationFilters'
+import { ItemMultiFilter } from './ItemMultiFilter'
 import type { StockValuationFilterValues } from '../types'
-
-function itemLabel(item: { item_code: string; item_name: string }) {
-  return `${item.item_code} — ${item.item_name}`
-}
 
 interface StockValuationFiltersBarProps {
   value: StockValuationFilterValues
@@ -22,19 +18,6 @@ export function StockValuationFiltersBar({ value, onChange }: StockValuationFilt
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const itemGroups = useQuery({ queryKey: ['item-groups-lookup'], queryFn: fetchItemGroups })
   const itemGroupOptions = itemGroups.data?.map((group) => ({ value: group.id, label: group.name })) ?? []
-
-  const loadItemOptions = async (query: string) => {
-    const items = await searchItemsLookup(query)
-    return items.map((item) => ({ value: item.id, label: itemLabel(item) }))
-  }
-
-  // Resolves the label for an item_id arriving pre-set (cross-navigation link) — same as StockLedgerFiltersBar.
-  const selectedItemQuery = useQuery({
-    queryKey: ['item', value.item_id],
-    queryFn: () => fetchItem(value.item_id),
-    enabled: !!value.item_id,
-  })
-  const selectedItemOption = selectedItemQuery.data ? { value: selectedItemQuery.data.id, label: itemLabel(selectedItemQuery.data) } : undefined
 
   return (
     <FilterPanel onClear={() => onChange(emptyStockValuationFilters)} hasActiveFilters={hasActiveStockValuationFilters(value)}>
@@ -70,18 +53,7 @@ export function StockValuationFiltersBar({ value, onChange }: StockValuationFilt
           aria-label="Item Group"
         />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Item</span>
-        <SearchableSelect
-          loadOptions={loadItemOptions}
-          selectedOption={selectedItemOption}
-          value={value.item_id || undefined}
-          onChange={(next) => onChange({ ...value, item_id: next ?? '' })}
-          className="w-44"
-          placeholder="All items"
-          aria-label="Item"
-        />
-      </div>
+      <ItemMultiFilter value={value.item_id} onChange={(next) => onChange({ ...value, item_id: next })} className="w-44" />
     </FilterPanel>
   )
 }

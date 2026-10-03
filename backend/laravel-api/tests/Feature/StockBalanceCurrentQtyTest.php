@@ -165,4 +165,32 @@ class StockBalanceCurrentQtyTest extends TestCase
             }
         }
     }
+
+    /** Reports > Inventory Stock's Item filter now lets more than one item be picked — item_id must accept an array and whereIn-match it, not just a single uuid. */
+    public function test_item_id_filter_accepts_multiple_items(): void
+    {
+        $warehouse = Warehouse::query()->create(['name' => 'Samarinda', 'code' => 'SMD', 'warehouse_type' => WarehouseType::MAIN]);
+        $itemGroup = ItemGroup::query()->create(['name' => 'General']);
+        $uom = UnitOfMeasurement::query()->create(['name' => 'Zak']);
+        $itemA = Item::query()->create(['item_code' => 'A', 'item_name' => 'Item A', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 0]);
+        $itemB = Item::query()->create(['item_code' => 'B', 'item_name' => 'Item B', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 0]);
+        $itemC = Item::query()->create(['item_code' => 'C', 'item_name' => 'Item C', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 0]);
+
+        $ledger = app(StockLedgerService::class);
+        foreach ([$itemA, $itemB, $itemC] as $item) {
+            $ledger->record(
+                itemId: $item->id, warehouseId: $warehouse->id,
+                transactionType: StockTransactionType::IN, voucherType: StockVoucherType::OPENING_STOCK,
+                voucherId: (string) Str::uuid(), qtyChange: 10, postingDatetime: now(),
+            );
+        }
+
+        $response = $this->getJson('/api/v1/stock-ledger/balances/report?'.http_build_query(['item_id' => [$itemA->id, $itemB->id]]));
+        $response->assertOk();
+
+        $returnedItemIds = collect($response->json('data'))->pluck('item_id');
+        $this->assertTrue($returnedItemIds->contains($itemA->id));
+        $this->assertTrue($returnedItemIds->contains($itemB->id));
+        $this->assertFalse($returnedItemIds->contains($itemC->id));
+    }
 }
