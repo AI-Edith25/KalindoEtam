@@ -23,8 +23,13 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
  * shared list-all endpoint, now filtered by invoice_ids instead of due-date/branch/salesman),
  * deliberately rendered as a flat list (no per-customer grouping/subtotals like the old page —
  * CUSTOMER / CUSTOMER NAME repeat on every row instead), matching Laporan_penagihan.pdf's
- * 7-column layout — REFERENCE reads invoice.reference_1 (same field Tanda Terima Invoice print
- * uses), not invoice.deliveries. No # suffix on any column header (Reference 2 dropped entirely).
+ * 7-column layout. REFERENCE reads invoice.deliveries' document numbers (joined with ", " when
+ * an invoice merges more than one Delivery/Sales Order), not invoice.reference_1 — a single
+ * scalar column that only ever holds the anchor source's own reference (InvoiceService::create()),
+ * so a merged invoice's later sources silently disappeared when this read reference_1 instead
+ * (regressed by df284d4, only partially caught by 18d532c's own revert — see 83bfe00 for the
+ * original fix and reasoning, same field/logic Sales > Invoices' own "Reference" column uses).
+ * No # suffix on any column header (Reference 2 dropped entirely).
  */
 export function LaporanPenagihanHarianPrintPage() {
   const [searchParams] = useSearchParams()
@@ -76,7 +81,7 @@ export function LaporanPenagihanHarianPrintPage() {
                 <td className="py-1 pr-2 align-top">{row.customer?.customer_name ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
                 <td className="py-1 pr-2 align-top">{row.invoice?.document_number ?? ''}</td>
-                <td className="py-1 pr-2 align-top">{row.invoice?.reference_1 ?? ''}</td>
+                <td className="py-1 pr-2 align-top">{(row.invoice?.deliveries ?? []).join(', ')}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
                 <td className="py-1 text-right align-top">{formatNum(row.outstanding_amount, 2)}</td>
               </tr>
