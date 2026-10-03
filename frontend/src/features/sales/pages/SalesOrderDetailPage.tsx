@@ -218,14 +218,14 @@ export function SalesOrderDetailPage() {
       />
 
       {order.status === 'submitted' && creditBlocked && (
-        <Card className="border-destructive/50 bg-destructive/5">
+        <Card className="border-[#FECACA] bg-[#FEF2F2]">
           <CardContent className="flex flex-col gap-3 py-4 text-sm">
             <div className="flex items-start gap-2 text-destructive">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <span>{creditMessage}</span>
             </div>
             {canOverrideCredit && (
-              <div className="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+              <div className="flex flex-col gap-2 border-t border-[#FEE2E2] pt-3">
                 <div className="flex flex-row items-center justify-between">
                   <span className="cursor-pointer">Override and continue anyway</span>
                   <Switch checked={overrideCreditBlock} onCheckedChange={setOverrideCreditBlock} />
@@ -244,14 +244,14 @@ export function SalesOrderDetailPage() {
       )}
 
       {order.status === 'submitted' && stockBlocked && (
-        <Card className="border-destructive/50 bg-destructive/5">
+        <Card className="border-[#FECACA] bg-[#FEF2F2]">
           <CardContent className="flex flex-col gap-3 py-4 text-sm">
             <div className="flex items-start gap-2 text-destructive">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <span>{stockMessage}</span>
             </div>
             {canOverrideStock && (
-              <div className="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+              <div className="flex flex-col gap-2 border-t border-[#FEE2E2] pt-3">
                 <div className="flex flex-row items-center justify-between">
                   <span className="cursor-pointer">Override and continue anyway</span>
                   <Switch checked={overrideStockBlock} onCheckedChange={setOverrideStockBlock} />

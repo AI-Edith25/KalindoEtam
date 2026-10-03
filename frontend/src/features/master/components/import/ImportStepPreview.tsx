@@ -74,7 +74,7 @@ export function ImportStepPreview({ batchId, onCommitted, onBack }: ImportStepPr
       </div>
 
       {result.summary.valid === 0 && result.summary.total > 0 && (
-        <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="rounded-md border border-[#FECACA] bg-[#FEE2E2] px-3 py-2 text-sm text-destructive">
           No valid rows to import. Check the Messages column below, then go back to fix mapping or FK resolutions.
         </p>
       )}

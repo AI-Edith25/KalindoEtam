@@ -317,13 +317,13 @@ export function SalesOrderEditorPage() {
                 </FormControl>
               </FormItem>
               {creditBlocked && (
-                <div className="flex flex-col gap-3 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm sm:col-span-2">
+                <div className="flex flex-col gap-3 rounded-md border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm sm:col-span-2">
                   <div className="flex items-start gap-2 text-destructive">
                     <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                     <span>{creditMessage}</span>
                   </div>
                   {canOverrideCredit && (
-                    <div className="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+                    <div className="flex flex-col gap-2 border-t border-[#FEE2E2] pt-3">
                       <FormField
                         control={form.control}
                         name="override_credit_block"
@@ -534,13 +534,13 @@ export function SalesOrderEditorPage() {
               )}
 
               {stockCheck.blocked && (
-                <div className="mt-3 flex flex-col gap-3 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
+                <div className="mt-3 flex flex-col gap-3 rounded-md border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm">
                   <div className="flex items-start gap-2 text-destructive">
                     <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                     <span>{stockCheck.message}</span>
                   </div>
                   {canOverrideStock && (
-                    <div className="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+                    <div className="flex flex-col gap-2 border-t border-[#FEE2E2] pt-3">
                       <FormField
                         control={form.control}
                         name="override_stock_block"
