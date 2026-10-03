@@ -324,7 +324,7 @@ export function InvoiceListPage() {
             setSearch(value)
             setPage(1)
           }}
-          placeholder="Search invoice number or customer…"
+          placeholder="Search invoice number, reference, or customer…"
         />
         <InvoiceFiltersBar
           value={filters}

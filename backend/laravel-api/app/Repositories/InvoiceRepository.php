@@ -78,7 +78,10 @@ class InvoiceRepository extends BaseRepository
                 ])))
             ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(
                 fn ($sq) => $sq->where('document_number', 'like', "%{$search}%")
+                    ->orWhere('reference_1', 'like', "%{$search}%")
+                    ->orWhere('reference_2', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($sq2) => $sq2->where('customer_name', 'like', "%{$search}%"))
+                    ->orWhereHas('deliveries', fn ($sq2) => $sq2->where('document_number', 'like', "%{$search}%"))
             ));
     }
 
