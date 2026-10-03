@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\V1\JournalListController;
 use App\Http\Controllers\Api\V1\MiscellaneousItemController;
 use App\Http\Controllers\Api\V1\NamingSeriesController;
 use App\Http\Controllers\Api\V1\OfficialReceiptImportController;
+use App\Http\Controllers\Api\V1\SkybizLedgerReconciliationImportController;
 use App\Http\Controllers\Api\V1\OpeningStockController;
 use App\Http\Controllers\Api\V1\OpenOrdersController;
 use App\Http\Controllers\Api\V1\PaymentAllocationController;
@@ -515,6 +516,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Official Receipt smart import — one click, no mapping/preview wizard. See OfficialReceiptImportService.
     Route::post('receipt-entries/import', [OfficialReceiptImportController::class, 'store'])->middleware('permission:finance.incoming_payment.import');
     Route::get('receipt-entries/import/{batch}', [OfficialReceiptImportController::class, 'show'])->middleware('permission:finance.incoming_payment.import');
+
+    // Skybiz Customer Ledger reconciliation import — recovers pre-migration AR payment history.
+    // Unlike every other import above, this one has a mandatory preview gate: store() always
+    // previews (dry-run), confirm() is the separate explicit step that actually posts Official
+    // Receipts. See SkybizLedgerReconciliationImportService.
+    Route::post('skybiz-ledger-reconciliation/import', [SkybizLedgerReconciliationImportController::class, 'store'])->middleware('permission:finance.incoming_payment.import');
+    Route::post('skybiz-ledger-reconciliation/import/{batch}/confirm', [SkybizLedgerReconciliationImportController::class, 'confirm'])->middleware('permission:finance.incoming_payment.import');
+    Route::get('skybiz-ledger-reconciliation/import/{batch}', [SkybizLedgerReconciliationImportController::class, 'show'])->middleware('permission:finance.incoming_payment.import');
 
     // Bank Reconciliation: upload a bank statement (mutasi rekening koran), preview
     // its parsed rows, then confirm to persist + auto-match against Payment

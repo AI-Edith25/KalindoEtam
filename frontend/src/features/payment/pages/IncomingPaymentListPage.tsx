@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, Eye, Pencil, Plus, RotateCw, Send, Trash2, Upload } from 'lucide-react'
+import { Download, Eye, Pencil, Plus, RotateCw, ScanSearch, Send, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
@@ -19,6 +19,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { deleteReceiptEntry, fetchOfficialReceiptImportBatch, fetchReceiptEntries, importOfficialReceipts, submitReceiptEntry } from '../api/receiptEntryApi'
 import { ReceiptEntryFiltersBar } from '../components/ReceiptEntryFiltersBar'
 import { LedgerImportReportDialog } from '../components/LedgerImportReportDialog'
+import { SkybizLedgerReconciliationDialog } from '../components/SkybizLedgerReconciliationDialog'
 import { emptyReceiptEntryFilters, hasActiveReceiptEntryFilters } from '../lib/receiptEntryFilters'
 import type { ReceiptEntry, ReceiptEntryFilterValues } from '../types'
 
@@ -43,6 +44,7 @@ export function IncomingPaymentListPage() {
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [importBatchId, setImportBatchId] = useState<string | null>(null)
   const importFileInputRef = useRef<HTMLInputElement>(null)
+  const [skybizReconciliationOpen, setSkybizReconciliationOpen] = useState(false)
 
   const listQuery = useQuery({
     queryKey: ['receipt-entries', page, search, filters.status, filters.source, filters.dateFrom, filters.dateTo, filters.unallocatedOnly],
@@ -181,6 +183,12 @@ export function IncomingPaymentListPage() {
                 disabled: !canImport || importMutation.isPending,
                 onClick: () => importFileInputRef.current?.click(),
               },
+              {
+                label: 'Rekonsiliasi Pelunasan (Skybiz)',
+                icon: ScanSearch,
+                disabled: !canImport,
+                onClick: () => setSkybizReconciliationOpen(true),
+              },
             ]}
             primary={canCreate ? { label: 'New Payment', icon: Plus, onClick: () => navigate('/finance/incoming/new') } : undefined}
           />
@@ -250,6 +258,12 @@ export function IncomingPaymentListPage() {
           setImportBatchId(null)
           invalidate()
         }}
+      />
+
+      <SkybizLedgerReconciliationDialog
+        open={skybizReconciliationOpen}
+        onClose={() => setSkybizReconciliationOpen(false)}
+        onImported={invalidate}
       />
     </div>
   )

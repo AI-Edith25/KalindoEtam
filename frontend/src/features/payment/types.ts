@@ -176,6 +176,40 @@ export interface LegacyLedgerImportBatch {
   has_failed_rows?: boolean
 }
 
+/** SkybizLedgerReconciliationImportService::buildPlan()'s summary shape — same for preview and commit. */
+export interface SkybizReconciliationSummary {
+  customers_processed: number
+  invoices_matched_up_to_date: number
+  invoices_to_correct: number
+  total_amount_to_apply: number
+  or_to_create: number
+  unmatched_unparseable_ref: number
+  unmatched_ambiguous: number
+  unmatched_not_found_in_scope: number
+  ke_higher_than_skybiz_conflict: number
+  reversal_rows_needs_review: number
+  pre_migration_out_of_scope: number
+  already_imported: number
+  preview_sample: Array<{ category: string; status: string; reference: string | null; customer_block: string | null; amount: number | null; date: string | null; reason: string | null }>
+}
+
+export type SkybizReconciliationImportBatchStatus = 'uploaded' | 'queued' | 'processing' | 'previewed' | 'completed' | 'failed'
+
+/** Unlike every other smart import, this one has a mandatory preview gate — status goes
+ * uploaded -> queued -> processing -> previewed (dry-run done, nothing written) -> [user
+ * confirms] -> queued -> processing -> completed. See SkybizLedgerReconciliationImportController. */
+export interface SkybizReconciliationImportBatch {
+  id: string
+  status: SkybizReconciliationImportBatchStatus
+  total_rows: number
+  processed_rows: number
+  success_rows: number
+  failed_rows: number
+  failure_reason: string | null
+  preview_summary: SkybizReconciliationSummary | null
+  has_failed_rows?: boolean
+}
+
 export interface AccountsReceivable {
   id: string
   customer_id: string
