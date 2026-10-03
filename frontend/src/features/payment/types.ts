@@ -189,6 +189,7 @@ export interface SkybizReconciliationSummary {
   ke_higher_than_skybiz_conflict: number
   reversal_rows_needs_review: number
   pre_migration_out_of_scope: number
+  invoice_cancelled_skipped: number
   already_imported: number
   preview_sample: Array<{ category: string; status: string; reference: string | null; customer_block: string | null; amount: number | null; date: string | null; reason: string | null }>
 }

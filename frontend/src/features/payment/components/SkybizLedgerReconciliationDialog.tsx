@@ -27,6 +27,7 @@ const FLAG_LABELS: Record<string, string> = {
   unmatched_not_found_in_scope: 'Ada di Skybiz, tidak ditemukan di KE',
   ke_higher_than_skybiz_conflict: 'paid_amount KE lebih tinggi — cek manual',
   reversal_rows_needs_review: 'Baris reversal/retur — cek manual',
+  invoice_cancelled_skipped: 'Invoice sudah Cancelled di KE — dilewati',
   already_imported: 'Sudah pernah diimpor sebelumnya',
 }
 
@@ -85,8 +86,7 @@ export function SkybizLedgerReconciliationDialog({ open, onClose, onImported }: 
   const summary = batch?.preview_summary ?? null
   const progress = batch && batch.total_rows > 0 ? Math.round((batch.processed_rows / batch.total_rows) * 100) : 0
   const flaggedCount = summary
-    ? summary.unmatched_unparseable_ref + summary.unmatched_ambiguous + summary.unmatched_not_found_in_scope
-      + summary.ke_higher_than_skybiz_conflict + summary.reversal_rows_needs_review + summary.already_imported
+    ? Object.keys(FLAG_LABELS).reduce((total, key) => total + ((summary as unknown as Record<string, number>)[key] ?? 0), 0)
     : 0
 
   return (

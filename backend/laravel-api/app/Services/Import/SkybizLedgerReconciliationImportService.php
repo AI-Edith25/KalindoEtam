@@ -2,6 +2,7 @@
 
 namespace App\Services\Import;
 
+use App\Enums\DocumentStatus;
 use App\Enums\ImportBatchStatus;
 use App\Enums\PaymentMethod;
 use App\Models\AccountsReceivable;
@@ -241,6 +242,7 @@ final class SkybizLedgerReconciliationImportService
             'ke_higher_than_skybiz_conflict' => 0,
             'reversal_rows_needs_review' => 0,
             'pre_migration_out_of_scope' => 0,
+            'invoice_cancelled_skipped' => 0,
             'already_imported' => 0,
         ];
 
@@ -496,6 +498,16 @@ final class SkybizLedgerReconciliationImportService
         if ($ar === null) {
             $summary['unmatched_not_found_in_scope']++;
             $reportRows[] = $this->reportRow('unmatched_not_found_in_scope', $inv, $block, 'Invoice ditemukan di KE tapi tidak punya baris Accounts Receivable.');
+
+            return;
+        }
+
+        // A cancelled Invoice can still carry an AR row (e.g. backfilled historical data) but has
+        // no real outstanding receivable to settle — posting a payment against it would be
+        // nonsensical, found in production data (an import-backfilled, cancelled invoice).
+        if ($ar->invoice?->status === DocumentStatus::CANCELLED) {
+            $summary['invoice_cancelled_skipped']++;
+            $reportRows[] = $this->reportRow('invoice_cancelled_skipped', $inv, $block, 'Invoice ini sudah berstatus Cancelled di KE — tidak diproses otomatis, perlu cek manual.');
 
             return;
         }

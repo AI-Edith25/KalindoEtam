@@ -212,6 +212,28 @@ class SkybizLedgerReconciliationImportServiceTest extends TestCase
         $this->assertEquals(50000, (float) $ar->refresh()->paid_amount);
     }
 
+    /** Found in production: a backfilled historical invoice can be Cancelled yet still carry an AR row. */
+    public function test_cancelled_invoice_is_skipped_not_auto_corrected(): void
+    {
+        $customer = $this->makeCustomer('C-0013');
+        $invoice = $this->makeInvoice($customer, 'SI/KE/00013/08/2026', 100000);
+        $invoice->update(['status' => DocumentStatus::CANCELLED->value]);
+        $ar = $this->makeReceivable($invoice, 100000);
+
+        $csv = self::PREAMBLE.self::HEADER
+            ."C-0013 - Customer C-0013,,,,,,,\r\n"
+            ."13/08/2026,Sales,SI/KE/00013/08/2026,SJ,,100000,0,100000\r\n"
+            .'27/08/2026,"PIUTANG USAHA, BANK BCA 1312",OR/KE/00013/08/2026,CB,,0,100000,0'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->run($batch, true);
+        $batch->refresh();
+
+        $this->assertSame(1, $batch->preview_summary['invoice_cancelled_skipped']);
+        $this->assertSame(0, ReceiptEntry::query()->count());
+        $this->assertEquals(0, (float) $ar->refresh()->paid_amount);
+    }
+
     public function test_unparseable_reference_is_reported_not_crashed(): void
     {
         $customer = $this->makeCustomer('C-0006');
