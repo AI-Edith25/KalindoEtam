@@ -163,7 +163,22 @@ export function DeliveryListPage() {
   const columns: DataTableColumn<Delivery>[] = [
     selection.selectionColumn,
     { header: 'Date', accessor: (row) => formatDate(row.delivery_date), sortKey: 'delivery_date' },
-    { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    {
+      header: 'Document',
+      accessor: (row) => (
+        <button
+          type="button"
+          className="text-blue-600 hover:underline"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/sales/deliveries/${row.id}`)
+          }}
+        >
+          {row.document_number ?? '—'}
+        </button>
+      ),
+      sortKey: 'document_number',
+    },
     { header: 'Reference', accessor: (row) => row.sales_order?.document_number ?? '—' },
     { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
     { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
@@ -405,7 +420,6 @@ export function DeliveryListPage() {
               ? 'No deliveries match your search or filters.'
               : 'No deliveries yet.'
         }
-        onRowClick={(row) => navigate(`/sales/deliveries/${row.id}`)}
         sort={sort}
         onSortChange={handleSortChange}
       />

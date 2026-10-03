@@ -219,7 +219,22 @@ export function InvoiceListPage() {
   const columns: DataTableColumn<Invoice>[] = [
     selectionColumn,
     { header: 'Date', accessor: (row) => formatDate(row.invoice_date), sortKey: 'invoice_date' },
-    { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    {
+      header: 'Document',
+      accessor: (row) => (
+        <button
+          type="button"
+          className="text-blue-600 hover:underline"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/sales/invoices/${row.id}`)
+          }}
+        >
+          {row.document_number ?? '—'}
+        </button>
+      ),
+      sortKey: 'document_number',
+    },
     {
       header: 'Reference',
       accessor: (row) =>
@@ -343,7 +358,6 @@ export function InvoiceListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No invoices match your search or filters.' : 'No invoices yet.'}
-        onRowClick={(row) => navigate(`/sales/invoices/${row.id}`)}
         sort={sort}
         onSortChange={handleSortChange}
       />

@@ -155,7 +155,22 @@ export function PurchaseOrderListPage() {
   }
 
   const columns: DataTableColumn<PurchaseOrder>[] = [
-    { header: 'Document Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    {
+      header: 'Document Number',
+      accessor: (row) => (
+        <button
+          type="button"
+          className="text-blue-600 hover:underline"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/purchase/orders/${row.id}`)
+          }}
+        >
+          {row.document_number ?? '—'}
+        </button>
+      ),
+      sortKey: 'document_number',
+    },
     { header: 'Supplier', accessor: (row) => row.supplier?.supplier_name ?? '—' },
     { header: 'Date', accessor: (row) => formatDate(row.order_date), sortKey: 'order_date' },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status} /> },
@@ -247,7 +262,6 @@ export function PurchaseOrderListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No purchase orders match your search or filters.' : 'No purchase orders yet.'}
-        onRowClick={(row) => navigate(`/purchase/orders/${row.id}`)}
         sort={sort}
         onSortChange={handleSortChange}
       />

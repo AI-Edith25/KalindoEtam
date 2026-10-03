@@ -153,7 +153,22 @@ export function GoodsReceiptListPage() {
   }
 
   const columns: DataTableColumn<GoodsReceipt>[] = [
-    { header: 'Document Number', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    {
+      header: 'Document Number',
+      accessor: (row) => (
+        <button
+          type="button"
+          className="text-blue-600 hover:underline"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/purchase/goods-receipts/${row.id}`)
+          }}
+        >
+          {row.document_number ?? '—'}
+        </button>
+      ),
+      sortKey: 'document_number',
+    },
     {
       header: 'Purchase Order',
       accessor: (row) =>
@@ -263,7 +278,6 @@ export function GoodsReceiptListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No goods receipts match your search or filters.' : 'No goods receipts yet.'}
-        onRowClick={(row) => navigate(`/purchase/goods-receipts/${row.id}`)}
         sort={sort}
         onSortChange={handleSortChange}
       />

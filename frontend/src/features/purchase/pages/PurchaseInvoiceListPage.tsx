@@ -116,7 +116,21 @@ export function PurchaseInvoiceListPage() {
 
   const columns: DataTableColumn<PurchaseInvoice>[] = [
     { header: 'Date', accessor: (row) => formatDate(row.invoice_date) },
-    { header: 'Document Number', accessor: (row) => row.document_number ?? '—' },
+    {
+      header: 'Document Number',
+      accessor: (row) => (
+        <button
+          type="button"
+          className="text-blue-600 hover:underline"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/purchase/invoices/${row.id}`)
+          }}
+        >
+          {row.document_number ?? '—'}
+        </button>
+      ),
+    },
     { header: 'Type', accessor: (row) => <Badge variant={row.source === 'direct' ? 'outline' : 'secondary'}>{row.source === 'direct' ? 'Direct' : 'Goods Receipt'}</Badge> },
     { header: 'Reference', accessor: (row) => row.goods_receipt?.document_number ?? row.reference_number ?? '—' },
     { header: 'Supplier Name', accessor: (row) => row.supplier?.supplier_name ?? '—' },
@@ -180,7 +194,6 @@ export function PurchaseInvoiceListPage() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No purchase invoices match your search or filters.' : 'No purchase invoices yet.'}
-        onRowClick={(row) => navigate(`/purchase/invoices/${row.id}`)}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
