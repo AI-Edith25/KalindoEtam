@@ -184,7 +184,22 @@ export function SalesOrderListPage() {
   const columns: DataTableColumn<SalesOrder>[] = [
     selection.selectionColumn,
     { header: 'Date', accessor: (row) => formatDate(row.order_date), sortKey: 'order_date' },
-    { header: 'Document', accessor: (row) => row.document_number ?? '—', sortKey: 'document_number' },
+    {
+      header: 'Document',
+      accessor: (row) => (
+        <button
+          type="button"
+          className="text-blue-600 hover:underline"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/sales/orders/${row.id}`)
+          }}
+        >
+          {row.document_number ?? '—'}
+        </button>
+      ),
+      sortKey: 'document_number',
+    },
     { header: 'Customer Name', accessor: (row) => row.customer?.customer_name ?? '—' },
     {
       header: 'Amount',
@@ -467,7 +482,6 @@ export function SalesOrderListPage() {
               ? 'No sales orders match your search or filters.'
               : 'No sales orders yet.'
         }
-        onRowClick={(row) => navigate(`/sales/orders/${row.id}`)}
         sort={sort}
         onSortChange={handleSortChange}
       />
