@@ -27,7 +27,7 @@ use Illuminate\Support\Collection;
  * BALANCE VALUE (both sheets, every row) prices the running qty at *today's* weighted-average
  * cost, same convention as StockLedgerService::attachCostInfo() — this ledger never stored a
  * per-row cost snapshot, so a true point-in-time value isn't reconstructable. Per-transaction
- * UNIT COST/VALUE IN/VALUE OUT *are* exact (FifoLayer/FifoLayerConsumption audit trail).
+ * UNIT COST/LINE AMOUNT *are* exact (FifoLayer/FifoLayerConsumption audit trail).
  */
 class StockLedgerExportService
 {
@@ -43,7 +43,7 @@ class StockLedgerExportService
     private const DETAIL_COLUMNS = [
         'DATE', 'ITEM CODE', 'ITEM NAME', 'LOCATION', 'CUSTOMER', 'VOUCHER TYPE',
         'REFERENCE DOCUMENT', 'MOVEMENT TYPE', 'UOM', 'QTY IN', 'QTY OUT',
-        'RUNNING BALANCE', 'UNIT COST', 'VALUE IN', 'VALUE OUT', 'BALANCE VALUE',
+        'RUNNING BALANCE', 'UNIT COST', 'LINE AMOUNT', 'BALANCE VALUE',
     ];
 
     public function __construct(
@@ -96,14 +96,13 @@ class StockLedgerExportService
                 $qtyChange < 0 ? abs($qtyChange) : null,
                 (float) $row->balance_qty,
                 $row->unit_cost ?: null,
-                $row->value_in ?: null,
-                $row->value_out ?: null,
+                $qtyChange > 0 ? ($row->value_in ?: null) : ($row->value_out ? -$row->value_out : null),
                 $row->balance_value ?? null,
             ];
         })->values()->all();
 
         $lastRow = 1 + count($body);
-        $lastColumn = 'P';
+        $lastColumn = 'O';
 
         return [
             'rows' => [self::DETAIL_COLUMNS, ...$body],
@@ -115,7 +114,11 @@ class StockLedgerExportService
                 'numberFormats' => $lastRow > 1 ? [
                     ['range' => "J2:J{$lastRow}", 'format' => '#,##0.00;[Red](#,##0.00)'],
                     ['range' => "K2:K{$lastRow}", 'format' => '#,##0.00;[Red](#,##0.00)'],
-                    ['range' => "L2:P{$lastRow}", 'format' => '#,##0.00;[Red](#,##0.00)'],
+                    ['range' => "L2:M{$lastRow}", 'format' => '#,##0.00;[Red](#,##0.00)'],
+                    // Plain (single-section) format — negative Line Amount (Out) renders with a
+                    // leading minus sign, not the accounting-style red parens used elsewhere here.
+                    ['range' => "N2:N{$lastRow}", 'format' => '#,##0.00'],
+                    ['range' => "O2:O{$lastRow}", 'format' => '#,##0.00;[Red](#,##0.00)'],
                 ] : [],
                 'freezePane' => 'A2',
                 'autoFilter' => "A1:{$lastColumn}1",

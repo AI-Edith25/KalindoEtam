@@ -126,8 +126,14 @@ export function StockLedgerPanel() {
     },
     { header: 'Running Balance', accessor: (row) => formatNumber(row.balance_qty), className: 'text-right font-medium' },
     { header: 'Unit Cost', accessor: (row) => (row.unit_cost ? formatCurrency(row.unit_cost) : '—'), className: 'text-right text-muted-foreground' },
-    { header: 'Value In', accessor: (row) => (row.value_in ? formatCurrency(row.value_in) : '—'), className: 'text-right' },
-    { header: 'Value Out', accessor: (row) => (row.value_out ? formatCurrency(row.value_out) : '—'), className: 'text-right' },
+    {
+      header: 'Line Amount',
+      accessor: (row) => {
+        const amount = row.value_out ? -row.value_out : row.value_in
+        return amount ? formatCurrency(amount) : '—'
+      },
+      className: 'text-right',
+    },
     { header: 'Balance Value', accessor: (row) => (row.balance_value !== null ? formatCurrency(row.balance_value) : '—'), className: 'text-right font-medium' },
   ]
 
