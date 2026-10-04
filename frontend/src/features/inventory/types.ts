@@ -36,6 +36,14 @@ export interface StockLedgerEntry {
   balance_value: number | null
 }
 
+/** TOTAL row for the Stock Ledger report — always the full filtered set, never just the current page. closing_balance_qty is the chronologically last row's own running balance, not a sum. */
+export interface StockLedgerTotals {
+  qty_in: number
+  qty_out: number
+  line_amount: number
+  closing_balance_qty: number
+}
+
 export interface StockLedgerFilterValues {
   warehouse_id: string
   item_id: string[]

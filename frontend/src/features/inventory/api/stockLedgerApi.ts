@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
-import type { ApiListResponse } from '@/shared/types/api'
-import type { StockLedgerEntry, StockLedgerSummaryPrintReport } from '../types'
+import type { ApiListResponse, PaginationMeta } from '@/shared/types/api'
+import type { StockLedgerEntry, StockLedgerSummaryPrintReport, StockLedgerTotals } from '../types'
 
 export interface StockLedgerListParams {
   page: number
@@ -14,9 +14,13 @@ export interface StockLedgerListParams {
   per_page?: number
 }
 
+export interface StockLedgerListResponse extends ApiListResponse<StockLedgerEntry> {
+  meta: PaginationMeta & { summary: StockLedgerTotals }
+}
+
 /** Server-side paginated + filtered — every ledger entry across every item/warehouse. */
-export async function fetchStockLedgerEntries(params: StockLedgerListParams): Promise<ApiListResponse<StockLedgerEntry>> {
-  const { data } = await apiClient.get<ApiListResponse<StockLedgerEntry>>('/stock-ledger', { params })
+export async function fetchStockLedgerEntries(params: StockLedgerListParams): Promise<StockLedgerListResponse> {
+  const { data } = await apiClient.get<StockLedgerListResponse>('/stock-ledger', { params })
   return data
 }
 

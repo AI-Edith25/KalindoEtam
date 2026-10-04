@@ -45,7 +45,12 @@ class StockLedgerController extends Controller
             $this->stockLedgerService->attachCostInfo($this->stockLedgerService->listAll($filters, $perPage))
         );
 
-        return $this->success(StockLedgerResource::collection($rows));
+        return $this->success(
+            StockLedgerResource::collection($rows),
+            '',
+            200,
+            ['summary' => $this->stockLedgerService->ledgerTotals($filters)],
+        );
     }
 
     /** Summary + Detail workbook — see StockLedgerExportService's own docblock for the two sheets' shape. */

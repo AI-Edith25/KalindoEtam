@@ -254,6 +254,49 @@ class StockLedgerService
     }
 
     /**
+     * TOTAL row for the Stock Ledger report — always the full filtered set, never just the
+     * current page, same convention as totalValueSummary(). Reuses searchAll() (ascending
+     * posting order, same filters/eager-loads as the Detail export) and attachCostInfo() via
+     * the same fake-paginator trick StockLedgerExportService::annotate() uses, instead of
+     * re-deriving value_in/value_out's FifoLayer/FifoLayerConsumption lookup in raw SQL.
+     * closing_balance_qty is the chronologically LAST row's own balance_qty, not a sum — Running
+     * Balance is cumulative, so only meaningful as a snapshot, not a total.
+     */
+    public function ledgerTotals(array $filters): array
+    {
+        $rows = $this->stockLedgerRepository->searchAll($filters);
+
+        if ($rows->isEmpty()) {
+            return ['qty_in' => 0.0, 'qty_out' => 0.0, 'line_amount' => 0.0, 'closing_balance_qty' => 0.0];
+        }
+
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator($rows, $rows->count(), max($rows->count(), 1));
+        $this->attachCostInfo($paginator);
+        $annotated = $paginator->getCollection();
+
+        $qtyIn = 0.0;
+        $qtyOut = 0.0;
+        $lineAmount = 0.0;
+        foreach ($annotated as $row) {
+            $qtyChange = (float) $row->qty_change;
+            if ($qtyChange > 0) {
+                $qtyIn += $qtyChange;
+                $lineAmount += $row->value_in;
+            } else {
+                $qtyOut += abs($qtyChange);
+                $lineAmount -= $row->value_out;
+            }
+        }
+
+        return [
+            'qty_in' => round($qtyIn, 2),
+            'qty_out' => round($qtyOut, 2),
+            'line_amount' => round($lineAmount, 2),
+            'closing_balance_qty' => (float) $annotated->last()->balance_qty,
+        ];
+    }
+
+    /**
      * Writes whatever ledger entry is needed so the item+warehouse's balance
      * becomes exactly $targetBalance — the concurrency-safe way to reconcile
      * a physical count. The read (locked) and the write happen in the same

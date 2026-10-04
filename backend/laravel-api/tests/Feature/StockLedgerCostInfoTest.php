@@ -122,4 +122,45 @@ class StockLedgerCostInfoTest extends TestCase
         $this->assertEquals('Acme Corp', $deliveryRow['customer_name']);
         $this->assertNull($receiptRow['customer_name']);
     }
+
+    public function test_meta_summary_totals_the_full_filtered_set_not_just_the_current_page(): void
+    {
+        $warehouse = Warehouse::query()->create(['name' => 'Samarinda', 'code' => 'SMD', 'warehouse_type' => WarehouseType::MAIN]);
+        $itemGroup = ItemGroup::query()->create(['name' => 'General']);
+        $uom = UnitOfMeasurement::query()->create(['name' => 'Zak']);
+        $item = Item::query()->create([
+            'item_code' => 'ITM001', 'item_name' => 'Semen Portland 50kg', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 60000,
+        ]);
+
+        $fifo = app(FifoLayerService::class);
+        $receiptId = (string) Str::uuid();
+        $fifo->receive($item->id, $warehouse->id, 30, 58000, StockVoucherType::GOODS_RECEIPT, $receiptId, 'GR-1', now()->subMinute());
+        app(\App\Services\StockLedgerService::class)->record(
+            itemId: $item->id, warehouseId: $warehouse->id,
+            transactionType: \App\Enums\StockTransactionType::IN, voucherType: StockVoucherType::GOODS_RECEIPT,
+            voucherId: $receiptId, qtyChange: 30, postingDatetime: now()->subMinute(),
+        );
+
+        $deliveryId = (string) Str::uuid();
+        $fifo->consume($item->id, $warehouse->id, 10, StockVoucherType::DELIVERY, $deliveryId);
+        app(\App\Services\StockLedgerService::class)->record(
+            itemId: $item->id, warehouseId: $warehouse->id,
+            transactionType: \App\Enums\StockTransactionType::OUT, voucherType: StockVoucherType::DELIVERY,
+            voucherId: $deliveryId, qtyChange: -10, postingDatetime: now(),
+        );
+
+        // per_page=1 — only one of the two rows is on the returned page, but the summary must
+        // still reflect both.
+        $response = $this->getJson('/api/v1/stock-ledger?per_page=1');
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+
+        $summary = $response->json('meta.summary');
+        $this->assertEquals(30, $summary['qty_in']);
+        $this->assertEquals(10, $summary['qty_out']);
+        $this->assertEquals(30 * 58000 - 10 * 58000, $summary['line_amount']);
+        // Closing balance is the chronologically LAST row's own running balance (the delivery,
+        // 20 remaining), never a sum of balance_qty across rows.
+        $this->assertEquals(20, $summary['closing_balance_qty']);
+    }
 }

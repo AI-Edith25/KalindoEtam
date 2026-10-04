@@ -8,6 +8,7 @@ import { SearchBox } from '@/components/shared/SearchBox'
 import { Pagination } from '@/components/shared/Pagination'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
+import { TableCell, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { exportStockLedger, fetchStockLedgerEntries } from '../api/stockLedgerApi'
 import { StockLedgerFiltersBar } from './StockLedgerFiltersBar'
@@ -65,6 +66,22 @@ export function StockLedgerPanel() {
   })
 
   const rows = useMemo(() => listQuery.data?.data ?? [], [listQuery.data])
+  const totals = listQuery.data?.meta.summary
+
+  // TOTAL row — Qty In/Out and Line Amount are summed across every row matching the active
+  // filters (not just this page); Running Balance is cumulative, so its total is the
+  // chronologically last row's own balance, not a sum (see ledgerTotals() on the backend).
+  const footerRow = totals && (
+    <TableRow>
+      <TableCell colSpan={7}>TOTAL</TableCell>
+      <TableCell className="text-right">{formatNumber(totals.qty_in)}</TableCell>
+      <TableCell className="text-right">{formatNumber(totals.qty_out)}</TableCell>
+      <TableCell className="text-right">{formatNumber(totals.closing_balance_qty)}</TableCell>
+      <TableCell />
+      <TableCell className="text-right">{formatCurrency(totals.line_amount)}</TableCell>
+      <TableCell />
+    </TableRow>
+  )
 
   const printReport = () => {
     const params = new URLSearchParams()
@@ -179,6 +196,7 @@ export function StockLedgerPanel() {
         isError={listQuery.isError}
         onRetry={() => listQuery.refetch()}
         emptyMessage={hasFilters ? 'No stock movements match your search or filters.' : 'No stock movements yet.'}
+        footerRow={footerRow}
       />
 
       {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
