@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency } from '@/lib/utils'
 import { fetchAccountsPayables } from '../api/accountsPayableApi'
@@ -24,6 +25,13 @@ interface MixedVoucherLinesTableProps {
   expenseAccountsLoading: boolean
   branchOptions: Option[]
   branchesLoading: boolean
+}
+
+// ponytail: textarea is already a native no-submit-on-Enter control, so swapping Input -> Textarea
+// fixes the submit bug for free; this just adds the auto-grow-by-content behavior on top.
+function autoGrow(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
 }
 
 function emptyLine(): MixedVoucherLineDraft {
@@ -186,10 +194,18 @@ function MixedVoucherLineRow({
               placeholder="Select category"
               aria-label="Category"
             />
-            <Input
+            <Textarea
+              ref={(el) => {
+                if (el) autoGrow(el)
+              }}
               placeholder="Description"
+              rows={1}
               value={line.description}
-              onChange={(e) => onChange({ description: e.target.value })}
+              onChange={(e) => {
+                autoGrow(e.target)
+                onChange({ description: e.target.value })
+              }}
+              className="min-h-0 resize-none overflow-hidden"
             />
           </div>
         )}
