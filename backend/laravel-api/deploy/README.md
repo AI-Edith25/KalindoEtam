@@ -27,6 +27,15 @@ instead of a stale copy already loaded in memory:
 php artisan queue:restart
 ```
 
+**Use `queue:restart`, not `systemctl restart laravel-worker`, during a deploy.** The former waits
+for the current job to finish before reloading; the latter sends SIGTERM and — since the unit's
+`TimeoutStopSec` is set just above the longest job's `$timeout` — will eventually SIGKILL a job
+still running past that ceiling. Killing an in-flight import job this way doesn't corrupt data (the
+"smart import" services are idempotent on rerun), but it does surface as a confusing
+`MaxAttemptsExceededException` ("has been attempted too many times") on the next pickup for any
+job using `$tries = 1`, instead of the job's own error. If you see that exception with no other
+cause, check whether the worker was restarted mid-job and just rerun the import.
+
 If a batch gets stuck at `queued` (worker down, or was down when it was dispatched), recover it
 without waiting on the queue:
 

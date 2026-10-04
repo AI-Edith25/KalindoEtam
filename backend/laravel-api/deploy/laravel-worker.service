@@ -8,6 +8,15 @@ WorkingDirectory=/home/edithclinic/apps/KalindoEtam/backend/laravel-api
 ExecStart=/usr/bin/php artisan queue:work database --queue=default --tries=3 --timeout=600 --sleep=3
 Restart=always
 RestartSec=3
+# A plain `systemctl restart/stop` sends SIGTERM then, by default, SIGKILLs after ~90s if the
+# worker hasn't exited — but a queued job (e.g. the Skybiz reconciliation import) can legitimately
+# run up to its own $timeout (3600s). Without this, a mid-deploy restart kills that job mid-write;
+# the respawned worker then redelivers the same still-"reserved" row as a second attempt, which
+# instantly fails with MaxAttemptsExceededException on any job using $tries=1. Longer than the
+# longest job timeout in the app so a graceful stop always has time to let it finish.
+# `php artisan queue:restart` remains the safe way to reload code — it waits between jobs, never
+# mid-job — this only protects against a direct `systemctl restart/stop`.
+TimeoutStopSec=3700
 
 [Install]
 WantedBy=multi-user.target
