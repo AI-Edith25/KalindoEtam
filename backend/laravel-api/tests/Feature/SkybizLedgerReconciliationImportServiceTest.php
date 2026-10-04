@@ -406,4 +406,47 @@ class SkybizLedgerReconciliationImportServiceTest extends TestCase
         $suspenseRows = $cashBookRows->filter(fn ($row) => $row['bank_account_id'] === $suspense->id);
         $this->assertTrue($suspenseRows->contains(fn ($row) => $row['document_number'] === $entry->document_number));
     }
+
+    /**
+     * Regression guard for a real production incident: a customer block that racks up a long
+     * history of invoices, each paid off before the next is raised, used to make allocateBlock()
+     * take 20+ minutes on a real 55k-row file. Every CB row re-scanned (and re-sorted) the FULL
+     * open-invoice list, and a settled invoice was never removed from it — so by the end of a
+     * long customer block, each new row was re-scanning thousands of already-fully-paid invoices
+     * it could never match. This keeps the true open count at 1 throughout (correctness still
+     * verified via or_to_create), so without the prune in allocateBlock() this blows well past the
+     * time bound; with it, matching stays proportional to what's actually outstanding.
+     */
+    public function test_a_long_pay_as_you_go_customer_block_does_not_degrade_quadratically(): void
+    {
+        $customer = $this->makeCustomer('C-SCALE');
+        $invoiceCount = 4000;
+
+        $rows = '';
+        for ($i = 1; $i <= $invoiceCount; $i++) {
+            $docNumber = sprintf('SI/KE/%05d/08/2026', $i);
+            $orRef = sprintf('OR/KE/%05d/08/2026', $i);
+            $invoice = $this->makeInvoice($customer, $docNumber, 1000, '2026-08-01');
+            $this->makeReceivable($invoice, 1000);
+
+            $rows .= "01/08/2026,Sales,{$docNumber},SJ,,1000,0,1000\r\n";
+            $rows .= "01/08/2026,\"PIUTANG USAHA, BANK BCA 1312\",{$orRef},CB,,0,1000,0\r\n";
+        }
+
+        $csv = self::PREAMBLE.self::HEADER."C-SCALE - Customer C-SCALE,,,,,,,\r\n".$rows;
+
+        $batch = $this->makeBatch($csv);
+
+        $startedAt = microtime(true);
+        $this->service->run($batch, false);
+        $elapsedSeconds = microtime(true) - $startedAt;
+
+        $batch->refresh();
+        $this->assertEquals(ImportBatchStatus::PREVIEWED, $batch->status);
+        $this->assertSame($invoiceCount, $batch->preview_summary['or_to_create']);
+        // Benchmarked: fixed allocateBlock() does the pure matching for 4000 rows in ~0.02s
+        // (linear); unfixed (array never pruned) takes ~8s for matching alone (quadratic) — this
+        // bound has wide margin on the fixed side and is well below the unfixed side.
+        $this->assertLessThan(5.0, $elapsedSeconds, 'allocateBlock() appears to have regressed back to quadratic — see the incident this test guards against.');
+    }
 }

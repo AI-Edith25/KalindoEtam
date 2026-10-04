@@ -397,6 +397,16 @@ final class SkybizLedgerReconciliationImportService
                     $remaining -= $apply;
                 }
             }
+
+            // Drop invoices fully settled by this row from the OPEN list (allInvoices keeps every
+            // invoice regardless) — a credit row always re-scans every still-open invoice, so for a
+            // customer block with thousands of rows, leaving fully-paid ones in makes both the
+            // explicit-match pass and the per-row usort() in the FIFO pass grow unbounded over the
+            // block's whole history instead of staying proportional to what's actually outstanding.
+            $openInvoices = array_values(array_filter(
+                $openInvoices,
+                fn ($inv) => ($inv->amount - $inv->paid) > self::AMOUNT_EPSILON,
+            ));
         }
 
         return [$allInvoices, $reversalRows];
