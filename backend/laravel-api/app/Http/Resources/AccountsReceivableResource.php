@@ -21,6 +21,13 @@ class AccountsReceivableResource extends JsonResource
                 'status' => $this->invoice->status,
                 'reference_1' => $this->invoice->reference_1,
                 'reference_2' => $this->invoice->reference_2,
+                // Laporan Penagihan Harian's own "Outstanding Amount" column reads this, not
+                // AR.outstanding_amount — a historical-imported Invoice's AR paid_amount is seeded
+                // from the (separate, possibly stale) Customer Outstanding Bills snapshot, so its
+                // Paid/Unpaid status here is not the authoritative collection figure the field
+                // actually bills off (user-confirmed 2026-10-05: this report must always show the
+                // Invoice's own billed amount, regardless of AR payment status).
+                'grand_total' => $this->invoice->grand_total,
                 // Laporan Penagihan Harian's Reference column (2026-08-19) shows the same delivery
                 // document numbers as Sales > Invoices' own "Reference" column — not reference_1
                 // (an SO reference number, a different concept despite the shared column name).

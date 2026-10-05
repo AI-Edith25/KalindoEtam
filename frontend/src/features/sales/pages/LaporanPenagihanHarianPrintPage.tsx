@@ -19,9 +19,9 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
 
 /**
  * Reached from Sales > Invoices' checkbox selection (?ids=uuid,uuid,...), replacing the old
- * /reports/penagihan-harian — same AccountsReceivable.outstanding_amount data source (via the
- * shared list-all endpoint, now filtered by invoice_ids instead of due-date/branch/salesman),
- * deliberately rendered as a flat list (no per-customer grouping/subtotals like the old page —
+ * /reports/penagihan-harian — same AccountsReceivable list-all endpoint (now filtered by
+ * invoice_ids instead of due-date/branch/salesman), deliberately rendered as a flat list (no
+ * per-customer grouping/subtotals like the old page —
  * CUSTOMER / CUSTOMER NAME repeat on every row instead), matching Laporan_penagihan.pdf's
  * 7-column layout. REFERENCE reads invoice.deliveries' document numbers (joined with ", " when
  * an invoice merges more than one Delivery/Sales Order), not invoice.reference_1 — a single
@@ -30,6 +30,12 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
  * (regressed by df284d4, only partially caught by 18d532c's own revert — see 83bfe00 for the
  * original fix and reasoning, same field/logic Sales > Invoices' own "Reference" column uses).
  * No # suffix on any column header (Reference 2 dropped entirely).
+ *
+ * OUTSTANDING AMOUNT reads invoice.grand_total (the Invoice's own billed amount), not
+ * AccountsReceivable.outstanding_amount — a historical-imported Invoice's AR paid_amount is
+ * seeded from the separate Customer Outstanding Bills snapshot and can mark it Paid even though
+ * the field still needs to bill off the full invoiced amount (user-confirmed 2026-10-05: this
+ * report always shows the SI's own amount, independent of the system's payment/aging status).
  */
 export function LaporanPenagihanHarianPrintPage() {
   const [searchParams] = useSearchParams()
@@ -42,7 +48,7 @@ export function LaporanPenagihanHarianPrintPage() {
   })
 
   const rows = listQuery.data ?? []
-  const total = rows.reduce((sum, row) => sum + Number(row.outstanding_amount), 0)
+  const total = rows.reduce((sum, row) => sum + Number(row.invoice?.grand_total ?? 0), 0)
   const today = new Date().toISOString().slice(0, 10)
 
   return (
@@ -83,7 +89,7 @@ export function LaporanPenagihanHarianPrintPage() {
                 <td className="py-1 pr-2 align-top">{row.invoice?.document_number ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{(row.invoice?.deliveries ?? []).join(', ')}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
-                <td className="py-1 text-right align-top">{formatNum(row.outstanding_amount, 2)}</td>
+                <td className="py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
               </tr>
             ))}
           </tbody>

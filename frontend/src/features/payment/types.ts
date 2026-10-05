@@ -225,6 +225,8 @@ export interface AccountsReceivable {
     reference_2: string | null
     /** Delivery document numbers — same source as Sales > Invoices' own "Reference" column. */
     deliveries: string[]
+    /** Invoice's own billed amount — Laporan Penagihan Harian's "Outstanding Amount" column reads this, not AR.outstanding_amount. */
+    grand_total: string | number
   } | null
   sales_order_id: string
   delivery_id: string
