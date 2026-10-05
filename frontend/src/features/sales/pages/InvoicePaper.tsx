@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import JsBarcode from 'jsbarcode'
 import type { CompanyPrintHeader } from '@/features/administration/types'
 import { DOTMATRIX_HALF_DEFAULTS, type PrintOptions } from '@/shared/lib/printOptions'
+import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import { useAuth } from '@/app/AuthContext'
 import type { Invoice } from '../types'
 import { InvoiceLandscapeLayout } from './InvoiceLandscapeLayout'
@@ -285,7 +286,7 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
               <tr key={item.id}>
                 <td className="pt-1 pr-1 align-top font-bold">{item.item_code ?? ''}</td>
                 <td className="pt-1 pr-1 align-top"></td>
-                <td className="pt-1 pr-1 text-right align-top">{formatNum(item.qty, 0)}</td>
+                <td className="pt-1 pr-1 text-right align-top">{formatNum(item.qty, qtyDecimalPlaces(item.qty_category ?? 'unit'))}</td>
                 <td className="pt-1 pr-1 align-top">{item.uom ?? ''}</td>
                 <td className="pt-1 pr-1 text-right align-top">{formatNum(item.rate, 2)}</td>
                 {showTax && <td className="pt-1 pr-1 text-right align-top">{formatNum(item.tax_amount, 2)}</td>}

@@ -259,7 +259,9 @@ export interface InvoiceItem {
   item_code: string | null
   item_name: string
   uom: string | null
-  qty: number
+  qty: string | number
+  // Snapshot at creation — drives whole-vs-decimal qty input/display, mirrors App\Enums\QtyCategory.
+  qty_category: 'unit' | 'weight' | null
   rate: string | number
   amount: string | number
   discount_type: DiscountType

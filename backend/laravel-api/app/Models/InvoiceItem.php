@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QtyCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +24,7 @@ class InvoiceItem extends Model
         'uom_factor',
         'rate',
         'qty',
+        'qty_category',
         'amount',
         'discount_type',
         'discount_value',
@@ -36,7 +38,8 @@ class InvoiceItem extends Model
 
     protected $casts = [
         'rate' => 'decimal:2',
-        'qty' => 'integer',
+        'qty' => 'decimal:4',
+        'qty_category' => QtyCategory::class,
         'amount' => 'decimal:2',
         'discount_value' => 'decimal:2',
         'discount_amount' => 'decimal:2',

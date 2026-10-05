@@ -56,7 +56,10 @@ class StoreInvoiceRequest extends FormRequest
             // Direct Goods derives its UOM from the Item master instead, never from the request.
             'items.*.uom' => [Rule::when($isTransportation, 'nullable', 'prohibited'), 'string', 'max:50'],
             'items.*.item_id' => [Rule::when($isDirectGoods, 'required', 'prohibited'), 'uuid', 'exists:items,id'],
-            'items.*.qty' => ['required_with:items', 'integer', 'min:1'],
+            // Whole-vs-decimal is enforced in InvoiceService by QtyCategoryValidator against the
+            // line's own Item.qty_category (e.g. loose/jumbo cement billed by truck-scale weight),
+            // not here — same posture as StoreDeliveryRequest/StorePurchaseInvoiceRequest.
+            'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01'],
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],
             // Transportation and Direct Goods only — per-line discount, replacing the old header
             // field (discount is per-item now, never a document-wide figure).

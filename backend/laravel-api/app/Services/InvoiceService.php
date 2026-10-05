@@ -37,6 +37,7 @@ class InvoiceService
         protected AuditLogService $auditLogService,
         protected FifoLayerService $fifoLayerService,
         protected StockLedgerService $stockLedgerService,
+        protected QtyCategoryValidator $qtyCategoryValidator,
     ) {}
 
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -162,6 +163,7 @@ class InvoiceService
                         'uom_factor' => $line->uom_factor,
                         'rate' => $line->rate,
                         'qty' => $line->qty,
+                        'qty_category' => $line->qty_category,
                         'amount' => $line->amount,
                         // Copied verbatim from the DeliveryItem — already resolved upstream,
                         // same frozen-snapshot treatment as item_code/item_name/uom above.
@@ -315,7 +317,8 @@ class InvoiceService
                     throw new BusinessException("Item not found for one of the selected lines.");
                 }
 
-                $qty = (float) $line['qty'];
+                $this->qtyCategoryValidator->assertValid($item, $line['qty']);
+                $qty = $this->qtyCategoryValidator->round($item, $line['qty']);
                 $rate = (float) $line['rate'];
                 $grossAmount = $qty * $rate;
                 [$discountType, $discountValue, $discountAmount, $netAmount] = $this->discountService->resolveLineDiscount($line, $grossAmount);
@@ -381,6 +384,7 @@ class InvoiceService
                     'uom' => $item->uom?->name,
                     'rate' => $line['rate'],
                     'qty' => $line['qty'],
+                    'qty_category' => $item->qty_category,
                     'amount' => $line['amount'],
                     'discount_type' => $line['discount_type']->value,
                     'discount_value' => $line['discount_value'],
@@ -583,7 +587,7 @@ class InvoiceService
      */
     protected function applyItemChanges(Invoice $invoice, array $items): void
     {
-        $invoice->load('items');
+        $invoice->load('items.item');
         $existing = $invoice->items->keyBy('id');
         $incomingIds = collect($items)->pluck('id')->filter()->unique()->values();
 
@@ -595,7 +599,17 @@ class InvoiceService
 
         foreach ($existing as $id => $line) {
             $incoming = $incomingById->get($id);
-            $qty = (int) round((float) ($incoming['qty'] ?? $line->qty));
+            $rawQty = (float) ($incoming['qty'] ?? $line->qty);
+
+            // Transportation lines carry no Item (freestanding, see createTransportation()) — fall
+            // back to whole-number rounding for those; every real Item-backed line is validated/
+            // rounded against its own qty_category, same as createDirectGoods().
+            if ($line->item !== null) {
+                $this->qtyCategoryValidator->assertValid($line->item, $rawQty);
+                $qty = $this->qtyCategoryValidator->round($line->item, $rawQty);
+            } else {
+                $qty = (int) round($rawQty);
+            }
 
             if ($qty <= 0) {
                 throw new BusinessException("Qty untuk item \"{$line->item_name}\" harus lebih dari 0.");

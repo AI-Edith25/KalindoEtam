@@ -20,6 +20,7 @@ import { DiscountInput } from '@/components/shared/DiscountInput'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeLineTaxTotal, computeSubtotal, computeTotalDiscount, lineNetAmount } from '@/shared/lib/documentTotals'
+import { qtyDecimalPlaces, type QtyCategory } from '@/shared/lib/qty'
 import { fetchBranches, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
 import { fetchInvoice, updateInvoice } from '../api/invoiceApi'
 import type { InvoiceItem } from '../types'
@@ -30,6 +31,8 @@ interface EditableLine {
   item_name: string
   uom: string | null
   qty: string
+  // Snapshotted at creation — drives whole-vs-decimal qty input, same as InvoiceEditorPage's own field.
+  qty_category: QtyCategory
   rate: string
   discount_type: string
   discount_value: string
@@ -43,6 +46,7 @@ function toEditableLine(line: InvoiceItem): EditableLine {
     item_name: line.item_name,
     uom: line.uom,
     qty: String(line.qty),
+    qty_category: line.qty_category ?? 'unit',
     rate: String(line.rate),
     discount_type: line.discount_type,
     discount_value: String(line.discount_value ?? 0),
@@ -319,7 +323,19 @@ export function InvoiceSubmittedEditPage() {
                       </div>
                     </TableCell>
                     <TableCell className="min-w-28">
-                      <Input type="number" min={1} step="1" className="text-right" value={line.qty} onChange={(e) => patchLine(line.id, { qty: e.target.value })} />
+                      {(() => {
+                        const decimalPlaces = qtyDecimalPlaces(line.qty_category)
+                        return (
+                          <Input
+                            type="number"
+                            min={decimalPlaces > 0 ? 0.01 : 1}
+                            step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                            className="text-right"
+                            value={line.qty}
+                            onChange={(e) => patchLine(line.id, { qty: e.target.value })}
+                          />
+                        )
+                      })()}
                     </TableCell>
                     <TableCell className="min-w-40">
                       <RupiahInput value={line.rate} onChange={(value) => patchLine(line.id, { rate: value })} />

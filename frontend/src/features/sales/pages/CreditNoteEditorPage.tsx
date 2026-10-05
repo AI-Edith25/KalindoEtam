@@ -21,6 +21,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import { fetchInvoice, fetchInvoices } from '../api/invoiceApi'
 import { createCreditNote, fetchCreditNote, submitCreditNote, updateCreditNote } from '../api/creditNoteApi'
 import { creditNoteFormSchema, emptyCreditNoteEditorValues, type CreditNoteEditorValues } from '../lib/creditNoteFormSchema'
@@ -371,16 +372,21 @@ export function CreditNoteEditorPage() {
                           <TableCell className="text-right">{formatNumber(line.creditable_qty)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(line.creditable_amount)}</TableCell>
                           <TableCell className="min-w-32">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={capQty}
-                              step="1"
-                              placeholder="0"
-                              disabled={!quantityAllowed}
-                              value={existing?.qtyCredited ?? ''}
-                              onChange={(event) => setLine(line.id, { qtyCredited: event.target.value })}
-                            />
+                            {(() => {
+                              const decimalPlaces = qtyDecimalPlaces(line.qty_category ?? 'unit')
+                              return (
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={capQty}
+                                  step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                                  placeholder="0"
+                                  disabled={!quantityAllowed}
+                                  value={existing?.qtyCredited ?? ''}
+                                  onChange={(event) => setLine(line.id, { qtyCredited: event.target.value })}
+                                />
+                              )
+                            })()}
                           </TableCell>
                           <TableCell className="min-w-36">
                             <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setLine(line.id, { amount: value })} />

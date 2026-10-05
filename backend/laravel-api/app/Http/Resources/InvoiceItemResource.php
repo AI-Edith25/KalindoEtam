@@ -26,6 +26,7 @@ class InvoiceItemResource extends JsonResource
             'uom' => $this->uom,
             'rate' => $this->rate,
             'qty' => $this->qty,
+            'qty_category' => $this->qty_category,
             'amount' => $this->amount,
             'discount_type' => $this->discount_type,
             'discount_value' => $this->discount_value,
@@ -34,9 +35,9 @@ class InvoiceItemResource extends JsonResource
             'tax_id' => $this->tax_id,
             'tax' => new TaxResource($this->whenLoaded('tax')),
             'tax_amount' => $this->tax_amount,
-            'credited_qty' => (int) $creditedTotals->qty,
+            'credited_qty' => (float) $creditedTotals->qty,
             'credited_amount' => (float) $creditedTotals->amount,
-            'creditable_qty' => (int) $this->qty - (int) $creditedTotals->qty,
+            'creditable_qty' => (float) $this->qty - (float) $creditedTotals->qty,
             'creditable_amount' => (float) $this->amount - (float) $creditedTotals->amount,
             // Traced back through the Delivery/Sales Order this line originated from — a
             // manual line item (e.g. Transportation invoices) has no deliveryItem, so this

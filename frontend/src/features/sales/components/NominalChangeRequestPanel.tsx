@@ -114,7 +114,7 @@ export function NominalChangeRequestPanel({ invoice, onChanged }: NominalChangeR
 
   const previewGrandTotal = invoice.items.reduce((sum, item) => {
     const rate = rates[item.id] !== undefined ? Number(rates[item.id]) : Number(item.rate)
-    return sum + rate * item.qty
+    return sum + rate * Number(item.qty)
   }, 0) - Number(invoice.discount_amount) + Number(invoice.tax_amount)
 
   return (
@@ -168,7 +168,7 @@ export function NominalChangeRequestPanel({ invoice, onChanged }: NominalChangeR
                     onChange={(event) => setRates((prev) => ({ ...prev, [item.id]: event.target.value }))}
                   />
                   <span className="w-32 text-right text-sm">
-                    {formatCurrency((rates[item.id] !== undefined ? Number(rates[item.id]) : Number(item.rate)) * item.qty)}
+                    {formatCurrency((rates[item.id] !== undefined ? Number(rates[item.id]) : Number(item.rate)) * Number(item.qty))}
                   </span>
                 </div>
               ))}

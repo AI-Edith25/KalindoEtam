@@ -1,5 +1,6 @@
 import type { CompanyPrintHeader } from '@/features/administration/types'
 import { terbilangIdr } from '@/shared/lib/numberToWords'
+import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { Invoice } from '../types'
 import {
   DEJAVU_FONT_FACES,
@@ -463,7 +464,7 @@ export function InvoiceLandscapeLayout({
                             content = item.item_name
                             break
                           case 'qty':
-                            content = fmt(item.qty, 0)
+                            content = fmt(item.qty, qtyDecimalPlaces(item.qty_category ?? 'unit'))
                             break
                           case 'uom':
                             content = item.uom ?? ''

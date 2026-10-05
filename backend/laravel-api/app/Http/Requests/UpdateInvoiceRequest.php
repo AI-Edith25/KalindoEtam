@@ -69,7 +69,7 @@ class UpdateInvoiceRequest extends FormRequest
                 'required_with:items', 'uuid',
                 Rule::exists('invoice_items', 'id')->where('invoice_id', $this->route('invoice')?->id),
             ],
-            'items.*.qty' => ['sometimes', 'numeric', 'min:1'],
+            'items.*.qty' => ['sometimes', 'numeric', 'min:0.01'],
             'items.*.rate' => ['sometimes', 'numeric', 'min:0'],
             'items.*.discount_type' => ['sometimes', 'nullable', Rule::enum(DiscountType::class)],
             'items.*.discount_value' => ['sometimes', 'nullable', 'numeric', 'min:0'],

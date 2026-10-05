@@ -37,6 +37,7 @@ import {
 } from '@/features/master/api/lookupsApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { computeLineTaxTotal, computeSubtotal, computeTotalDiscount, lineNetAmount } from '@/shared/lib/documentTotals'
+import { isValidQtyForCategory, qtyDecimalPlaces, qtyErrorMessage, type QtyCategory } from '@/shared/lib/qty'
 import type { Customer, Item, MiscellaneousItem } from '@/features/master/types'
 import { fetchDeliveries } from '../api/deliveryApi'
 import { createInvoice, fetchInvoice, submitInvoice, updateInvoice } from '../api/invoiceApi'
@@ -59,6 +60,8 @@ interface EditableInvoiceLine {
   item_name: string
   uom: string | null
   qty: string
+  // Snapshotted at creation — drives whole-vs-decimal qty input, same as DirectGoodsLine's own field.
+  qty_category: QtyCategory
   rate: string
   discount_type: string
   discount_value: string
@@ -70,7 +73,7 @@ interface PreviewLine {
   item_code: string | null
   item_name: string
   uom: string | null
-  qty: number
+  qty: string | number
   rate: string | number
   amount: string | number
   discount_amount: string | number
@@ -140,6 +143,8 @@ interface DirectGoodsLine {
   item_label: string
   uom: string | null
   qty: string
+  // Set from the selected Item's own qty_category — drives whole-vs-decimal qty input.
+  qty_category: QtyCategory
   rate: string
   discount_type: string
   discount_value: string
@@ -154,6 +159,7 @@ const emptyDirectGoodsLine = (): DirectGoodsLine => ({
   item_label: '',
   uom: null,
   qty: '1',
+  qty_category: 'unit',
   rate: '0',
   discount_type: 'amount',
   discount_value: '0',
@@ -440,6 +446,7 @@ function InvoiceForm({
           item_name: line.item_name,
           uom: line.uom,
           qty: String(line.qty),
+          qty_category: line.qty_category ?? 'unit',
           rate: String(line.rate),
           discount_type: line.discount_type,
           discount_value: String(line.discount_value ?? 0),
@@ -514,6 +521,7 @@ function InvoiceForm({
       uom: selected?.uom?.name ?? null,
       rate: selected ? String(selected.effective_rate) : '0',
       tax_id: selected?.sales_tax_id ?? '',
+      qty_category: selected?.qty_category ?? 'unit',
     })
   }
 
@@ -746,6 +754,11 @@ function InvoiceForm({
       }
       if (validLines.some((line) => Number(line.qty) <= 0 || Number(line.rate) < 0)) {
         toast.error('Each line needs a qty greater than 0 and a rate of 0 or more.')
+        return
+      }
+      const invalidQtyLine = validLines.find((line) => !isValidQtyForCategory(line.qty, line.qty_category))
+      if (invalidQtyLine) {
+        toast.error(qtyErrorMessage(invalidQtyLine.qty_category))
         return
       }
     }
@@ -1128,14 +1141,19 @@ function InvoiceForm({
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{line.uom ?? '—'}</TableCell>
                           <TableCell className="min-w-32">
-                            <Input
-                              type="number"
-                              min={1}
-                              step="1"
-                              className="text-right"
-                              value={line.qty}
-                              onChange={(event) => setDirectGoodsLine(line.key, { qty: event.target.value })}
-                            />
+                            {(() => {
+                              const decimalPlaces = qtyDecimalPlaces(line.qty_category)
+                              return (
+                                <Input
+                                  type="number"
+                                  min={decimalPlaces > 0 ? 0.01 : 1}
+                                  step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                                  className="text-right"
+                                  value={line.qty}
+                                  onChange={(event) => setDirectGoodsLine(line.key, { qty: event.target.value })}
+                                />
+                              )
+                            })()}
                           </TableCell>
                           <TableCell className="min-w-40">
                             <RupiahInput value={line.rate} onChange={(value) => setDirectGoodsLine(line.key, { rate: value })} />
@@ -1203,14 +1221,19 @@ function InvoiceForm({
                               </div>
                             </TableCell>
                             <TableCell className="min-w-28">
-                              <Input
-                                type="number"
-                                min={1}
-                                step="1"
-                                className="text-right"
-                                value={line.qty}
-                                onChange={(event) => patchEditableLine(line.id, { qty: event.target.value })}
-                              />
+                              {(() => {
+                                const decimalPlaces = qtyDecimalPlaces(line.qty_category)
+                                return (
+                                  <Input
+                                    type="number"
+                                    min={decimalPlaces > 0 ? 0.01 : 1}
+                                    step={decimalPlaces > 0 ? (10 ** -decimalPlaces).toFixed(decimalPlaces) : '1'}
+                                    className="text-right"
+                                    value={line.qty}
+                                    onChange={(event) => patchEditableLine(line.id, { qty: event.target.value })}
+                                  />
+                                )
+                              })()}
                             </TableCell>
                             <TableCell className="min-w-40">
                               <RupiahInput value={line.rate} onChange={(value) => patchEditableLine(line.id, { rate: value })} />

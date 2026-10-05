@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\InvoiceType;
+use App\Enums\QtyCategory;
 use App\Enums\StockVoucherType;
 use App\Enums\WarehouseType;
 use App\Exceptions\BusinessException;
@@ -190,5 +191,106 @@ class InvoiceDirectGoodsTest extends TestCase
 
         $this->assertNull($invoice->accountsReceivable);
         $this->assertSame('cancelled', $invoice->status->value);
+    }
+
+    /** Loose/jumbo cement billed straight to a Customer by truck-scale weight — the exact scenario this invoice_items.qty widening (2026-10-05) exists for. */
+    public function test_direct_goods_invoice_accepts_decimal_qty_for_a_weight_category_item(): void
+    {
+        $weightItem = Item::query()->create([
+            'item_code' => 'ITM-CURAH', 'item_name' => 'Semen Curah', 'item_group_id' => $this->item->item_group_id,
+            'uom_id' => $this->item->uom_id, 'standard_rate' => 1200000, 'qty_category' => QtyCategory::WEIGHT,
+        ]);
+        $this->seedStock($weightItem->id, $this->warehouse->id, 100, unitCost: 1100000);
+
+        $invoice = $this->invoiceService->create([
+            'invoice_type' => InvoiceType::GOODS->value,
+            'warehouse_id' => $this->warehouse->id,
+            'customer_id' => $this->customer->id,
+            'branch_id' => $this->branch->id,
+            'items' => [['item_id' => $weightItem->id, 'qty' => 2.75, 'rate' => 1200000]],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $line = $invoice->items->first();
+        $this->assertEquals(2.75, (float) $line->qty);
+        $this->assertSame(QtyCategory::WEIGHT, $line->qty_category);
+
+        $before = $this->stockLedgerService->getCurrentBalance($weightItem->id, $this->warehouse->id);
+        $this->invoiceService->submit($invoice);
+        $after = $this->stockLedgerService->getCurrentBalance($weightItem->id, $this->warehouse->id);
+        $this->assertEquals($before - 2.75, $after);
+    }
+
+    public function test_direct_goods_invoice_rejects_a_fractional_qty_for_a_unit_category_item(): void
+    {
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessageMatches('/dihitung per satuan/');
+
+        $this->invoiceService->create([
+            'invoice_type' => InvoiceType::GOODS->value,
+            'warehouse_id' => $this->warehouse->id,
+            'customer_id' => $this->customer->id,
+            'branch_id' => $this->branch->id,
+            'items' => [['item_id' => $this->item->id, 'qty' => 2.5, 'rate' => 60000]],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+    }
+
+    /** A Goods invoice never lets the user type a qty — it's copied verbatim from the completed Delivery (InvoiceService::createGoods()), so a weight item's decimal qty must survive that copy without truncating. */
+    public function test_goods_invoice_created_from_a_delivery_preserves_a_weight_items_decimal_qty(): void
+    {
+        $weightItem = Item::query()->create([
+            'item_code' => 'ITM-CURAH', 'item_name' => 'Semen Curah', 'item_group_id' => $this->item->item_group_id,
+            'uom_id' => $this->item->uom_id, 'standard_rate' => 1200000, 'qty_category' => QtyCategory::WEIGHT,
+        ]);
+        $this->seedStock($weightItem->id, $this->warehouse->id, 100, unitCost: 1100000);
+
+        $delivery = $this->deliveryService->create([
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'delivery_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['item_id' => $weightItem->id, 'qty' => 3.25, 'rate' => 1200000]],
+        ]);
+        $delivery = $this->deliveryService->complete($delivery);
+
+        $invoice = $this->invoiceService->create([
+            'delivery_ids' => [$delivery->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $line = $invoice->items->first();
+        $this->assertEquals(3.25, (float) $line->qty);
+        $this->assertSame(QtyCategory::WEIGHT, $line->qty_category);
+    }
+
+    /** Editing a Draft Direct Goods invoice's Qty (InvoiceService::applyDraftItemChanges) must accept a weight item's decimal correction, not silently round it to a whole number. */
+    public function test_editing_a_draft_direct_goods_invoice_accepts_a_decimal_qty_correction_for_a_weight_item(): void
+    {
+        $weightItem = Item::query()->create([
+            'item_code' => 'ITM-CURAH', 'item_name' => 'Semen Curah', 'item_group_id' => $this->item->item_group_id,
+            'uom_id' => $this->item->uom_id, 'standard_rate' => 1200000, 'qty_category' => QtyCategory::WEIGHT,
+        ]);
+        $this->seedStock($weightItem->id, $this->warehouse->id, 100, unitCost: 1100000);
+
+        $invoice = $this->invoiceService->create([
+            'invoice_type' => InvoiceType::GOODS->value,
+            'warehouse_id' => $this->warehouse->id,
+            'customer_id' => $this->customer->id,
+            'branch_id' => $this->branch->id,
+            'items' => [['item_id' => $weightItem->id, 'qty' => 5, 'rate' => 1200000]],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $line = $invoice->items->first();
+        $invoice = $this->invoiceService->update($invoice, [
+            'items' => [['id' => $line->id, 'qty' => 4.4, 'rate' => 1200000]],
+        ]);
+
+        $this->assertEquals(4.4, (float) $invoice->items->first()->qty);
     }
 }

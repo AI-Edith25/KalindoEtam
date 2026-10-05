@@ -339,7 +339,7 @@ class CreditNoteService
     }
 
     /**
-     * @param  array<int, array{invoice_item_id: string, qty_credited?: int, amount: float, restock?: bool}>  $lines
+     * @param  array<int, array{invoice_item_id: string, qty_credited?: float, amount: float, restock?: bool}>  $lines
      * @return array{0: float, 1: float} [subtotal, total_amount]
      */
     protected function validateAgainstInvoice(Invoice $invoice, array $lines, array $data): array
@@ -369,20 +369,20 @@ class CreditNoteService
                 throw new BusinessException('One or more lines do not belong to the selected Invoice.');
             }
 
-            $qtyCredited = (int) ($line['qty_credited'] ?? 0);
+            $qtyCredited = (float) ($line['qty_credited'] ?? 0);
             $amount = (float) $line['amount'];
 
             if ($qtyCredited < 0 || $amount < 0) {
                 throw new BusinessException('Credited quantity and amount cannot be negative.');
             }
 
-            if (($line['restock'] ?? false) && $qtyCredited === 0) {
+            if (($line['restock'] ?? false) && $qtyCredited === 0.0) {
                 throw new BusinessException('A line cannot be marked for restock without a credited quantity.');
             }
 
             $priorTotals = $this->creditNoteItemRepository->creditedTotalsForInvoiceItem($invoiceItem->id);
 
-            $remainingQty = (int) $invoiceItem->qty - $priorTotals['qty'];
+            $remainingQty = (float) $invoiceItem->qty - $priorTotals['qty'];
             if ($qtyCredited > $remainingQty) {
                 throw new BusinessException("Credited quantity ({$qtyCredited}) exceeds what remains creditable ({$remainingQty}) for {$invoiceItem->item_name}.");
             }

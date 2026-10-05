@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, 
 import { PrintMetaTable } from '@/components/shared/PrintMetaTable'
 import type { CompanyPrintHeader } from '@/features/administration/types'
 import { terbilangIdr } from '@/shared/lib/numberToWords'
+import { qtyDecimalPlaces } from '@/shared/lib/qty'
 import type { Invoice } from '../types'
 import {
   COLORS,
@@ -150,7 +151,7 @@ function renderCell(key: string, item: Invoice['items'][number], index: number):
     case 'description':
       return item.item_name
     case 'qty':
-      return fmt(item.qty, 0)
+      return fmt(item.qty, qtyDecimalPlaces(item.qty_category ?? 'unit'))
     case 'uom':
       return item.uom ?? ''
     case 'unitCost':
