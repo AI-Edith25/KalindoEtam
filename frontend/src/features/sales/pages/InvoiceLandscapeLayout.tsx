@@ -185,12 +185,12 @@ type ItemCol = { key: string; label: string; align: ColAlign; width: number; pad
 const ITEM_COLS: ItemCol[] = [
   { key: 'no', label: 'No', align: 'left', width: 19.99, pad: 10.53 },
   { key: 'itemCode', label: 'ItemCode', align: 'left', width: 27.45, pad: 0 },
-  { key: 'description', label: 'Description', align: 'left', width: 48.99, pad: 0 },
+  { key: 'description', label: 'Description', align: 'left', width: 40.99, pad: 0 },
   { key: 'qty', label: 'Qty', align: 'right', width: 12.53, pad: 0.53 },
   { key: 'uom', label: 'UOM', align: 'left', width: 24.04, pad: 0 },
-  { key: 'unitCost', label: 'HCUnitCost', align: 'right', width: 17.07, pad: 0 },
-  { key: 'tax', label: 'HCTax', align: 'right', width: 24.6, pad: 0 },
-  { key: 'lineAmt', label: 'HCLineAmt', align: 'right', width: 35.33, pad: 10.72 },
+  { key: 'unitCost', label: 'HCUnitCost', align: 'right', width: 19.07, pad: 0 },
+  { key: 'tax', label: 'HCTax', align: 'right', width: 27.6, pad: 0 },
+  { key: 'lineAmt', label: 'HCLineAmt', align: 'right', width: 38.33, pad: 10.72 },
 ]
 
 /**
@@ -238,9 +238,6 @@ const NOTE_FONT_PT = 8
 /** Conservative characters per printed line at 8pt across the 190mm column — deliberately low so the
     reserved height never falls short of what the browser actually wraps to. */
 const NOTE_CHARS_PER_LINE = 110
-/** Font size for the HCUnitCost / HCTax / HCLineAmt figures in the item table (see its use in the row cell). */
-const MONEY_FONT_PT = 7.5
-
 /** Printed line count for the notes: each paragraph wraps by length, not just by its own newlines. */
 function countNoteLines(remarks: string): number {
   return remarks.split('\n').reduce((total, paragraph) => total + Math.max(1, Math.ceil(paragraph.length / NOTE_CHARS_PER_LINE)), 0)
@@ -452,17 +449,12 @@ export function InvoiceLandscapeLayout({
                     <tr key={item.id}>
                       {itemCols.map((col) => {
                         const isTruncatable = col.key === 'itemCode' || col.key === 'description'
-                        // The three money columns sit side by side with no gutter between them, so
-                        // at table size their figures ran into each other. A slightly smaller size
-                        // opens the gap without touching the frozen column widths or row height.
-                        const isMoneyCol = col.key === 'unitCost' || col.key === 'tax' || col.key === 'lineAmt'
                         const style: React.CSSProperties = {
                           height: '5.92mm',
                           verticalAlign: 'top',
                           lineHeight: 1.2,
                           textAlign: col.align,
                           padding: 0,
-                          ...(isMoneyCol ? { fontSize: `${MONEY_FONT_PT}pt` } : undefined),
                           // Every column stays single-line (not just the two truncatable ones
                           // below) — pagination capacity above is computed from this exact 5.92mm
                           // row height + `overflow:hidden` on the page canvas; a column that wraps
