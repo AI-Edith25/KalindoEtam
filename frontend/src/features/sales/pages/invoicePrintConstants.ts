@@ -107,6 +107,9 @@ export const PT_TO_MM = 0.352778
  * are left as literals there — see file doc comment — but these are the canonical values, and
  * Portrait (built fresh) reads them directly.
  */
+/** Space between the invoice Notes and the amount-in-words line — the same on every paper type. */
+export const NOTES_TO_WORDS_GAP_MM = 2
+
 export const FONT_PT = {
   companyName: 14,
   title: 16,

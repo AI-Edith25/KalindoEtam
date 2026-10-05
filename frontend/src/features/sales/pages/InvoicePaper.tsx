@@ -333,7 +333,7 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
           </div>
         </div>
 
-        {invoice.remarks && <p className="whitespace-pre-line">{invoice.remarks}</p>}
+        {invoice.remarks && <p className="whitespace-pre-line [overflow-wrap:anywhere]">{invoice.remarks}</p>}
 
         <p>ISSUED BY : {user?.name ?? ''}</p>
 

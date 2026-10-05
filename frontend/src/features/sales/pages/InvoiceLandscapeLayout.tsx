@@ -16,6 +16,7 @@ import {
   META_LABEL_WIDTH_RIGHT_MM,
   TOTALS_BOX,
   TOTALS_BOX_ROW_HEIGHT_MM,
+  NOTES_TO_WORDS_GAP_MM,
 } from './invoicePrintConstants'
 
 export { DEJAVU_FONT_STACK }
@@ -234,6 +235,16 @@ const TERBILANG_TOP_MM = 82.44
     height, and the last page's item area shrinks by the same amount so the notes never overlap rows. */
 const NOTE_LINE_HEIGHT_MM = 3.6
 const NOTE_FONT_PT = 8
+/** Conservative characters per printed line at 8pt across the 190mm column — deliberately low so the
+    reserved height never falls short of what the browser actually wraps to. */
+const NOTE_CHARS_PER_LINE = 110
+/** Font size for the HCUnitCost / HCTax / HCLineAmt figures in the item table (see its use in the row cell). */
+const MONEY_FONT_PT = 7.5
+
+/** Printed line count for the notes: each paragraph wraps by length, not just by its own newlines. */
+function countNoteLines(remarks: string): number {
+  return remarks.split('\n').reduce((total, paragraph) => total + Math.max(1, Math.ceil(paragraph.length / NOTE_CHARS_PER_LINE)), 0)
+}
 /** Non-last pages have no footer to stop for, so the item area can run down to the physical page
     bottom instead — minus a small bottom margin and room for the "CONTINUE TO NEXT PAGE" line. */
 const PAGE_BOTTOM_MARGIN_MM = 3
@@ -330,8 +341,10 @@ export function InvoiceLandscapeLayout({
   // Pagination — see file doc comment. lastPageItemBottomMm is the footer's own fixed top
   // (terbilang), unaffected by row count; middlePageItemBottomMm is just "physical sheet bottom
   // minus a margin and the continue-row's own height."
-  const notesHeightMm = (invoice.remarks ? invoice.remarks.split('\n').length : 0) * NOTE_LINE_HEIGHT_MM
-  const lastPageItemBottomMm = TERBILANG_TOP_MM - bottomShiftMm - notesHeightMm
+  const notesHeightMm = (invoice.remarks ? countNoteLines(invoice.remarks) : 0) * NOTE_LINE_HEIGHT_MM
+  // Notes sit above terbilang with the shared gap, so the reserved band is the notes plus that gap.
+  const notesReservedMm = invoice.remarks ? notesHeightMm + NOTES_TO_WORDS_GAP_MM : 0
+  const lastPageItemBottomMm = TERBILANG_TOP_MM - bottomShiftMm - notesReservedMm
   const middlePageItemBottomMm = sheetHeightMm - PAGE_BOTTOM_MARGIN_MM - CONTINUE_ROW_HEIGHT_MM
   const lastCapacity = Math.max(1, Math.floor((lastPageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM) / ITEM_ROW_HEIGHT_MM))
   const middleCapacity = Math.max(lastCapacity, Math.floor((middlePageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM) / ITEM_ROW_HEIGHT_MM))
@@ -439,12 +452,17 @@ export function InvoiceLandscapeLayout({
                     <tr key={item.id}>
                       {itemCols.map((col) => {
                         const isTruncatable = col.key === 'itemCode' || col.key === 'description'
+                        // The three money columns sit side by side with no gutter between them, so
+                        // at table size their figures ran into each other. A slightly smaller size
+                        // opens the gap without touching the frozen column widths or row height.
+                        const isMoneyCol = col.key === 'unitCost' || col.key === 'tax' || col.key === 'lineAmt'
                         const style: React.CSSProperties = {
                           height: '5.92mm',
                           verticalAlign: 'top',
                           lineHeight: 1.2,
                           textAlign: col.align,
                           padding: 0,
+                          ...(isMoneyCol ? { fontSize: `${MONEY_FONT_PT}pt` } : undefined),
                           // Every column stays single-line (not just the two truncatable ones
                           // below) — pagination capacity above is computed from this exact 5.92mm
                           // row height + `overflow:hidden` on the page canvas; a column that wraps
@@ -511,12 +529,14 @@ export function InvoiceLandscapeLayout({
                   <div
                     style={{
                       position: 'absolute',
-                      top: `${TERBILANG_TOP_MM - bottomShiftMm - notesHeightMm}mm`,
+                      top: `${TERBILANG_TOP_MM - bottomShiftMm - notesReservedMm}mm`,
                       left: '10mm',
                       width: '190mm',
                       fontSize: `${NOTE_FONT_PT}pt`,
                       lineHeight: `${NOTE_LINE_HEIGHT_MM}mm`,
                       whiteSpace: 'pre-line',
+                      // Long unbroken tokens (e.g. comma-separated numbers) must wrap downward, not run sideways.
+                      overflowWrap: 'anywhere',
                     }}
                   >
                     {invoice.remarks}

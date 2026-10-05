@@ -15,6 +15,7 @@ import {
   PORTRAIT,
   PORTRAIT_ITEM_COLS,
   TOTALS_BOX,
+  NOTES_TO_WORDS_GAP_MM,
 } from './invoicePrintConstants'
 
 /**
@@ -434,9 +435,26 @@ export function InvoicePortraitLayout({
         {/* ---------- 7. Jumlah dalam huruf ---------- */}
         {/* Invoice remarks ("Notes") directly above terbilang — only rendered when the invoice has one. */}
         {invoice.remarks && (
-          <div style={{ marginTop: `${PORTRAIT.gapAboveWordsMm}mm`, fontSize: `${FONT_PT.words}pt`, whiteSpace: 'pre-line' }}>{invoice.remarks}</div>
+          <div
+            style={{
+              marginTop: `${PORTRAIT.gapAboveWordsMm}mm`,
+              marginBottom: `${NOTES_TO_WORDS_GAP_MM}mm`,
+              fontSize: `${FONT_PT.words}pt`,
+              whiteSpace: 'pre-line',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {invoice.remarks}
+          </div>
         )}
-        <div style={{ marginTop: `${PORTRAIT.gapAboveWordsMm}mm`, fontSize: `${FONT_PT.words}pt`, textTransform: 'uppercase' }}>
+        <div
+          style={{
+            // With notes, the gap above terbilang is the notes' own bottom margin — not added on top of it.
+            marginTop: invoice.remarks ? 0 : `${PORTRAIT.gapAboveWordsMm}mm`,
+            fontSize: `${FONT_PT.words}pt`,
+            textTransform: 'uppercase',
+          }}
+        >
           RP {terbilangIdr(invoice.grand_total)}
         </div>
         <div style={{ marginTop: `${PORTRAIT.gapBelowWordsRuleMm}mm`, height: `${PORTRAIT.wordsRuleThicknessMm}mm`, background: COLORS.rule }} />
