@@ -24,12 +24,18 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
 
 /**
  * Reached from Sales > Invoices' checkbox selection (?ids=uuid,uuid,...), replacing the old
- * /reports/tanda-terima-invoice — same AccountsReceivable.outstanding_amount data source (via
- * the shared list-all endpoint, now filtered by invoice_ids instead of customer_id+date range),
- * but a from-scratch classic layout matching Tanda_terima.pdf exactly (that reference is visually
- * a plain/thin-rule layout, not the old page's bordered "card" style) — same print plumbing as
- * SO/DO/SI (print:hidden toolbar, @page margin:0 + print:p-[12mm] wrapper), which the old page
- * never had (it relied on the browser's own default A4 margins).
+ * /reports/tanda-terima-invoice — same AccountsReceivable list-all endpoint (now filtered by
+ * invoice_ids instead of customer_id+date range), but a from-scratch classic layout matching
+ * Tanda_terima.pdf exactly (that reference is visually a plain/thin-rule layout, not the old
+ * page's bordered "card" style) — same print plumbing as SO/DO/SI (print:hidden toolbar, @page
+ * margin:0 + print:p-[12mm] wrapper), which the old page never had (it relied on the browser's
+ * own default A4 margins).
+ *
+ * AMOUNT reads invoice.grand_total, not AccountsReceivable.outstanding_amount — same reasoning
+ * as [[project_erp_invoice_checkbox_print_flow]]'s 2026-10-05 correction for Laporan Penagihan
+ * Harian (a historical-imported Invoice's AR paid_amount is seeded from the separate, possibly
+ * stale Customer Outstanding Bills snapshot, so AR.outstanding_amount can read far below the
+ * actual billed amount).
  */
 export function TandaTerimaInvoicePrintPage() {
   const [searchParams] = useSearchParams()
@@ -45,7 +51,7 @@ export function TandaTerimaInvoicePrintPage() {
   })
 
   const rows = listQuery.data ?? []
-  const total = rows.reduce((sum, row) => sum + Number(row.outstanding_amount), 0)
+  const total = rows.reduce((sum, row) => sum + Number(row.invoice?.grand_total ?? 0), 0)
 
   // First-checked invoice's customer, not the AR list's own row order (server-ordered by
   // due_date, which can differ from click order) and not a merged/joined list of every customer.
@@ -119,7 +125,7 @@ export function TandaTerimaInvoicePrintPage() {
                 <td className="py-1 pr-2 align-top">{row.invoice?.document_number ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{row.invoice?.reference_1 ?? ''}</td>
                 <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
-                <td className="py-1 text-right align-top">{formatNum(row.outstanding_amount, 2)}</td>
+                <td className="py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
               </tr>
             ))}
           </tbody>
