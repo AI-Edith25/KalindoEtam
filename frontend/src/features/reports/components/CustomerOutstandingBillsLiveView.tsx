@@ -2,27 +2,33 @@ import { Fragment, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { fetchOpenBillsByCustomer, type OpenBillCustomer } from '../api/accountsReceivableOpenByCustomerApi'
 
-const ALL_CUSTOMERS = 'all'
+const SUGGESTION_LIMIT = 10
+
+/** Prefix match on code or name (case-insensitive), so "mar" finds "MARZAN" but not "PT MARZAN". */
+function matchesPrefix(customer: OpenBillCustomer, needle: string): boolean {
+  return (customer.customer_code ?? '').toLowerCase().startsWith(needle) || (customer.customer_name ?? '').toLowerCase().startsWith(needle)
+}
 
 /**
  * Customer Outstanding Bills (live). Shows every still-owed invoice per customer, read straight from
  * accounts receivable, so a payment recorded in the app drops the invoice from this list the same way
  * Skybiz's own unpaid-bills report behaves. Replaces the static archive snapshot view.
  *
- * Filters run on the loaded response, so typing never triggers a new request. The three filters
- * combine: the customer dropdown and the customer text narrow which customers show, and the document
- * text narrows which rows show inside them. A customer with no matching rows is hidden.
+ * Filters run on the loaded response, so typing never triggers a new request. The customer box
+ * matches the START of the customer code or name ("mar" finds MARZAN), and lists matching customers
+ * underneath to pick from. Picking one narrows the table to that customer. The document box narrows
+ * the rows inside the shown customers. A customer with no matching rows is hidden.
  */
 export function CustomerOutstandingBillsLiveView() {
   const [asAt, setAsAt] = useState('')
   const [documentSearch, setDocumentSearch] = useState('')
-  const [customerSearch, setCustomerSearch] = useState('')
-  const [customerSelect, setCustomerSelect] = useState(ALL_CUSTOMERS)
+  const [customerText, setCustomerText] = useState('')
+  const [selectedCustomerCode, setSelectedCustomerCode] = useState<string | null>(null)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
 
   const query = useQuery({
     queryKey: ['ar-open-bills-by-customer', asAt],
@@ -31,19 +37,22 @@ export function CustomerOutstandingBillsLiveView() {
 
   const data = query.data
 
-  const customerOptions = useMemo(
-    () => (data?.customers ?? []).map((c) => ({ key: c.customer_code ?? '', label: `${c.customer_code} — ${c.customer_name}` })),
-    [data],
-  )
+  const customerNeedle = customerText.trim().toLowerCase()
+
+  const suggestions = useMemo(() => {
+    if (!data || customerNeedle === '' || selectedCustomerCode) return [] as OpenBillCustomer[]
+    return data.customers.filter((c) => matchesPrefix(c, customerNeedle)).slice(0, SUGGESTION_LIMIT)
+  }, [data, customerNeedle, selectedCustomerCode])
 
   const visibleCustomers = useMemo(() => {
     if (!data) return [] as { customer: OpenBillCustomer; rows: OpenBillCustomer['rows'] }[]
-    const customerNeedle = customerSearch.trim().toLowerCase()
     const documentNeedle = documentSearch.trim().toLowerCase()
 
     return data.customers
-      .filter((c) => customerSelect === ALL_CUSTOMERS || c.customer_code === customerSelect)
-      .filter((c) => customerNeedle === '' || `${c.customer_code ?? ''} ${c.customer_name ?? ''}`.toLowerCase().includes(customerNeedle))
+      .filter((c) => {
+        if (selectedCustomerCode) return c.customer_code === selectedCustomerCode
+        return customerNeedle === '' || matchesPrefix(c, customerNeedle)
+      })
       .map((customer) => ({
         customer,
         rows:
@@ -52,9 +61,9 @@ export function CustomerOutstandingBillsLiveView() {
             : customer.rows.filter((row) => `${row.document_number ?? ''} ${row.reference_1 ?? ''}`.toLowerCase().includes(documentNeedle)),
       }))
       .filter((entry) => entry.rows.length > 0)
-  }, [data, customerSearch, customerSelect, documentSearch])
+  }, [data, customerNeedle, selectedCustomerCode, documentSearch])
 
-  const isFiltered = customerSelect !== ALL_CUSTOMERS || customerSearch.trim() !== '' || documentSearch.trim() !== ''
+  const isFiltered = customerText.trim() !== '' || documentSearch.trim() !== ''
   const visibleRowCount = visibleCustomers.reduce((sum, entry) => sum + entry.rows.length, 0)
   const visibleUnpaid = visibleCustomers.reduce((sum, entry) => sum + entry.rows.reduce((s, r) => s + r.unpaid_amount, 0), 0)
   const visibleOverdue = visibleCustomers.reduce((sum, entry) => sum + entry.rows.reduce((s, r) => s + r.overdue_amount, 0), 0)
@@ -85,32 +94,45 @@ export function CustomerOutstandingBillsLiveView() {
             placeholder="Contoh: SI/KE/07133"
           />
         </div>
-        <div className="flex min-w-56 flex-col gap-1.5">
+        <div className="relative flex min-w-72 flex-col gap-1.5">
           <label htmlFor="open-bills-customer" className="text-xs text-muted-foreground">
             Customer
           </label>
           <Input
             id="open-bills-customer"
-            value={customerSearch}
-            onChange={(e) => setCustomerSearch(e.target.value)}
-            placeholder="Kode atau nama customer"
+            value={customerText}
+            onChange={(e) => {
+              setCustomerText(e.target.value)
+              setSelectedCustomerCode(null)
+              setSuggestionsOpen(true)
+            }}
+            onFocus={() => setSuggestionsOpen(true)}
+            onBlur={() => setSuggestionsOpen(false)}
+            placeholder="Ketik awal kode atau nama, misal: mar"
+            autoComplete="off"
           />
-        </div>
-        <div className="flex min-w-72 flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">Pilih customer</span>
-          <Select value={customerSelect} onValueChange={setCustomerSelect}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Semua customer" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_CUSTOMERS}>Semua customer</SelectItem>
-              {customerOptions.map((option) => (
-                <SelectItem key={option.key} value={option.key}>
-                  {option.label}
-                </SelectItem>
+          {suggestionsOpen && suggestions.length > 0 && (
+            <ul className="absolute top-full z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border bg-popover text-sm shadow-md">
+              {suggestions.map((c) => (
+                <li key={c.customer_code ?? c.customer_name ?? ''}>
+                  <button
+                    type="button"
+                    // onMouseDown runs before the input's onBlur, so the pick lands before the list closes
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setSelectedCustomerCode(c.customer_code)
+                      setCustomerText(`${c.customer_code} — ${c.customer_name}`)
+                      setSuggestionsOpen(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent"
+                  >
+                    <span className="font-medium">{c.customer_code}</span>
+                    <span className="truncate">{c.customer_name}</span>
+                  </button>
+                </li>
               ))}
-            </SelectContent>
-          </Select>
+            </ul>
+          )}
         </div>
         {data && (
           <p className="pb-2 text-sm text-muted-foreground">
