@@ -333,6 +333,8 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
           </div>
         </div>
 
+        {invoice.remarks && <p className="whitespace-pre-line">{invoice.remarks}</p>}
+
         <p>ISSUED BY : {user?.name ?? ''}</p>
 
         <div className="mt-1 flex flex-col gap-2 border-t border-black pt-1">

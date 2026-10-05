@@ -230,6 +230,10 @@ const ITEM_ROW_HEIGHT_MM = 5.92
 /** Terbilang's own frozen top (before any dot-matrix bottomShiftMm) — the footer cluster's fixed
     start, and therefore the last page's item-area bottom limit. */
 const TERBILANG_TOP_MM = 82.44
+/** Invoice remarks ("Notes") sit directly above terbilang on the last page. Each line takes this
+    height, and the last page's item area shrinks by the same amount so the notes never overlap rows. */
+const NOTE_LINE_HEIGHT_MM = 3.6
+const NOTE_FONT_PT = 8
 /** Non-last pages have no footer to stop for, so the item area can run down to the physical page
     bottom instead — minus a small bottom margin and room for the "CONTINUE TO NEXT PAGE" line. */
 const PAGE_BOTTOM_MARGIN_MM = 3
@@ -326,7 +330,8 @@ export function InvoiceLandscapeLayout({
   // Pagination — see file doc comment. lastPageItemBottomMm is the footer's own fixed top
   // (terbilang), unaffected by row count; middlePageItemBottomMm is just "physical sheet bottom
   // minus a margin and the continue-row's own height."
-  const lastPageItemBottomMm = TERBILANG_TOP_MM - bottomShiftMm
+  const notesHeightMm = (invoice.remarks ? invoice.remarks.split('\n').length : 0) * NOTE_LINE_HEIGHT_MM
+  const lastPageItemBottomMm = TERBILANG_TOP_MM - bottomShiftMm - notesHeightMm
   const middlePageItemBottomMm = sheetHeightMm - PAGE_BOTTOM_MARGIN_MM - CONTINUE_ROW_HEIGHT_MM
   const lastCapacity = Math.max(1, Math.floor((lastPageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM) / ITEM_ROW_HEIGHT_MM))
   const middleCapacity = Math.max(lastCapacity, Math.floor((middlePageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM) / ITEM_ROW_HEIGHT_MM))
@@ -502,6 +507,21 @@ export function InvoiceLandscapeLayout({
             {isLastPage && (
               <>
                 {/* ---------- TERMS KIRI ---------- */}
+                {invoice.remarks && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: `${TERBILANG_TOP_MM - bottomShiftMm - notesHeightMm}mm`,
+                      left: '10mm',
+                      width: '190mm',
+                      fontSize: `${NOTE_FONT_PT}pt`,
+                      lineHeight: `${NOTE_LINE_HEIGHT_MM}mm`,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {invoice.remarks}
+                  </div>
+                )}
                 <T top={82.44 - bottomShiftMm} left={10} size={FONT_PT.words}>{terbilangIdr(invoice.grand_total)}</T>
                 <Line top={88.02 - bottomShiftMm} left={10} width={190} height={0.2} color="#000" />
                 <T top={88.58 - bottomShiftMm} left={10} size={FONT_PT.eoeNote} bold italic>E. &amp; O.E</T>

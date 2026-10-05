@@ -432,6 +432,10 @@ export function InvoicePortraitLayout({
     return (
       <div ref={ref}>
         {/* ---------- 7. Jumlah dalam huruf ---------- */}
+        {/* Invoice remarks ("Notes") directly above terbilang — only rendered when the invoice has one. */}
+        {invoice.remarks && (
+          <div style={{ marginTop: `${PORTRAIT.gapAboveWordsMm}mm`, fontSize: `${FONT_PT.words}pt`, whiteSpace: 'pre-line' }}>{invoice.remarks}</div>
+        )}
         <div style={{ marginTop: `${PORTRAIT.gapAboveWordsMm}mm`, fontSize: `${FONT_PT.words}pt`, textTransform: 'uppercase' }}>
           RP {terbilangIdr(invoice.grand_total)}
         </div>
