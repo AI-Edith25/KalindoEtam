@@ -228,6 +228,10 @@ function buildTotalsRows(invoice: Invoice, showTax: boolean, showDiscount: boole
 const ITEM_TABLE_TOP_MM = 47.51
 const ITEM_THEAD_HEIGHT_MM = 6.4
 const ITEM_ROW_HEIGHT_MM = 5.92
+/** One extra printed line of description text at 10pt (line-height 1.2). */
+const ITEM_TEXT_LINE_HEIGHT_MM = 4.23
+/** Characters that fit on one line of the 40.99mm Description column at table size — kept a little low on purpose. */
+const DESCRIPTION_CHARS_PER_LINE = 19
 /** Terbilang's own frozen top (before any dot-matrix bottomShiftMm) — the footer cluster's fixed
     start, and therefore the last page's item-area bottom limit. */
 const TERBILANG_TOP_MM = 82.44
@@ -249,27 +253,61 @@ const CONTINUE_ROW_HEIGHT_MM = 6
 const CONTINUE_TEXT = 'CONTINUE TO NEXT PAGE ...'
 
 /**
- * Splits `itemCount` rows into page-sized index groups. `lastCapacity` (smaller — the footer
- * needs room) is reserved for the final page; every page before it packs up to `middleCapacity`
- * rows. Unlike InvoicePortraitLayout's own bin-packer (variable, measured row heights, needs a
- * cascading re-check), every row here is the same frozen height, so simple arithmetic is both
- * correct and enough — no need for the heavier measure-then-cascade machinery.
+ * Splits rows into page-sized index groups by their heights. `lastAvailMm` (smaller — the footer
+ * needs room) is the space left on the final page; every page before it packs rows greedily up to
+ * `middleAvailMm`. A row taller than a whole page is still placed alone, so it is never dropped.
  */
-export function paginateHalfInvoiceItems(itemCount: number, middleCapacity: number, lastCapacity: number): number[][] {
-  if (itemCount === 0) return [[]]
+export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: number, lastAvailMm: number): number[][] {
+  if (rowHeightsMm.length === 0) return [[]]
+  const count = rowHeightsMm.length
   const range = (start: number, end: number) => Array.from({ length: end - start }, (_, k) => start + k)
-  if (itemCount <= lastCapacity) return [range(0, itemCount)]
+  const remainingHeight = (from: number) => rowHeightsMm.slice(from).reduce((sum, h) => sum + h, 0)
 
-  const nonLastPageCount = Math.ceil((itemCount - lastCapacity) / middleCapacity)
   const pages: number[][] = []
-  let i = 0
-  for (let p = 0; p < nonLastPageCount; p++) {
-    const end = Math.min(i + middleCapacity, itemCount - lastCapacity)
-    pages.push(range(i, end))
-    i = end
+  let start = 0
+  while (start < count) {
+    if (remainingHeight(start) <= lastAvailMm) {
+      pages.push(range(start, count))
+      break
+    }
+    let end = start
+    let used = 0
+    while (end < count && used + rowHeightsMm[end] <= middleAvailMm) {
+      used += rowHeightsMm[end]
+      end++
+    }
+    if (end === start) end = start + 1
+    pages.push(range(start, end))
+    start = end
   }
-  pages.push(range(i, itemCount))
   return pages
+}
+
+/** Printed line count of a description at the Description column width (greedy word wrap). */
+function descriptionLineCount(text: string): number {
+  const cpl = DESCRIPTION_CHARS_PER_LINE
+  let lines = 1
+  let current = 0
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (current > 0 && current + 1 + word.length <= cpl) {
+      current += 1 + word.length
+      continue
+    }
+    if (current > 0) {
+      lines += 1
+      current = 0
+    }
+    // A word starts a fresh line; one longer than a line breaks across however many lines it needs.
+    const pieces = Math.ceil(word.length / cpl)
+    lines += pieces - 1
+    current = word.length - (pieces - 1) * cpl
+  }
+  return lines
+}
+
+/** Row height for one invoice item: a single line is the frozen 5.92mm; each extra description line adds one text line. */
+function itemRowHeightMm(item: { item_name: string }): number {
+  return ITEM_ROW_HEIGHT_MM + (descriptionLineCount(item.item_name) - 1) * ITEM_TEXT_LINE_HEIGHT_MM
 }
 
 export interface InvoiceLandscapeLayoutProps {
@@ -343,15 +381,16 @@ export function InvoiceLandscapeLayout({
   const notesReservedMm = invoice.remarks ? notesHeightMm + NOTES_TO_WORDS_GAP_MM : 0
   const lastPageItemBottomMm = TERBILANG_TOP_MM - bottomShiftMm - notesReservedMm
   const middlePageItemBottomMm = sheetHeightMm - PAGE_BOTTOM_MARGIN_MM - CONTINUE_ROW_HEIGHT_MM
-  const lastCapacity = Math.max(1, Math.floor((lastPageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM) / ITEM_ROW_HEIGHT_MM))
-  const middleCapacity = Math.max(lastCapacity, Math.floor((middlePageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM) / ITEM_ROW_HEIGHT_MM))
-  const pages = paginateHalfInvoiceItems(invoice.items.length, middleCapacity, lastCapacity)
+  const rowHeightsMm = invoice.items.map(itemRowHeightMm)
+  const lastAvailMm = lastPageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM
+  const middleAvailMm = middlePageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM
+  const pages = paginateHalfInvoiceItems(rowHeightsMm, middleAvailMm, lastAvailMm)
 
   return (
     <>
       {pages.map((rowIndexes, pageIndex) => {
         const isLastPage = pageIndex === pages.length - 1
-        const continueRowTop = ITEM_TABLE_TOP_MM + ITEM_THEAD_HEIGHT_MM + rowIndexes.length * ITEM_ROW_HEIGHT_MM + 1
+        const continueRowTop = ITEM_TABLE_TOP_MM + ITEM_THEAD_HEIGHT_MM + rowIndexes.reduce((sum, idx) => sum + rowHeightsMm[idx], 0) + 1
 
         return (
           <div
@@ -448,18 +487,20 @@ export function InvoiceLandscapeLayout({
                   return (
                     <tr key={item.id}>
                       {itemCols.map((col) => {
-                        const isTruncatable = col.key === 'itemCode' || col.key === 'description'
+                        const isTruncatable = col.key === 'itemCode'
+                        const isDescription = col.key === 'description'
                         const style: React.CSSProperties = {
-                          height: '5.92mm',
+                          height: `${rowHeightsMm[index]}mm`,
                           verticalAlign: 'top',
                           lineHeight: 1.2,
                           textAlign: col.align,
                           padding: 0,
-                          // Every column stays single-line (not just the two truncatable ones
-                          // below) — pagination capacity above is computed from this exact 5.92mm
-                          // row height + `overflow:hidden` on the page canvas; a column that wraps
-                          // to 2 lines would silently grow past what was budgeted and get clipped.
-                          whiteSpace: 'nowrap',
+                          // Every column stays single-line except Description, which wraps downward
+                          // and grows its row — the row height above is computed from the same
+                          // description line count (itemRowHeightMm), so pagination stays exact and
+                          // nothing is clipped by `overflow:hidden` on the page canvas.
+                          whiteSpace: isDescription ? 'normal' : 'nowrap',
+                          ...(isDescription ? { overflowWrap: 'break-word' as const } : undefined),
                           ...cellPadStyle(col, true),
                           // ItemCode/Description guard against a too-narrow column overrunning its
                           // neighbor (the exact A4/Continuous bug this ticket also reports) — an
