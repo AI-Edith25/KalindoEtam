@@ -449,4 +449,51 @@ class SkybizLedgerReconciliationImportServiceTest extends TestCase
         // bound has wide margin on the fixed side and is well below the unfixed side.
         $this->assertLessThan(5.0, $elapsedSeconds, 'allocateBlock() appears to have regressed back to quadratic — see the incident this test guards against.');
     }
+
+    /**
+     * Regression: a Skybiz ref from another customer's block ("TR-KE-06933-09-2024", customer
+     * C-0229) used to fall through to the loose type+seq key and settle C-1043's 2026 invoice
+     * TR/KE/06933/09/2026. The payment must not reach a KE invoice owned by a different customer.
+     */
+    public function test_payment_from_another_customers_block_never_settles_this_customers_invoice(): void
+    {
+        $this->makeCustomer('C-0229');
+        $tremtem = $this->makeCustomer('C-1043');
+        $invoice = $this->makeInvoice($tremtem, 'TR/KE/06933/09/2026', 1000000, '2026-09-14');
+        $ar = $this->makeReceivable($invoice, 1000000);
+
+        $csv = self::PREAMBLE.self::HEADER
+            ."C-0229 - Bp. Leman Batako - BTG,,,,,,,\r\n"
+            ."28/09/2024,Sales,TR-KE-06933-09-2024,SJ,,780000,0,780000\r\n"
+            .'02/10/2024,"PIUTANG USAHA, Bp. Leman Batako - BTG, BANK BCA 1312",OR-KE015166,CB,,0,780000,0'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->run($batch, true);
+
+        $this->assertSame(0, ReceiptEntry::query()->count());
+        $this->assertEquals(0, (float) $ar->refresh()->paid_amount);
+    }
+
+    /**
+     * A payment dated before the invoice it would settle is held for review, never written.
+     */
+    public function test_payment_dated_before_its_invoice_is_held_for_review(): void
+    {
+        $customer = $this->makeCustomer('C-0003');
+        $invoice = $this->makeInvoice($customer, 'SI/KE/00003/08/2026', 500000, '2026-08-01');
+        $ar = $this->makeReceivable($invoice, 500000);
+
+        $csv = self::PREAMBLE.self::HEADER
+            ."C-0003 - Customer C-0003,,,,,,,\r\n"
+            ."01/07/2026,Sales,SI/KE/00003/08/2026,SJ,,500000,0,500000\r\n"
+            .'15/07/2026,"PIUTANG USAHA, BANK BCA 1312",OR/KE/00003/07/2026,CB,,0,500000,0'."\r\n";
+
+        $batch = $this->makeBatch($csv);
+        $this->service->run($batch, true);
+        $batch->refresh();
+
+        $this->assertSame(0, ReceiptEntry::query()->count());
+        $this->assertEquals(0, (float) $ar->refresh()->paid_amount);
+        $this->assertSame(1, $batch->preview_summary['payment_before_invoice']);
+    }
 }

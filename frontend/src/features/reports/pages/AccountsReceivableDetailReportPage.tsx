@@ -28,6 +28,7 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
 import { AccountsReceivableDetailReportFiltersBar } from '../components/AccountsReceivableDetailReportFiltersBar'
 import { CustomerOutstandingArchiveFiltersBar } from '../components/CustomerOutstandingArchiveFiltersBar'
+import { CustomerOutstandingBillsLiveView } from '../components/CustomerOutstandingBillsLiveView'
 import { CustomerOutstandingArchiveImportDialog } from '../components/CustomerOutstandingArchiveImportDialog'
 import { fetchAccountsReceivableGroupedDetail } from '../api/accountsReceivableGroupedDetailApi'
 import { exportAccountsReceivableLedger, fetchAccountsReceivableLedger } from '../api/accountsReceivableLedgerApi'
@@ -336,7 +337,7 @@ export function AccountsReceivableDetailReportPage() {
   const archiveDetailQuery = useQuery({
     queryKey: ['customer-outstanding-archive-detail', selectedSnapshotId, archiveFilters],
     queryFn: () => fetchCustomerOutstandingArchiveDetail(selectedSnapshotId as string, archiveFilters),
-    enabled: !!selectedSnapshotId && (viewMode === 'archive' || snapshotMode),
+    enabled: !!selectedSnapshotId && snapshotMode,
     placeholderData: (previous) => previous,
   })
 
@@ -557,7 +558,7 @@ export function AccountsReceivableDetailReportPage() {
             </Button>
           )}
         </div>
-        {viewMode === 'archive' || snapshotMode ? (
+        {viewMode === 'archive' && !snapshotMode ? null : viewMode === 'archive' || snapshotMode ? (
           <>
             <div className="flex flex-col gap-1.5">
               <span className="text-xs text-muted-foreground">Snapshot / As Of Date</span>
@@ -597,7 +598,7 @@ export function AccountsReceivableDetailReportPage() {
         )}
       </div>
 
-      {viewMode === 'archive' && (
+      {viewMode === 'archive' && snapshotMode && (
         <Card>
           <button
             type="button"
@@ -926,6 +927,8 @@ export function AccountsReceivableDetailReportPage() {
             </Card>
           </>
         )
+      ) : viewMode === 'archive' && !snapshotMode ? (
+        <CustomerOutstandingBillsLiveView />
       ) : viewMode === 'archive' ? (
         !selectedSnapshotId ? (
           noSnapshotEmptyState

@@ -7,6 +7,7 @@ use App\Enums\ImportBatchStatus;
 use App\Enums\PaymentMethod;
 use App\Models\AccountsReceivable;
 use App\Models\ChartOfAccount;
+use App\Models\Customer;
 use App\Models\ImportBatch;
 use App\Models\Invoice;
 use App\Models\ReceiptEntry;
@@ -239,6 +240,7 @@ final class SkybizLedgerReconciliationImportService
             'unmatched_unparseable_ref' => 0,
             'unmatched_ambiguous' => 0,
             'unmatched_not_found_in_scope' => 0,
+            'payment_before_invoice' => 0,
             'ke_higher_than_skybiz_conflict' => 0,
             'reversal_rows_needs_review' => 0,
             'pre_migration_out_of_scope' => 0,
@@ -249,7 +251,13 @@ final class SkybizLedgerReconciliationImportService
         $reportRows = [];
         $orGroups = [];
 
+        // Skybiz block codes ("C-0229") are the same codes KE stores on Customer.customer_code.
+        $customerIdByCode = Customer::query()->pluck('id', 'customer_code')->all();
+
         foreach ($blocks as $blockIndex => $block) {
+            // The header regex in groupCustomerBlocks() splits at the first hyphen, so 'code' is only
+            // "C" for "C-0229 - …" — the real code is the label's part before " - ".
+            $blockCustomerId = $customerIdByCode[trim(explode(' - ', $block['label'], 2)[0])] ?? null;
             [$ledgerInvoices, $reversalRows] = $this->allocateBlock($block);
 
             foreach ($reversalRows as $row) {
@@ -259,7 +267,7 @@ final class SkybizLedgerReconciliationImportService
 
             foreach ($ledgerInvoices as $inv) {
                 $this->matchAndPlanInvoice(
-                    $inv, $blockIndex, $block, $strictIndex, $looseIndex, $arByInvoiceId, $earliestKeDate,
+                    $inv, $blockIndex, $block, $blockCustomerId, $strictIndex, $looseIndex, $arByInvoiceId, $earliestKeDate,
                     $summary, $reportRows, $orGroups,
                 );
             }
@@ -443,22 +451,38 @@ final class SkybizLedgerReconciliationImportService
         return [$strictIndex, $looseIndex, $arByInvoiceId];
     }
 
-    /** @return array{0: ?string, 1: string} invoice id (or null) and match status */
-    private function resolveKeInvoiceId(array $normalized, array $strictIndex, array $looseIndex): array
+    /**
+     * Only invoices owned by the same KE customer as the Skybiz block are candidates — a Skybiz
+     * "TR-KE-06933-09-2024" from one customer must never resolve to another customer's 2026
+     * invoice that happens to share the sequence number. And a ref that carries month+year never
+     * falls back to the loose type+seq key when the strict key finds nothing for this customer.
+     *
+     * @return array{0: ?string, 1: string} invoice id (or null) and match status
+     */
+    private function resolveKeInvoiceId(array $normalized, array $strictIndex, array $looseIndex, ?string $blockCustomerId, Collection $arByInvoiceId): array
     {
-        if ($normalized['strict_key'] !== null && isset($strictIndex[$normalized['strict_key']])) {
-            $candidates = array_unique($strictIndex[$normalized['strict_key']]);
+        $sameCustomer = fn (array $ids) => array_values(array_filter(
+            array_unique($ids),
+            fn ($id) => $blockCustomerId !== null && $arByInvoiceId->get($id)?->customer_id === $blockCustomerId,
+        ));
 
-            return count($candidates) === 1 ? [$candidates[0], 'matched'] : [null, 'ambiguous'];
+        if ($normalized['strict_key'] !== null) {
+            $candidates = $sameCustomer($strictIndex[$normalized['strict_key']] ?? []);
+
+            return match (count($candidates)) {
+                1 => [$candidates[0], 'matched'],
+                0 => [null, 'not_found'],
+                default => [null, 'ambiguous'],
+            };
         }
 
-        $looseCandidates = array_unique($looseIndex[$normalized['loose_key']] ?? []);
+        $looseCandidates = $sameCustomer($looseIndex[$normalized['loose_key']] ?? []);
 
-        if (count($looseCandidates) === 1) {
-            return [$looseCandidates[0], 'matched'];
-        }
-
-        return $looseCandidates === [] ? [null, 'not_found'] : [null, 'ambiguous'];
+        return match (count($looseCandidates)) {
+            1 => [$looseCandidates[0], 'matched'],
+            0 => [null, 'not_found'],
+            default => [null, 'ambiguous'],
+        };
     }
 
     /** Matches one ledger invoice to KE (ticket §4) and, if a real correction is owed, splits it chronologically across its applying events into $orGroups (ticket §5's grouping, built here so commit just replays it). */
@@ -466,6 +490,7 @@ final class SkybizLedgerReconciliationImportService
         object $inv,
         int $blockIndex,
         array $block,
+        ?string $blockCustomerId,
         array $strictIndex,
         array $looseIndex,
         Collection $arByInvoiceId,
@@ -481,7 +506,7 @@ final class SkybizLedgerReconciliationImportService
             return;
         }
 
-        [$keInvoiceId, $status] = $this->resolveKeInvoiceId($inv->normalized, $strictIndex, $looseIndex);
+        [$keInvoiceId, $status] = $this->resolveKeInvoiceId($inv->normalized, $strictIndex, $looseIndex, $blockCustomerId, $arByInvoiceId);
 
         if ($status === 'ambiguous') {
             $summary['unmatched_ambiguous']++;
@@ -536,6 +561,18 @@ final class SkybizLedgerReconciliationImportService
             }
 
             return;
+        }
+
+        // A payment dated before the KE invoice it would settle can't be right — the Skybiz ref
+        // pointed at a different invoice. Held for manual review instead of written.
+        $invoiceDate = (string) $ar->invoice?->invoice_date;
+        foreach ($inv->events as $event) {
+            if ($event['date'] !== null && $invoiceDate !== '' && substr((string) $event['date'], 0, 10) < substr($invoiceDate, 0, 10)) {
+                $summary['payment_before_invoice']++;
+                $reportRows[] = $this->reportRow('payment_before_invoice', $inv, $block, 'Tanggal pembayaran lebih awal dari tanggal invoice KE — kemungkinan salah pasangan, perlu cek manual.');
+
+                return;
+            }
         }
 
         $summary['invoices_to_correct']++;
