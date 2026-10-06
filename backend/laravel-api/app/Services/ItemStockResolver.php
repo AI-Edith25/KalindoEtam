@@ -3,13 +3,11 @@
 namespace App\Services;
 
 use App\Models\Item;
-use App\Repositories\SalesOrderItemRepository;
 
 /**
- * The one place "how much of this item can actually be sold from this warehouse right now" is
- * computed — used by ItemService::list() to enrich Sales Order's item lookup with `available_qty`
- * (physical stock minus what other active Sales Orders already committed against it). Mirrors
- * ItemPriceResolver's shape exactly.
+ * Physical stock in a warehouse, exposed to Sales Order's item lookup as `available_qty` — used by
+ * ItemService::list(). Sales Orders don't reserve stock, so this is the warehouse's on-hand balance.
+ * Mirrors ItemPriceResolver's shape exactly.
  *
  * $warehouseId is null for every caller that isn't Sales Order's own item picker (Item Master,
  * Purchase Order's lookup — see PurchaseOrderLineItemTable.tsx, which never passes warehouse_id) —
@@ -19,7 +17,6 @@ class ItemStockResolver
 {
     public function __construct(
         protected StockLedgerService $stockLedgerService,
-        protected SalesOrderItemRepository $salesOrderItemRepository,
     ) {}
 
     /** @param  iterable<Item>  $items */
@@ -44,11 +41,9 @@ class ItemStockResolver
         }
 
         $physical = $this->stockLedgerService->peekBalances($itemIds, $warehouseId);
-        $committed = $this->salesOrderItemRepository->committedQtyByItem($itemIds, $warehouseId);
 
         foreach ($items as $item) {
-            $availableQty = ($physical[$item->id] ?? 0.0) - ($committed[$item->id] ?? 0.0);
-            $item->setAttribute('available_qty', $availableQty);
+            $item->setAttribute('available_qty', $physical[$item->id] ?? 0.0);
         }
     }
 }

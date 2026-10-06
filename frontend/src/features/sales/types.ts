@@ -130,7 +130,6 @@ export interface SalesOrderStockStatus {
     item_name: string
     requested_qty: number
     physical_qty: number
-    committed_qty: number
     available_qty: number
     is_insufficient: boolean
   }[]

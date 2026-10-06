@@ -122,20 +122,18 @@ class SalesOrderStockCheckTest extends TestCase
         ]));
     }
 
-    /** The actual over-selling scenario the ticket is about: physical stock alone would cover a second order, but another active order already committed most of it. */
-    public function test_committed_qty_from_another_active_order_reduces_what_a_second_order_can_request(): void
+    /** A Sales Order does not reserve stock: another undelivered order never reduces what a second order can request — only physical stock counts. */
+    public function test_another_undelivered_order_does_not_reduce_what_a_second_order_can_request(): void
     {
         $this->seedStock($this->item->id, $this->warehouseA->id, 10);
 
-        // First order takes 8 of the 10 — never delivered, so it's still "committed."
+        // First order takes 8 of the 10 — never delivered, but it doesn't reserve anything.
         $this->salesOrderService->create($this->newOrderPayload(['items' => [['item_id' => $this->item->id, 'qty' => 8, 'rate' => 10000]]]));
 
-        // Second order for 5 would fit in physical stock (10) but not in what's left after the
-        // first order's commitment (10 - 8 = 2 available).
-        $this->expectException(BusinessException::class);
-        $this->expectExceptionMessage('Stok tidak mencukupi');
+        // Second order for 5 fits in physical stock (10), so it's allowed without an override.
+        $second = $this->salesOrderService->create($this->newOrderPayload(['items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 10000]]]));
 
-        $this->salesOrderService->create($this->newOrderPayload(['items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 10000]]]));
+        $this->assertNotNull($second->id);
     }
 
     public function test_cancelled_order_no_longer_counts_as_committed(): void

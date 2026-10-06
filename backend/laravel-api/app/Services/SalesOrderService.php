@@ -183,7 +183,6 @@ class SalesOrderService
                         $data['override_stock_block'] ?? false,
                         $data['stock_override_reason'] ?? null,
                         "updating Sales Order \"{$salesOrder->document_number}\"",
-                        $salesOrder->id,
                     );
                 }
 
@@ -246,7 +245,6 @@ class SalesOrderService
                         $data['override_stock_block'] ?? false,
                         $data['stock_override_reason'] ?? null,
                         "updating approved Sales Order \"{$salesOrder->document_number}\"",
-                        $salesOrder->id,
                     );
                 }
 
@@ -407,7 +405,6 @@ class SalesOrderService
                     $overrideStockBlock,
                     $stockOverrideReason,
                     "approving Sales Order \"{$salesOrder->document_number}\"",
-                    $salesOrder->id,
                 );
             }
 
@@ -434,7 +431,7 @@ class SalesOrderService
 
         $items = $salesOrder->items->map(fn ($item) => ['item_id' => $item->item_id, 'qty' => $item->qty, 'uom_factor' => $item->uom_factor])->all();
 
-        return $this->salesOrderStockService->evaluate($items, $salesOrder->warehouse_id, $salesOrder->id);
+        return $this->salesOrderStockService->evaluate($items, $salesOrder->warehouse_id);
     }
 
     public function cancel(SalesOrder $salesOrder): SalesOrder
@@ -488,9 +485,9 @@ class SalesOrderService
      *
      * @param  array<int, array{item_id: string, qty: int|float}>  $items
      */
-    protected function enforceStockCheck(array $items, string $warehouseId, bool $overridden, ?string $overrideReason, string $context, ?string $excludeSalesOrderId = null): void
+    protected function enforceStockCheck(array $items, string $warehouseId, bool $overridden, ?string $overrideReason, string $context): void
     {
-        $stock = $this->salesOrderStockService->evaluate($this->withUomFactors($items), $warehouseId, $excludeSalesOrderId);
+        $stock = $this->salesOrderStockService->evaluate($this->withUomFactors($items), $warehouseId);
 
         if (! $stock['is_blocked']) {
             return;

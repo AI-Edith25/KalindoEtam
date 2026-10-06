@@ -88,9 +88,12 @@ class SalesOrderUomTest extends TestCase
         // 3 DUS = 75 KG of 100 KG — fine.
         $this->order(['uom_id' => $this->dus->id, 'qty' => 3, 'rate' => 25000]);
 
-        // A second order for 2 DUS = 50 KG would leave 100 - 75 (committed) = 25 KG — blocked.
-        $this->expectException(BusinessException::class);
+        // Sales Orders don't reserve stock, so 2 more DUS (50 KG) is still allowed against 100 KG physical.
         $this->order(['uom_id' => $this->dus->id, 'qty' => 2, 'rate' => 25000]);
+
+        // 5 DUS = 125 KG exceeds the 100 KG physical — blocked, compared in base units.
+        $this->expectException(BusinessException::class);
+        $this->order(['uom_id' => $this->dus->id, 'qty' => 5, 'rate' => 25000]);
     }
 
     public function test_delivery_moves_base_stock_and_invoice_cogs_uses_base_cost(): void
