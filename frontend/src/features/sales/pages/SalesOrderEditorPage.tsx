@@ -4,7 +4,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { AlertTriangle, Loader2, Save, Send } from 'lucide-react'
+import { AlertTriangle, Ban, Loader2, Save, Send, Trash2 } from 'lucide-react'
+import { DeleteDialog } from '@/components/shared/DeleteDialog'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +29,7 @@ import {
   searchCustomersLookup,
 } from '@/features/master/api/lookupsApi'
 import { useHasPermission } from '@/shared/hooks/usePermission'
-import { approveSalesOrder, createSalesOrder, fetchSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
+import { approveSalesOrder, cancelSalesOrder, createSalesOrder, deleteSalesOrder, fetchSalesOrder, updateSalesOrder } from '../api/salesOrderApi'
 import { useCustomerCreditCheck } from '../hooks/useCustomerCreditCheck'
 import { evaluateStockBlock } from '../lib/salesOrderStock'
 import { SalesOrderLineItemTable } from '../components/SalesOrderLineItemTable'
@@ -224,6 +226,29 @@ export function SalesOrderEditorPage() {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success('Sales Order approved.')
       navigate(`/sales/orders/${order.id}`)
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelSalesOrder(id!),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      toast.success('Sales Order cancelled.')
+      navigate(`/sales/orders/${order.id}`)
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteSalesOrder(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      toast.success('Sales Order deleted.')
+      navigate('/sales/orders')
     },
     onError: (error) => toastApiError(error),
   })
@@ -648,9 +673,43 @@ export function SalesOrderEditorPage() {
                 Approve
               </Button>
             )}
+            {isEdit && orderQuery.data?.status === 'submitted' && (
+              <Button type="button" variant="destructive" onClick={() => setConfirmingDelete(true)}>
+                <Trash2 className="size-4" />
+                Delete
+              </Button>
+            )}
+            {isEdit && (orderQuery.data?.status === 'submitted' || orderQuery.data?.status === 'approved') && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setConfirmingCancel(true)}
+                disabled={cancelMutation.isPending}
+              >
+                {cancelMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Ban className="size-4" />}
+                Cancel Sales Order
+              </Button>
+            )}
           </div>
         </form>
       </Form>
+
+      <DeleteDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        itemLabel={orderQuery.data?.document_number ?? undefined}
+        onConfirm={() => deleteMutation.mutate()}
+      />
+
+      <ConfirmationDialog
+        open={confirmingCancel}
+        onOpenChange={setConfirmingCancel}
+        title={`Cancel ${orderQuery.data?.document_number ?? 'this Sales Order'}?`}
+        description="The order is kept as cancelled for the record."
+        confirmLabel="Cancel Sales Order"
+        variant="destructive"
+        onConfirm={() => cancelMutation.mutate()}
+      />
     </div>
   )
 }
