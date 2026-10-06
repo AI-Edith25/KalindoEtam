@@ -1,5 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -13,15 +15,20 @@ function matchesPrefix(customer: OpenBillCustomer, needle: string): boolean {
   return (customer.customer_code ?? '').toLowerCase().startsWith(needle) || (customer.customer_name ?? '').toLowerCase().startsWith(needle)
 }
 
+function customerKey(customer: OpenBillCustomer): string {
+  return customer.customer_code ?? customer.customer_name ?? ''
+}
+
 /**
- * Customer Outstanding Bills (live). Shows every still-owed invoice per customer, read straight from
- * accounts receivable, so a payment recorded in the app drops the invoice from this list the same way
- * Skybiz's own unpaid-bills report behaves. Replaces the static archive snapshot view.
+ * Customer Outstanding Bills (live). One row per customer with its total still owed and overdue;
+ * the invoices behind it stay hidden until that customer's chevron is pressed. Read straight from
+ * accounts receivable, so a payment recorded in the app drops the invoice from this list.
  *
  * Filters run on the loaded response, so typing never triggers a new request. The customer box
  * matches the START of the customer code or name ("mar" finds MARZAN), and lists matching customers
- * underneath to pick from. Picking one narrows the table to that customer. The document box narrows
- * the rows inside the shown customers. A customer with no matching rows is hidden.
+ * underneath to pick from. Picking one narrows the list to that customer. The document box narrows
+ * the invoices inside each customer, and opens every customer that has a matching invoice so the
+ * hit is visible without extra clicks. A customer with no matching invoice is hidden.
  */
 export function CustomerOutstandingBillsLiveView() {
   const [asAt, setAsAt] = useState('')
@@ -29,6 +36,15 @@ export function CustomerOutstandingBillsLiveView() {
   const [customerText, setCustomerText] = useState('')
   const [selectedCustomerCode, setSelectedCustomerCode] = useState<string | null>(null)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
+
+  const toggleExpanded = (key: string) =>
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
 
   const query = useQuery({
     queryKey: ['ar-open-bills-by-customer', asAt],
@@ -164,57 +180,94 @@ export function CustomerOutstandingBillsLiveView() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>No. Dokumen</TableHead>
-                <TableHead>Referensi</TableHead>
-                <TableHead className="text-right">Jumlah Invoice</TableHead>
-                <TableHead className="text-right">Dibayar</TableHead>
+                <TableHead className="w-10" />
+                <TableHead>Kode</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead className="text-right">Jumlah Dokumen</TableHead>
                 <TableHead className="text-right">Sisa</TableHead>
-                <TableHead>Jatuh Tempo</TableHead>
-                <TableHead className="text-right">Hari Terlewat</TableHead>
+                <TableHead className="text-right">Terlewat</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visibleCustomers.map(({ customer, rows }) => {
+                const key = customerKey(customer)
+                const isOpen = documentSearch.trim() !== '' || expandedKeys.has(key)
                 const totalUnpaid = rows.reduce((sum, r) => sum + r.unpaid_amount, 0)
                 const totalOverdue = rows.reduce((sum, r) => sum + r.overdue_amount, 0)
                 return (
-                  <Fragment key={customer.customer_code ?? customer.customer_name ?? ''}>
-                    <TableRow className="bg-muted/20 font-semibold">
-                      <TableCell colSpan={5}>
-                        {customer.customer_code} — {customer.customer_name}
+                  <Fragment key={key}>
+                    <TableRow className="font-medium">
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          aria-expanded={isOpen}
+                          aria-label={isOpen ? 'Tutup daftar tagihan' : 'Lihat daftar tagihan'}
+                          onClick={() => toggleExpanded(key)}
+                        >
+                          {isOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                        </Button>
                       </TableCell>
+                      <TableCell>{customer.customer_code}</TableCell>
+                      <TableCell>{customer.customer_name}</TableCell>
+                      <TableCell className="text-right">{rows.length}</TableCell>
                       <TableCell className="text-right">{formatCurrency(totalUnpaid)}</TableCell>
-                      <TableCell colSpan={2} className="text-right text-destructive">
-                        Terlewat: {formatCurrency(totalOverdue)}
+                      <TableCell className={`text-right ${totalOverdue > 0 ? 'text-destructive' : ''}`}>
+                        {formatCurrency(totalOverdue)}
                       </TableCell>
                     </TableRow>
-                    {rows.map((row) => (
-                      <TableRow key={row.document_number ?? `${customer.customer_code}-${row.invoice_date}`}>
-                        <TableCell>{row.invoice_date ? formatDate(row.invoice_date) : '—'}</TableCell>
-                        <TableCell>{row.document_number}</TableCell>
-                        <TableCell>{row.reference_1}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.amount)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.paid_amount)}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(row.unpaid_amount)}</TableCell>
-                        <TableCell>{row.due_date ? formatDate(row.due_date) : '—'}</TableCell>
-                        <TableCell className={`text-right ${row.overdue_days > 0 ? 'text-destructive' : ''}`}>
-                          {row.overdue_days > 0 ? row.overdue_days : '—'}
+                    {isOpen && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={6} className="bg-muted/20 p-0">
+                          <div className="px-4 py-2">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Tanggal</TableHead>
+                                  <TableHead>No. Dokumen</TableHead>
+                                  <TableHead>Referensi</TableHead>
+                                  <TableHead className="text-right">Jumlah Invoice</TableHead>
+                                  <TableHead className="text-right">Dibayar</TableHead>
+                                  <TableHead className="text-right">Sisa</TableHead>
+                                  <TableHead>Jatuh Tempo</TableHead>
+                                  <TableHead className="text-right">Hari Terlewat</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {rows.map((row) => (
+                                  <TableRow key={row.document_number ?? `${key}-${row.invoice_date}`}>
+                                    <TableCell>{row.invoice_date ? formatDate(row.invoice_date) : '—'}</TableCell>
+                                    <TableCell>{row.document_number}</TableCell>
+                                    <TableCell>{row.reference_1}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(row.amount)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(row.paid_amount)}</TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(row.unpaid_amount)}</TableCell>
+                                    <TableCell>{row.due_date ? formatDate(row.due_date) : '—'}</TableCell>
+                                    <TableCell className={`text-right ${row.overdue_days > 0 ? 'text-destructive' : ''}`}>
+                                      {row.overdue_days > 0 ? row.overdue_days : '—'}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </Fragment>
                 )
               })}
               <TableRow className="font-semibold">
-                <TableCell colSpan={5} className="text-right">
+                <TableCell colSpan={4} className="text-right">
                   {isFiltered ? 'Total Tampilan' : 'Grand Total Belum Dibayar'}
                 </TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(isFiltered ? visibleUnpaid : data?.grand_total_unpaid ?? 0)}
                 </TableCell>
-                <TableCell colSpan={2} className="text-right text-destructive">
-                  Terlewat: {formatCurrency(isFiltered ? visibleOverdue : data?.grand_total_overdue ?? 0)}
+                <TableCell className="text-right text-destructive">
+                  {formatCurrency(isFiltered ? visibleOverdue : data?.grand_total_overdue ?? 0)}
                 </TableCell>
               </TableRow>
             </TableBody>
