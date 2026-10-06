@@ -6,6 +6,7 @@ use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\ImportBatchStatus;
 use App\Enums\InvoiceType;
+use App\Enums\QtyCategory;
 use App\Exceptions\BusinessException;
 use App\Models\Customer;
 use App\Models\ImportBatch;
@@ -419,6 +420,11 @@ class SalesInvoiceImportService
 
             foreach ($lines as $line) {
                 $item = $line['item'];
+                // Misc-matched lines (no Item master) default to Weight (decimal) — same posture as
+                // Transportation's freeform lines (InvoiceService::createTransportation()). A real
+                // Item carries its own qty_category, which this used to drop on the floor, forcing
+                // every imported line (weight-category Items included) to whole-number qty.
+                $qtyCategory = $item?->qty_category ?? QtyCategory::WEIGHT;
 
                 $this->invoiceItemRepository->create([
                     'invoice_id' => $invoice->id,
@@ -428,7 +434,8 @@ class SalesInvoiceImportService
                     'item_name' => $item?->item_name ?? $line['description'],
                     'uom' => $item?->uom?->name,
                     'rate' => $line['rate'],
-                    'qty' => (int) round($line['qty']),
+                    'qty' => round($line['qty'], $qtyCategory->decimalPlaces()),
+                    'qty_category' => $qtyCategory->value,
                     'amount' => round($line['amount'], 2),
                     'tax_id' => null,
                     'tax_amount' => round($line['tax'], 2),
@@ -490,7 +497,8 @@ class SalesInvoiceImportService
                     'item_name' => $line['description'],
                     'uom' => null,
                     'rate' => $line['rate'],
-                    'qty' => (int) round($line['qty']),
+                    'qty' => round($line['qty'], QtyCategory::WEIGHT->decimalPlaces()),
+                    'qty_category' => QtyCategory::WEIGHT->value,
                     'amount' => round($line['amount'], 2),
                     'tax_id' => null,
                     'tax_amount' => round($line['tax'], 2),

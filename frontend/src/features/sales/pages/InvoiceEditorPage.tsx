@@ -1056,8 +1056,8 @@ function InvoiceForm({
                           <TableCell className="min-w-32">
                             <Input
                               type="number"
-                              min={1}
-                              step="1"
+                              min={0.01}
+                              step="0.01"
                               className="text-right"
                               value={line.qty}
                               onChange={(event) => setTransportLine(line.key, { qty: event.target.value })}

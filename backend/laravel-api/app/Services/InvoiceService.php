@@ -6,6 +6,7 @@ use App\Enums\DeliveryStatus;
 use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
+use App\Enums\QtyCategory;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
 use App\Exceptions\BusinessException;
@@ -210,7 +211,7 @@ class InvoiceService
             $lines = [];
 
             foreach ($data['items'] as $line) {
-                $qty = (float) $line['qty'];
+                $qty = round((float) $line['qty'], QtyCategory::WEIGHT->decimalPlaces());
                 $rate = (float) $line['rate'];
                 $grossAmount = $qty * $rate;
                 [$discountType, $discountValue, $discountAmount, $netAmount] = $this->discountService->resolveLineDiscount($line, $grossAmount);
@@ -272,6 +273,7 @@ class InvoiceService
                     'uom' => $built['line']['uom'] ?? null,
                     'rate' => $built['rate'],
                     'qty' => $built['qty'],
+                    'qty_category' => QtyCategory::WEIGHT->value,
                     'amount' => round($built['grossAmount'], 2),
                     'discount_type' => $built['discountType']->value,
                     'discount_value' => $built['discountValue'],
@@ -601,14 +603,16 @@ class InvoiceService
             $incoming = $incomingById->get($id);
             $rawQty = (float) ($incoming['qty'] ?? $line->qty);
 
-            // Transportation lines carry no Item (freestanding, see createTransportation()) — fall
-            // back to whole-number rounding for those; every real Item-backed line is validated/
-            // rounded against its own qty_category, same as createDirectGoods().
+            // Transportation/Miscellaneous lines carry no Item (freestanding, see
+            // createTransportation()/SalesInvoiceImportService's misc-matched Goods lines) — those
+            // round to 2 decimals same as the underlying column, no whole-number restriction;
+            // every real Item-backed line is still validated/rounded against its own qty_category,
+            // same as createDirectGoods().
             if ($line->item !== null) {
                 $this->qtyCategoryValidator->assertValid($line->item, $rawQty);
                 $qty = $this->qtyCategoryValidator->round($line->item, $rawQty);
             } else {
-                $qty = (int) round($rawQty);
+                $qty = round($rawQty, 2);
             }
 
             if ($qty <= 0) {
