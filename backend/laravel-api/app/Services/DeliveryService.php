@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\DeliveryStatus;
 use App\Enums\DiscountType;
+use App\Enums\DocumentStatus;
 use App\Enums\SalesOrderStatus;
 use App\Enums\StockTransactionType;
 use App\Enums\StockVoucherType;
@@ -523,13 +524,26 @@ class DeliveryService
     }
 
     /**
-     * Only Pending Deliveries can be cancelled — nothing was posted to stock or delivered_qty yet,
-     * so there's nothing to reverse. The record is kept (status = cancelled) for audit.
+     * Pending: nothing was posted yet, so only the status changes. Complete and not invoiced: the
+     * stock and the Sales Order's delivered_qty are reversed exactly as an edit would (see
+     * reverseDeliveryStock()). Any live Invoice blocks it — that path is a Credit Note, not a
+     * cancel. The record is kept with status = cancelled for audit either way.
      */
     public function cancel(Delivery $delivery): Delivery
     {
         return DB::transaction(function () use ($delivery) {
-            $this->assertDraft($delivery, 'cancelled');
+            $delivery = Delivery::query()->whereKey($delivery->id)->lockForUpdate()->firstOrFail();
+
+            if ($delivery->status === DeliveryStatus::COMPLETE) {
+                $hasLiveInvoice = $delivery->invoices()->whereNot('invoices.status', DocumentStatus::CANCELLED->value)->exists();
+                if ($hasLiveInvoice) {
+                    throw new BusinessException("Delivery \"{$delivery->document_number}\" sudah di-invoice. Batalkan Invoice-nya (Credit Note) dulu.");
+                }
+
+                $delivery->load(['items.salesOrderItem']);
+                $this->reverseDeliveryStock($delivery);
+            }
+
             $documentNumber = $delivery->document_number;
             $delivery = $delivery->cancel();
             $this->auditLogService->record('cancelled', 'delivery', "Cancelled Delivery \"{$documentNumber}\".");

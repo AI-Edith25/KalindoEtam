@@ -121,12 +121,11 @@ class Delivery extends Model
     }
 
     /**
-     * Only a Pending Delivery can be cancelled. A Complete one has already moved stock out and
-     * (once invoiced) created Accounts Receivable, and reversing that needs the Return workflow,
-     * which does not exist yet — so Complete stays forbidden, as before.
+     * Pending, or Complete with no live Invoice (DeliveryService::cancel() reverses the stock for a
+     * Complete one first). An invoiced Delivery is refused there, not here.
      */
     protected function cancellableStatuses(): array
     {
-        return [$this->initialStatus()];
+        return [$this->initialStatus(), $this->submittedStatus()];
     }
 }

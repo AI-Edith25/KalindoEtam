@@ -127,6 +127,12 @@ export function DeliveryDetailPage() {
                 Edit
               </Button>
             )}
+            {delivery.status === 'complete' && canEditComplete && !delivery.is_invoiced && (
+              <Button variant="outline" onClick={() => setConfirmingCancel(true)} disabled={cancelMutation.isPending}>
+                <Ban className="size-4" />
+                Cancel
+              </Button>
+            )}
           </div>
         }
       />
@@ -239,7 +245,11 @@ export function DeliveryDetailPage() {
         open={confirmingCancel}
         onOpenChange={setConfirmingCancel}
         title={`Cancel ${delivery.document_number ?? 'this Delivery'}?`}
-        description="The delivery is kept as cancelled for the record. No stock is affected, since nothing was posted yet."
+        description={
+          delivery.status === 'complete'
+            ? 'Stock sent out with this delivery goes back to the warehouse, and the Sales Order\'s delivered quantity is reduced. The record is kept as cancelled.'
+            : 'The delivery is kept as cancelled for the record. No stock is affected, since nothing was posted yet.'
+        }
         confirmLabel="Cancel Delivery"
         variant="destructive"
         onConfirm={() => cancelMutation.mutate()}

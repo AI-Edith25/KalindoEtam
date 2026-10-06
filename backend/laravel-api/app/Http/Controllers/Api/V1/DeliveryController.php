@@ -80,9 +80,16 @@ class DeliveryController extends Controller
         return $this->success(new DeliveryResource($delivery), 'Delivery completed.');
     }
 
-    /** Pending only — a Complete Delivery can't be cancelled (stock already moved; needs the Return workflow). */
+    /**
+     * Cancelling a Complete Delivery reverses its stock, same as editing one, so it needs the same
+     * `sales.deliveries.edit` gate that update() applies. Pending needs only the route's permission.
+     */
     public function cancel(Delivery $delivery): JsonResponse
     {
+        if ($delivery->status === DeliveryStatus::COMPLETE) {
+            abort_unless(Auth::user()?->can('sales.deliveries.edit'), 403, 'You do not have permission to cancel a Complete Delivery.');
+        }
+
         $delivery = $this->deliveryService->cancel($delivery);
 
         return $this->success(new DeliveryResource($delivery), 'Delivery cancelled.');

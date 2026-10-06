@@ -16,6 +16,7 @@ use App\Models\SalesOrderItem;
 use App\Models\UnitOfMeasurement;
 use App\Models\Warehouse;
 use App\Services\DeliveryService;
+use App\Services\InvoiceService;
 use App\Services\SalesOrderService;
 use App\Services\StockLedgerService;
 use Database\Seeders\ChartOfAccountsSeeder;
@@ -34,6 +35,8 @@ class DeliveryCancelTest extends TestCase
 
     protected StockLedgerService $stockLedgerService;
 
+    protected InvoiceService $invoiceService;
+
     protected Customer $customer;
 
     protected Warehouse $warehouse;
@@ -50,6 +53,7 @@ class DeliveryCancelTest extends TestCase
         $this->salesOrderService = app(SalesOrderService::class);
         $this->deliveryService = app(DeliveryService::class);
         $this->stockLedgerService = app(StockLedgerService::class);
+        $this->invoiceService = app(InvoiceService::class);
 
         $company = Company::query()->create(['name' => 'Test Co', 'code' => 'TC', 'fiscal_year_start' => now()->startOfYear()->toDateString()]);
         Branch::query()->create(['company_id' => $company->id, 'name' => 'Main', 'code' => 'HQ']);
@@ -97,15 +101,53 @@ class DeliveryCancelTest extends TestCase
         $this->assertDatabaseHas((new AuditLog)->getTable(), ['action' => 'cancelled', 'module' => 'delivery']);
     }
 
-    public function test_complete_delivery_cannot_be_cancelled(): void
+    public function test_complete_uninvoiced_delivery_can_be_cancelled_and_its_stock_is_restored(): void
     {
-        $delivery = $this->pendingDelivery();
-        $this->deliveryService->complete($delivery);
+        $delivery = $this->deliveryService->complete($this->pendingDelivery());
+        $balanceAfterComplete = $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id);
+        $this->assertEquals(990, $balanceAfterComplete, 'seeded 1000, delivered 10');
 
-        $this->expectException(BusinessException::class);
-        $this->expectExceptionMessage('Only pending Deliveries can be cancelled.');
+        $cancelled = $this->deliveryService->cancel($delivery);
 
-        $this->deliveryService->cancel($delivery->fresh());
+        $this->assertSame(DeliveryStatus::CANCELLED, $cancelled->status);
+        $this->assertEquals(1000, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id), 'the 10 pieces came back');
+        $this->assertEquals(0, SalesOrderItem::query()->first()->delivered_qty, 'Sales Order delivered_qty is restored');
+    }
+
+    public function test_complete_delivery_with_a_live_invoice_cannot_be_cancelled(): void
+    {
+        $delivery = $this->deliveryService->complete($this->pendingDelivery());
+        $this->invoiceService->create([
+            'delivery_ids' => [$delivery->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+        $balanceBefore = $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id);
+
+        try {
+            $this->deliveryService->cancel($delivery->fresh());
+            $this->fail('An invoiced Delivery must not be cancellable.');
+        } catch (BusinessException $e) {
+            $this->assertStringContainsString('sudah di-invoice', $e->getMessage());
+        }
+
+        $this->assertEquals($balanceBefore, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id), 'no stock was reversed');
+    }
+
+    public function test_complete_delivery_becomes_cancellable_once_its_invoice_is_cancelled(): void
+    {
+        $delivery = $this->deliveryService->complete($this->pendingDelivery());
+        $invoice = $this->invoiceService->submit($this->invoiceService->create([
+            'delivery_ids' => [$delivery->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]));
+        $this->invoiceService->cancel($invoice);
+
+        $cancelled = $this->deliveryService->cancel($delivery->fresh());
+
+        $this->assertSame(DeliveryStatus::CANCELLED, $cancelled->status);
+        $this->assertEquals(1000, $this->stockLedgerService->getCurrentBalance($this->item->id, $this->warehouse->id));
     }
 
     /** Submit's own status guard rejects it (422), and the transaction rolls back any stock posted before that. */
