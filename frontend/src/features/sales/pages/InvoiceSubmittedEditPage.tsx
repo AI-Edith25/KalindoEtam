@@ -117,6 +117,8 @@ export function InvoiceSubmittedEditPage() {
   const patchLine = (id: string, patch: Partial<EditableLine>) =>
     setLines((prev) => (prev ?? []).map((line) => (line.id === id ? { ...line, ...patch } : line)))
 
+  const isTransportation = invoice?.invoice_type === 'transportation'
+
   const buildPayload = () => ({
     invoice_date: invoiceDate,
     due_date: dueDate,
@@ -134,14 +136,21 @@ export function InvoiceSubmittedEditPage() {
     remarks: remarks || null,
     affects_stock: affectsStock,
     lock_version: invoice!.lock_version,
-    items: (lines ?? []).map((line) => ({
-      id: line.id,
-      qty: Number(line.qty) || 0,
-      rate: Number(line.rate) || 0,
-      discount_type: line.discount_type as 'amount' | 'percentage',
-      discount_value: Number(line.discount_value) || 0,
-      tax_id: line.tax_id || null,
-    })),
+    // Transportation rejects any `items` key here — see InvoiceService::updateSubmitted(), which
+    // sends Transportation rate changes through the dedicated "Ubah Nominal" flow instead. Sending
+    // it unconditionally made every save (even a header-only edit like Reference) 422 for them.
+    ...(isTransportation
+      ? {}
+      : {
+          items: (lines ?? []).map((line) => ({
+            id: line.id,
+            qty: Number(line.qty) || 0,
+            rate: Number(line.rate) || 0,
+            discount_type: line.discount_type as 'amount' | 'percentage',
+            discount_value: Number(line.discount_value) || 0,
+            tax_id: line.tax_id || null,
+          })),
+        }),
   })
 
   const saveMutation = useMutation({
@@ -333,12 +342,13 @@ export function InvoiceSubmittedEditPage() {
                             className="text-right"
                             value={line.qty}
                             onChange={(e) => patchLine(line.id, { qty: e.target.value })}
+                            disabled={isTransportation}
                           />
                         )
                       })()}
                     </TableCell>
                     <TableCell className="min-w-40">
-                      <RupiahInput value={line.rate} onChange={(value) => patchLine(line.id, { rate: value })} />
+                      <RupiahInput value={line.rate} onChange={(value) => patchLine(line.id, { rate: value })} disabled={isTransportation} />
                     </TableCell>
                     <TableCell className="min-w-40">
                       <DiscountInput
@@ -346,6 +356,7 @@ export function InvoiceSubmittedEditPage() {
                         value={line.discount_value}
                         onTypeChange={(value) => patchLine(line.id, { discount_type: value })}
                         onValueChange={(value) => patchLine(line.id, { discount_value: value })}
+                        disabled={isTransportation}
                       />
                     </TableCell>
                     <TableCell className="min-w-48">
@@ -356,6 +367,7 @@ export function InvoiceSubmittedEditPage() {
                         clearable={false}
                         placeholder="No tax"
                         aria-label="Tax"
+                        disabled={isTransportation}
                       />
                     </TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(lineNetAmount(line))}</TableCell>
@@ -367,7 +379,11 @@ export function InvoiceSubmittedEditPage() {
               </TableBody>
             </Table>
           </LineItemTableScroll>
-          <p className="mt-2 text-sm text-muted-foreground">Item, UOM, and the Delivery/Sales Order it came from cannot be changed — only Qty, Rate, and Tax.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {isTransportation
+              ? 'Transportation invoice — use the "Ubah Nominal" menu to change Rate. Item, UOM, Qty, Rate, Discount, and Tax cannot be changed here.'
+              : 'Item, UOM, and the Delivery/Sales Order it came from cannot be changed — only Qty, Rate, and Tax.'}
+          </p>
         </CardContent>
       </Card>
 
