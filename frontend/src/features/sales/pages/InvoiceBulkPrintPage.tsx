@@ -19,7 +19,7 @@ import { fetchMyPrintSettings, saveMyPrintSetting } from '@/shared/lib/printSett
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchInvoice } from '../api/invoiceApi'
 import { InvoicePaper } from './InvoicePaper'
-import { DEJAVU_FONT_STACK } from './invoicePrintConstants'
+import { DEJAVU_FONT_STACK, DOTMATRIX_HALF_PAGE_SIZE_MM } from './invoicePrintConstants'
 
 /** Same ceiling SalesOrderBulkPrintPage already enforces client-side (no API endpoint backs this
     — it's N single-document fetches, same as there) — matches that existing precedent's number
@@ -114,7 +114,10 @@ export function InvoiceBulkPrintPage() {
   const loadedCount = invoiceQueries.filter((query) => query.data).length
 
   return (
-    <div className={isHalfSheet ? 'inv-half-shell' : 'mx-auto flex w-fit flex-col gap-4'}>
+    <div
+      className={isHalfSheet ? 'inv-half-shell' : 'mx-auto flex w-fit flex-col gap-4'}
+      style={isHalfSheet ? { width: `${DOTMATRIX_HALF_PAGE_SIZE_MM.widthMm}mm` } : undefined}
+    >
       <div className={isHalfSheet ? 'inv-no-print' : 'flex items-start justify-between print:hidden'}>
         <h1 className="text-xl font-semibold">
           Print Invoices Preview — {loadedCount}/{ids.length} Invoices

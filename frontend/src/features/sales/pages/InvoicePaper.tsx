@@ -143,8 +143,13 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
       : printOptions.paperType === 'continuous'
         ? 'continuous'
         : 'a4'
-  const paperSize = PAPER_SIZES[paperKey]
-  const dotMatrixHeightMm = printOptions.dotMatrixHeightMm ?? DOTMATRIX_HALF_DEFAULTS.heightMm
+  // Half is the physical 9.5in x 5.5in sheet. Sized from the same constant as its @page rule below,
+  // so the two cannot drift apart.
+  const paperSize = isHalfSheet ? DOTMATRIX_HALF_PAGE_SIZE_MM : PAPER_SIZES[paperKey]
+  // A saved sheet height taller than the physical sheet cannot print on one page, so it is capped
+  // here. The bottom block's shift (148.5 - height) uses this same capped value, so the signature
+  // stays inside the sheet.
+  const dotMatrixHeightMm = Math.min(printOptions.dotMatrixHeightMm ?? DOTMATRIX_HALF_DEFAULTS.heightMm, DOTMATRIX_HALF_PAGE_SIZE_MM.heightMm)
   const dotMatrixOffsetLeftMm = printOptions.dotMatrixOffsetLeftMm ?? DOTMATRIX_HALF_DEFAULTS.offsetLeftMm
   const dotMatrixOffsetTopMm = printOptions.dotMatrixOffsetTopMm ?? DOTMATRIX_HALF_DEFAULTS.offsetTopMm
 

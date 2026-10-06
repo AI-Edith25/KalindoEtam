@@ -18,7 +18,7 @@ import { fetchMyPrintSettings, saveMyPrintSetting } from '@/shared/lib/printSett
 import { useCompanyBranding, useCompanyPrintHeader } from '@/features/administration/hooks/useCompany'
 import { fetchInvoice } from '../api/invoiceApi'
 import { InvoicePaper } from './InvoicePaper'
-import { DEJAVU_FONT_STACK } from './invoicePrintConstants'
+import { DEJAVU_FONT_STACK, DOTMATRIX_HALF_PAGE_SIZE_MM } from './invoicePrintConstants'
 
 /**
  * Single-invoice print preview — toolbar (Print Options/Print) and PrintOptionsDialog state live
@@ -120,7 +120,10 @@ export function InvoicePrintPage() {
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
 
   return (
-    <div className={isHalfSheet ? 'inv-half-shell' : 'mx-auto flex w-fit flex-col gap-4'}>
+    <div
+      className={isHalfSheet ? 'inv-half-shell' : 'mx-auto flex w-fit flex-col gap-4'}
+      style={isHalfSheet ? { width: `${DOTMATRIX_HALF_PAGE_SIZE_MM.widthMm}mm` } : undefined}
+    >
       <div className={isHalfSheet ? 'inv-no-print' : 'flex items-start justify-between print:hidden'}>
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
         <div className="flex items-center gap-2">
