@@ -1,12 +1,13 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { fetchOpenBillsByCustomer, type OpenBillCustomer } from '../api/accountsReceivableOpenByCustomerApi'
+import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { exportOpenBillsByCustomer, fetchOpenBillsByCustomer, type OpenBillCustomer } from '../api/accountsReceivableOpenByCustomerApi'
 
 const SUGGESTION_LIMIT = 10
 
@@ -52,6 +53,17 @@ export function CustomerOutstandingBillsLiveView() {
   })
 
   const data = query.data
+
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const blob = await exportOpenBillsByCustomer(asAt || undefined)
+      downloadBlob(`PiutangCustomerLive_${data?.as_at ?? 'today'}.xlsx`, blob)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const customerNeedle = customerText.trim().toLowerCase()
 
@@ -155,6 +167,10 @@ export function CustomerOutstandingBillsLiveView() {
             Per {formatDate(data.as_at)} — {visibleCustomers.length} customer, {visibleRowCount} dokumen
           </p>
         )}
+        <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={handleExport} disabled={!data || exporting}>
+          <Download className="size-4" />
+          {exporting ? 'Mengekspor…' : 'Export xlsx'}
+        </Button>
       </div>
 
       {query.isLoading && (

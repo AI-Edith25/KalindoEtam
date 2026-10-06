@@ -456,6 +456,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('accounts-receivables/export', [AccountsReceivableController::class, 'export'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     // Customer Outstanding Bills (live) — still-owed AR rows per customer; see openByCustomer().
     Route::get('accounts-receivables/open-by-customer', [AccountsReceivableController::class, 'openByCustomer'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
+    Route::get('accounts-receivables/open-by-customer/export', [AccountsReceivableController::class, 'exportOpenByCustomer'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/detail-grouped', [AccountsReceivableController::class, 'detailGrouped'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     // Also reads for Sales > Invoices' checkbox print flow (Tanda Terima Invoice / Laporan Penagihan Harian, 2026-08-19) — invoice_ids filter, same list-all endpoint.
     Route::get('accounts-receivables/list-all', [AccountsReceivableController::class, 'listAll'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view|reports.tanda_terima_invoice.view|sales.invoices.view');

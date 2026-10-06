@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Exports\AccountsReceivableAgingDetailExport;
 use App\Exports\AccountsReceivableAgingSummaryExport;
 use App\Exports\AccountsReceivableLedgerExport;
+use App\Exports\OpenBillsByCustomerExport;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexAccountsReceivableRequest;
@@ -53,8 +54,27 @@ class AccountsReceivableController extends Controller
      */
     public function openByCustomer(Request $request): JsonResponse
     {
-        $asAt = $request->query('as_at') ? \Illuminate\Support\Carbon::parse($request->query('as_at'))->startOfDay() : now()->startOfDay();
+        return $this->success($this->openBillsPayload($this->asAtFrom($request)));
+    }
 
+    /** Same numbers as openByCustomer(), flattened to one xlsx row per open document for reconciliation against an external statement. */
+    public function exportOpenByCustomer(Request $request): BinaryFileResponse
+    {
+        $payload = $this->openBillsPayload($this->asAtFrom($request));
+
+        $export = new OpenBillsByCustomerExport($payload['customers'], $payload['grand_total_unpaid'], $payload['grand_total_overdue'], $payload['as_at']);
+
+        return Excel::download($export, "PiutangCustomerLive_{$payload['as_at']}.xlsx");
+    }
+
+    private function asAtFrom(Request $request): \Illuminate\Support\Carbon
+    {
+        return $request->query('as_at') ? \Illuminate\Support\Carbon::parse($request->query('as_at'))->startOfDay() : now()->startOfDay();
+    }
+
+    /** @return array{as_at: string, customers: \Illuminate\Support\Collection, grand_total_unpaid: float, grand_total_overdue: float} */
+    private function openBillsPayload(\Illuminate\Support\Carbon $asAt): array
+    {
         $rows = AccountsReceivable::query()
             ->with(['customer:id,customer_code,customer_name', 'invoice:id,document_number,invoice_date,reference_1,status,terms_of_payment_id', 'invoice.termsOfPayment:id,days'])
             ->whereRaw('amount - paid_amount > 0.005')
@@ -97,12 +117,12 @@ class AccountsReceivableController extends Controller
             ->sortBy('customer_code')
             ->values();
 
-        return $this->success([
+        return [
             'as_at' => $asAt->toDateString(),
             'customers' => $groups,
             'grand_total_unpaid' => round($groups->sum('total_unpaid'), 2),
             'grand_total_overdue' => round($groups->sum('total_overdue'), 2),
-        ]);
+        ];
     }
 
     /** F1 (UAT review 2026-08-12) — "Tanda Terima Invoice": same filters as index(), unpaginated (listAll() — never truncated at the 100/page cap a single customer's invoice list could otherwise hit). */

@@ -36,3 +36,12 @@ export async function fetchOpenBillsByCustomer(asAt?: string): Promise<OpenBills
   })
   return data.data
 }
+
+/** Same figures as fetchOpenBillsByCustomer(), every customer and every open document, as an xlsx file. */
+export async function exportOpenBillsByCustomer(asAt?: string): Promise<Blob> {
+  const { data } = await apiClient.get('/accounts-receivables/open-by-customer/export', {
+    params: asAt ? { as_at: asAt } : undefined,
+    responseType: 'blob',
+  })
+  return data
+}
