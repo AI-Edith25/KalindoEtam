@@ -6,4 +6,5 @@ enum DeliveryStatus: string
 {
     case PENDING = 'pending';
     case COMPLETE = 'complete';
+    case CANCELLED = 'cancelled';
 }

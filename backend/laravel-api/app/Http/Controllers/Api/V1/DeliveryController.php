@@ -73,14 +73,19 @@ class DeliveryController extends Controller
         return $this->success(null, 'Delivery deleted.');
     }
 
-    /**
-     * No cancel() action here, deliberately — see Delivery::cancel().
-     */
     public function complete(Delivery $delivery): JsonResponse
     {
         $delivery = $this->deliveryService->complete($delivery);
 
         return $this->success(new DeliveryResource($delivery), 'Delivery completed.');
+    }
+
+    /** Pending only — a Complete Delivery can't be cancelled (stock already moved; needs the Return workflow). */
+    public function cancel(Delivery $delivery): JsonResponse
+    {
+        $delivery = $this->deliveryService->cancel($delivery);
+
+        return $this->success(new DeliveryResource($delivery), 'Delivery cancelled.');
     }
 
     /**

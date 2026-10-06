@@ -47,7 +47,11 @@ export async function completeDelivery(id: string): Promise<Delivery> {
   return data.data
 }
 
-/** No cancelDelivery — the backend has no route. Delivery::cancel() always throws; reversal is only via the (not yet implemented) Return workflow. */
+/** Pending only. A Complete Delivery can't be cancelled — its stock is already out; reversal needs the Return workflow. */
+export async function cancelDelivery(id: string): Promise<Delivery> {
+  const { data } = await apiClient.post<ApiResponse<Delivery>>(`/deliveries/${id}/cancel`)
+  return data.data
+}
 
 export interface DeliveryExportParams {
   format: 'xlsx' | 'csv'

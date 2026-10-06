@@ -370,6 +370,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('deliveries/export', [DeliveryController::class, 'export'])->middleware('permission:sales.deliveries.view|reports.deliveries.view');
     $withPagePermissions(Route::apiResource('deliveries', DeliveryController::class), 'sales.deliveries', 'reports.deliveries.view');
     Route::post('deliveries/{delivery}/complete', [DeliveryController::class, 'complete'])->middleware('permission:sales.deliveries.update');
+    Route::post('deliveries/{delivery}/cancel', [DeliveryController::class, 'cancel'])->middleware('permission:sales.deliveries.update');
 
     // Sales Report rework — 4 tabs, each a DB-level aggregate (never fetch-all-then-sum-in-PHP), so
     // KPIs always reflect the full filtered set, not just the loaded page. All 4 tabs are shipped.

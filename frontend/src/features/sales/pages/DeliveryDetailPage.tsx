@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ExternalLink, Loader2, Pencil, Printer, Send, Trash2 } from 'lucide-react'
+import { Ban, ExternalLink, Loader2, Pencil, Printer, Send, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -10,13 +10,14 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { lineAmount } from '@/shared/lib/documentTotals'
 import { openPrintWindow } from '@/shared/lib/printOptions'
-import { completeDelivery, deleteDelivery, fetchDelivery } from '../api/deliveryApi'
+import { cancelDelivery, completeDelivery, deleteDelivery, fetchDelivery } from '../api/deliveryApi'
 import type { DeliveryItem } from '../types'
 
 const lineColumns: DataTableColumn<DeliveryItem>[] = [
@@ -35,6 +36,7 @@ export function DeliveryDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
   const canEditComplete = useHasPermission('sales.deliveries.edit')
 
   const deliveryQuery = useQuery({
@@ -60,6 +62,15 @@ export function DeliveryDetailPage() {
       invalidate()
       toast.success('Delivery deleted.')
       navigate('/sales/deliveries')
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelDelivery(id!),
+    onSuccess: () => {
+      invalidate()
+      toast.success('Delivery cancelled.')
     },
     onError: (error) => toastApiError(error),
   })
@@ -99,6 +110,10 @@ export function DeliveryDetailPage() {
                 <Button onClick={() => completeMutation.mutate()} disabled={completeMutation.isPending}>
                   {completeMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                   Confirm Delivery
+                </Button>
+                <Button variant="outline" onClick={() => setConfirmingCancel(true)} disabled={cancelMutation.isPending}>
+                  <Ban className="size-4" />
+                  Cancel
                 </Button>
                 <Button variant="destructive" onClick={() => setConfirmingDelete(true)}>
                   <Trash2 className="size-4" />
@@ -218,6 +233,16 @@ export function DeliveryDetailPage() {
         onOpenChange={setConfirmingDelete}
         itemLabel={delivery.document_number ?? undefined}
         onConfirm={() => deleteMutation.mutate()}
+      />
+
+      <ConfirmationDialog
+        open={confirmingCancel}
+        onOpenChange={setConfirmingCancel}
+        title={`Cancel ${delivery.document_number ?? 'this Delivery'}?`}
+        description="The delivery is kept as cancelled for the record. No stock is affected, since nothing was posted yet."
+        confirmLabel="Cancel Delivery"
+        variant="destructive"
+        onConfirm={() => cancelMutation.mutate()}
       />
     </div>
   )

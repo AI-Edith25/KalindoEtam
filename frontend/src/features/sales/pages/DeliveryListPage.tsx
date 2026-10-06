@@ -33,6 +33,7 @@ const SORTERS: Record<string, (delivery: Delivery) => string | number> = {
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'complete', label: 'Complete' },
+  { value: 'cancelled', label: 'Cancelled' },
 ]
 
 const EMPTY_FILTERS: AdvancedFilterValue = {

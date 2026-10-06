@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\DeliveryStatus;
-use App\Exceptions\BusinessException;
 use App\Models\Concerns\Documentable;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -115,15 +114,19 @@ class Delivery extends Model
         return $this->belongsToMany(Invoice::class, 'invoice_deliveries');
     }
 
-    /**
-     * A submitted Delivery has already moved stock out and created an
-     * Accounts Receivable record. Reversing that safely needs a Return
-     * workflow (compensating stock-in + receivable adjustment), which
-     * does not exist yet. Cancel is forbidden outright — see
-     * GoodsReceipt::cancel() for the identical Sprint 4 precedent.
-     */
-    public function cancel(): static
+    /** Cancelled = withdrawn before goods left the warehouse. Nothing was posted, so nothing to reverse. */
+    protected function cancelledStatus(): \BackedEnum
     {
-        throw new BusinessException('Delivery cannot be cancelled. Reversal is only available through the Return workflow (not yet implemented).');
+        return DeliveryStatus::CANCELLED;
+    }
+
+    /**
+     * Only a Pending Delivery can be cancelled. A Complete one has already moved stock out and
+     * (once invoiced) created Accounts Receivable, and reversing that needs the Return workflow,
+     * which does not exist yet — so Complete stays forbidden, as before.
+     */
+    protected function cancellableStatuses(): array
+    {
+        return [$this->initialStatus()];
     }
 }

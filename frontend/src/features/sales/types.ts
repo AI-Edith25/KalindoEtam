@@ -6,7 +6,7 @@ export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 export type SalesOrderStatus = 'submitted' | 'approved' | 'cancelled'
 
 /** Delivery's own lifecycle — Pending (created, stock not yet moved) -> Complete (stock moved). No Cancel/Void. */
-export type DeliveryStatus = 'pending' | 'complete'
+export type DeliveryStatus = 'pending' | 'complete' | 'cancelled'
 
 /** Drives which Naming Series generates an Invoice's document_number — see Invoice::documentType() on the backend. */
 export type InvoiceType = 'goods' | 'transportation'

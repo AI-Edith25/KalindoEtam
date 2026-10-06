@@ -522,6 +522,22 @@ class DeliveryService
         });
     }
 
+    /**
+     * Only Pending Deliveries can be cancelled — nothing was posted to stock or delivered_qty yet,
+     * so there's nothing to reverse. The record is kept (status = cancelled) for audit.
+     */
+    public function cancel(Delivery $delivery): Delivery
+    {
+        return DB::transaction(function () use ($delivery) {
+            $this->assertDraft($delivery, 'cancelled');
+            $documentNumber = $delivery->document_number;
+            $delivery = $delivery->cancel();
+            $this->auditLogService->record('cancelled', 'delivery', "Cancelled Delivery \"{$documentNumber}\".");
+
+            return $delivery;
+        });
+    }
+
     protected function addLine(Delivery $delivery, array $salesOrderIds, string $salesOrderItemId, int|float $qty): void
     {
         $soItem = $this->resolveSalesOrderItem($salesOrderIds, $salesOrderItemId);
