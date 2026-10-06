@@ -75,6 +75,32 @@ export const defaultPrintOptions: PrintOptions = {
   amountDecimals: 0,
 }
 
+/**
+ * Sales Invoice's own Paper Type choices. Deliberately NOT a change to PRINT_PAPER_TYPE_LABELS
+ * or PRINT_PAPER_PAGE_CSS below: Delivery print still offers 'half' (A5) and 'dotmatrix_half'
+ * from the shared dialog. Here 'half' means the 9.5in x 5.5in dot-matrix sheet — the same
+ * physical paper and tuning that 'dotmatrix_half' used, now under the name "Half".
+ */
+export const INVOICE_PAPER_TYPE_OPTIONS: PrintPaperType[] = ['a4', 'half', 'roll']
+
+export const INVOICE_PAPER_TYPE_LABELS: Partial<Record<PrintPaperType, string>> = {
+  a4: 'A4',
+  half: 'Half',
+  roll: 'Roll (Thermal 80mm)',
+}
+
+/**
+ * Maps any stored invoice paper type (localStorage or the server's per-user setting) onto the
+ * three the Sales Invoice dropdown offers. Old values fold in: 'dotmatrix_half' is the same
+ * sheet as the new 'half'; 'continuous' and 'dotmatrix_auto' had no equivalent left, so they
+ * fall back to A4 — the same fallback an unknown value already got.
+ */
+export function normalizeInvoicePaperType(value: unknown): PrintPaperType {
+  if (value === 'half' || value === 'dotmatrix_half') return 'half'
+  if (value === 'roll') return 'roll'
+  return 'a4'
+}
+
 export const PRINT_PAPER_TYPE_LABELS: Record<PrintPaperType, string> = {
   a4: 'A4',
   continuous: 'Continuous 9.5" × 11" (Dot Matrix)',
@@ -144,9 +170,7 @@ export function loadInvoicePaperTypePreference(): PrintPaperType {
   // setting, if any, still won via InvoicePrintPage's own priority order, so this only bit a user
   // with no saved server setting). Fixed in passing since dotmatrix_auto needed this list touched
   // anyway.
-  return stored === 'continuous' || stored === 'half' || stored === 'roll' || stored === 'dotmatrix_half' || stored === 'dotmatrix_auto'
-    ? stored
-    : 'a4'
+  return normalizeInvoicePaperType(stored)
 }
 
 export function saveInvoicePaperTypePreference(paperType: PrintPaperType): void {

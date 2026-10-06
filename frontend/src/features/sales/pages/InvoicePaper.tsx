@@ -8,6 +8,8 @@ import type { Invoice } from '../types'
 import { InvoiceLandscapeLayout } from './InvoiceLandscapeLayout'
 import { InvoicePortraitLayout } from './InvoicePortraitLayout'
 import { DOTMATRIX_AUTO_PAGE_HEIGHT_MM, DOTMATRIX_HALF_PAGE_SIZE_MM, PAPER_SIZES } from './invoicePrintConstants'
+// Raw text, not a stylesheet import: Vite would otherwise run it through Tailwind's pipeline.
+import invoiceHalfPrintCss from './invoiceHalfPrint.css?raw'
 
 /** Roll format's paper width — actual thermal printer width unconfirmed (58mm vs 80mm are both
     common), so this is the one knob to turn if it turns out to be the wrong one. Content width
@@ -90,11 +92,15 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
   const { user } = useAuth()
 
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
-  const isDotMatrix = printOptions.paperType === 'dotmatrix_half'
+  // Sales Invoice's "Half" is the 9.5in x 5.5in dot-matrix sheet. 'dotmatrix_half' still arrives
+  // here from older saved settings and means the same sheet, so both route to the same path.
+  const isDotMatrix = printOptions.paperType === 'half' || printOptions.paperType === 'dotmatrix_half'
   // See PrintPaperType's own 'dotmatrix_auto' doc comment (printOptions.ts) for why this is a
   // separate mode from 'half'/'dotmatrix_half' rather than a tweak to either.
   const isDotMatrixAuto = printOptions.paperType === 'dotmatrix_auto'
   const isLandscape = format === 'a4' && (printOptions.paperType === 'half' || isDotMatrix)
+  // Half is the only paper rendered with the hand-written CSS in invoiceHalfPrint.css (no Tailwind).
+  const isHalfSheet = isLandscape
   const showDiscount = printOptions.showDiscount ?? false
   const showTax = printOptions.showTax ?? false
   const showBreakdown = showTax || showDiscount
@@ -152,7 +158,9 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
           // Portrait's own padding or Landscape's baked-in coordinates, never a browser @page
           // margin — so this wrapper's size is identical on screen and in print, with no
           // clipping risk to reconcile and no print-only size override needed.
-          : 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none') +
+          : isHalfSheet
+            ? 'inv-half-paper'
+            : 'mx-auto bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:p-0 print:shadow-none') +
         (className ? ` ${className}` : '')
       }
       style={
@@ -189,6 +197,7 @@ export function InvoicePaper({ invoice, printOptions, companyName, printHeader, 
           driver's own size regardless of what we ask for — omitting `size` here just makes that
           explicit instead of fighting it, and InvoicePortraitLayout's own auto-height rendering
           (not a fixed-height absolutely-positioned canvas) is what actually keeps this safe. */}
+      {isHalfSheet && <style>{invoiceHalfPrintCss}</style>}
       <style>
         {(isDotMatrix
           ? `@page { size: ${DOTMATRIX_HALF_PAGE_SIZE_MM.widthMm}mm ${DOTMATRIX_HALF_PAGE_SIZE_MM.heightMm}mm; margin: 0; }`

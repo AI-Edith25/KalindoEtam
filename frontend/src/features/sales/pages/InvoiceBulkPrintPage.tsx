@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import { ErrorState } from '@/components/shared/ErrorState'
 import {
+  INVOICE_PAPER_TYPE_LABELS,
+  INVOICE_PAPER_TYPE_OPTIONS,
   loadInvoicePaperTypePreference,
   loadShowDiscountPreference,
+  normalizeInvoicePaperType,
   saveInvoicePaperTypePreference,
   saveShowDiscountPreference,
   type PrintOptions,
@@ -77,9 +80,18 @@ export function InvoiceBulkPrintPage() {
   const printSettingsQuery = useQuery({ queryKey: ['print-settings'], queryFn: fetchMyPrintSettings })
   useEffect(() => {
     const serverSettings = printSettingsQuery.data?.invoice
-    if (serverSettings) setPrintOptions((prev) => ({ ...prev, ...serverSettings }))
+    if (serverSettings) {
+      setPrintOptions((prev) => ({
+        ...prev,
+        ...serverSettings,
+        // Saved before the paper types were trimmed — map onto the three that still exist.
+        paperType: normalizeInvoicePaperType(serverSettings.paperType),
+      }))
+    }
   }, [printSettingsQuery.data])
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
+  // Half's page shell and toolbar use plain CSS (invoiceHalfPrint.css), not Tailwind classes.
+  const isHalfSheet = printOptions.paperType === 'half'
 
   const brandingQuery = useCompanyBranding()
   const printHeaderQuery = useCompanyPrintHeader()
@@ -102,8 +114,8 @@ export function InvoiceBulkPrintPage() {
   const loadedCount = invoiceQueries.filter((query) => query.data).length
 
   return (
-    <div className="mx-auto flex w-fit flex-col gap-4">
-      <div className="flex items-start justify-between print:hidden">
+    <div className={isHalfSheet ? 'inv-half-shell' : 'mx-auto flex w-fit flex-col gap-4'}>
+      <div className={isHalfSheet ? 'inv-no-print' : 'flex items-start justify-between print:hidden'}>
         <h1 className="text-xl font-semibold">
           Print Invoices Preview — {loadedCount}/{ids.length} Invoices
         </h1>
@@ -166,7 +178,9 @@ export function InvoiceBulkPrintPage() {
         onChange={handlePrintOptionsChange}
         fields={[]}
         showPaperType
-        paperTypeOptions={['a4', 'half', 'continuous', 'roll', 'dotmatrix_half', 'dotmatrix_auto']}
+        paperTypeOptions={INVOICE_PAPER_TYPE_OPTIONS}
+        paperTypeLabels={INVOICE_PAPER_TYPE_LABELS}
+        dotMatrixTuningPaperType="half"
         showFontSize={false}
         showFontFamily
         defaultFontFamily={format === 'a4' ? DEJAVU_FONT_STACK : undefined}

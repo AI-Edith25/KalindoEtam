@@ -26,6 +26,10 @@ interface PrintOptionsDialogProps {
   showPaperType?: boolean
   /** Which values the Paper Type dropdown offers, when shown — defaults to the original 2-value set so every existing caller (Payment print) is unaffected by newer values like 'half' that only Invoice print has layout support for. */
   paperTypeOptions?: PrintPaperType[]
+  /** Overrides PRINT_PAPER_TYPE_LABELS for this consumer's dropdown — Sales Invoice relabels 'half' without changing Delivery's. */
+  paperTypeLabels?: Partial<Record<PrintPaperType, string>>
+  /** Which Paper Type shows the Dot Matrix Tuning fields. Defaults to 'dotmatrix_half' (Delivery). Sales Invoice sets 'half', the same sheet under its new name. */
+  dotMatrixTuningPaperType?: PrintPaperType
   /** Only Invoice print renders/acts on this (the DISC line in the totals block) — every other consumer leaves it hidden, same convention as showPaperType. */
   showDiscount?: boolean
   /** Only Invoice print renders/acts on this (the HCTax column + TAX line in the totals block) — every other consumer leaves it hidden, same convention as showDiscount. */
@@ -70,6 +74,8 @@ export function PrintOptionsDialog({
   fields = ['qty', 'price', 'amount'],
   showPaperType = false,
   paperTypeOptions = ['a4', 'continuous'],
+  paperTypeLabels,
+  dotMatrixTuningPaperType = 'dotmatrix_half',
   showDiscount = false,
   showTax = false,
   showDecimalToggle = false,
@@ -100,14 +106,14 @@ export function PrintOptionsDialog({
                 <SelectContent>
                   {paperTypeOptions.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {PRINT_PAPER_TYPE_LABELS[value]}
+                      {paperTypeLabels?.[value] ?? PRINT_PAPER_TYPE_LABELS[value]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           )}
-          {showPaperType && options.paperType === 'dotmatrix_half' && (
+          {showPaperType && options.paperType === dotMatrixTuningPaperType && (
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Dot Matrix Tuning (mm)</label>
               <div className="grid grid-cols-3 gap-2">

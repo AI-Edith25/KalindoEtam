@@ -5,8 +5,11 @@ import { Loader2, Printer, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PrintOptionsDialog } from '@/components/shared/PrintOptionsDialog'
 import {
+  INVOICE_PAPER_TYPE_LABELS,
+  INVOICE_PAPER_TYPE_OPTIONS,
   loadInvoicePaperTypePreference,
   loadShowDiscountPreference,
+  normalizeInvoicePaperType,
   saveInvoicePaperTypePreference,
   saveShowDiscountPreference,
   type PrintOptions,
@@ -78,7 +81,14 @@ export function InvoicePrintPage() {
   const printSettingsQuery = useQuery({ queryKey: ['print-settings'], queryFn: fetchMyPrintSettings })
   useEffect(() => {
     const serverSettings = printSettingsQuery.data?.invoice
-    if (serverSettings) setPrintOptions((prev) => ({ ...prev, ...serverSettings }))
+    if (serverSettings) {
+      setPrintOptions((prev) => ({
+        ...prev,
+        ...serverSettings,
+        // Saved before the paper types were trimmed — map onto the three that still exist.
+        paperType: normalizeInvoicePaperType(serverSettings.paperType),
+      }))
+    }
   }, [printSettingsQuery.data])
   // Roll used to be a separate ?format=roll URL toggle with its own button, independent of the
   // in-dialog Paper Type dropdown that offered A4/Continuous only. Print Options now has exactly
@@ -86,6 +96,8 @@ export function InvoicePrintPage() {
   // from it instead of tracked separately. Only used below for the PrintOptionsDialog's own
   // defaults — every other paper-type-derived value now lives inside InvoicePaper.
   const format = printOptions.paperType === 'roll' ? 'roll' : 'a4'
+  // Half's page shell and toolbar use plain CSS (invoiceHalfPrint.css), not Tailwind classes.
+  const isHalfSheet = printOptions.paperType === 'half'
 
   const invoiceQuery = useQuery({
     queryKey: ['invoices', id],
@@ -108,8 +120,8 @@ export function InvoicePrintPage() {
   const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
 
   return (
-    <div className="mx-auto flex w-fit flex-col gap-4">
-      <div className="flex items-start justify-between print:hidden">
+    <div className={isHalfSheet ? 'inv-half-shell' : 'mx-auto flex w-fit flex-col gap-4'}>
+      <div className={isHalfSheet ? 'inv-no-print' : 'flex items-start justify-between print:hidden'}>
         <h1 className="text-xl font-semibold">Invoice Print Preview</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setOptionsOpen(true)}>
@@ -143,7 +155,9 @@ export function InvoicePrintPage() {
         onChange={handlePrintOptionsChange}
         fields={[]}
         showPaperType
-        paperTypeOptions={['a4', 'half', 'continuous', 'roll', 'dotmatrix_half', 'dotmatrix_auto']}
+        paperTypeOptions={INVOICE_PAPER_TYPE_OPTIONS}
+        paperTypeLabels={INVOICE_PAPER_TYPE_LABELS}
+        dotMatrixTuningPaperType="half"
         showFontSize={false}
         showFontFamily
         defaultFontFamily={format === 'a4' ? DEJAVU_FONT_STACK : undefined}
