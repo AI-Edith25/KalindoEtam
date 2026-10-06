@@ -2,9 +2,12 @@
  * Sales Invoice — "Half" paper (9.5in x 5.5in dot-matrix sheet).
  *
  * Hand-written plain CSS, on purpose. Tailwind v4's output uses cascade layers, @property and
- * color-mix(), none of which Chrome 109 (the last Chrome on Windows 7) understands; there the
- * whole layer is dropped, so margins, centering and the hidden toolbar all stop applying and the
- * sheet splits over two pages. Nothing in this file uses those features.
+ * color-mix(), none of which Chrome 109 (the last Chrome on Windows 7) understands.
+ *
+ * The app's global Tailwind stylesheet also ships an unlayered reset,
+ *   :not(#\#):not(#\#):not(#\#) { margin: 0; padding: 0; border: 0 }
+ * whose specificity beats any single class selector. The margin and padding below therefore
+ * carry !important, so the reset cannot zero them out. Nothing here uses Tailwind classes.
  *
  * Imported as raw text in InvoicePaper.tsx and injected as a <style> block, so it is never
  * processed by Tailwind. Only the Half markup uses these classes; A4 and Roll keep Tailwind.
@@ -12,8 +15,8 @@
 
 html,
 body {
-  margin: 0;
-  padding: 0;
+  margin: 0 !important;
+  padding: 0 !important;
   background: #fff;
 }
 
@@ -24,23 +27,27 @@ body {
   justify-content: space-between;
 }
 
-/* Page column. Shrinks to the sheet and centres it in the page via auto margins. */
+/*
+ * The one centring layer. Exactly the sheet's width, centred in the page by auto margins.
+ * In print the page is the 9.5in sheet, so this places the 210mm sheet in its middle.
+ */
 .inv-half-shell {
-  display: flex;
-  flex-direction: column;
-  width: fit-content;
-  margin: 0 auto;
+  display: block;
+  width: 210mm;
+  margin: 0 auto !important;
+  padding: 0 !important;
 }
 
-.inv-half-shell > * + * {
-  margin-top: 16px;
+/* Sheet sits 16px below the toolbar on screen. Filled to the shell's width, no own centring. */
+.inv-half-shell > .inv-half-paper {
+  margin: 16px 0 0 !important;
 }
 
-/* The sheet itself. border-box so the 24px screen padding sits inside the mm width. */
+/* The sheet. border-box so the 24px screen padding sits inside the 210mm width. */
 .inv-half-paper {
-  box-sizing: border-box;
-  margin: 0 auto;
-  padding: 24px;
+  box-sizing: border-box !important;
+  width: 210mm;
+  padding: 24px !important;
   background: #fff;
   color: #000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -48,7 +55,7 @@ body {
   page-break-inside: avoid;
 }
 
-/* Layout block inside the sheet is one absolutely positioned canvas; keep it on one page. */
+/* The layout block inside the sheet is one absolutely positioned canvas; keep it on one page. */
 .inv-half-paper > * {
   break-inside: avoid;
   page-break-inside: avoid;
@@ -59,8 +66,10 @@ body {
     display: none !important;
   }
 
+  .inv-half-shell > .inv-half-paper,
   .inv-half-paper {
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
     box-shadow: none;
   }
 }
