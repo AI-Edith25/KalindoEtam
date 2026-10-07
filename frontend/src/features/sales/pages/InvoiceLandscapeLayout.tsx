@@ -34,12 +34,13 @@ export { DEJAVU_FONT_STACK }
  * Multi-page (explicit, not browser auto-break): the header block (company/customer info, judul,
  * rules, item-table column headers) and its own top coordinates are frozen exactly as the spec
  * measured them and repeat byte-identical on every physical page — only the item table's row slice
- * and the footer cluster (terbilang onward) vary per page. The footer's own internal geometry
- * (terbilangTop, totals-box top, computed signature position) is UNCHANGED from the original
- * single-page design; it was already independent of item row count (item area and footer cluster
- * never shared layout math), which is exactly what makes "stop packing items once they'd reach the
- * footer's fixed top" a correct multi-page split rather than a hack. Row capacity per page is
- * computed from the same frozen row/header geometry (ITEM_TABLE_TOP_MM/ITEM_THEAD_HEIGHT_MM/
+ * and the footer cluster (terbilang onward) vary per page. The footer always renders on whichever
+ * page ends up last, however many rows that is — never on an empty page of its own: its internal
+ * geometry (terbilangTop, totals-box top, computed signature position) sits at its usual frozen
+ * spot for every ordinary invoice, and only shifts downward, as one uniform block, on the rare page
+ * whose own rows already run past that spot (footerExtraShiftMm in the component body) — the exact
+ * case a short custom Sheet Height plus a long invoice produces. Row capacity per page is computed
+ * from the same frozen row/header geometry (ITEM_TABLE_TOP_MM/ITEM_THEAD_HEIGHT_MM/
  * ITEM_ROW_HEIGHT_MM below) — never hardcoded per invoice — so it stays correct if those numbers
  * ever change. ItemCode/Description get `overflow:hidden` + ellipsis (ponytail: this is the whole
  * fix for a too-narrow column — no measurement pass needed since Half's row height is frozen, and a
@@ -232,9 +233,14 @@ const ITEM_ROW_HEIGHT_MM = 5.92
 const ITEM_TEXT_LINE_HEIGHT_MM = 4.23
 /** Characters that fit on one line of the 40.99mm Description column at table size — kept a little low on purpose. */
 const DESCRIPTION_CHARS_PER_LINE = 19
-/** Terbilang's own frozen top (before any dot-matrix bottomShiftMm) — the footer cluster's fixed
-    start, and therefore the last page's item-area bottom limit. */
+/** Terbilang's own frozen top (before any dot-matrix bottomShiftMm) — the footer cluster's usual
+    start. Only a floor, not a hard limit: when the last page's own items already run past it, the
+    whole footer cluster grows downward instead (see footerExtraShiftMm in the component body) —
+    the footer always shares a page with the final rows, never gets an empty page of its own. */
 const TERBILANG_TOP_MM = 82.44
+/** Minimum clearance between the last item row and the footer cluster, only spent when the
+    footer's own frozen spot would otherwise land above the last page's actual rows. */
+const FOOTER_GAP_MM = 2
 /** Invoice remarks ("Notes") sit directly above terbilang on the last page. Each line takes this
     height, and the last page's item area shrinks by the same amount so the notes never overlap rows. */
 const NOTE_LINE_HEIGHT_MM = 3.6
@@ -256,25 +262,21 @@ const CONTINUE_TEXT = 'CONTINUE TO NEXT PAGE ...'
 const ITEMS_PER_PAGE = 5
 
 /**
- * Splits rows into page-sized index groups by their heights. A page holds at most ITEMS_PER_PAGE rows
- * and every page before the last ends with "CONTINUE TO NEXT PAGE". The final page only takes the
- * remaining rows when they fit above the footer (`lastAvailMm`, smaller — the footer needs room);
- * otherwise those rows go to a continue page and the footer gets an empty final page of its own.
- * A row taller than a whole page is still placed alone, so it is never dropped.
+ * Splits rows into page-sized index groups by their heights. A page holds at most ITEMS_PER_PAGE
+ * rows and fits within `middleAvailMm`; every page but the last ends with "CONTINUE TO NEXT PAGE".
+ * The footer is never given a page of its own — it always renders on whichever page ends up last
+ * here, however many rows that is (the component grows the footer downward when those rows run
+ * past its usual spot — see footerExtraShiftMm). A row taller than a whole page is still placed
+ * alone, so it is never dropped.
  */
-export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: number, lastAvailMm: number): number[][] {
+export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: number): number[][] {
   if (rowHeightsMm.length === 0) return [[]]
   const count = rowHeightsMm.length
   const range = (start: number, end: number) => Array.from({ length: end - start }, (_, k) => start + k)
-  const remainingHeight = (from: number) => rowHeightsMm.slice(from).reduce((sum, h) => sum + h, 0)
 
   const pages: number[][] = []
   let start = 0
   while (start < count) {
-    if (count - start <= ITEMS_PER_PAGE && remainingHeight(start) <= lastAvailMm) {
-      pages.push(range(start, count))
-      return pages
-    }
     let end = start
     let used = 0
     while (end < count && end - start < ITEMS_PER_PAGE && used + rowHeightsMm[end] <= middleAvailMm) {
@@ -285,8 +287,6 @@ export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: 
     pages.push(range(start, end))
     start = end
   }
-  // Every row sits on a continue page, so the footer goes on an empty final page.
-  pages.push([])
   return pages
 }
 
@@ -370,34 +370,42 @@ export function InvoiceLandscapeLayout({
   const totalsRows = buildTotalsRows(invoice, showTax, showDiscount)
   const sheetHeightMm = heightMm ?? 148.5
   const bottomShiftMm = 148.5 - sheetHeightMm
-  const totalsTableTopMm = TOTALS_TABLE_TOP_MM - bottomShiftMm
 
-  // Predicts the totals table's own rendered height (real <table> below, auto-fit) so the
-  // signature block can be positioned with real clearance regardless of row count — see
-  // LANDSCAPE_SIGNATURE_GAP_MM's own derivation comment. Verified fit at the worst case (Tax +
-  // Discount both on, 4 rows): totalsBoxBottom ≈ 113.5mm, signatureNameTop ≈ 116.2mm, signature
-  // caption ends ≈145.4mm — inside the 148.5mm page with margin to spare.
-  const totalsBoxBottom = totalsTableTopMm + totalsRows.length * TOTALS_BOX_ROW_HEIGHT_MM
-  const signatureNameTop = Math.max(LANDSCAPE_LEFT_COLUMN_BOTTOM_MM - bottomShiftMm, totalsBoxBottom) + LANDSCAPE_SIGNATURE_GAP_MM
-
-  // Pagination — see file doc comment. lastPageItemBottomMm is the footer's own fixed top
-  // (terbilang), unaffected by row count; middlePageItemBottomMm is just "physical sheet bottom
-  // minus a margin and the continue-row's own height."
+  // Pagination — see file doc comment. middlePageItemBottomMm is just "physical sheet bottom minus
+  // a margin and the continue-row's own height."; the footer no longer reserves its own budget
+  // here (see footerExtraShiftMm below, computed per page once the last page is known).
   const notesHeightMm = (invoice.remarks ? countNoteLines(invoice.remarks) : 0) * NOTE_LINE_HEIGHT_MM
   // Notes sit above terbilang with the shared gap, so the reserved band is the notes plus that gap.
   const notesReservedMm = invoice.remarks ? notesHeightMm + NOTES_TO_WORDS_GAP_MM : 0
-  const lastPageItemBottomMm = TERBILANG_TOP_MM - bottomShiftMm - notesReservedMm
   const middlePageItemBottomMm = sheetHeightMm - PAGE_BOTTOM_MARGIN_MM - CONTINUE_ROW_HEIGHT_MM
   const rowHeightsMm = invoice.items.map(itemRowHeightMm)
-  const lastAvailMm = lastPageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM
   const middleAvailMm = middlePageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM
-  const pages = paginateHalfInvoiceItems(rowHeightsMm, middleAvailMm, lastAvailMm)
+  const pages = paginateHalfInvoiceItems(rowHeightsMm, middleAvailMm)
 
   return (
     <>
       {pages.map((rowIndexes, pageIndex) => {
         const isLastPage = pageIndex === pages.length - 1
-        const continueRowTop = ITEM_TABLE_TOP_MM + ITEM_THEAD_HEIGHT_MM + rowIndexes.reduce((sum, idx) => sum + rowHeightsMm[idx], 0) + 1
+        const itemsBottomMm = ITEM_TABLE_TOP_MM + ITEM_THEAD_HEIGHT_MM + rowIndexes.reduce((sum, idx) => sum + rowHeightsMm[idx], 0)
+        const continueRowTop = itemsBottomMm + 1
+
+        // The footer's own frozen top is TERBILANG_TOP_MM - bottomShiftMm (minus room for notes).
+        // When this page's own rows already run past that spot, the whole footer cluster grows
+        // downward by the difference instead — the footer always shares the last page, never gets
+        // an empty page of its own (see paginateHalfInvoiceItems' own doc comment). Zero for every
+        // normal invoice (few rows, plenty of room above the footer's usual spot).
+        const footerExtraShiftMm = isLastPage
+          ? Math.max(0, itemsBottomMm + FOOTER_GAP_MM - (TERBILANG_TOP_MM - bottomShiftMm - notesReservedMm))
+          : 0
+        const pageBottomShiftMm = bottomShiftMm - footerExtraShiftMm
+        // Predicts the totals table's own rendered height (real <table> below, auto-fit) so the
+        // signature block can be positioned with real clearance regardless of row count — see
+        // LANDSCAPE_SIGNATURE_GAP_MM's own derivation comment. Verified fit at the worst case (Tax +
+        // Discount both on, 4 rows): totalsBoxBottom ≈ 113.5mm, signatureNameTop ≈ 116.2mm, signature
+        // caption ends ≈145.4mm — inside the 148.5mm page with margin to spare (footerExtraShiftMm 0).
+        const totalsTableTopMm = TOTALS_TABLE_TOP_MM - pageBottomShiftMm
+        const totalsBoxBottom = totalsTableTopMm + totalsRows.length * TOTALS_BOX_ROW_HEIGHT_MM
+        const signatureNameTop = Math.max(LANDSCAPE_LEFT_COLUMN_BOTTOM_MM - pageBottomShiftMm, totalsBoxBottom) + LANDSCAPE_SIGNATURE_GAP_MM
 
         return (
           <div
@@ -407,7 +415,12 @@ export function InvoiceLandscapeLayout({
               position: 'relative',
               width: '210mm',
               height: `${sheetHeightMm}mm`,
-              overflow: 'hidden', // pagination above guarantees every page's own content fits — this is a safety net, not the mechanism
+              // Pagination above guarantees fit for every ordinary invoice. The one exception is a
+              // custom Sheet Height tuned so short that the footer alone barely fits it (see
+              // footerExtraShiftMm) — there, a long invoice's last page can still run past this
+              // sheet's own bottom; clipping that rather than adding a wholly blank page is the
+              // better of two imperfect outcomes.
+              overflow: 'hidden',
               marginLeft: offsetLeftMm ? `${offsetLeftMm}mm` : undefined,
               marginTop: offsetTopMm ? `${offsetTopMm}mm` : undefined,
               breakAfter: isLastPage ? 'avoid' : 'page',
@@ -569,7 +582,7 @@ export function InvoiceLandscapeLayout({
                   <div
                     style={{
                       position: 'absolute',
-                      top: `${TERBILANG_TOP_MM - bottomShiftMm - notesReservedMm}mm`,
+                      top: `${TERBILANG_TOP_MM - pageBottomShiftMm - notesReservedMm}mm`,
                       left: '10mm',
                       width: '190mm',
                       fontSize: `${NOTE_FONT_PT}pt`,
@@ -582,12 +595,12 @@ export function InvoiceLandscapeLayout({
                     {invoice.remarks}
                   </div>
                 )}
-                <T top={82.44 - bottomShiftMm} left={10} size={FONT_PT.words}>{terbilangIdr(invoice.grand_total)}</T>
-                <Line top={88.02 - bottomShiftMm} left={10} width={190} height={0.2} color="#000" />
-                <T top={88.58 - bottomShiftMm} left={10} size={FONT_PT.eoeNote} bold italic>E. &amp; O.E</T>
-                <T top={92.79 - bottomShiftMm} left={10} size={9}>1. All cheque and payment should be crossed and made payable to</T>
-                <T top={97.29 - bottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>{legacyCompanyName(companyName)}</T>
-                <T top={102.05 - bottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>BCA NO A/C. 0271461312</T>
+                <T top={82.44 - pageBottomShiftMm} left={10} size={FONT_PT.words}>{terbilangIdr(invoice.grand_total)}</T>
+                <Line top={88.02 - pageBottomShiftMm} left={10} width={190} height={0.2} color="#000" />
+                <T top={88.58 - pageBottomShiftMm} left={10} size={FONT_PT.eoeNote} bold italic>E. &amp; O.E</T>
+                <T top={92.79 - pageBottomShiftMm} left={10} size={9}>1. All cheque and payment should be crossed and made payable to</T>
+                <T top={97.29 - pageBottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>{legacyCompanyName(companyName)}</T>
+                <T top={102.05 - pageBottomShiftMm} left={13.7} size={FONT_PT.bankNote} bold>BCA NO A/C. 0271461312</T>
 
                 {/* ---------- KOTAK TOTAL ----------
                     Real <table>, outer border ONLY (no internal rule — BUG 2 / spec Section 8), every row
