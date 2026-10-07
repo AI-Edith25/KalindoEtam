@@ -252,10 +252,15 @@ const PAGE_BOTTOM_MARGIN_MM = 3
 const CONTINUE_ROW_HEIGHT_MM = 6
 const CONTINUE_TEXT = 'CONTINUE TO NEXT PAGE ...'
 
+/** Max item rows on one printed Half page — a longer invoice continues on the next page (legacy SkyBiz output: 5 items, then "CONTINUE TO NEXT PAGE"). */
+const ITEMS_PER_PAGE = 5
+
 /**
- * Splits rows into page-sized index groups by their heights. `lastAvailMm` (smaller — the footer
- * needs room) is the space left on the final page; every page before it packs rows greedily up to
- * `middleAvailMm`. A row taller than a whole page is still placed alone, so it is never dropped.
+ * Splits rows into page-sized index groups by their heights. A page holds at most ITEMS_PER_PAGE rows
+ * and every page before the last ends with "CONTINUE TO NEXT PAGE". The final page only takes the
+ * remaining rows when they fit above the footer (`lastAvailMm`, smaller — the footer needs room);
+ * otherwise those rows go to a continue page and the footer gets an empty final page of its own.
+ * A row taller than a whole page is still placed alone, so it is never dropped.
  */
 export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: number, lastAvailMm: number): number[][] {
   if (rowHeightsMm.length === 0) return [[]]
@@ -266,13 +271,13 @@ export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: 
   const pages: number[][] = []
   let start = 0
   while (start < count) {
-    if (remainingHeight(start) <= lastAvailMm) {
+    if (count - start <= ITEMS_PER_PAGE && remainingHeight(start) <= lastAvailMm) {
       pages.push(range(start, count))
-      break
+      return pages
     }
     let end = start
     let used = 0
-    while (end < count && used + rowHeightsMm[end] <= middleAvailMm) {
+    while (end < count && end - start < ITEMS_PER_PAGE && used + rowHeightsMm[end] <= middleAvailMm) {
       used += rowHeightsMm[end]
       end++
     }
@@ -280,6 +285,8 @@ export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: 
     pages.push(range(start, end))
     start = end
   }
+  // Every row sits on a continue page, so the footer goes on an empty final page.
+  pages.push([])
   return pages
 }
 
