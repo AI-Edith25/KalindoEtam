@@ -216,13 +216,11 @@ export function GoodsReceiptEditorPage() {
         confirm_over_receipt: confirmOverReceipt,
       })
     },
-    onSuccess: (receipt) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goods-receipts'] })
       toast.success(isEdit ? 'Receipt details updated.' : 'Goods received. Confirm to update stock and create the payable.')
       setOverReceiptConfirm(null)
-      if (!isEdit) {
-        navigate(`/purchase/goods-receipts/${receipt.id}/edit`, { replace: true })
-      }
+      navigate('/purchase/goods-receipts')
     },
     onError: (error, variables) => {
       if (isOverReceiptConfirmationRequired(error)) {
@@ -263,23 +261,21 @@ export function GoodsReceiptEditorPage() {
         items,
       })
     },
-    onSuccess: (receipt) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goods-receipts'] })
       toast.success(isEdit ? 'Receipt details updated.' : 'Goods received. Confirm to update stock and create the payable.')
-      if (!isEdit) {
-        navigate(`/purchase/goods-receipts/${receipt.id}/edit`, { replace: true })
-      }
+      navigate('/purchase/goods-receipts')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitGoodsReceipt(id!),
-    onSuccess: (receipt) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goods-receipts'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       toast.success('Receipt confirmed — stock updated.')
-      navigate(`/purchase/goods-receipts/${receipt.id}`)
+      navigate('/purchase/goods-receipts')
     },
     onError: (error) => toastApiError(error),
   })

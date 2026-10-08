@@ -129,24 +129,22 @@ export function StockTransferEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateStockTransfer(id!, payload) : createStockTransfer(payload)
     },
-    onSuccess: (transfer) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-transfers'] })
       toast.success(isEdit ? 'Transfer details updated.' : 'Transfer recorded. Confirm to move stock.')
-      if (!isEdit) {
-        navigate(`/inventory/transfers/${transfer.id}/edit`, { replace: true })
-      }
+      navigate('/inventory/transfers')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitStockTransfer(id!),
-    onSuccess: (transfer) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-transfers'] })
       queryClient.invalidateQueries({ queryKey: ['stock-balances-report'] })
       queryClient.invalidateQueries({ queryKey: ['stock-ledger-entries'] })
       toast.success('Transfer confirmed — stock moved.')
-      navigate(`/inventory/transfers/${transfer.id}`)
+      navigate('/inventory/transfers')
     },
     onError: (error) => toastApiError(error),
   })

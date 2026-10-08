@@ -159,24 +159,22 @@ export function CreditNoteEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateCreditNote(id!, payload) : createCreditNote(payload)
     },
-    onSuccess: (creditNote) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['credit-notes'] })
       toast.success(isEdit ? 'Credit Note updated.' : 'Credit Note saved as draft.')
-      if (!isEdit) {
-        navigate(`/sales/credit-notes/${creditNote.id}/edit`, { replace: true })
-      }
+      navigate('/sales/credit-notes')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitCreditNote(id!),
-    onSuccess: (creditNote) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['credit-notes'] })
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-receivables'] })
       toast.success('Credit Note submitted — Accounts Receivable updated.')
-      navigate(`/sales/credit-notes/${creditNote.id}`)
+      navigate('/sales/credit-notes')
     },
     onError: (error) => toastApiError(error),
   })

@@ -231,7 +231,7 @@ export function DeliveryCompleteEditPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       toast.success('Delivery updated.')
-      navigate(`/sales/deliveries/${id}`)
+      navigate('/sales/deliveries')
     },
     onError: (error) => toastApiError(error),
   })
@@ -532,7 +532,7 @@ export function DeliveryCompleteEditPage() {
       </Card>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={() => navigate(`/sales/deliveries/${id}`)}>
+        <Button type="button" variant="outline" onClick={() => navigate('/sales/deliveries')}>
           Cancel
         </Button>
         <Button type="button" onClick={handleSaveClick} disabled={saveMutation.isPending}>

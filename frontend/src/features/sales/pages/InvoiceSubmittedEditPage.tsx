@@ -159,7 +159,7 @@ export function InvoiceSubmittedEditPage() {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-receivables'] })
       toast.success('Invoice updated.')
-      navigate(`/sales/invoices/${id}`)
+      navigate('/sales/invoices')
     },
     onError: (error) => toastApiError(error),
   })
@@ -418,7 +418,7 @@ export function InvoiceSubmittedEditPage() {
       </Card>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={() => navigate(`/sales/invoices/${id}`)}>
+        <Button type="button" variant="outline" onClick={() => navigate('/sales/invoices')}>
           Cancel
         </Button>
         <Button type="button" onClick={handleSaveClick} disabled={saveMutation.isPending}>

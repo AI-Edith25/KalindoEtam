@@ -395,23 +395,21 @@ function DeliveryForm({
         items,
       })
     },
-    onSuccess: (savedDelivery) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       toast.success(isEdit ? 'Delivery details updated.' : 'Delivery recorded. Confirm to update stock and create the receivable.')
-      if (!isEdit) {
-        navigate(`/sales/deliveries/${savedDelivery.id}/edit`, { replace: true })
-      }
+      navigate('/sales/deliveries')
     },
     onError: (error) => toastApiError(error),
   })
 
   const completeMutation = useMutation({
     mutationFn: () => completeDelivery(id!),
-    onSuccess: (completedDelivery) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success('Delivery confirmed — stock updated.')
-      navigate(`/sales/deliveries/${completedDelivery.id}`)
+      navigate('/sales/deliveries')
     },
     onError: (error) => toastApiError(error),
   })
@@ -738,22 +736,20 @@ function DirectDeliveryForm({
         items,
       })
     },
-    onSuccess: (savedDelivery) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       toast.success(isEdit ? 'Delivery details updated.' : 'Delivery recorded. Confirm to update stock and create the receivable.')
-      if (!isEdit) {
-        navigate(`/sales/deliveries/${savedDelivery.id}/edit`, { replace: true })
-      }
+      navigate('/sales/deliveries')
     },
     onError: (error) => toastApiError(error),
   })
 
   const completeMutation = useMutation({
     mutationFn: () => completeDelivery(id!),
-    onSuccess: (completedDelivery) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       toast.success('Delivery confirmed — stock updated.')
-      navigate(`/sales/deliveries/${completedDelivery.id}`)
+      navigate('/sales/deliveries')
     },
     onError: (error) => toastApiError(error),
   })

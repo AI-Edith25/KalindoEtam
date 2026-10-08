@@ -239,10 +239,10 @@ export function OutgoingPaymentEditorPage() {
 
       return isEdit ? updatePaymentEntry(id!, payload) : createPaymentEntry(payload)
     },
-    onSuccess: (payment) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-entries'] })
       toast.success(isEdit ? 'Payment details updated.' : 'Payment saved as draft.')
-      navigate(`/finance/outgoing/${payment.id}/edit`, { replace: true })
+      navigate('/finance/outgoing')
     },
     onError: (error) => toastApiError(error),
   })
@@ -298,7 +298,7 @@ export function OutgoingPaymentEditorPage() {
         return { payment, allocationError: error }
       }
     },
-    onSuccess: ({ payment, allocationError }) => {
+    onSuccess: ({ allocationError }) => {
       queryClient.invalidateQueries({ queryKey: ['payment-entries'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
 
@@ -310,10 +310,10 @@ export function OutgoingPaymentEditorPage() {
       } else if (allocations.size > 0) {
         toast.success('Payment confirmed and allocated to the selected bill(s).')
       } else {
-        toast.success('Payment confirmed. Allocate it to a bill from the detail page.')
+        toast.success('Payment confirmed. Open it from the list to allocate it to a bill.')
       }
 
-      navigate(`/finance/outgoing/${payment.id}`)
+      navigate('/finance/outgoing')
     },
     onError: (error) => toastApiError(error),
   })

@@ -147,24 +147,22 @@ export function PurchaseReturnEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updatePurchaseReturn(id!, payload) : createPurchaseReturn(payload)
     },
-    onSuccess: (purchaseReturn) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-returns'] })
       toast.success(isEdit ? 'Purchase Return updated.' : 'Purchase Return saved as draft.')
-      if (!isEdit) {
-        navigate(`/purchase/returns/${purchaseReturn.id}/edit`, { replace: true })
-      }
+      navigate('/purchase/returns')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitPurchaseReturn(id!),
-    onSuccess: (purchaseReturn) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-returns'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-invoices'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
       toast.success('Purchase Return submitted — Accounts Payable updated.')
-      navigate(`/purchase/returns/${purchaseReturn.id}`)
+      navigate('/purchase/returns')
     },
     onError: (error) => toastApiError(error),
   })

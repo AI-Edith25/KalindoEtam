@@ -93,24 +93,22 @@ export function IssueStockEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateIssueStock(id!, payload) : createIssueStock(payload)
     },
-    onSuccess: (issueStock) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['issue-stocks'] })
       toast.success(isEdit ? 'Issue Stock details updated.' : 'Issue Stock recorded. Submit to consume the FIFO layers.')
-      if (!isEdit) {
-        navigate(`/inventory/issue-stock/${issueStock.id}/edit`, { replace: true })
-      }
+      navigate('/inventory/issue-stock')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitIssueStock(id!),
-    onSuccess: (issueStock) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['issue-stocks'] })
       queryClient.invalidateQueries({ queryKey: ['stock-balances-report'] })
       queryClient.invalidateQueries({ queryKey: ['stock-ledger-entries'] })
       toast.success('Issue Stock submitted — FIFO layers consumed.')
-      navigate(`/inventory/issue-stock/${issueStock.id}`)
+      navigate('/inventory/issue-stock')
     },
     onError: (error) => toastApiError(error),
   })

@@ -130,24 +130,22 @@ export function StockAdjustmentEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateStockAdjustment(id!, payload) : createStockAdjustment(payload)
     },
-    onSuccess: (adjustment) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-adjustments'] })
       toast.success(isEdit ? 'Adjustment details updated.' : 'Adjustment recorded. Confirm to update stock.')
-      if (!isEdit) {
-        navigate(`/inventory/adjustments/${adjustment.id}/edit`, { replace: true })
-      }
+      navigate('/inventory/adjustments')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitStockAdjustment(id!),
-    onSuccess: (adjustment) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-adjustments'] })
       queryClient.invalidateQueries({ queryKey: ['stock-balances-report'] })
       queryClient.invalidateQueries({ queryKey: ['stock-ledger-entries'] })
       toast.success('Adjustment confirmed — stock updated.')
-      navigate(`/inventory/adjustments/${adjustment.id}`)
+      navigate('/inventory/adjustments')
     },
     onError: (error) => toastApiError(error),
   })

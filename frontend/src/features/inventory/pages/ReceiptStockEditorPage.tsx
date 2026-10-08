@@ -96,24 +96,22 @@ export function ReceiptStockEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateReceiptStock(id!, payload) : createReceiptStock(payload)
     },
-    onSuccess: (receiptStock) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receipt-stocks'] })
       toast.success(isEdit ? 'Receipt Stock details updated.' : 'Receipt Stock recorded. Submit to create the FIFO layer.')
-      if (!isEdit) {
-        navigate(`/inventory/receipt-stock/${receiptStock.id}/edit`, { replace: true })
-      }
+      navigate('/inventory/receipt-stock')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitReceiptStock(id!),
-    onSuccess: (receiptStock) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receipt-stocks'] })
       queryClient.invalidateQueries({ queryKey: ['stock-balances-report'] })
       queryClient.invalidateQueries({ queryKey: ['stock-ledger-entries'] })
       toast.success('Receipt Stock submitted — layer created.')
-      navigate(`/inventory/receipt-stock/${receiptStock.id}`)
+      navigate('/inventory/receipt-stock')
     },
     onError: (error) => toastApiError(error),
   })

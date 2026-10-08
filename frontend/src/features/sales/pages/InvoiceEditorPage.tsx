@@ -667,23 +667,21 @@ function InvoiceForm({
       const payload = toPayload(values)
       return isEdit ? updateInvoice(id!, payload) : createInvoice(payload)
     },
-    onSuccess: (savedInvoice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
       toast.success(isEdit ? 'Invoice updated.' : 'Invoice saved as draft.')
-      if (!isEdit) {
-        navigate(`/sales/invoices/${savedInvoice.id}/edit`, { replace: true })
-      }
+      navigate('/sales/invoices')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitInvoice(id!),
-    onSuccess: (submittedInvoice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-receivables'] })
       toast.success('Invoice submitted — Accounts Receivable created.')
-      navigate(`/sales/invoices/${submittedInvoice.id}`)
+      navigate('/sales/invoices')
     },
     onError: (error) => toastApiError(error),
   })

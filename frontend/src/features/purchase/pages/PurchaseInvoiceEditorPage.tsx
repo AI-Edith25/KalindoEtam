@@ -297,23 +297,21 @@ function PurchaseInvoiceForm({
       const payload = toPayload(values)
       return isEdit ? updatePurchaseInvoice(id!, payload) : createPurchaseInvoice(payload)
     },
-    onSuccess: (savedInvoice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-invoices'] })
       toast.success(isEdit ? 'Purchase Invoice updated.' : 'Purchase Invoice saved as draft.')
-      if (!isEdit) {
-        navigate(`/purchase/invoices/${savedInvoice.id}/edit`, { replace: true })
-      }
+      navigate('/purchase/invoices')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitPurchaseInvoice(id!),
-    onSuccess: (submittedInvoice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-invoices'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
       toast.success('Purchase Invoice submitted — Accounts Payable created.')
-      navigate(`/purchase/invoices/${submittedInvoice.id}`)
+      navigate('/purchase/invoices')
     },
     onError: (error) => toastApiError(error),
   })
@@ -556,23 +554,21 @@ function DirectPurchaseInvoiceForm({
       const payload = toPayload(values)
       return isEdit ? updatePurchaseInvoice(id!, payload) : createPurchaseInvoice(payload)
     },
-    onSuccess: (savedInvoice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-invoices'] })
       toast.success(isEdit ? 'Purchase Invoice updated.' : 'Purchase Invoice saved as draft.')
-      if (!isEdit) {
-        navigate(`/purchase/invoices/${savedInvoice.id}/edit`, { replace: true })
-      }
+      navigate('/purchase/invoices')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitPurchaseInvoice(id!),
-    onSuccess: (submittedInvoice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-invoices'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
       toast.success('Purchase Invoice submitted — Accounts Payable created.')
-      navigate(`/purchase/invoices/${submittedInvoice.id}`)
+      navigate('/purchase/invoices')
     },
     onError: (error) => toastApiError(error),
   })

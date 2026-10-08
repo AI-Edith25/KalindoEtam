@@ -206,12 +206,10 @@ export function SalesOrderEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateSalesOrder(id!, payload) : createSalesOrder(payload)
     },
-    onSuccess: (order) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success(isEdit ? 'Sales Order updated.' : 'Sales Order saved.')
-      if (!isEdit) {
-        navigate(`/sales/orders/${order.id}/edit`, { replace: true })
-      }
+      navigate('/sales/orders')
     },
     onError: (error) => toastApiError(error),
   })
@@ -222,10 +220,10 @@ export function SalesOrderEditorPage() {
         ...(overrideChecked ? { override_credit_block: true, override_reason: form.getValues('override_reason') || null } : {}),
         ...(stockOverrideChecked ? { override_stock_block: true, stock_override_reason: form.getValues('stock_override_reason') || null } : {}),
       }),
-    onSuccess: (order) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success('Sales Order approved.')
-      navigate(`/sales/orders/${order.id}`)
+      navigate('/sales/orders')
     },
     onError: (error) => toastApiError(error),
   })
@@ -235,10 +233,10 @@ export function SalesOrderEditorPage() {
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelSalesOrder(id!),
-    onSuccess: (order) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success('Sales Order cancelled.')
-      navigate(`/sales/orders/${order.id}`)
+      navigate('/sales/orders')
     },
     onError: (error) => toastApiError(error),
   })

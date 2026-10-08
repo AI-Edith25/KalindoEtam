@@ -120,22 +120,20 @@ export function PurchaseOrderEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updatePurchaseOrder(id!, payload) : createPurchaseOrder(payload)
     },
-    onSuccess: (order) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       toast.success(isEdit ? 'Purchase Order updated.' : 'Purchase Order saved as draft.')
-      if (!isEdit) {
-        navigate(`/purchase/orders/${order.id}/edit`, { replace: true })
-      }
+      navigate('/purchase/orders')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitPurchaseOrder(id!),
-    onSuccess: (order) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       toast.success('Purchase Order submitted.')
-      navigate(`/purchase/orders/${order.id}`)
+      navigate('/purchase/orders')
     },
     onError: (error) => toastApiError(error),
   })

@@ -173,10 +173,10 @@ export function IncomingPaymentEditorPage() {
 
       return isEdit ? updateReceiptEntry(id!, payload) : createReceiptEntry(payload)
     },
-    onSuccess: (receipt) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receipt-entries'] })
       toast.success(isEdit ? 'Payment details updated.' : 'Payment saved as draft.')
-      navigate(`/finance/incoming/${receipt.id}/edit`, { replace: true })
+      navigate('/finance/incoming')
     },
     onError: (error) => toastApiError(error),
   })
@@ -203,7 +203,7 @@ export function IncomingPaymentEditorPage() {
         return { receipt, allocationError: error }
       }
     },
-    onSuccess: ({ receipt, allocationError }) => {
+    onSuccess: ({ allocationError }) => {
       queryClient.invalidateQueries({ queryKey: ['receipt-entries'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-receivables'] })
 
@@ -215,10 +215,10 @@ export function IncomingPaymentEditorPage() {
       } else if (isOtherIncome) {
         toast.success('Other income recorded.')
       } else {
-        toast.success('Payment received. Allocate it to an invoice from the detail page.')
+        toast.success('Payment received. Open it from the list to allocate it to an invoice.')
       }
 
-      navigate(`/finance/incoming/${receipt.id}`)
+      navigate('/finance/incoming')
     },
     onError: (error) => toastApiError(error),
   })

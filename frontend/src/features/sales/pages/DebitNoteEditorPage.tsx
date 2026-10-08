@@ -161,24 +161,22 @@ export function DebitNoteEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateDebitNote(id!, payload) : createDebitNote(payload)
     },
-    onSuccess: (debitNote) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['debit-notes'] })
       toast.success(isEdit ? 'Debit Note updated.' : 'Debit Note saved as draft.')
-      if (!isEdit) {
-        navigate(`/sales/debit-notes/${debitNote.id}/edit`, { replace: true })
-      }
+      navigate('/sales/debit-notes')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitDebitNote(id!),
-    onSuccess: (debitNote) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['debit-notes'] })
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
       queryClient.invalidateQueries({ queryKey: ['accounts-receivables'] })
       toast.success('Debit Note submitted — Accounts Receivable updated.')
-      navigate(`/sales/debit-notes/${debitNote.id}`)
+      navigate('/sales/debit-notes')
     },
     onError: (error) => toastApiError(error),
   })

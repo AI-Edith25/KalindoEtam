@@ -96,24 +96,22 @@ export function OpeningStockEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateOpeningStock(id!, payload) : createOpeningStock(payload)
     },
-    onSuccess: (openingStock) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opening-stocks'] })
       toast.success(isEdit ? 'Opening Stock details updated.' : 'Opening Stock recorded. Submit to create the FIFO layers.')
-      if (!isEdit) {
-        navigate(`/inventory/opening-stock/${openingStock.id}/edit`, { replace: true })
-      }
+      navigate('/inventory/opening-stock')
     },
     onError: (error) => toastApiError(error),
   })
 
   const submitMutation = useMutation({
     mutationFn: () => submitOpeningStock(id!),
-    onSuccess: (openingStock) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opening-stocks'] })
       queryClient.invalidateQueries({ queryKey: ['stock-balances-report'] })
       queryClient.invalidateQueries({ queryKey: ['stock-ledger-entries'] })
       toast.success('Opening Stock submitted — layers created.')
-      navigate(`/inventory/opening-stock/${openingStock.id}`)
+      navigate('/inventory/opening-stock')
     },
     onError: (error) => toastApiError(error),
   })

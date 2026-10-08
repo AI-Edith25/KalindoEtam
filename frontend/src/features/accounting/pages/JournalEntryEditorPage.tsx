@@ -79,22 +79,20 @@ export function JournalEntryEditorPage() {
       const payload = toPayload(values)
       return isEdit ? updateJournalEntry(id!, payload) : createJournalEntry(payload)
     },
-    onSuccess: (entry) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success(isEdit ? 'Journal Entry updated.' : 'Journal Entry saved as draft.')
-      if (!isEdit) {
-        navigate(`/finance/general-journal/journal-entries/${entry.id}/edit`, { replace: true })
-      }
+      navigate('/finance/general-journal/journal-entries')
     },
     onError: (error) => toastApiError(error),
   })
 
   const postMutation = useMutation({
     mutationFn: () => postJournalEntry(id!),
-    onSuccess: (entry) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       toast.success('Journal Entry posted.')
-      navigate(`/finance/general-journal/journal-entries/${entry.id}`)
+      navigate('/finance/general-journal/journal-entries')
     },
     onError: (error) => toastApiError(error),
   })
