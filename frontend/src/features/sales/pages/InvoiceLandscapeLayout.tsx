@@ -42,9 +42,9 @@ export { DEJAVU_FONT_STACK }
  * case a short custom Sheet Height plus a long invoice produces. Row capacity per page is computed
  * from the same frozen row/header geometry (ITEM_TABLE_TOP_MM/ITEM_THEAD_HEIGHT_MM/
  * ITEM_ROW_HEIGHT_MM below) — never hardcoded per invoice — so it stays correct if those numbers
- * ever change. ItemCode/Description get `overflow:hidden` + ellipsis (ponytail: this is the whole
- * fix for a too-narrow column — no measurement pass needed since Half's row height is frozen, and a
- * physical dot-matrix/A5 sheet can't show an arbitrarily long line anyway).
+ * ever change. ItemCode and Description both wrap downward instead of truncating (no DOM
+ * measurement pass the way Portrait/A4 has — row height is a character-count estimate per column,
+ * see DESCRIPTION_CHARS_PER_LINE/ITEMCODE_CHARS_PER_LINE and itemRowHeightMm below).
  *
  * Three deliberate departures from the frozen baseline table, all imported from
  * invoicePrintConstants.ts (the shared constants file) rather than hand-tuned here:
@@ -233,6 +233,10 @@ const ITEM_ROW_HEIGHT_MM = 5.92
 const ITEM_TEXT_LINE_HEIGHT_MM = 4.23
 /** Characters that fit on one line of the 40.99mm Description column at table size — kept a little low on purpose. */
 const DESCRIPTION_CHARS_PER_LINE = 19
+/** Same derivation as DESCRIPTION_CHARS_PER_LINE, scaled by column width (27.45mm here vs
+    Description's 40.99mm) — ItemCode has no measurement pass either, so this is the only thing
+    that can grow its row before text wraps into a row sized for one line. */
+const ITEMCODE_CHARS_PER_LINE = 12
 /** Terbilang's own frozen top (before any dot-matrix bottomShiftMm) — the footer cluster's usual
     start. Only a floor, not a hard limit: when the last page's own items already run past it, the
     whole footer cluster grows downward instead (see footerExtraShiftMm in the component body) —
@@ -290,9 +294,10 @@ export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: 
   return pages
 }
 
-/** Printed line count of a description at the Description column width (greedy word wrap). */
-function descriptionLineCount(text: string): number {
-  const cpl = DESCRIPTION_CHARS_PER_LINE
+/** Printed line count of a string at the given column's chars-per-line (greedy word wrap — an
+    ItemCode with no spaces is one long "word", which the mid-word-break branch below already
+    handles the same as Description always has). */
+function textLineCount(text: string, cpl: number): number {
   let lines = 1
   let current = 0
   for (const word of text.split(/\s+/).filter(Boolean)) {
@@ -312,9 +317,15 @@ function descriptionLineCount(text: string): number {
   return lines
 }
 
-/** Row height for one invoice item: a single line is the frozen 5.92mm; each extra description line adds one text line. */
-function itemRowHeightMm(item: { item_name: string }): number {
-  return ITEM_ROW_HEIGHT_MM + (descriptionLineCount(item.item_name) - 1) * ITEM_TEXT_LINE_HEIGHT_MM
+/** Row height for one invoice item: a single line is the frozen 5.92mm; each extra line — from
+    whichever of Description or ItemCode wraps to more lines — adds one text line to both columns
+    at once, since they share one `<tr>`. */
+function itemRowHeightMm(item: { item_name: string; item_code: string | null }): number {
+  const lines = Math.max(
+    textLineCount(item.item_name, DESCRIPTION_CHARS_PER_LINE),
+    textLineCount(item.item_code ?? '', ITEMCODE_CHARS_PER_LINE),
+  )
+  return ITEM_ROW_HEIGHT_MM + (lines - 1) * ITEM_TEXT_LINE_HEIGHT_MM
 }
 
 export interface InvoiceLandscapeLayoutProps {
@@ -507,26 +518,22 @@ export function InvoiceLandscapeLayout({
                   return (
                     <tr key={item.id}>
                       {itemCols.map((col) => {
-                        const isTruncatable = col.key === 'itemCode'
-                        const isDescription = col.key === 'description'
+                        const wraps = col.key === 'description' || col.key === 'itemCode'
                         const style: React.CSSProperties = {
                           height: `${rowHeightsMm[index]}mm`,
                           verticalAlign: 'top',
                           lineHeight: 1.2,
                           textAlign: col.align,
                           padding: 0,
-                          // Every column stays single-line except Description, which wraps downward
-                          // and grows its row — the row height above is computed from the same
-                          // description line count (itemRowHeightMm), so pagination stays exact and
-                          // nothing is clipped by `overflow:hidden` on the page canvas.
-                          whiteSpace: isDescription ? 'normal' : 'nowrap',
-                          ...(isDescription ? { overflowWrap: 'break-word' as const } : undefined),
+                          // Description and ItemCode both wrap downward and grow their shared row —
+                          // the row height above is computed from the greater of the two columns'
+                          // own line counts (itemRowHeightMm), so pagination stays exact and nothing
+                          // is clipped. ItemCode used to ellipsis-truncate instead, which silently
+                          // dropped its tail right where it butts up against Description with no
+                          // visible gap — same bug and same fix as the Portrait/A4 layout's own.
+                          whiteSpace: wraps ? 'normal' : 'nowrap',
+                          ...(wraps ? { overflowWrap: 'break-word' as const } : undefined),
                           ...cellPadStyle(col, true),
-                          // ItemCode/Description guard against a too-narrow column overrunning its
-                          // neighbor (the exact A4/Continuous bug this ticket also reports) — an
-                          // ellipsis is a correct, honest "this line is longer than the physical
-                          // sheet can show," not silent data loss like the clip above would be.
-                          ...(isTruncatable ? { overflow: 'hidden', textOverflow: 'ellipsis' } : undefined),
                         }
                         let content: React.ReactNode = ''
                         switch (col.key) {
