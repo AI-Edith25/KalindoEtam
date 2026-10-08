@@ -56,6 +56,12 @@ class AccountsReceivableService
     /**
      * Called only by ReceiptEntryService::submit() — applies one
      * settlement line against this receivable and recomputes its status.
+     *
+     * paid_amount is never bumped up to silently close a sub-Rupiah residual — only the derived
+     * status forgives it (see SettlementStatus::resolve()'s own FORGIVABLE_RESIDUAL). paid_amount
+     * must stay an exact sum of real settlements, or a later reversal (unsettle(), which subtracts
+     * the original allocated amount back out) would leave a phantom few-cent "paid" balance behind
+     * that was never actually allocated.
      */
     public function settle(AccountsReceivable $accountsReceivable, float $amount): AccountsReceivable
     {
