@@ -394,14 +394,15 @@ export function InvoicePortraitLayout({
               textAlign: col.align,
               verticalAlign: 'top',
               padding: `${PORTRAIT.tableCellPaddingVerticalMm}mm ${PORTRAIT.tableCellPaddingHorizontalMm}mm`,
-              whiteSpace: col.key === 'description' ? 'normal' : 'nowrap',
-              overflowWrap: col.key === 'description' ? 'break-word' : undefined,
-              // ItemCode is the one nowrap column with real-world free-text length variance (not a
-              // short controlled code like UOM, or a formatted number) — without this, a code
-              // longer than its column overflows visibly into Description (table-layout:fixed
-              // doesn't clip on its own). An honest ellipsis beats silently running into the next
-              // column.
-              ...(col.key === 'itemCode' ? { overflow: 'hidden', textOverflow: 'ellipsis' } : undefined),
+              // ItemCode wraps the same as Description (not a short controlled code like UOM, or a
+              // formatted number — real-world free-text length variance) — it used to ellipsis-
+              // truncate instead, which silently dropped the tail of a long code right where it
+              // butts up against Description with no visible gap. Row height is already measured
+              // from the real rendered DOM (see measureKey/rowRefs above), so a wrapped ItemCode
+              // growing the row is already accounted for, the same way Description's own wrapping
+              // always has been.
+              whiteSpace: col.key === 'description' || col.key === 'itemCode' ? 'normal' : 'nowrap',
+              overflowWrap: col.key === 'description' || col.key === 'itemCode' ? 'break-word' : undefined,
             }}
           >
             {renderCell(col.key, item, index)}
