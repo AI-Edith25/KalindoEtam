@@ -131,26 +131,53 @@ class PurgeHistoricalSalesInvoiceImportCommandTest extends TestCase
         $this->assertNotNull(Invoice::query()->find($fromNewFeature->id));
     }
 
-    public function test_an_invoice_with_a_real_payment_allocation_is_skipped_not_force_deleted(): void
+    /** Business decision 2026-10-08: a real payment no longer blocks deletion — it's reversed
+        first (the Official Receipt itself stays, untouched, its money becomes unallocated again),
+        then the invoice is deleted same as any other. */
+    public function test_an_invoice_with_a_real_payment_allocation_is_deleted_after_reversing_it(): void
     {
-        $paid = $this->makeHistoricalInvoice('SI/KE/00001/09/2026');
-        $unpaid = $this->makeHistoricalInvoice('SI/KE/00002/09/2026');
+        $invoice = $this->makeHistoricalInvoice('SI/KE/00001/09/2026');
+        $invoice->accountsReceivable()->update(['paid_amount' => 111000, 'status' => 'paid']);
 
         $receipt = ReceiptEntry::query()->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => '2026-10-01',
             'payment_method' => 'cash',
+            'total_amount' => 111000,
+            'allocated_amount' => 111000,
         ]);
-        PaymentAllocation::query()->create([
+        $allocation = PaymentAllocation::query()->create([
             'receipt_entry_id' => $receipt->id,
-            'accounts_receivable_id' => $paid->accountsReceivable->id,
+            'accounts_receivable_id' => $invoice->accountsReceivable->id,
             'allocated_amount' => 111000,
             'allocation_date' => '2026-10-01',
         ]);
 
         $this->artisan('sales-invoice-import:purge', ['--commit' => true])->assertExitCode(0);
 
-        $this->assertNotNull(Invoice::query()->find($paid->id), 'the invoice with a real allocation must survive');
-        $this->assertNull(Invoice::query()->find($unpaid->id), 'the unblocked invoice must still be deleted');
+        $this->assertNull(Invoice::query()->find($invoice->id), 'the invoice must still be deleted');
+        $this->assertNotNull(ReceiptEntry::query()->find($receipt->id), 'the Official Receipt itself must survive, untouched');
+        $this->assertTrue($allocation->fresh()->is_reversed, 'the allocation must be marked reversed, not deleted');
+        $this->assertEquals(0, (float) $receipt->fresh()->allocated_amount, "the Receipt's money becomes unallocated again");
+    }
+
+    /** A Credit/Debit Note is a different, heavier kind of document this command still refuses to unwind. */
+    public function test_an_invoice_with_a_credit_note_is_still_skipped(): void
+    {
+        $invoice = $this->makeHistoricalInvoice('SI/KE/00001/09/2026');
+        \App\Models\CreditNote::query()->create([
+            'invoice_id' => $invoice->id,
+            'customer_id' => $this->customer->id,
+            'credit_note_date' => '2026-10-01',
+            'reason' => 'price_adjustment',
+            'subtotal' => 0,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'total_amount' => 0,
+        ]);
+
+        $this->artisan('sales-invoice-import:purge', ['--commit' => true])->assertExitCode(0);
+
+        $this->assertNotNull(Invoice::query()->find($invoice->id), 'an invoice with a Credit Note must still survive');
     }
 }

@@ -7,6 +7,7 @@ use App\Models\DebitNote;
 use App\Models\ImportBatch;
 use App\Models\Invoice;
 use App\Models\PaymentAllocation;
+use App\Services\PaymentAllocationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -20,13 +21,14 @@ use Throwable;
  * history will be kept as an offline archive instead of living in this app.
  *
  * Each invoice is deleted inside its own savepoint so one blocked row never aborts the rest. A row
- * is blocked when something real references it that this command deliberately refuses to touch: a
- * real Official Receipt already allocated against its AccountsReceivable row (see
- * [[project_erp_sales_invoice_ar_backfill]]), or a Credit/Debit Note issued against it. Checked
- * explicitly up front rather than only relying on the matching restrictOnDelete FKs — MySQL
- * (production) enforces those, but this is deliberately not the only line of defense. Blocked rows
- * are reported, not force-deleted: unwinding a real payment allocation is the operator's call, not
- * this command's.
+ * with a real Official Receipt already allocated against its AccountsReceivable row is NOT blocked
+ * — business decision 2026-10-08, same shape as PurgeImportedOfficialReceiptsCommand: every
+ * non-reversed PaymentAllocation is reversed first (PaymentAllocationService::reverse(), which
+ * posts the offsetting journal leg and decrements the Official Receipt's own allocated_amount back
+ * to unallocated), so the Receipt itself is untouched and keeps its full history, just no longer
+ * applied to an invoice that's about to disappear. A Credit/Debit Note issued against the invoice
+ * still blocks outright — a different, heavier kind of document this command doesn't attempt to
+ * unwind. Blocked rows are reported, not force-deleted.
  *
  * Defaults to a dry run (reports counts only, via blockingReason() alone — no row is ever touched
  * or locked for a dry run). --commit processes invoices via chunkById with a progress bar, each in
@@ -39,7 +41,12 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
 {
     protected $signature = 'sales-invoice-import:purge {--commit : Actually delete; without this flag, only reports what would happen}';
 
-    protected $description = 'Delete every historical-imported Sales Invoice (and its items, AR row, and import batch history), skipping any that already have a real payment or credit/debit note against them.';
+    protected $description = 'Delete every historical-imported Sales Invoice (and its items, AR row, and import batch history) - reverses a real payment allocated against it first, skips only a credit/debit note against it.';
+
+    public function __construct(protected PaymentAllocationService $paymentAllocationService)
+    {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -68,6 +75,7 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
 
                 try {
                     DB::transaction(function () use ($invoice) {
+                        $this->reverseAllocations($invoice);
                         $invoice->items()->delete();
                         $invoice->accountsReceivable()->delete();
                         $invoice->delete();
@@ -124,8 +132,8 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
         });
 
         $this->info("Historical-imported invoices found: {$total}");
-        $this->info("  of which would be blocked (real payment/credit/debit note against them): {$blockedCount}");
-        $this->info('  of which would be deleted: '.($total - $blockedCount));
+        $this->info("  of which would be blocked (credit/debit note against them): {$blockedCount}");
+        $this->info('  of which would be deleted (reversing any real payment allocated first): '.($total - $blockedCount));
         $this->info("Import batches that would be removed: {$batchCount}");
         $this->warn('Dry run — no changes were made. Pass --commit to actually delete.');
 
@@ -134,12 +142,6 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
 
     private function blockingReason(Invoice $invoice): ?string
     {
-        $arId = $invoice->accountsReceivable?->id;
-
-        if ($arId !== null && PaymentAllocation::query()->where('accounts_receivable_id', $arId)->exists()) {
-            return 'has a real payment allocated against it — reverse that Official Receipt first if it must go.';
-        }
-
         if (CreditNote::query()->where('invoice_id', $invoice->id)->exists()) {
             return 'has a Credit Note issued against it.';
         }
@@ -149,5 +151,20 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
         }
 
         return null;
+    }
+
+    /** Reverses every non-reversed PaymentAllocation against this invoice's AR — the Official
+        Receipt itself is never touched, only its application to this one invoice. No-op (and no
+        query) for an invoice with no AR row at all. */
+    private function reverseAllocations(Invoice $invoice): void
+    {
+        $arId = $invoice->accountsReceivable?->id;
+
+        if ($arId === null) {
+            return;
+        }
+
+        PaymentAllocation::query()->where('accounts_receivable_id', $arId)->where('is_reversed', false)
+            ->get()->each(fn (PaymentAllocation $allocation) => $this->paymentAllocationService->reverse($allocation));
     }
 }
