@@ -199,11 +199,14 @@ class CustomerOutstandingArchiveImportService
      * here should be recomputed from a current Item/tax rate -- there is no Item at all, every
      * line becomes one freeform line (no item-level detail exists in this export's shape).
      *
-     * import_source_type = 'historical_invoice' (same value the now-removed Sales Invoice history
-     * import used) -- InvoiceService::submit() already skips GL/stock for any non-null
-     * import_source_type, for the same reason it always did: the AR control-account balance comes
-     * from the Trial Balance import as one aggregate entry, a per-invoice entry here would double
-     * it. AccountsReceivableService::createFromInvoice() always starts a new AR at paid_amount 0
+     * import_source_type = 'outstanding_bills_archive' -- deliberately NOT 'historical_invoice',
+     * the value the now-removed Sales Invoice history import used and PurgeHistoricalSalesInvoiceImportCommand
+     * still targets to clean up what that importer left behind; sharing the value would make a
+     * future run of that purge delete these legitimate new Invoices too. InvoiceService::submit()
+     * skips GL/stock for ANY non-null import_source_type (not specifically this string), for the
+     * same reason it always did: the AR control-account balance comes from the Trial Balance
+     * import as one aggregate entry, a per-invoice entry here would double it.
+     * AccountsReceivableService::createFromInvoice() always starts a new AR at paid_amount 0
      * (correct for a real invoice), so this corrects it immediately after, directly from this
      * line's own Paid Amount column -- the same correction BackfillHistoricalInvoiceAccountsReceivableCommand
      * used to apply after the fact for the old importer, just inline and never stale.
@@ -247,7 +250,7 @@ class CustomerOutstandingArchiveImportService
                         'reference_1' => null,
                         'reference_2' => null,
                         'source_document_number' => $line['ref_no'],
-                        'import_source_type' => 'historical_invoice',
+                        'import_source_type' => 'outstanding_bills_archive',
                         'import_extra' => ['customer_code' => $line['customer_code']],
                     ]);
 

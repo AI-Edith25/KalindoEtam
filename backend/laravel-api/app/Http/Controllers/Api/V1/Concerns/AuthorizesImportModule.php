@@ -21,15 +21,14 @@ trait AuthorizesImportModule
     ];
 
     /**
-     * The 4 document-import modules (Sales Invoice, Official Receipt, Payment Voucher, Purchase
-     * History) predate this trait's generic group+slug convention and already have their own,
-     * differently-named permissions wired on their own store/resolve/show routes — so their
-     * {batch}/failed-rows download (routed generically through ImportController, see routes/api.php
-     * import/batches group) checks the exact same permission those routes use, rather than trying
-     * to force them through the master.{module}.import pattern.
+     * The document-import modules (Official Receipt, Payment Voucher, Purchase History) predate
+     * this trait's generic group+slug convention and already have their own, differently-named
+     * permissions wired on their own store/resolve/show routes — so their {batch}/failed-rows
+     * download (routed generically through ImportController, see routes/api.php import/batches
+     * group) checks the exact same permission those routes use, rather than trying to force them
+     * through the master.{module}.import pattern.
      */
     private const MODULE_PERMISSION_OVERRIDES = [
-        'sales-invoice-history' => 'sales.invoices.import',
         'purchase-history' => 'reports.purchase.import',
         'official-receipts' => 'finance.incoming_payment.import',
         'payment-vouchers' => 'finance.outgoing_payment.import',

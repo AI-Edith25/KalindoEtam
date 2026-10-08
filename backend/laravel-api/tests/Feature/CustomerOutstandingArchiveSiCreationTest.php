@@ -76,7 +76,7 @@ class CustomerOutstandingArchiveSiCreationTest extends TestCase
         $this->assertSame($customer->id, $invoice->customer_id);
         $this->assertSame('submitted', $invoice->status->value);
         $this->assertEquals(500000, (float) $invoice->grand_total);
-        $this->assertSame('historical_invoice', $invoice->import_source_type);
+        $this->assertSame('outstanding_bills_archive', $invoice->import_source_type);
         $this->assertSame('import', $invoice->source);
         $this->assertNull($invoice->warehouse_id, 'must never move stock');
 
