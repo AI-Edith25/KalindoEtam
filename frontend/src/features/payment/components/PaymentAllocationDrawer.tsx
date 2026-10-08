@@ -5,8 +5,8 @@ import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatDate } from '@/lib/utils'
 import { fetchAccountsReceivables } from '../api/accountsReceivableApi'
@@ -149,17 +149,12 @@ export function PaymentAllocationDrawer({ open, onOpenChange, receiptEntry }: Pa
                     </Label>
                   </div>
                   <p className="text-xs text-muted-foreground">Outstanding: {formatCurrencyPrecise(ar.outstanding_amount)}</p>
-                  <Label htmlFor={`allocation-${ar.id}`} className="sr-only">
-                    Amount to allocate to {ar.invoice?.document_number}
-                  </Label>
                   <div className="flex items-center gap-2">
-                    <Input
-                      id={`allocation-${ar.id}`}
-                      type="number"
-                      step="0.01"
-                      placeholder="0"
+                    <RupiahInput
+                      aria-label={`Amount to allocate to ${ar.invoice?.document_number ?? ar.reference_number}`}
+                      decimals={2}
                       value={amounts[ar.id] ?? ''}
-                      onChange={(event) => setAmounts((prev) => ({ ...prev, [ar.id]: event.target.value }))}
+                      onChange={(value) => setAmounts((prev) => ({ ...prev, [ar.id]: value }))}
                     />
                     <Button
                       type="button"

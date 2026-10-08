@@ -71,7 +71,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
                       name={`lines.${index}.debit`}
                       render={({ field: debitField }) => (
                         <FormItem className="gap-0">
-                          <RupiahInput value={debitField.value} onChange={debitField.onChange} disabled={disabled} />
+                          <RupiahInput value={debitField.value} onChange={debitField.onChange} disabled={disabled} decimals={2} />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -83,7 +83,7 @@ export function JournalEntryLineItemTable({ form, disabled }: JournalEntryLineIt
                       name={`lines.${index}.credit`}
                       render={({ field: creditField }) => (
                         <FormItem className="gap-0">
-                          <RupiahInput value={creditField.value} onChange={creditField.onChange} disabled={disabled} />
+                          <RupiahInput value={creditField.value} onChange={creditField.onChange} disabled={disabled} decimals={2} />
                         </FormItem>
                       )}
                     />

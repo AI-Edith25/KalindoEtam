@@ -308,7 +308,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                   <FormItem>
                     <FormLabel>Credit Limit</FormLabel>
                     <FormControl>
-                      <RupiahInput value={field.value ?? ''} onChange={field.onChange} placeholder="Leave blank for unlimited" aria-label="Credit Limit" />
+                      <RupiahInput value={field.value ?? ''} onChange={field.onChange} placeholder="Leave blank for unlimited" aria-label="Credit Limit" decimals={2} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

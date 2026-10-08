@@ -99,6 +99,7 @@ export function OutstandingPayablesTable({
                         value={String(amount)}
                         className="ml-auto w-32 text-right"
                         aria-label={`To allocate for ${ap.reference_number}`}
+                        decimals={2}
                         onChange={(v) => {
                           const raw = v === '' ? 0 : Number(v)
                           onAllocationChange(ap.id, Math.min(Math.max(raw, 0), outstanding))

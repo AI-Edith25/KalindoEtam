@@ -348,7 +348,7 @@ export function InvoiceSubmittedEditPage() {
                       })()}
                     </TableCell>
                     <TableCell className="min-w-40">
-                      <RupiahInput value={line.rate} onChange={(value) => patchLine(line.id, { rate: value })} disabled={isTransportation} />
+                      <RupiahInput value={line.rate} onChange={(value) => patchLine(line.id, { rate: value })} disabled={isTransportation} decimals={2} />
                     </TableCell>
                     <TableCell className="min-w-40">
                       <DiscountInput

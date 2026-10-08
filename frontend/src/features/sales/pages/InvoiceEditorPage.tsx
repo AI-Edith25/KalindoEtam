@@ -1064,7 +1064,7 @@ function InvoiceForm({
                             />
                           </TableCell>
                           <TableCell className="min-w-40">
-                            <RupiahInput value={line.rate} onChange={(value) => setTransportLine(line.key, { rate: value })} />
+                            <RupiahInput value={line.rate} onChange={(value) => setTransportLine(line.key, { rate: value })} decimals={2} />
                           </TableCell>
                           <TableCell className="min-w-40">
                             <DiscountInput
@@ -1156,7 +1156,7 @@ function InvoiceForm({
                             })()}
                           </TableCell>
                           <TableCell className="min-w-40">
-                            <RupiahInput value={line.rate} onChange={(value) => setDirectGoodsLine(line.key, { rate: value })} />
+                            <RupiahInput value={line.rate} onChange={(value) => setDirectGoodsLine(line.key, { rate: value })} decimals={2} />
                           </TableCell>
                           <TableCell className="min-w-40">
                             <DiscountInput
@@ -1236,7 +1236,7 @@ function InvoiceForm({
                               })()}
                             </TableCell>
                             <TableCell className="min-w-40">
-                              <RupiahInput value={line.rate} onChange={(value) => patchEditableLine(line.id, { rate: value })} />
+                              <RupiahInput value={line.rate} onChange={(value) => patchEditableLine(line.id, { rate: value })} decimals={2} />
                             </TableCell>
                             <TableCell className="min-w-40">
                               <DiscountInput

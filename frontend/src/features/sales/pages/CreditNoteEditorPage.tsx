@@ -302,7 +302,7 @@ export function CreditNoteEditorPage() {
                   <FormItem>
                     <FormLabel>Discount Reversed</FormLabel>
                     <FormControl>
-                      <RupiahInput value={field.value} onChange={field.onChange} />
+                      <RupiahInput value={field.value} onChange={field.onChange} decimals={2} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -315,7 +315,7 @@ export function CreditNoteEditorPage() {
                   <FormItem>
                     <FormLabel>Tax Reversed</FormLabel>
                     <FormControl>
-                      <RupiahInput value={field.value} onChange={field.onChange} />
+                      <RupiahInput value={field.value} onChange={field.onChange} decimals={2} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -389,7 +389,7 @@ export function CreditNoteEditorPage() {
                             })()}
                           </TableCell>
                           <TableCell className="min-w-36">
-                            <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setLine(line.id, { amount: value })} />
+                            <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setLine(line.id, { amount: value })} decimals={2} />
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">

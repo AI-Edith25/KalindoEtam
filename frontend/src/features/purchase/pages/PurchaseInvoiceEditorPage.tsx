@@ -404,7 +404,7 @@ function PurchaseInvoiceForm({
                   <FormItem>
                     <FormLabel>Tax Amount</FormLabel>
                     <FormControl>
-                      <RupiahInput value={field.value} onChange={field.onChange} />
+                      <RupiahInput value={field.value} onChange={field.onChange} decimals={2} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

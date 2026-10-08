@@ -452,7 +452,7 @@ export function DeliveryCompleteEditPage() {
                       <Input type="number" min={0.01} step="0.01" className="text-right" value={line.qty} onChange={(e) => patchLine(line.key, { qty: e.target.value })} />
                     </TableCell>
                     <TableCell className="min-w-40">
-                      <RupiahInput value={line.rate} onChange={(value) => patchLine(line.key, { rate: value })} />
+                      <RupiahInput value={line.rate} onChange={(value) => patchLine(line.key, { rate: value })} decimals={2} />
                     </TableCell>
                     <TableCell className="min-w-40">
                       {line.sales_order_item_id ? (

@@ -139,7 +139,7 @@ export function DirectGoodsReceiptLineItemTable({ form, taxes, disabled }: Direc
                       name={`items.${index}.rate`}
                       render={({ field: rateField }) => (
                         <FormItem className="gap-0">
-                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={disabled} />
+                          <RupiahInput value={rateField.value} onChange={rateField.onChange} disabled={disabled} decimals={2} />
                           <FormMessage />
                         </FormItem>
                       )}

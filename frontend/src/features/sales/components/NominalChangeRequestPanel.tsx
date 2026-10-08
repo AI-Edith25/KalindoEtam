@@ -4,8 +4,8 @@ import { toast } from 'sonner'
 import { Check, Loader2, LockKeyhole, Save, X } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -161,11 +161,11 @@ export function NominalChangeRequestPanel({ invoice, onChanged }: NominalChangeR
                 <div key={item.id} className="flex items-center gap-3">
                   <span className="flex-1 text-sm">{item.item_name}</span>
                   <span className="w-16 text-right text-sm text-muted-foreground">{formatNumber(item.qty)}</span>
-                  <Input
-                    type="number"
+                  <RupiahInput
                     className="w-32"
+                    decimals={2}
                     value={rates[item.id] ?? String(item.rate)}
-                    onChange={(event) => setRates((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                    onChange={(value) => setRates((prev) => ({ ...prev, [item.id]: value }))}
                   />
                   <span className="w-32 text-right text-sm">
                     {formatCurrency((rates[item.id] !== undefined ? Number(rates[item.id]) : Number(item.rate)) * Number(item.qty))}

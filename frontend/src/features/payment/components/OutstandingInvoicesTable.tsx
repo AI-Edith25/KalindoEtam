@@ -97,6 +97,7 @@ export function OutstandingInvoicesTable({
                         value={String(amount)}
                         className="ml-auto w-32 text-right"
                         aria-label={`To allocate for ${ar.invoice?.document_number ?? ar.reference_number}`}
+                        decimals={2}
                         onChange={(v) => {
                           const raw = v === '' ? 0 : Number(v)
                           // ponytail: hard-clamp on every keystroke instead of a separate over-limit

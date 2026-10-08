@@ -299,7 +299,7 @@ export function DebitNoteEditorPage() {
                   <FormItem>
                     <FormLabel>Additional Tax</FormLabel>
                     <FormControl>
-                      <RupiahInput value={field.value} onChange={field.onChange} />
+                      <RupiahInput value={field.value} onChange={field.onChange} decimals={2} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -363,7 +363,7 @@ export function DebitNoteEditorPage() {
                               />
                             </TableCell>
                             <TableCell className="min-w-36">
-                              <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setItemLine(line.id, { amount: value })} />
+                              <RupiahInput value={existing?.amount ?? ''} onChange={(value) => setItemLine(line.id, { amount: value })} decimals={2} />
                             </TableCell>
                           </TableRow>
                         )
@@ -412,7 +412,7 @@ export function DebitNoteEditorPage() {
                             />
                           </TableCell>
                           <TableCell className="min-w-40">
-                            <RupiahInput value={line.amount} onChange={(value) => setFreeLine(line.key, { amount: value })} />
+                            <RupiahInput value={line.amount} onChange={(value) => setFreeLine(line.key, { amount: value })} decimals={2} />
                           </TableCell>
                           <TableCell>
                             <Button type="button" variant="ghost" size="icon" onClick={() => removeFreeLine(line.key)}>
