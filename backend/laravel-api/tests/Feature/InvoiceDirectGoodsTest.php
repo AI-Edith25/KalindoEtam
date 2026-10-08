@@ -238,7 +238,10 @@ class InvoiceDirectGoodsTest extends TestCase
         ]);
     }
 
-    /** A Goods invoice never lets the user type a qty — it's copied verbatim from the completed Delivery (InvoiceService::createGoods()), so a weight item's decimal qty must survive that copy without truncating. */
+    /** A Goods invoice never lets the user type a qty — it's copied verbatim from the completed Delivery (InvoiceService::createGoods()), so a weight item's decimal qty must survive that copy without truncating.
+        Direct-Delivery *creation* was removed 2026-10-08 — this Delivery is built directly (the
+        way an already-existing one would look) since the point of this test is the Invoice-side
+        qty copy, not how the Delivery itself came to exist. */
     public function test_goods_invoice_created_from_a_delivery_preserves_a_weight_items_decimal_qty(): void
     {
         $weightItem = Item::query()->create([
@@ -247,14 +250,27 @@ class InvoiceDirectGoodsTest extends TestCase
         ]);
         $this->seedStock($weightItem->id, $this->warehouse->id, 100, unitCost: 1100000);
 
-        $delivery = $this->deliveryService->create([
+        $delivery = \App\Models\Delivery::query()->create([
             'customer_id' => $this->customer->id,
             'warehouse_id' => $this->warehouse->id,
             'delivery_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
-            'items' => [['item_id' => $weightItem->id, 'qty' => 3.25, 'rate' => 1200000]],
         ]);
-        $delivery = $this->deliveryService->complete($delivery);
+        \App\Models\DeliveryItem::query()->create([
+            'delivery_id' => $delivery->id,
+            'item_id' => $weightItem->id,
+            'item_code' => $weightItem->item_code,
+            'item_name' => $weightItem->item_name,
+            'uom' => 'Zak',
+            'uom_factor' => 1,
+            'rate' => 1200000,
+            'qty' => 3.25,
+            'qty_category' => QtyCategory::WEIGHT->value,
+            'amount' => 3.25 * 1200000,
+            'net_amount' => 3.25 * 1200000,
+            'tax_amount' => 0,
+        ]);
+        $delivery = $this->deliveryService->complete($delivery->fresh(['items']));
 
         $invoice = $this->invoiceService->create([
             'delivery_ids' => [$delivery->id],

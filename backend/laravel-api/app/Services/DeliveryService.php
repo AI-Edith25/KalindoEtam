@@ -151,8 +151,13 @@ class DeliveryService
         return DB::transaction(function () use ($data) {
             $salesOrderIds = $this->resolveRequestedSalesOrderIds($data);
 
+            // Direct/no-Sales-Order creation was removed 2026-10-08 — StoreDeliveryRequest
+            // already requires one of sales_order_id/sales_order_ids, so this is a defense-in-
+            // depth check for any other caller (tests, a future API client), not reachable
+            // through the normal request flow. addDirectLine()/buildDirectDeliveryLineAttributes()
+            // stay (update()/updateComplete() still need them for an existing direct Delivery).
             if (empty($salesOrderIds)) {
-                return $this->createDirect($data);
+                throw new BusinessException('A Delivery must be created from at least one Sales Order.');
             }
 
             // Deterministic anchor regardless of selection order — same tie-break as
@@ -220,38 +225,9 @@ class DeliveryService
         return ! empty($data['sales_order_id']) ? [$data['sales_order_id']] : [];
     }
 
-    /**
-     * Standalone delivery with no source Sales Order — items are typed
-     * directly (item/qty/rate/tax) instead of copied from a Sales Order
-     * line, so there's no assertWithinOutstanding()/incrementDeliveredQty()
-     * to run (nothing to check against). Same shape as
-     * GoodsReceiptService::createDirect(). Only reachable from create(),
-     * always inside its transaction.
-     */
-    protected function createDirect(array $data): Delivery
-    {
-        $delivery = $this->deliveryRepository->create([
-            'sales_order_id' => null,
-            'customer_id' => $data['customer_id'],
-            'warehouse_id' => $data['warehouse_id'],
-            'delivery_date' => $data['delivery_date'],
-            'due_date' => $data['due_date'],
-            'terms_of_payment_id' => $data['terms_of_payment_id'] ?? null,
-            'remarks' => $data['remarks'] ?? null,
-            'fleet' => $data['fleet'] ?? null,
-            'driver' => $data['driver'] ?? null,
-        ]);
-
-        foreach ($data['items'] as $line) {
-            $this->addDirectLine($delivery, $line);
-        }
-
-        $delivery = $delivery->fresh(['customer', 'warehouse', 'items', 'termsOfPayment']);
-        $this->auditLogService->record('created', 'delivery', "Created Delivery \"{$delivery->document_number}\".");
-
-        return $delivery;
-    }
-
+    /** Still used by update()/updateComplete() for an existing direct Delivery (sales_order_id
+        null) created before direct creation was removed 2026-10-08 — new creation no longer
+        reaches this (see create()'s own guard). */
     protected function addDirectLine(Delivery $delivery, array $line): void
     {
         $this->deliveryItemRepository->create($this->buildDirectDeliveryLineAttributes($delivery, $line));

@@ -118,11 +118,17 @@ class DeliveryDiscountAllocationTest extends TestCase
         $this->assertEquals(100_000, (float) $delivery1->items->first()->discount_amount + (float) $delivery2->items->first()->discount_amount);
     }
 
+    /** Direct-Delivery-line *creation* was removed 2026-10-08 — addDirectLine()/
+        buildDirectDeliveryLineAttributes() (and this discount/tax resolution) are still exercised
+        via update(), the path an already-existing direct Delivery still uses. */
     public function test_direct_delivery_line_accepts_a_manual_discount(): void
     {
-        $delivery = $this->deliveryService->create([
+        $delivery = \App\Models\Delivery::query()->create([
             'customer_id' => $this->customer->id, 'warehouse_id' => $this->warehouse->id,
             'delivery_date' => now()->toDateString(), 'due_date' => now()->addDays(7)->toDateString(),
+        ]);
+
+        $delivery = $this->deliveryService->update($delivery, [
             'items' => [['item_id' => $this->item->id, 'qty' => 5, 'rate' => 50_000, 'discount_type' => 'amount', 'discount_value' => 10_000, 'tax_id' => $this->ppn->id]],
         ]);
 

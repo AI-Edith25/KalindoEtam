@@ -36,8 +36,6 @@ import { DeliveryCompleteEditPage } from './DeliveryCompleteEditPage'
 import type { SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { parseLocaleQty } from '@/shared/lib/qty'
 
-type DeliveryMode = 'from_so' | 'direct' | null
-
 export function DeliveryEditorPage() {
   const { id } = useParams<{ id: string }>()
   const isEdit = !!id
@@ -46,7 +44,6 @@ export function DeliveryEditorPage() {
 
   const [selectedSalesOrderIds, setSelectedSalesOrderIds] = useState<Set<string>>(new Set())
   const [soSearch, setSoSearch] = useState('')
-  const [mode, setMode] = useState<DeliveryMode>(null)
   // Checking boxes must not auto-advance past the selection screen — with multi-select, the
   // user needs to be able to tick a second/third Sales Order before moving on. An explicit
   // Continue click is what commits the selection and mounts DeliveryForm. Mirrors InvoiceEditorPage.
@@ -67,9 +64,11 @@ export function DeliveryEditorPage() {
     enabled: isEdit,
   })
 
-  // An existing delivery's own sales_order_id decides its mode — a direct delivery can't
-  // retroactively gain a Sales Order, same mechanism as GoodsReceiptEditorPage's isDirectMode.
-  const isDirectMode = isEdit ? deliveryQuery.data?.sales_order_id === null : mode === 'direct'
+  // Direct (no Sales Order) creation is removed — only an existing Delivery created that way
+  // before this change can still be in direct mode, decided by its own sales_order_id (a direct
+  // delivery can't retroactively gain a Sales Order, same mechanism as GoodsReceiptEditorPage's
+  // isDirectMode). A brand-new Delivery is always from one or more Sales Orders.
+  const isDirectMode = isEdit ? deliveryQuery.data?.sales_order_id === null : false
 
   // One or more Sales Orders this Delivery is (or will be) built from. In edit mode, every
   // Sales Order already linked (sales_orders pivot — falling back to the anchor sales_order_id
@@ -83,7 +82,7 @@ export function DeliveryEditorPage() {
   const eligibleOrdersQuery = useQuery({
     queryKey: ['sales-orders-eligible-for-delivery', soSearch],
     queryFn: () => fetchSalesOrders({ page: 1, per_page: 100, status: 'approved', ...(soSearch ? { search: soSearch } : {}) }),
-    enabled: !isEdit && mode === 'from_so',
+    enabled: !isEdit,
   })
   const eligibleOrders = (eligibleOrdersQuery.data?.data ?? []).filter((so) => !so.is_fully_delivered)
   const selectedOrders = eligibleOrders.filter((so) => selectedSalesOrderIds.has(so.id))
@@ -132,93 +131,77 @@ export function DeliveryEditorPage() {
     return <DeliveryCompleteEditPage />
   }
 
-  // Step 1 (create mode only): choose From Sales Order or Direct/no Sales Order, then (for From
-  // Sales Order) pick one or more orders. An explicit Continue commits the selection, same as
-  // InvoiceEditorPage's own Delivery picker one level up the chain.
-  if (!isEdit && (mode === null || (mode === 'from_so' && !selectionConfirmed))) {
+  // Step 1 (create mode only): pick one or more Sales Orders this Delivery is built from. An
+  // explicit Continue commits the selection, same as InvoiceEditorPage's own Delivery picker one
+  // level up the chain. Direct/no-Sales-Order creation was removed — every new Delivery now
+  // always comes from a Sales Order; an existing direct Delivery is still editable (isDirectMode
+  // above), just not creatable anew.
+  if (!isEdit && !selectionConfirmed) {
     const allSelectableChecked = selectableOrders.length > 0 && selectableOrders.every((so) => selectedSalesOrderIds.has(so.id))
 
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader
-          title="New Delivery"
-          description="Deliver against one or more existing Sales Orders from the same Customer and Warehouse, or record a direct delivery with no Sales Order."
-        />
+        <PageHeader title="New Delivery" description="Deliver against one or more existing Sales Orders from the same Customer and Warehouse." />
         <Card>
           <CardHeader>
-            <CardTitle>{mode === 'from_so' ? 'Select Sales Order(s)' : 'How was this delivered?'}</CardTitle>
+            <CardTitle>Select Sales Order(s)</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {mode === null ? (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setMode('from_so')}>
-                  From Sales Order
-                </Button>
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setMode('direct')}>
-                  Direct Delivery (no Sales Order)
-                </Button>
+            <SearchBox value={soSearch} onChange={setSoSearch} placeholder="Search document number or customer…" />
+            {eligibleOrdersQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
               </div>
+            ) : selectableOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No sales orders with outstanding items.</p>
             ) : (
-              <>
-                <SearchBox value={soSearch} onChange={setSoSearch} placeholder="Search document number or customer…" />
-                {eligibleOrdersQuery.isLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : selectableOrders.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No sales orders with outstanding items.</p>
-                ) : (
-                  <div className="overflow-x-auto rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-10">
-                            <Checkbox
-                              checked={allSelectableChecked}
-                              onCheckedChange={(checked) => selectableOrders.forEach((so) => toggleSalesOrder(so.id, checked === true))}
-                              aria-label="Select all eligible sales orders"
-                            />
-                          </TableHead>
-                          <TableHead>Document Number</TableHead>
-                          <TableHead>Customer</TableHead>
-                          <TableHead>Order Date</TableHead>
-                          <TableHead className="text-right">Items</TableHead>
+              <div className="overflow-x-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={allSelectableChecked}
+                          onCheckedChange={(checked) => selectableOrders.forEach((so) => toggleSalesOrder(so.id, checked === true))}
+                          aria-label="Select all eligible sales orders"
+                        />
+                      </TableHead>
+                      <TableHead>Document Number</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Order Date</TableHead>
+                      <TableHead className="text-right">Items</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectableOrders.map((so) => {
+                      const checked = selectedSalesOrderIds.has(so.id)
+                      return (
+                        <TableRow key={so.id} data-state={checked ? 'selected' : undefined}>
+                          <TableCell>
+                            <Checkbox checked={checked} onCheckedChange={(value) => toggleSalesOrder(so.id, value === true)} aria-label={`Select ${so.document_number}`} />
+                          </TableCell>
+                          <TableCell className="font-medium">{so.document_number}</TableCell>
+                          <TableCell>{so.customer?.customer_name}</TableCell>
+                          <TableCell>{so.order_date}</TableCell>
+                          <TableCell className="text-right">{so.items.length}</TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectableOrders.map((so) => {
-                          const checked = selectedSalesOrderIds.has(so.id)
-                          return (
-                            <TableRow key={so.id} data-state={checked ? 'selected' : undefined}>
-                              <TableCell>
-                                <Checkbox checked={checked} onCheckedChange={(value) => toggleSalesOrder(so.id, value === true)} aria-label={`Select ${so.document_number}`} />
-                              </TableCell>
-                              <TableCell className="font-medium">{so.document_number}</TableCell>
-                              <TableCell>{so.customer?.customer_name}</TableCell>
-                              <TableCell>{so.order_date}</TableCell>
-                              <TableCell className="text-right">{so.items.length}</TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Only approved sales orders with outstanding (not yet fully delivered) items are shown — once you select one, only orders from the same
-                  Customer and Warehouse remain selectable.
-                </p>
-              </>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
+            <p className="text-sm text-muted-foreground">
+              Only approved sales orders with outstanding (not yet fully delivered) items are shown — once you select one, only orders from the same
+              Customer and Warehouse remain selectable.
+            </p>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => (mode === null ? navigate('/sales/deliveries') : setMode(null))}>
-                {mode === null ? 'Cancel' : 'Back'}
+              <Button type="button" variant="outline" onClick={() => navigate('/sales/deliveries')}>
+                Cancel
               </Button>
-              {mode === 'from_so' && (
-                <Button type="button" disabled={selectedSalesOrderIds.size === 0} onClick={() => setSelectionConfirmed(true)}>
-                  Continue
-                </Button>
-              )}
+              <Button type="button" disabled={selectedSalesOrderIds.size === 0} onClick={() => setSelectionConfirmed(true)}>
+                Continue
+              </Button>
             </div>
           </CardContent>
         </Card>
