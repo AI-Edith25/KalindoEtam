@@ -682,6 +682,22 @@ export interface CustomerOutstandingArchiveGrandTotalMismatch {
   computed_overdue: number
 }
 
+/** Per-line Invoice-creation outcome, from classifyLines()/createInvoicesFromLines() --
+    shared shape between preflight's dry-run preview and resolve's actual result. */
+export interface CustomerOutstandingArchiveSiPreview {
+  will_create: number
+  skipped_customer: string[]
+  skipped_type: string[]
+  skipped_duplicate: string[]
+}
+
+export interface CustomerOutstandingArchiveSiImportResult {
+  created: number
+  skipped_customer: string[]
+  skipped_type: string[]
+  skipped_duplicate: string[]
+}
+
 /** ImportBatch.preview_summary shape while status='previewed' -- from CustomerOutstandingArchiveImportService::preflight(). */
 export interface CustomerOutstandingArchivePreflight {
   company_name: string | null
@@ -693,12 +709,19 @@ export interface CustomerOutstandingArchivePreflight {
   failed_rows: CustomerOutstandingArchiveFailedRow[]
   subtotal_mismatches: CustomerOutstandingArchiveSubtotalMismatch[]
   grand_total_mismatch: CustomerOutstandingArchiveGrandTotalMismatch | null
+  si_preview: CustomerOutstandingArchiveSiPreview
 }
 
 export interface CustomerOutstandingArchiveImportBatch {
   id: string
   status: 'previewed' | 'completed' | 'failed'
   preview_summary: CustomerOutstandingArchivePreflight | null
+}
+
+/** resolve()'s response shape -- the snapshot plus what actually happened on the Invoice side. */
+export interface CustomerOutstandingArchiveResolveResult {
+  snapshot: CustomerOutstandingSnapshot
+  si_import: CustomerOutstandingArchiveSiImportResult
 }
 
 export interface CustomerOutstandingArchiveFilterValues {

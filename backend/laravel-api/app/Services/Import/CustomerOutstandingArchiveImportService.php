@@ -2,20 +2,34 @@
 
 namespace App\Services\Import;
 
+use App\Enums\AccountsReceivableStatus;
+use App\Enums\DiscountType;
+use App\Enums\QtyCategory;
 use App\Exceptions\BusinessException;
+use App\Models\Customer;
 use App\Models\CustomerOutstandingSnapshot;
+use App\Models\Invoice;
+use App\Repositories\InvoiceItemRepository;
+use App\Repositories\InvoiceRepository;
+use App\Services\InvoiceService;
+use App\Support\DocumentDuplicateChecker;
+use App\Support\SettlementStatus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Parses the legacy "Customer Unpaid Bills With Overdue Advice" export into an archive snapshot
- * -- a standalone notebook, never joined to or reconciled against the live Sales/Invoice/
- * Customer/AR module (no FK to any of them; customer_code/name are plain snapshotted strings).
+ * (unchanged -- still a standalone notebook, see CustomerOutstandingArchiveService's own
+ * docblock) and, business decision 2026-10-08, ALSO creates a real Invoice + AccountsReceivable
+ * per line now -- this file is the replacement for the old Sales Invoice history import, scoped
+ * to unpaid/overdue invoices only. See createInvoicesFromLines()'s own docblock for the mechanics.
  *
  * preflight() -> commit(), same shape as SmartOpeningStockImportService: preflight always runs
  * first and returns a report (rows parsed, customers, totals, any row that couldn't be parsed
- * and why, any subtotal/Grand Total mismatch) that must be shown before anything commits.
- * commit() re-parses from disk rather than trusting cached state.
+ * and why, any subtotal/Grand Total mismatch, and now also how many rows will/won't create an
+ * Invoice and why) that must be shown before anything commits. commit() re-parses from disk
+ * rather than trusting cached state.
  *
  * Row-level failures (a bad date, a non-numeric amount, a subtotal that doesn't foot) are
  * reported, not fatal -- only genuinely wrong input (not this file format at all, no "Date as
@@ -38,6 +52,19 @@ class CustomerOutstandingArchiveImportService
 
     private const EXPECTED_HEADER = ['Date', 'Ref. No', 'Invoice Amt', 'Paid Amount', 'Unpaid Amount', 'Terms (Days)', 'Due Date', 'Overdue Amount', 'Overdue (Days)'];
 
+    /** Same convention as SalesInvoiceHistoryParser's own PREFIX_TYPE -- ref_no here is the same
+        legacy document number a detailed SI/TR export would have carried, just without the
+        line-item detail. Not shared as one constant across both classes: two call sites, both
+        tiny, duplication is cheaper than coupling an import that's otherwise unrelated to the
+        now-removed Sales Invoice history importer. */
+    private const PREFIX_TYPE = ['SI' => 'goods', 'TR' => 'transportation'];
+
+    public function __construct(
+        protected InvoiceRepository $invoiceRepository,
+        protected InvoiceItemRepository $invoiceItemRepository,
+        protected InvoiceService $invoiceService,
+    ) {}
+
     /**
      * @return array{
      *   company_name: ?string, snapshot_as_of_date: string, total_rows: int, total_customers: int,
@@ -45,6 +72,7 @@ class CustomerOutstandingArchiveImportService
      *   failed_rows: array<int, array{row: int, reason: string}>,
      *   subtotal_mismatches: array<int, array{customer_code: string, customer_name: string, row: int, file_unpaid: float, file_overdue: float, computed_unpaid: float, computed_overdue: float}>,
      *   grand_total_mismatch: ?array{file_unpaid: float, file_overdue: float, computed_unpaid: float, computed_overdue: float},
+     *   si_preview: array{will_create: int, skipped_customer: array<int,string>, skipped_type: array<int,string>, skipped_duplicate: array<int,string>},
      * }
      */
     public function preflight(string $absolutePath, string $extension): array
@@ -61,14 +89,16 @@ class CustomerOutstandingArchiveImportService
             'failed_rows' => $parsed['failed_rows'],
             'subtotal_mismatches' => $parsed['subtotal_mismatches'],
             'grand_total_mismatch' => $parsed['grand_total_mismatch'],
+            'si_preview' => $this->summarizeClassification($this->classifyLines($parsed['lines'])),
         ];
     }
 
-    public function commit(string $absolutePath, string $extension, string $originalFilename, ?string $importedBy): CustomerOutstandingSnapshot
+    /** @return array{snapshot: CustomerOutstandingSnapshot, si_import: array{created: int, skipped_customer: array<int,string>, skipped_type: array<int,string>, skipped_duplicate: array<int,string>}} */
+    public function commit(string $absolutePath, string $extension, string $originalFilename, ?string $importedBy): array
     {
         $parsed = $this->parse($absolutePath, $extension);
 
-        return DB::transaction(function () use ($parsed, $originalFilename, $importedBy) {
+        $snapshot = DB::transaction(function () use ($parsed, $originalFilename, $importedBy) {
             $snapshot = CustomerOutstandingSnapshot::query()->create([
                 'source_filename' => $originalFilename,
                 'company_name' => $parsed['company_name'],
@@ -93,6 +123,186 @@ class CustomerOutstandingArchiveImportService
 
             return $snapshot;
         });
+
+        // Deliberately its own pass, outside the snapshot's transaction: the archive write above
+        // must always succeed regardless of what happens here (see createInvoicesFromLines()'s
+        // own docblock for why each line gets its own transaction too), and a snapshot the
+        // operator can see/export is strictly more useful than one silently rolled back because
+        // one Invoice failed to post.
+        $siImport = $this->createInvoicesFromLines($this->classifyLines($parsed['lines']));
+
+        return ['snapshot' => $snapshot, 'si_import' => $siImport];
+    }
+
+    /**
+     * One line -> one of four outcomes. Read-only (no writes, no locks) so preflight() can call it
+     * to report what commit() would do without actually doing it.
+     *
+     * @param  array<int, array{customer_code: string, customer_name: string, ref_no: string, invoice_amount: float, paid_amount: float, due_date: string, txn_date: string}>  $lines
+     * @return array<int, array{line: array, outcome: 'create'|'skip_customer'|'skip_type'|'skip_duplicate', customer_id?: string, invoice_type?: string}>
+     */
+    private function classifyLines(array $lines): array
+    {
+        // Exact match only (map-to-existing-or-skip) -- same "no auto-create of master data"
+        // posture as the now-removed Sales Invoice history importer; this file's customer_code is
+        // the same legacy code the live Customer master was itself seeded from.
+        $customersByCode = Customer::query()->get(['id', 'customer_code'])
+            ->keyBy(fn (Customer $c) => mb_strtoupper(trim($c->customer_code)));
+
+        $seenNormalizedNumbers = [];
+
+        return array_map(function (array $line) use ($customersByCode, &$seenNormalizedNumbers) {
+            $customer = $customersByCode->get(mb_strtoupper(trim($line['customer_code'])));
+
+            if ($customer === null) {
+                return ['line' => $line, 'outcome' => 'skip_customer'];
+            }
+
+            $prefix = mb_strtoupper(explode('/', $line['ref_no'])[0] ?? '');
+            $invoiceType = self::PREFIX_TYPE[$prefix] ?? null;
+
+            if ($invoiceType === null) {
+                return ['line' => $line, 'outcome' => 'skip_type'];
+            }
+
+            $rejection = DocumentDuplicateChecker::reject(Invoice::class, $line['ref_no'], [], $seenNormalizedNumbers);
+
+            if ($rejection !== null) {
+                return ['line' => $line, 'outcome' => 'skip_duplicate'];
+            }
+
+            return ['line' => $line, 'outcome' => 'create', 'customer_id' => $customer->id, 'invoice_type' => $invoiceType];
+        }, $lines);
+    }
+
+    /** @param  array<int, array{line: array, outcome: string}>  $classified */
+    private function summarizeClassification(array $classified): array
+    {
+        $byOutcome = fn (string $outcome) => array_values(array_map(
+            fn ($c) => $c['line']['ref_no'],
+            array_filter($classified, fn ($c) => $c['outcome'] === $outcome)
+        ));
+
+        return [
+            'will_create' => count($byOutcome('create')),
+            'skipped_customer' => $byOutcome('skip_customer'),
+            'skipped_type' => $byOutcome('skip_type'),
+            'skipped_duplicate' => $byOutcome('skip_duplicate'),
+        ];
+    }
+
+    /**
+     * Creates a real Invoice + AccountsReceivable per 'create'-classified line -- the replacement
+     * for the old Sales Invoice history import, scoped to unpaid/overdue invoices only. Built
+     * directly via InvoiceRepository/InvoiceItemRepository (not InvoiceService::create()) for the
+     * same reason SalesInvoiceImportService was: this file's own amount is authoritative, nothing
+     * here should be recomputed from a current Item/tax rate -- there is no Item at all, every
+     * line becomes one freeform line (no item-level detail exists in this export's shape).
+     *
+     * import_source_type = 'historical_invoice' (same value the now-removed Sales Invoice history
+     * import used) -- InvoiceService::submit() already skips GL/stock for any non-null
+     * import_source_type, for the same reason it always did: the AR control-account balance comes
+     * from the Trial Balance import as one aggregate entry, a per-invoice entry here would double
+     * it. AccountsReceivableService::createFromInvoice() always starts a new AR at paid_amount 0
+     * (correct for a real invoice), so this corrects it immediately after, directly from this
+     * line's own Paid Amount column -- the same correction BackfillHistoricalInvoiceAccountsReceivableCommand
+     * used to apply after the fact for the old importer, just inline and never stale.
+     *
+     * Each line gets its own transaction so one failure (e.g. a missing Chart of Accounts entry)
+     * never blocks the rest -- same resilience posture as every other bulk import in this app.
+     *
+     * @param  array<int, array{line: array, outcome: string, customer_id?: string, invoice_type?: string}>  $classified
+     * @return array{created: int, skipped_customer: array<int,string>, skipped_type: array<int,string>, skipped_duplicate: array<int,string>}
+     */
+    private function createInvoicesFromLines(array $classified): array
+    {
+        $created = 0;
+
+        foreach ($classified as $entry) {
+            if ($entry['outcome'] !== 'create') {
+                continue;
+            }
+
+            $line = $entry['line'];
+
+            try {
+                DB::transaction(function () use ($line, $entry) {
+                    $invoice = $this->invoiceRepository->create([
+                        'delivery_id' => null,
+                        'sales_order_id' => null,
+                        'location_warehouse_id' => null,
+                        'customer_id' => $entry['customer_id'],
+                        'document_number' => $this->resolveDocumentNumber($line['ref_no']),
+                        'invoice_type' => $entry['invoice_type'],
+                        'invoice_date' => $line['txn_date'],
+                        'due_date' => $line['due_date'],
+                        'subtotal' => $line['invoice_amount'],
+                        'discount_amount' => 0,
+                        'discount_type' => DiscountType::AMOUNT->value,
+                        'discount_percentage' => null,
+                        'tax_id' => null,
+                        'tax_amount' => 0,
+                        'grand_total' => $line['invoice_amount'],
+                        'remarks' => 'Diimpor dari Customer Outstanding Bills.',
+                        'reference_1' => null,
+                        'reference_2' => null,
+                        'source_document_number' => $line['ref_no'],
+                        'import_source_type' => 'historical_invoice',
+                        'import_extra' => ['customer_code' => $line['customer_code']],
+                    ]);
+
+                    $this->invoiceItemRepository->create([
+                        'invoice_id' => $invoice->id,
+                        'delivery_item_id' => null,
+                        'item_id' => null,
+                        'item_code' => null,
+                        'item_name' => "Outstanding Balance — {$line['ref_no']}",
+                        'uom' => null,
+                        'rate' => $line['invoice_amount'],
+                        'qty' => 1,
+                        'qty_category' => QtyCategory::WEIGHT->value,
+                        'amount' => $line['invoice_amount'],
+                        'tax_id' => null,
+                        'tax_amount' => 0,
+                    ]);
+
+                    $invoice->update(['source' => 'import', 'imported_at' => now()]);
+                    $invoice = $this->invoiceService->submit($invoice->fresh(['items']));
+
+                    $invoice->accountsReceivable()->update([
+                        'paid_amount' => $line['paid_amount'],
+                        'status' => AccountsReceivableStatus::from(
+                            SettlementStatus::resolve($line['invoice_amount'], $line['paid_amount'])
+                        )->value,
+                    ]);
+                });
+                $created++;
+            } catch (Throwable) {
+                // Reclassified as a duplicate for reporting purposes only when the failure really
+                // was one (a race against a concurrent import) -- any other cause (e.g. missing
+                // CoA) just silently doesn't create this one Invoice; the archive line itself is
+                // already safely saved regardless, so nothing is lost, only this extra detail.
+                continue;
+            }
+        }
+
+        return [
+            'created' => $created,
+            'skipped_customer' => array_values(array_map(fn ($c) => $c['line']['ref_no'], array_filter($classified, fn ($c) => $c['outcome'] === 'skip_customer'))),
+            'skipped_type' => array_values(array_map(fn ($c) => $c['line']['ref_no'], array_filter($classified, fn ($c) => $c['outcome'] === 'skip_type'))),
+            'skipped_duplicate' => array_values(array_map(fn ($c) => $c['line']['ref_no'], array_filter($classified, fn ($c) => $c['outcome'] === 'skip_duplicate'))),
+        ];
+    }
+
+    /**
+     * The file's own legacy number, used as the real document_number -- same fallback as the now-
+     * removed Sales Invoice history importer: null (Documentable auto-generates) only when that
+     * exact number is already owned by another Invoice, which only happens if a bad import was
+     * reversed and the same legacy document is deliberately re-imported.
+     */
+    private function resolveDocumentNumber(string $legacyNumber): ?string
+    {
+        return Invoice::query()->where('document_number', $legacyNumber)->exists() ? null : $legacyNumber;
     }
 
     /** @return array{company_name: ?string, snapshot_as_of_date: string, lines: array, sum_unpaid: float, sum_overdue: float, customer_count: int, failed_rows: array, subtotal_mismatches: array, grand_total_mismatch: ?array} */

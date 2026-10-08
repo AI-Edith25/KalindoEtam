@@ -22,10 +22,13 @@ use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * "Customer Outstanding Bills" -- a standalone reference notebook of imported legacy AR export
- * snapshots, not connected to the live Sales/Invoice/Customer/AR module in any way. See
- * CustomerOutstandingArchiveImportService (parsing/write) and CustomerOutstandingArchiveService
- * (query/read) for where the actual logic lives; this controller is orchestration only.
+ * "Customer Outstanding Bills" -- a reference notebook of imported legacy AR export snapshots
+ * (archive side, still standalone -- see CustomerOutstandingArchiveService's own docblock) that,
+ * business decision 2026-10-08, ALSO creates a real Invoice + AccountsReceivable per line now:
+ * the replacement for the old Sales Invoice history import, scoped to unpaid/overdue invoices
+ * only. See CustomerOutstandingArchiveImportService (parsing/write, both sides) and
+ * CustomerOutstandingArchiveService (archive query/read) for where the actual logic lives; this
+ * controller is orchestration only.
  *
  * store() always leaves the batch PREVIEWED -- rows parsed, customers, totals, any row that
  * failed to parse or a subtotal/Grand Total mismatch must be shown before anything commits.
@@ -84,7 +87,7 @@ class CustomerOutstandingArchiveController extends Controller
         $extension = pathinfo($batch->file_path, PATHINFO_EXTENSION);
 
         try {
-            $snapshot = $this->importService->commit($absolutePath, $extension, $batch->original_filename, $batch->created_by);
+            ['snapshot' => $snapshot, 'si_import' => $siImport] = $this->importService->commit($absolutePath, $extension, $batch->original_filename, $batch->created_by);
         } finally {
             Storage::disk($batch->disk)->delete($batch->file_path);
         }
@@ -94,11 +97,12 @@ class CustomerOutstandingArchiveController extends Controller
         $auditLogService->record(
             'imported',
             'customer_outstanding_archive',
-            "Imported Customer Outstanding Bills snapshot: {$snapshot->total_customers} customers, {$snapshot->total_rows} rows.",
+            "Imported Customer Outstanding Bills snapshot: {$snapshot->total_customers} customers, {$snapshot->total_rows} rows. ".
+            "{$siImport['created']} Invoice(s) created.",
             userId: $batch->created_by,
         );
 
-        return $this->success($snapshot, 'Snapshot berhasil diimpor.', 201);
+        return $this->success(['snapshot' => $snapshot, 'si_import' => $siImport], 'Snapshot berhasil diimpor.', 201);
     }
 
     public function show(ShowCustomerOutstandingArchiveRequest $request, CustomerOutstandingSnapshot $snapshot): JsonResponse

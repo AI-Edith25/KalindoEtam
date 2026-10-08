@@ -55,9 +55,13 @@ export function CustomerOutstandingArchiveImportDialog({ open, onClose, onImport
 
   const resolveMutation = useMutation({
     mutationFn: () => resolveCustomerOutstandingImport(batch?.id ?? ''),
-    onSuccess: (snapshot) => {
-      toast.success(`Snapshot berhasil diimpor: ${snapshot.total_customers} customer, ${snapshot.total_rows} baris.`)
+    onSuccess: ({ snapshot, si_import: siImport }) => {
+      toast.success(
+        `Snapshot berhasil diimpor: ${snapshot.total_customers} customer, ${snapshot.total_rows} baris. ` +
+          `${siImport.created} Invoice dibuat ke Sales Invoice.`,
+      )
       queryClient.invalidateQueries({ queryKey: ['customer-outstanding-snapshots'] })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
       onImported(snapshot)
       handleClose()
     },
@@ -66,6 +70,7 @@ export function CustomerOutstandingArchiveImportDialog({ open, onClose, onImport
 
   const preview = batch?.preview_summary ?? null
   const hasIssues = !!preview && (preview.failed_rows.length > 0 || preview.subtotal_mismatches.length > 0 || !!preview.grand_total_mismatch)
+  const siPreview = preview?.si_preview ?? null
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && handleClose()}>
@@ -74,7 +79,7 @@ export function CustomerOutstandingArchiveImportDialog({ open, onClose, onImport
           <DialogTitle>Import Data — Customer Outstanding Bills</DialogTitle>
           <DialogDescription>
             {step === 'setup' &&
-              'Upload file export "Customer Unpaid Bills With Overdue Advice" (.xlsx) apa adanya. File dengan judul yang tidak sesuai akan ditolak.'}
+              'Upload file export "Customer Unpaid Bills With Overdue Advice" (.xlsx) apa adanya. File dengan judul yang tidak sesuai akan ditolak. Setiap baris yang customer-nya cocok dengan master Customer juga akan dibuat sebagai Sales Invoice.'}
             {step === 'preview' && 'Ringkasan sebelum import — periksa dulu sebelum melanjutkan.'}
           </DialogDescription>
         </DialogHeader>
@@ -106,6 +111,30 @@ export function CustomerOutstandingArchiveImportDialog({ open, onClose, onImport
                 <span>{formatCurrency(preview.total_overdue)}</span>
               </div>
             </div>
+
+            {siPreview && (
+              <div className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">Akan dibuat sebagai Sales Invoice</span>
+                  <Badge variant="secondary">{formatNumber(siPreview.will_create)} dari {formatNumber(preview.total_rows)} baris</Badge>
+                </div>
+                {siPreview.skipped_customer.length > 0 && (
+                  <div className="text-muted-foreground">
+                    {formatNumber(siPreview.skipped_customer.length)} baris dilewati — Customer Code tidak ditemukan di master Customer.
+                  </div>
+                )}
+                {siPreview.skipped_type.length > 0 && (
+                  <div className="text-muted-foreground">
+                    {formatNumber(siPreview.skipped_type.length)} baris dilewati — Ref. No bukan format SI/KE atau TR/KE.
+                  </div>
+                )}
+                {siPreview.skipped_duplicate.length > 0 && (
+                  <div className="text-muted-foreground">
+                    {formatNumber(siPreview.skipped_duplicate.length)} baris dilewati — Ref. No sudah ada pada Invoice yang aktif.
+                  </div>
+                )}
+              </div>
+            )}
 
             {hasIssues && (
               <Alert variant="destructive">

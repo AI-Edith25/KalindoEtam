@@ -4,6 +4,7 @@ import type {
   CustomerOutstandingArchiveDetail,
   CustomerOutstandingArchiveFilterValues,
   CustomerOutstandingArchiveImportBatch,
+  CustomerOutstandingArchiveResolveResult,
   CustomerOutstandingSnapshot,
 } from '../types'
 
@@ -34,9 +35,10 @@ export async function storeCustomerOutstandingSnapshot(file: File): Promise<Cust
   return data.data
 }
 
-/** Commits the previously previewed batch -- runs synchronously and returns the finished snapshot immediately. */
-export async function resolveCustomerOutstandingImport(batchId: string): Promise<CustomerOutstandingSnapshot> {
-  const { data } = await apiClient.post<ApiResponse<CustomerOutstandingSnapshot>>(`/customer-outstanding-archive/batches/${batchId}/resolve`)
+/** Commits the previously previewed batch -- runs synchronously and returns the finished snapshot
+    plus a summary of what happened on the Invoice side (see CustomerOutstandingArchiveImportService::commit()). */
+export async function resolveCustomerOutstandingImport(batchId: string): Promise<CustomerOutstandingArchiveResolveResult> {
+  const { data } = await apiClient.post<ApiResponse<CustomerOutstandingArchiveResolveResult>>(`/customer-outstanding-archive/batches/${batchId}/resolve`)
   return data.data
 }
 

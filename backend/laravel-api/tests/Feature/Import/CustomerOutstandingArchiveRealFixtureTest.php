@@ -92,7 +92,7 @@ class CustomerOutstandingArchiveRealFixtureTest extends TestCase
     public function test_resolve_commits_matching_the_files_own_grand_total_exactly(): void
     {
         $result = $this->importFixture();
-        $data = $result['resolve']->json('data');
+        $data = $result['resolve']->json('data.snapshot');
 
         $this->assertSame('2026-09-30', $data['snapshot_as_of_date']);
         $this->assertSame(573, $data['total_customers']);
@@ -112,6 +112,21 @@ class CustomerOutstandingArchiveRealFixtureTest extends TestCase
         $this->assertEqualsWithDelta(126726071682.93, $sumOverdue, 0.01);
     }
 
+    /** None of this fixture's 573 customer codes exist in the live Customer master during this
+        test (never seeded) -- every line must cleanly skip Invoice creation rather than error,
+        proving the new SI-creation pass tolerates a real, large, fully-unmatched file. */
+    public function test_resolve_reports_every_line_skipped_when_no_customer_master_exists(): void
+    {
+        $result = $this->importFixture();
+        $totalRows = $result['upload']->json('data.preview_summary.total_rows');
+        $siImport = $result['resolve']->json('data.si_import');
+
+        $this->assertSame(0, $siImport['created']);
+        $this->assertCount($totalRows, $siImport['skipped_customer']);
+        $this->assertSame([], $siImport['skipped_type']);
+        $this->assertSame([], $siImport['skipped_duplicate']);
+    }
+
     public function test_a_second_import_creates_a_new_snapshot_and_becomes_the_active_one(): void
     {
         $first = $this->importFixture();
@@ -124,14 +139,14 @@ class CustomerOutstandingArchiveRealFixtureTest extends TestCase
         $this->assertCount(2, $snapshots->json('data'));
         // Most-recently-imported first -- the second import is the active one, not sorted by the
         // file's own (identical, in this fixture) snapshot_as_of_date.
-        $this->assertSame($second['resolve']->json('data.id'), $snapshots->json('data.0.id'));
-        $this->assertSame($first['resolve']->json('data.id'), $snapshots->json('data.1.id'));
+        $this->assertSame($second['resolve']->json('data.snapshot.id'), $snapshots->json('data.0.id'));
+        $this->assertSame($first['resolve']->json('data.snapshot.id'), $snapshots->json('data.1.id'));
     }
 
     public function test_grouped_detail_groups_by_customer_with_correct_subtotals_summary_and_filtering(): void
     {
         $result = $this->importFixture();
-        $snapshotId = $result['resolve']->json('data.id');
+        $snapshotId = $result['resolve']->json('data.snapshot.id');
 
         $show = $this->getJson("/api/v1/customer-outstanding-archive/snapshots/{$snapshotId}");
         $show->assertOk();
