@@ -28,9 +28,12 @@ use Throwable;
  * are reported, not force-deleted: unwinding a real payment allocation is the operator's call, not
  * this command's.
  *
- * Defaults to a dry run (reports counts only); pass --commit to actually delete. The whole run is
- * one transaction, so a dry run costs nothing and a committed run is all-or-nothing for the rows
- * that weren't individually blocked.
+ * Defaults to a dry run (reports counts only, via blockingReason() alone — no row is ever touched
+ * or locked for a dry run). --commit processes invoices via chunkById with a progress bar, each in
+ * its own short transaction: a single mega-transaction spanning the whole run would hold every row
+ * it touches locked against live traffic for the run's entire duration, which is exactly what made
+ * the companion PurgeImportedOfficialReceiptsCommand look hung on a large dataset (2026-10-08
+ * incident) before it was fixed the same way.
  */
 class PurgeHistoricalSalesInvoiceImportCommand extends Command
 {
@@ -40,57 +43,61 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
 
     public function handle(): int
     {
-        $commit = (bool) $this->option('commit');
+        $total = Invoice::query()->where('import_source_type', 'historical_invoice')->count();
+        $batchCount = ImportBatch::query()->where('module', 'sales-invoice-history')->count();
 
-        DB::beginTransaction();
+        if (! $this->option('commit')) {
+            return $this->dryRun($total, $batchCount);
+        }
 
-        $deleted = [];
+        $deleted = 0;
         $blocked = [];
+        $bar = $this->output->createProgressBar($total);
+        $bar->start();
 
-        Invoice::query()->where('import_source_type', 'historical_invoice')->get()->each(function (Invoice $invoice) use (&$deleted, &$blocked) {
-            $reason = $this->blockingReason($invoice);
+        Invoice::query()->where('import_source_type', 'historical_invoice')->chunkById(200, function ($invoices) use (&$deleted, &$blocked, $bar) {
+            foreach ($invoices as $invoice) {
+                $reason = $this->blockingReason($invoice);
 
-            if ($reason !== null) {
-                $blocked[] = "{$invoice->document_number}: {$reason}";
+                if ($reason !== null) {
+                    $blocked[] = "{$invoice->document_number}: {$reason}";
+                    $bar->advance();
 
-                return;
-            }
+                    continue;
+                }
 
-            try {
-                DB::transaction(function () use ($invoice) {
-                    $invoice->items()->delete();
-                    $invoice->accountsReceivable()->delete();
-                    $invoice->delete();
-                });
-                $deleted[] = $invoice->document_number;
-            } catch (Throwable $e) {
-                $blocked[] = "{$invoice->document_number}: {$e->getMessage()}";
+                try {
+                    DB::transaction(function () use ($invoice) {
+                        $invoice->items()->delete();
+                        $invoice->accountsReceivable()->delete();
+                        $invoice->delete();
+                    });
+                    $deleted++;
+                } catch (Throwable $e) {
+                    $blocked[] = "{$invoice->document_number}: {$e->getMessage()}";
+                }
+
+                $bar->advance();
             }
         });
+
+        $bar->finish();
 
         $batches = ImportBatch::query()->where('module', 'sales-invoice-history')->get();
         foreach ($batches as $batch) {
             $batch->delete();
-        }
 
-        if (! $commit) {
-            DB::rollBack();
-            $this->warn('Dry run — no changes were saved. Pass --commit to actually delete.');
-        } else {
-            DB::commit();
-
-            foreach ($batches as $batch) {
-                if ($batch->file_path) {
-                    Storage::disk($batch->disk)->delete($batch->file_path);
-                }
-                if ($batch->error_report_path) {
-                    Storage::disk($batch->disk)->delete($batch->error_report_path);
-                }
+            if ($batch->file_path) {
+                Storage::disk($batch->disk)->delete($batch->file_path);
+            }
+            if ($batch->error_report_path) {
+                Storage::disk($batch->disk)->delete($batch->error_report_path);
             }
         }
 
         $this->line('');
-        $this->info('Invoices deleted: '.count($deleted));
+        $this->line('');
+        $this->info("Invoices deleted: {$deleted}");
         $this->info('Import batches removed: '.count($batches));
 
         if ($blocked !== []) {
@@ -99,6 +106,28 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
                 $this->line("  - {$reason}");
             }
         }
+
+        return self::SUCCESS;
+    }
+
+    /** Pure count, no mutation and no lock — blockingReason() alone is enough to classify every row without touching it. */
+    private function dryRun(int $total, int $batchCount): int
+    {
+        $blockedCount = 0;
+
+        Invoice::query()->where('import_source_type', 'historical_invoice')->chunkById(200, function ($invoices) use (&$blockedCount) {
+            foreach ($invoices as $invoice) {
+                if ($this->blockingReason($invoice) !== null) {
+                    $blockedCount++;
+                }
+            }
+        });
+
+        $this->info("Historical-imported invoices found: {$total}");
+        $this->info("  of which would be blocked (real payment/credit/debit note against them): {$blockedCount}");
+        $this->info('  of which would be deleted: '.($total - $blockedCount));
+        $this->info("Import batches that would be removed: {$batchCount}");
+        $this->warn('Dry run — no changes were made. Pass --commit to actually delete.');
 
         return self::SUCCESS;
     }

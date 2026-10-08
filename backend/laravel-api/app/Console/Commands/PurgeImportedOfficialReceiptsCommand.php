@@ -37,8 +37,14 @@ use Throwable;
  * Both the receipt and its allocations are soft-deleted explicitly so a reversed-but-undeleted
  * allocation never outlives its parent in any payment-history list.
  *
- * Each receipt is unwound inside its own savepoint so one failure never aborts the rest. Defaults
- * to a dry run; pass --commit to actually apply it.
+ * Each receipt is unwound in its own short transaction so one failure never aborts the rest, and so
+ * no lock is held any longer than one receipt's worth of work — with a large volume of receipts,
+ * one mega-transaction spanning the whole run would hold every row it touches locked against live
+ * traffic for the entire command's duration. Processed via chunkById with a progress bar rather
+ * than get()->each() for the same reason: visible progress on a long run, bounded memory. Without
+ * --commit this never calls reverse()/delete() at all — it only counts — so a dry run is fast and
+ * takes no locks; the original version actually executed every reversal and rolled back at the end,
+ * which is what made it look hung on a large dataset (2026-10-08 incident).
  */
 class PurgeImportedOfficialReceiptsCommand extends Command
 {
@@ -55,55 +61,58 @@ class PurgeImportedOfficialReceiptsCommand extends Command
 
     public function handle(): int
     {
-        $commit = (bool) $this->option('commit');
+        $total = ReceiptEntry::query()->where('source', 'import')->count();
+        $batchCount = ImportBatch::query()->where('module', 'official-receipts')->count();
 
-        DB::beginTransaction();
+        if (! $this->option('commit')) {
+            return $this->dryRun($total, $batchCount);
+        }
 
-        $deleted = [];
+        $deleted = 0;
         $blocked = [];
+        $bar = $this->output->createProgressBar($total);
+        $bar->start();
 
-        ReceiptEntry::query()->where('source', 'import')->get()->each(function (ReceiptEntry $entry) use (&$deleted, &$blocked) {
-            try {
-                DB::transaction(function () use ($entry) {
-                    PaymentAllocation::query()->where('receipt_entry_id', $entry->id)->where('is_reversed', false)
-                        ->get()->each(fn (PaymentAllocation $allocation) => $this->paymentAllocationService->reverse($allocation));
+        ReceiptEntry::query()->where('source', 'import')->chunkById(200, function ($entries) use (&$deleted, &$blocked, $bar) {
+            foreach ($entries as $entry) {
+                try {
+                    DB::transaction(function () use ($entry) {
+                        PaymentAllocation::query()->where('receipt_entry_id', $entry->id)->where('is_reversed', false)
+                            ->get()->each(fn (PaymentAllocation $allocation) => $this->paymentAllocationService->reverse($allocation));
 
-                    if ($entry->status === DocumentStatus::SUBMITTED) {
-                        $this->accountingService->reverseForDocument($entry);
-                    }
+                        if ($entry->status === DocumentStatus::SUBMITTED) {
+                            $this->accountingService->reverseForDocument($entry);
+                        }
 
-                    PaymentAllocation::query()->where('receipt_entry_id', $entry->id)->delete();
-                    $entry->delete();
-                });
-                $deleted[] = $entry->reference_number ?? $entry->document_number;
-            } catch (Throwable $e) {
-                $blocked[] = "{$entry->reference_number}: {$e->getMessage()}";
+                        PaymentAllocation::query()->where('receipt_entry_id', $entry->id)->delete();
+                        $entry->delete();
+                    });
+                    $deleted++;
+                } catch (Throwable $e) {
+                    $blocked[] = "{$entry->reference_number}: {$e->getMessage()}";
+                }
+
+                $bar->advance();
             }
         });
+
+        $bar->finish();
 
         $batches = ImportBatch::query()->where('module', 'official-receipts')->get();
         foreach ($batches as $batch) {
             $batch->delete();
-        }
 
-        if (! $commit) {
-            DB::rollBack();
-            $this->warn('Dry run — no changes were saved. Pass --commit to actually delete.');
-        } else {
-            DB::commit();
-
-            foreach ($batches as $batch) {
-                if ($batch->file_path) {
-                    Storage::disk($batch->disk)->delete($batch->file_path);
-                }
-                if ($batch->error_report_path) {
-                    Storage::disk($batch->disk)->delete($batch->error_report_path);
-                }
+            if ($batch->file_path) {
+                Storage::disk($batch->disk)->delete($batch->file_path);
+            }
+            if ($batch->error_report_path) {
+                Storage::disk($batch->disk)->delete($batch->error_report_path);
             }
         }
 
         $this->line('');
-        $this->info('Official Receipts deleted: '.count($deleted));
+        $this->line('');
+        $this->info("Official Receipts deleted: {$deleted}");
         $this->info('Import batches removed: '.count($batches));
 
         if ($blocked !== []) {
@@ -112,6 +121,19 @@ class PurgeImportedOfficialReceiptsCommand extends Command
                 $this->line("  - {$reason}");
             }
         }
+
+        return self::SUCCESS;
+    }
+
+    /** Pure count, no mutation and no lock — see this class's own docblock on why the old dry run actually executed every reversal. */
+    private function dryRun(int $total, int $batchCount): int
+    {
+        $allocated = ReceiptEntry::query()->where('source', 'import')->where('allocated_amount', '>', 0)->count();
+
+        $this->info("Imported Official Receipts found: {$total}");
+        $this->info("  of which have at least one payment allocation to reverse: {$allocated}");
+        $this->info("Import batches that would be removed: {$batchCount}");
+        $this->warn('Dry run — no changes were made. Pass --commit to actually delete.');
 
         return self::SUCCESS;
     }
