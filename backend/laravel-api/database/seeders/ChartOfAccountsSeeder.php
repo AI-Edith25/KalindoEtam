@@ -54,15 +54,17 @@ class ChartOfAccountsSeeder extends Seeder
 
         $this->seedPiutangHierarchy();
         $this->seedHutangHierarchy();
+        $this->seedHutangBankHierarchy();
         $this->seedHutangPajakHierarchy();
     }
 
     /**
-     * `112 PIUTANG` — a parent account with no postings of its own — over the four receivable
-     * accounts, matching the hierarchy production got via the
+     * `112 PIUTANG USAHA DAN LAINNYA` — a parent account with no postings of its own — over the
+     * four receivable accounts, matching the hierarchy production got via the
      * 2026_10_09_000002_restructure_piutang_accounts_into_hierarchy migration. Seeded directly
      * in this shape (not as a flat '1200' later renamed) so a fresh install and production never
-     * drift apart. `112.01` is the one real code here: hardcoded in ~10 files
+     * drift apart. Name matches legacy's own full name for code 112, not shortened. `112.01` is
+     * the one real code here: hardcoded in ~10 files
      * (Invoice/CreditNote/DebitNote/PaymentAllocation/AccountingService and the three report
      * mapping seeders) as the Accounts Receivable posting target.
      */
@@ -70,7 +72,7 @@ class ChartOfAccountsSeeder extends Seeder
     {
         $parent = ChartOfAccount::query()->firstOrCreate(
             ['code' => '112'],
-            ['name' => 'PIUTANG', 'account_type' => AccountType::ASSET, 'is_active' => true],
+            ['name' => 'PIUTANG USAHA DAN LAINNYA', 'account_type' => AccountType::ASSET, 'is_active' => true],
         );
 
         $children = [
@@ -89,19 +91,19 @@ class ChartOfAccountsSeeder extends Seeder
     }
 
     /**
-     * `210 HUTANG` — mirrors seedPiutangHierarchy() on the liability side. `210.01` is the one
-     * real code here: hardcoded in ~15 files (PurchaseInvoice/PurchaseReturn/
-     * PaymentEntryAllocation/AccountingService/PurchaseJournalExport and the three report
-     * mapping seeders) as the Accounts Payable posting target. Hutang kpd Direksi is
-     * deliberately not a child here — same decision as Piutang Direksi (zero postings anywhere
-     * in this system; real history lives only in legacy SkyBiz), see project memory
-     * project_erp_coa_subaccount_backlog.
+     * `210 HUTANG USAHA DAN LAINNYA` — mirrors seedPiutangHierarchy() on the liability side. Name
+     * matches legacy's own full name for code 210, not shortened. `210.01` is the one real code
+     * here: hardcoded in ~15 files (PurchaseInvoice/PurchaseReturn/PaymentEntryAllocation/
+     * AccountingService/PurchaseJournalExport and the three report mapping seeders) as the
+     * Accounts Payable posting target. Hutang kpd Direksi is deliberately not a child here —
+     * same decision as Piutang Direksi (zero postings anywhere in this system; real history
+     * lives only in legacy SkyBiz), see project memory project_erp_coa_subaccount_backlog.
      */
     protected function seedHutangHierarchy(): void
     {
         $parent = ChartOfAccount::query()->firstOrCreate(
             ['code' => '210'],
-            ['name' => 'HUTANG', 'account_type' => AccountType::LIABILITY, 'is_active' => true],
+            ['name' => 'HUTANG USAHA DAN LAINNYA', 'account_type' => AccountType::LIABILITY, 'is_active' => true],
         );
 
         $children = [
@@ -109,6 +111,35 @@ class ChartOfAccountsSeeder extends Seeder
             ['code' => '210.02', 'name' => 'Hutang Leasing'],
             ['code' => '210.03', 'name' => 'Hutang Lain-lain'],
             ['code' => '210.04', 'name' => 'Hutang BBM'],
+        ];
+
+        foreach ($children as $child) {
+            ChartOfAccount::query()->firstOrCreate(
+                ['code' => $child['code']],
+                ['name' => $child['name'], 'account_type' => AccountType::LIABILITY, 'is_active' => true, 'parent_id' => $parent->id],
+            );
+        }
+    }
+
+    /**
+     * `211 HUTANG BANK` — purely additive, unlike every other group here: no existing account to
+     * rename (this never had a current-system equivalent), no hardcoded references anywhere.
+     * Confirmed via legacy's own General Ledger (full 2020-2026 range) that none of these four
+     * bank loan accounts was ever actually posted to, even in SkyBiz — added anyway per explicit
+     * instruction, as a ready structure for if/when the business takes on bank debt.
+     */
+    protected function seedHutangBankHierarchy(): void
+    {
+        $parent = ChartOfAccount::query()->firstOrCreate(
+            ['code' => '211'],
+            ['name' => 'HUTANG BANK', 'account_type' => AccountType::LIABILITY, 'is_active' => true],
+        );
+
+        $children = [
+            ['code' => '211.01', 'name' => 'Hutang Bank BCA'],
+            ['code' => '211.02', 'name' => 'Hutang Bank Mandiri'],
+            ['code' => '211.03', 'name' => 'Hutang Bank BNI KMK 4952'],
+            ['code' => '211.04', 'name' => 'Hutang Bank Niaga 4300'],
         ];
 
         foreach ($children as $child) {

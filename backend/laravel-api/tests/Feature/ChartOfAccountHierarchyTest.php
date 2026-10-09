@@ -203,4 +203,53 @@ class ChartOfAccountHierarchyTest extends TestCase
             $this->assertSame(0, ChartOfAccount::query()->withTrashed()->whereKey($deleted->id)->count(), "{$deleted->code} must be hard-deleted.");
         }
     }
+
+    public function test_seeded_hutang_bank_hierarchy_has_one_parent_and_four_children(): void
+    {
+        $this->seed(ChartOfAccountsSeeder::class);
+
+        $parent = ChartOfAccount::query()->where('code', '211')->sole();
+        $this->assertNull($parent->parent_id);
+        $this->assertSame('HUTANG BANK', $parent->name);
+
+        $children = ChartOfAccount::query()->where('parent_id', $parent->id)->pluck('code')->sort()->values();
+        $this->assertSame(['211.01', '211.02', '211.03', '211.04'], $children->all());
+    }
+
+    public function test_piutang_and_hutang_parents_are_seeded_with_legacy_full_names(): void
+    {
+        $this->seed(ChartOfAccountsSeeder::class);
+
+        $this->assertSame('PIUTANG USAHA DAN LAINNYA', ChartOfAccount::query()->where('code', '112')->sole()->name);
+        $this->assertSame('HUTANG USAHA DAN LAINNYA', ChartOfAccount::query()->where('code', '210')->sole()->name);
+    }
+
+    public function test_followup_migration_fixes_parent_names_and_adds_hutang_bank(): void
+    {
+        $piutangParent = ChartOfAccount::query()->where('code', '112')->sole();
+        $hutangParent = ChartOfAccount::query()->where('code', '210')->sole();
+
+        (require database_path('migrations/2026_10_09_000006_add_hutang_bank_and_fix_parent_names.php'))->up();
+
+        $this->assertSame('PIUTANG USAHA DAN LAINNYA', $piutangParent->fresh()->name);
+        $this->assertSame('HUTANG USAHA DAN LAINNYA', $hutangParent->fresh()->name);
+
+        $bankParent = ChartOfAccount::query()->where('code', '211')->sole();
+        $this->assertNull($bankParent->parent_id);
+
+        $children = ChartOfAccount::query()->where('parent_id', $bankParent->id)->pluck('code')->sort()->values();
+        $this->assertSame(['211.01', '211.02', '211.03', '211.04'], $children->all());
+    }
+
+    public function test_213_01_is_never_touched_by_anything_in_this_suite(): void
+    {
+        // Regression guard for the specific question this raised: 213.01 (renamed from 2100) is
+        // the live, hardcoded, generically-used Tax Payable account — it must never be deleted or
+        // orphaned by any migration in this group.
+        $this->seed(ChartOfAccountsSeeder::class);
+
+        $taxAccount = ChartOfAccount::query()->where('code', '213.01')->sole();
+        $this->assertNotNull($taxAccount->parent_id);
+        $this->assertSame('213', $taxAccount->parent->code);
+    }
 }
