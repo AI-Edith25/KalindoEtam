@@ -1,4 +1,4 @@
-import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { CornerDownRight, Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -46,8 +46,29 @@ export function ChartOfAccountsPage() {
   })
 
   const columns: DataTableColumn<ChartOfAccount>[] = [
-    { header: 'Code', accessor: (row) => row.code, sortKey: 'code' },
-    { header: 'Name', accessor: (row) => row.name, sortKey: 'name' },
+    {
+      header: 'Code',
+      accessor: (row) =>
+        row.parent_id ? (
+          <span className="flex items-center gap-1 pl-4 text-muted-foreground">
+            <CornerDownRight className="size-3.5 shrink-0" />
+            {row.code}
+          </span>
+        ) : (
+          row.code
+        ),
+      sortKey: 'code',
+    },
+    {
+      header: 'Name',
+      accessor: (row) => (
+        <span className="flex items-center gap-2">
+          {row.name}
+          {!!row.children_count && <Badge variant="outline">Group · {row.children_count} accounts</Badge>}
+        </span>
+      ),
+      sortKey: 'name',
+    },
     { header: 'Type', accessor: (row) => <StatusBadge status={row.account_type} /> },
     { header: 'Cash/Bank', accessor: (row) => (row.is_cash_bank ? <Badge variant="secondary">Cash/Bank</Badge> : null) },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.is_active ? 'active' : 'inactive'} /> },

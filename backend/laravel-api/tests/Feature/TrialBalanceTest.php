@@ -76,7 +76,7 @@ class TrialBalanceTest extends TestCase
 
         $this->seedStock($this->item->id, $this->warehouse->id, 1000);
 
-        $this->arAccount = ChartOfAccount::query()->where('code', '1200')->firstOrFail();
+        $this->arAccount = ChartOfAccount::query()->where('code', '112.01')->firstOrFail();
         $this->cashAccount = ChartOfAccount::query()->where('code', '1100')->firstOrFail();
         $this->revenueAccount = ChartOfAccount::query()->where('code', '4000')->firstOrFail();
         $this->taxAccount = ChartOfAccount::query()->where('code', '2100')->firstOrFail();
@@ -150,7 +150,7 @@ class TrialBalanceTest extends TestCase
         $this->submittedInvoice(qty: 5, rate: 20000); // AR ending_balance = 100000, debit-normal
 
         $result = $this->trialBalanceService->summarize([]);
-        $row = collect($result['rows'])->firstWhere('account.code', '1200');
+        $row = collect($result['rows'])->firstWhere('account.code', '112.01');
 
         $this->assertEquals(100000.0, $row['debit']);
         $this->assertEquals(0.0, $row['credit']);
@@ -173,7 +173,7 @@ class TrialBalanceTest extends TestCase
         $this->postManualCreditToAr(150000); // AR ending_balance = -50000 — overpaid receivable
 
         $result = $this->trialBalanceService->summarize([]);
-        $row = collect($result['rows'])->firstWhere('account.code', '1200');
+        $row = collect($result['rows'])->firstWhere('account.code', '112.01');
 
         $this->assertEquals(0.0, $row['debit']);
         $this->assertEquals(50000.0, $row['credit']);
@@ -259,13 +259,13 @@ class TrialBalanceTest extends TestCase
         $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: '2026-06-01'); // 100000
 
         $before = $this->trialBalanceService->summarize(['date_from' => '2026-01-01']);
-        $beforeAr = collect($before['rows'])->firstWhere('account.code', '1200');
+        $beforeAr = collect($before['rows'])->firstWhere('account.code', '112.01');
         $this->assertEquals(100000.0, $beforeAr['debit']);
 
         $this->postManualJournalEntry('2026-03-01', 25000); // backdated, inside the already-viewed range
 
         $after = $this->trialBalanceService->summarize(['date_from' => '2026-01-01']);
-        $afterAr = collect($after['rows'])->firstWhere('account.code', '1200');
+        $afterAr = collect($after['rows'])->firstWhere('account.code', '112.01');
         $this->assertEquals(125000.0, $afterAr['debit']);
     }
 
@@ -276,7 +276,7 @@ class TrialBalanceTest extends TestCase
         $this->journalEntryService->reverse($originalJournal);
 
         $result = $this->trialBalanceService->summarize([]);
-        $arRow = collect($result['rows'])->firstWhere('account.code', '1200');
+        $arRow = collect($result['rows'])->firstWhere('account.code', '112.01');
 
         $this->assertEquals(0.0, $arRow['debit']);
         $this->assertEquals(0.0, $arRow['credit']);
@@ -289,7 +289,7 @@ class TrialBalanceTest extends TestCase
         $this->invoiceService->cancel($invoice);
 
         $result = $this->trialBalanceService->summarize([]);
-        $arRow = collect($result['rows'])->firstWhere('account.code', '1200');
+        $arRow = collect($result['rows'])->firstWhere('account.code', '112.01');
 
         // InvoiceService::cancel() never reverses the Journal Entry (pre-existing, documented
         // behavior) — Trial Balance faithfully shows it exactly as the General Ledger does.

@@ -107,7 +107,7 @@ class CashBankAccountRoutingTest extends TestCase
 
     public function test_store_receipt_entry_rejects_non_cash_bank_account(): void
     {
-        $accountsReceivable = $this->accountId('1200'); // Accounts Receivable, not flagged is_cash_bank
+        $accountsReceivable = $this->accountId('112.01'); // Accounts Receivable, not flagged is_cash_bank
 
         $validator = \Illuminate\Support\Facades\Validator::make(
             ['customer_id' => $this->customer->id, 'receipt_date' => now()->toDateString(), 'cash_account_id' => $accountsReceivable, 'total_amount' => 100000],
@@ -121,7 +121,7 @@ class CashBankAccountRoutingTest extends TestCase
     public function test_store_payment_entry_rejects_non_cash_bank_account(): void
     {
         $expenseAccount = ChartOfAccount::query()->where('code', '6100')->firstOrFail();
-        $accountsReceivable = $this->accountId('1200');
+        $accountsReceivable = $this->accountId('112.01');
 
         $validator = \Illuminate\Support\Facades\Validator::make(
             [

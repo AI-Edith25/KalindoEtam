@@ -238,7 +238,7 @@ class InvoiceChangeRequestTest extends TestCase
 
         $deltaJournal = JournalEntry::query()->where('reference_type', 'invoice')->where('reference_id', $invoice->id)->where('id', '!=', $originalJournalId)->firstOrFail();
         $lines = $deltaJournal->lines()->with('chartOfAccount')->get();
-        $this->assertEquals(50000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->debit);
+        $this->assertEquals(50000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->debit);
         $this->assertEquals(50000, (float) $lines->firstWhere('chartOfAccount.code', '4000')->credit);
 
         $accountsReceivable = $invoice->accountsReceivable()->firstOrFail()->fresh();
@@ -260,7 +260,7 @@ class InvoiceChangeRequestTest extends TestCase
 
         $deltaJournal = JournalEntry::query()->where('reference_type', 'invoice')->where('reference_id', $invoice->id)->where('id', '!=', $originalJournalId)->firstOrFail();
         $lines = $deltaJournal->lines()->with('chartOfAccount')->get();
-        $this->assertEquals(50000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->credit);
+        $this->assertEquals(50000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->credit);
         $this->assertEquals(50000, (float) $lines->firstWhere('chartOfAccount.code', '4000')->debit);
 
         $accountsReceivable = $invoice->accountsReceivable()->firstOrFail()->fresh();

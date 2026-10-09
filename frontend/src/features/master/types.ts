@@ -10,6 +10,10 @@ export interface ChartOfAccount {
   is_active: boolean
   is_cash_bank: boolean
   cash_bank_category: CashBankCategory | null
+  parent_id: string | null
+  parent: { id: string; code: string; name: string } | null
+  /** Two levels only — a non-zero count means this account cannot itself become a child (see UpdateChartOfAccountRequest). */
+  children_count: number | null
   created_at: string
   updated_at: string
 }
@@ -21,6 +25,7 @@ export interface ChartOfAccountFormValues {
   is_active?: boolean
   is_cash_bank?: boolean
   cash_bank_category?: CashBankCategory | null
+  parent_id?: string | null
 }
 
 export type TaxType = 'vat' | 'zero_rated' | 'exempt'

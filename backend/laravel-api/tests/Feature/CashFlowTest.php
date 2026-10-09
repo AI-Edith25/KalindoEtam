@@ -89,7 +89,7 @@ class CashFlowTest extends TestCase
 
         $this->seedStock($this->item->id, $this->warehouse->id, 1000);
 
-        $this->arAccount = ChartOfAccount::query()->where('code', '1200')->firstOrFail();
+        $this->arAccount = ChartOfAccount::query()->where('code', '112.01')->firstOrFail();
         $this->cashAccount = ChartOfAccount::query()->where('code', '1100')->firstOrFail();
         $this->ownerEquityAccount = ChartOfAccount::query()->where('code', '3000')->firstOrFail();
         $this->opexAccount = ChartOfAccount::query()->where('code', '6000')->firstOrFail();
@@ -175,7 +175,7 @@ class CashFlowTest extends TestCase
 
         $result = $this->cashFlowService->summarize(['date_from' => now()->startOfYear()->toDateString()]);
 
-        $arLine = collect($result['operating']['lines'])->first(fn ($line) => $line['account']->code === '1200');
+        $arLine = collect($result['operating']['lines'])->first(fn ($line) => $line['account']->code === '112.01');
         $this->assertNotNull($arLine);
         $this->assertEquals(-100000.0, $arLine['amount']); // increase in AR displays as a negative (cash-use) adjustment
     }

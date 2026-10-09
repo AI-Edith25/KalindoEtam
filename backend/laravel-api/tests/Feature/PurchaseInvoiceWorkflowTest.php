@@ -369,7 +369,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
                 'invoice_date' => now()->toDateString(),
                 'due_date' => now()->addDays(30)->toDateString(),
                 'items' => [
-                    ['chart_of_account_id' => $this->accountId('1200'), 'description' => 'Wrong account', 'qty' => 1, 'rate' => 10000],
+                    ['chart_of_account_id' => $this->accountId('112.01'), 'description' => 'Wrong account', 'qty' => 1, 'rate' => 10000],
                 ],
             ]);
             $this->fail('Expected a non-Expense account to throw.');

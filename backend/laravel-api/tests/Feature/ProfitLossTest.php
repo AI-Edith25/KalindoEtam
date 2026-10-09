@@ -82,7 +82,7 @@ class ProfitLossTest extends TestCase
 
         $this->seedStock($this->item->id, $this->warehouse->id, 1000);
 
-        $this->arAccount = ChartOfAccount::query()->where('code', '1200')->firstOrFail();
+        $this->arAccount = ChartOfAccount::query()->where('code', '112.01')->firstOrFail();
         $this->cashAccount = ChartOfAccount::query()->where('code', '1100')->firstOrFail();
         $this->revenueAccount = ChartOfAccount::query()->where('code', '4000')->firstOrFail();
         $this->cogsAccount = ChartOfAccount::query()->where('code', '5000')->firstOrFail();
@@ -248,7 +248,7 @@ class ProfitLossTest extends TestCase
 
         foreach ($result['sections'] as $section) {
             foreach ($section['lines'] as $line) {
-                $this->assertNotEquals('1200', $line['account']->code); // Accounts Receivable must never appear
+                $this->assertNotEquals('112.01', $line['account']->code); // Accounts Receivable must never appear
             }
         }
     }

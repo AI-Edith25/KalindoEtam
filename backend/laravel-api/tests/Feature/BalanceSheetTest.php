@@ -90,7 +90,7 @@ class BalanceSheetTest extends TestCase
 
         $this->seedStock($this->item->id, $this->warehouse->id, 1000);
 
-        $this->arAccount = ChartOfAccount::query()->where('code', '1200')->firstOrFail();
+        $this->arAccount = ChartOfAccount::query()->where('code', '112.01')->firstOrFail();
         $this->cashAccount = ChartOfAccount::query()->where('code', '1100')->firstOrFail();
         $this->revenueAccount = ChartOfAccount::query()->where('code', '4000')->firstOrFail();
         $this->cogsAccount = ChartOfAccount::query()->where('code', '5000')->firstOrFail();
@@ -176,7 +176,7 @@ class BalanceSheetTest extends TestCase
 
         $currentAssets = collect($result['sections'])->firstWhere('key', 'current_asset');
         $codes = collect($currentAssets['lines'])->map(fn ($line) => $line['account']->code)->all();
-        $this->assertContains('1200', $codes);
+        $this->assertContains('112.01', $codes);
 
         // Revenue/Expense accounts (Profit & Loss's own domain) never appear on a Balance Sheet.
         $allCodes = collect($result['sections'])

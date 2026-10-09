@@ -19,7 +19,6 @@ class ChartOfAccountsSeeder extends Seeder
         $accounts = [
             // Assets
             ['code' => '1100', 'name' => 'Cash and Bank', 'account_type' => AccountType::ASSET, 'is_cash_bank' => true],
-            ['code' => '1200', 'name' => 'Accounts Receivable', 'account_type' => AccountType::ASSET],
             ['code' => '1250', 'name' => 'Advance to Suppliers', 'account_type' => AccountType::ASSET],
             ['code' => '1300', 'name' => 'Inventory', 'account_type' => AccountType::ASSET],
             // Liabilities
@@ -52,6 +51,39 @@ class ChartOfAccountsSeeder extends Seeder
             ChartOfAccount::query()->firstOrCreate(
                 ['code' => $account['code']],
                 ['name' => $account['name'], 'account_type' => $account['account_type'], 'is_active' => true, 'is_cash_bank' => $account['is_cash_bank'] ?? false],
+            );
+        }
+
+        $this->seedPiutangHierarchy();
+    }
+
+    /**
+     * `112 PIUTANG` — a parent account with no postings of its own — over the four receivable
+     * accounts, matching the hierarchy production got via the
+     * 2026_10_09_000002_restructure_piutang_accounts_into_hierarchy migration. Seeded directly
+     * in this shape (not as a flat '1200' later renamed) so a fresh install and production never
+     * drift apart. `112.01` is the one real code here: hardcoded in ~10 files
+     * (Invoice/CreditNote/DebitNote/PaymentAllocation/AccountingService and the three report
+     * mapping seeders) as the Accounts Receivable posting target.
+     */
+    protected function seedPiutangHierarchy(): void
+    {
+        $parent = ChartOfAccount::query()->firstOrCreate(
+            ['code' => '112'],
+            ['name' => 'PIUTANG', 'account_type' => AccountType::ASSET, 'is_active' => true],
+        );
+
+        $children = [
+            ['code' => '112.01', 'name' => 'Piutang Usaha'],
+            ['code' => '112.02', 'name' => 'Piutang Karyawan'],
+            ['code' => '112.03', 'name' => 'Piutang Lain-lain'],
+            ['code' => '112.04', 'name' => 'Cadangan Piutang'],
+        ];
+
+        foreach ($children as $child) {
+            ChartOfAccount::query()->firstOrCreate(
+                ['code' => $child['code']],
+                ['name' => $child['name'], 'account_type' => AccountType::ASSET, 'is_active' => true, 'parent_id' => $parent->id],
             );
         }
     }

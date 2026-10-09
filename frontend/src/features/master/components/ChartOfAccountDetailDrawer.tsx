@@ -28,6 +28,12 @@ export function ChartOfAccountDetailDrawer({ open, onOpenChange, chartOfAccount,
         <DetailField label="Code" value={chartOfAccount.code} />
         <DetailField label="Name" value={chartOfAccount.name} />
         <DetailField label="Type" value={<StatusBadge status={chartOfAccount.account_type} />} />
+        {chartOfAccount.parent && (
+          <DetailField label="Parent Account" value={`${chartOfAccount.parent.code} — ${chartOfAccount.parent.name}`} />
+        )}
+        {!!chartOfAccount.children_count && (
+          <DetailField label="Child Accounts" value={`${chartOfAccount.children_count} accounts`} />
+        )}
       </DetailSection>
 
       <Separator />

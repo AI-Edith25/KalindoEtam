@@ -90,7 +90,7 @@ class AccountingService
     protected const ACCOUNT_PURPOSE = [
         '1100' => 'Kas/Bank',
         '1150' => 'Uang Muka Pelanggan',
-        '1200' => 'Piutang Usaha',
+        '112.01' => 'Piutang Usaha',
         '2000' => 'Utang Usaha',
         '2100' => 'Pajak',
         '4000' => 'Pendapatan Penjualan',

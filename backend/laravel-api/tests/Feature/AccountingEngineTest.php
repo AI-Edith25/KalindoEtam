@@ -153,7 +153,7 @@ class AccountingEngineTest extends TestCase
         $this->assertSame($invoice->document_number, $journalEntry->referenceDocument->document_number);
 
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
-        $this->assertEquals(111000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->debit);
+        $this->assertEquals(111000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->debit);
         $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '4000')->credit);
         $this->assertEquals(11000, (float) $lines->firstWhere('chartOfAccount.code', '2100')->credit);
     }
@@ -218,7 +218,7 @@ class AccountingEngineTest extends TestCase
             'description' => 'Unbalanced test entry',
             'lines' => [
                 ['chart_of_account_id' => $this->accountId('1100'), 'debit' => 100],
-                ['chart_of_account_id' => $this->accountId('1200'), 'credit' => 50],
+                ['chart_of_account_id' => $this->accountId('112.01'), 'credit' => 50],
             ],
         ]);
 
@@ -278,7 +278,7 @@ class AccountingEngineTest extends TestCase
 
     public function test_invoice_submission_rolls_back_completely_if_journal_posting_fails(): void
     {
-        ChartOfAccount::query()->where('code', '1200')->update(['is_active' => false]);
+        ChartOfAccount::query()->where('code', '112.01')->update(['is_active' => false]);
 
         $delivery = $this->submittedDelivery(qty: 3, rate: 15000);
         $invoice = $this->invoiceService->create([

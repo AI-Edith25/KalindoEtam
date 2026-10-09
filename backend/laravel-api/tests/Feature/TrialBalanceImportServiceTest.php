@@ -214,7 +214,7 @@ class TrialBalanceImportServiceTest extends TestCase
         }
 
         ChartOfAccount::query()->create(['code' => '101.01.01', 'name' => 'KAS BESAR SAMARINDA', 'account_type' => 'asset', 'is_active' => true]);
-        ChartOfAccount::query()->create(['code' => '1200', 'name' => 'PIUTANG USAHA', 'account_type' => 'asset', 'is_active' => true]);
+        ChartOfAccount::query()->create(['code' => '112.01', 'name' => 'PIUTANG USAHA', 'account_type' => 'asset', 'is_active' => true]);
         ChartOfAccount::query()->create(['code' => '2000', 'name' => 'HUTANG SUPPLIER', 'account_type' => 'liability', 'is_active' => true]);
         ChartOfAccount::query()->create(['code' => '1300', 'name' => 'PERSEDIAAN BARANG DAGANG', 'account_type' => 'asset', 'is_active' => true]);
 

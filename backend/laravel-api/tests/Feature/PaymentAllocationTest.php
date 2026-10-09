@@ -199,7 +199,7 @@ class PaymentAllocationTest extends TestCase
 
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
         $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '1150')->debit);
-        $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->credit);
+        $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->credit);
     }
 
     /** Partial allocation: only part of the payment is applied now, the rest stays available for a later allocateBatch() call. */
@@ -354,7 +354,7 @@ class PaymentAllocationTest extends TestCase
         $reversalJournal = JournalEntry::query()->findOrFail($originalJournal->reversed_by_id);
         $reversalLines = $reversalJournal->lines()->with('chartOfAccount')->get();
         $this->assertEquals(100000, (float) $reversalLines->firstWhere('chartOfAccount.code', '1150')->credit);
-        $this->assertEquals(100000, (float) $reversalLines->firstWhere('chartOfAccount.code', '1200')->debit);
+        $this->assertEquals(100000, (float) $reversalLines->firstWhere('chartOfAccount.code', '112.01')->debit);
     }
 
     public function test_reverse_twice_throws(): void

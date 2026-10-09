@@ -77,7 +77,7 @@ class DebitNote extends Model
     public function journalLines(): array
     {
         $lines = [
-            ['account' => '1200', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Accounts Receivable, increased
+            ['account' => '112.01', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Accounts Receivable, increased
         ];
 
         if ((float) $this->subtotal_goods > 0) {

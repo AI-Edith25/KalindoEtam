@@ -30,7 +30,7 @@ use Maatwebsite\Excel\Events\AfterSheet;
  */
 class SalesJournalExport implements FromQuery, WithChunkReading, WithMapping, WithEvents
 {
-    protected const ACCOUNTS = ['1200', '4000', '4050', '2100', '4900'];
+    protected const ACCOUNTS = ['112.01', '4000', '4050', '2100', '4900'];
 
     protected float $totalDebit = 0.0;
 
@@ -84,7 +84,7 @@ class SalesJournalExport implements FromQuery, WithChunkReading, WithMapping, Wi
         $customerName = $invoice->customer->customer_name;
 
         $lines = [];
-        $lines[] = ['particulars' => $this->particulars('1200', "Sales, {$customerName}"), 'debit' => (float) $invoice->grand_total, 'credit' => 0.0, 'taxCode' => null];
+        $lines[] = ['particulars' => $this->particulars('112.01', "Sales, {$customerName}"), 'debit' => (float) $invoice->grand_total, 'credit' => 0.0, 'taxCode' => null];
 
         if ($invoice->items->isEmpty()) {
             if ((float) $invoice->subtotal > 0) {
@@ -126,7 +126,7 @@ class SalesJournalExport implements FromQuery, WithChunkReading, WithMapping, Wi
         $customerName = $creditNote->customer->customer_name;
 
         $lines = [];
-        $lines[] = ['particulars' => $this->particulars('1200', "Credit Note To Customer, {$customerName}"), 'debit' => 0.0, 'credit' => (float) $creditNote->total_amount, 'taxCode' => null];
+        $lines[] = ['particulars' => $this->particulars('112.01', "Credit Note To Customer, {$customerName}"), 'debit' => 0.0, 'credit' => (float) $creditNote->total_amount, 'taxCode' => null];
 
         if ((float) $creditNote->subtotal > 0) {
             if ($creditNote->items->isEmpty()) {

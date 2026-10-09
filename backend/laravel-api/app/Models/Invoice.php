@@ -227,7 +227,7 @@ class Invoice extends Model
     public function journalLines(): array
     {
         $lines = [
-            ['account' => '1200', 'type' => 'debit', 'amount' => (float) $this->grand_total],  // Accounts Receivable
+            ['account' => '112.01', 'type' => 'debit', 'amount' => (float) $this->grand_total],  // Accounts Receivable
             ['account' => '4000', 'type' => 'credit', 'amount' => (float) $this->subtotal],     // Sales Revenue
         ];
 

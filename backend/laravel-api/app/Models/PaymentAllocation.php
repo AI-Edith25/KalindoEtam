@@ -55,7 +55,7 @@ class PaymentAllocation extends Model
     {
         return [
             ['account' => '1150', 'type' => 'debit', 'amount' => (float) $this->allocated_amount], // Unapplied Customer Payments
-            ['account' => '1200', 'type' => 'credit', 'amount' => (float) $this->allocated_amount], // Accounts Receivable
+            ['account' => '112.01', 'type' => 'credit', 'amount' => (float) $this->allocated_amount], // Accounts Receivable
         ];
     }
 }

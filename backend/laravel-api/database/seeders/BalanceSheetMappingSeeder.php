@@ -20,7 +20,7 @@ class BalanceSheetMappingSeeder extends Seeder
     /** @var array<string, BalanceSheetSection> */
     protected const BALANCE_SHEET_MAPPINGS = [
         '1100' => BalanceSheetSection::CURRENT_ASSET,       // Cash and Bank
-        '1200' => BalanceSheetSection::CURRENT_ASSET,       // Accounts Receivable
+        '112.01' => BalanceSheetSection::CURRENT_ASSET,       // Accounts Receivable
         '1300' => BalanceSheetSection::CURRENT_ASSET,       // Inventory
         '1150' => BalanceSheetSection::CURRENT_LIABILITY,   // Unapplied Customer Payments (liability despite its 1xxx code)
         '2000' => BalanceSheetSection::CURRENT_LIABILITY,   // Accounts Payable
@@ -54,15 +54,17 @@ class BalanceSheetMappingSeeder extends Seeder
         '1104' => BalanceSheetSection::CURRENT_ASSET,          // BANK MANDIRI 5840
         '1106' => BalanceSheetSection::CURRENT_ASSET,          // BANK OCBC NISP 6684
 
-        // Receivables (non-trade), advances, and prepaid tax.
-        '112.01.02' => BalanceSheetSection::CURRENT_ASSET,     // CADANGAN PIUTANG
-        '112.02.01' => BalanceSheetSection::CURRENT_ASSET,     // PIUTANG DIREKSI
-        '112.03.01' => BalanceSheetSection::CURRENT_ASSET,     // PIUTANG KARYAWAN
-        '112.09.01' => BalanceSheetSection::CURRENT_ASSET,     // PIUTANG LAIN-LAIN
-        '1201' => BalanceSheetSection::CURRENT_ASSET,          // CADANGAN PIUTANG
-        '1215' => BalanceSheetSection::CURRENT_ASSET,          // PIUTANG DIREKSI
-        '1225' => BalanceSheetSection::CURRENT_ASSET,          // PIUTANG LAIN-LAIN
-        '1260' => BalanceSheetSection::CURRENT_ASSET,          // PIUTANG KARYAWAN
+        // Receivables (non-trade), advances, and prepaid tax. 112.02/.03/.04 are the renamed
+        // 1260/1225/1201 (see 2026_10_09_000002_restructure_piutang_accounts_into_hierarchy) —
+        // Piutang Direksi (1215, 112.02.01) is gone, hard-deleted by that same migration.
+        // 112.01.02/.03.01/.09.01 are the untouched legacy-dotted duplicate twins of
+        // 112.04/112.02/112.03 — a separate cleanup, not part of this hierarchy.
+        '112.01.02' => BalanceSheetSection::CURRENT_ASSET,     // CADANGAN PIUTANG (legacy-coded twin)
+        '112.03.01' => BalanceSheetSection::CURRENT_ASSET,     // PIUTANG KARYAWAN (legacy-coded twin)
+        '112.09.01' => BalanceSheetSection::CURRENT_ASSET,     // PIUTANG LAIN-LAIN (legacy-coded twin)
+        '112.02' => BalanceSheetSection::CURRENT_ASSET,        // Piutang Karyawan
+        '112.03' => BalanceSheetSection::CURRENT_ASSET,        // Piutang Lain-lain
+        '112.04' => BalanceSheetSection::CURRENT_ASSET,        // Cadangan Piutang
         '1250' => BalanceSheetSection::CURRENT_ASSET,          // Advance to Suppliers
         '113.01.01' => BalanceSheetSection::CURRENT_ASSET,     // UMP/PT CONCH
         '113.01.02' => BalanceSheetSection::CURRENT_ASSET,     // UMP/KENDARAAN

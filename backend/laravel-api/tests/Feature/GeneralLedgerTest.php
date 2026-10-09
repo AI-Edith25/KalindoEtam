@@ -76,7 +76,7 @@ class GeneralLedgerTest extends TestCase
 
         $this->seedStock($this->item->id, $this->warehouse->id, 1000);
 
-        $this->arAccount = ChartOfAccount::query()->where('code', '1200')->firstOrFail();
+        $this->arAccount = ChartOfAccount::query()->where('code', '112.01')->firstOrFail();
         $this->revenueAccount = ChartOfAccount::query()->where('code', '4000')->firstOrFail();
         $this->taxAccount = ChartOfAccount::query()->where('code', '2100')->firstOrFail();
     }
@@ -311,7 +311,7 @@ class GeneralLedgerTest extends TestCase
         $rows = $this->generalLedgerService->listAccounts([]);
         $codes = collect($rows)->pluck('account.code')->all();
 
-        $this->assertContains('1200', $codes); // touched
+        $this->assertContains('112.01', $codes); // touched
         $this->assertContains('5100', $codes); // never touched — still present, zeroed
 
         $untouched = collect($rows)->firstWhere('account.code', '5100');

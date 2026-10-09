@@ -158,7 +158,7 @@ class CreditNoteTest extends TestCase
 
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
         $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '4050')->debit);
-        $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->credit);
+        $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->credit);
 
         // restock=true now posts a real IN movement (see CreditNoteService::restockLines()) —
         // the setUp() stock-in, the Delivery's stock-out, and this Credit Note's restock-in.
@@ -248,7 +248,7 @@ class CreditNoteTest extends TestCase
 
         $this->assertCount(2, $lines);
         $this->assertEquals(10000, (float) $lines->firstWhere('chartOfAccount.code', '2100')->debit);
-        $this->assertEquals(10000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->credit);
+        $this->assertEquals(10000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->credit);
     }
 
     public function test_multiple_credit_notes_cannot_jointly_exceed_the_invoice_balance(): void
@@ -343,7 +343,7 @@ class CreditNoteTest extends TestCase
         $reversalJournal = JournalEntry::query()->findOrFail($originalJournal->reversed_by_id);
         $reversalLines = $reversalJournal->lines()->with('chartOfAccount')->get();
         $this->assertEquals(40000, (float) $reversalLines->firstWhere('chartOfAccount.code', '4050')->credit);
-        $this->assertEquals(40000, (float) $reversalLines->firstWhere('chartOfAccount.code', '1200')->debit);
+        $this->assertEquals(40000, (float) $reversalLines->firstWhere('chartOfAccount.code', '112.01')->debit);
 
         // Reversal frees the credited qty/amount for a new Credit Note.
         $again = $this->creditNoteService->create([

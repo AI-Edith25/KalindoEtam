@@ -16,6 +16,11 @@ class ChartOfAccountRepository extends BaseRepository
     public function paginate(int $perPage = 100, array $filters = []): LengthAwarePaginator
     {
         return $this->model->query()
+            ->with('parent:id,code,name')
+            ->withCount('children')
+            // Dotted codes sort as plain strings ("112" < "112.01" < "112.02"), so a parent and
+            // its children land next to each other in code order with no extra grouping logic.
+            ->orderBy('code')
             ->when($filters['account_type'] ?? null, fn ($query, $type) => $query->where('account_type', $type))
             ->when(array_key_exists('is_active', $filters), fn ($query) => $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN)))
             ->paginate($perPage);

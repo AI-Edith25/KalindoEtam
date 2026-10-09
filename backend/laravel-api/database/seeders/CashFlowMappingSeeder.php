@@ -23,7 +23,7 @@ class CashFlowMappingSeeder extends Seeder
     /** @var array<string, CashFlowSection> */
     protected const CASH_FLOW_MAPPINGS = [
         '1100' => CashFlowSection::CASH_AND_EQUIVALENTS, // Cash and Bank
-        '1200' => CashFlowSection::OPERATING_ADJUSTMENT,  // Accounts Receivable
+        '112.01' => CashFlowSection::OPERATING_ADJUSTMENT,  // Accounts Receivable
         '1300' => CashFlowSection::OPERATING_ADJUSTMENT,  // Inventory
         '1150' => CashFlowSection::OPERATING_ADJUSTMENT,  // Unapplied Customer Payments
         '2000' => CashFlowSection::OPERATING_ADJUSTMENT,  // Accounts Payable
@@ -54,14 +54,16 @@ class CashFlowMappingSeeder extends Seeder
         '1104' => CashFlowSection::CASH_AND_EQUIVALENTS,
         '1106' => CashFlowSection::CASH_AND_EQUIVALENTS,
 
+        // 112.02/.03/.04 are the renamed 1260/1225/1201 (see
+        // 2026_10_09_000002_restructure_piutang_accounts_into_hierarchy); Piutang Direksi
+        // (1215, 112.02.01) is gone. 112.01.02/.03.01/.09.01 are the untouched legacy-dotted
+        // duplicate twins of 112.04/112.02/112.03 — a separate cleanup.
         '112.01.02' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '112.02.01' => CashFlowSection::OPERATING_ADJUSTMENT,
         '112.03.01' => CashFlowSection::OPERATING_ADJUSTMENT,
         '112.09.01' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '1201' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '1215' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '1225' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '1260' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '112.02' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '112.03' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '112.04' => CashFlowSection::OPERATING_ADJUSTMENT,
         '1250' => CashFlowSection::OPERATING_ADJUSTMENT,
         '113.01.01' => CashFlowSection::OPERATING_ADJUSTMENT,
         '113.01.02' => CashFlowSection::OPERATING_ADJUSTMENT,

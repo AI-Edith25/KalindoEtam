@@ -84,7 +84,7 @@ class SalesJournalExportTest extends TestCase
 
         // Header row (AR debit) — Transaction only on the first physical row of the transaction.
         $this->assertEquals($invoice->document_number, $sheet->getCell('A7')->getValue());
-        $this->assertEquals('1200 - Accounts Receivable - [Sales, Acme]', $sheet->getCell('D7')->getValue());
+        $this->assertEquals('112.01 - Piutang Usaha - [Sales, Acme]', $sheet->getCell('D7')->getValue());
         $this->assertEquals(100000, $sheet->getCell('E7')->getValue());
         $this->assertEquals(0, $sheet->getCell('F7')->getValue()); // Credit shown as 0, never blank
 
@@ -111,7 +111,7 @@ class SalesJournalExportTest extends TestCase
         $sheet = $this->downloadXlsx('view=credit_note&date_from=2026-01-01&date_to=2026-01-31');
 
         $this->assertEquals('Sales Return Journal', $sheet->getCell('A6')->getValue());
-        $this->assertEquals('1200 - Accounts Receivable - [Credit Note To Customer, Acme]', $sheet->getCell('D7')->getValue());
+        $this->assertEquals('112.01 - Piutang Usaha - [Credit Note To Customer, Acme]', $sheet->getCell('D7')->getValue());
         $this->assertEquals(0, $sheet->getCell('E7')->getValue());
         $this->assertEquals(30000, $sheet->getCell('F7')->getValue());
         $this->assertEquals('Total For :[Sales Return Journal]', $sheet->getCell('A9')->getValue());

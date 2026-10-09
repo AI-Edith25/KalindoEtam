@@ -180,7 +180,7 @@ class InvoiceChangeRequestService
             $increaseType = $delta > 0 ? 'debit' : 'credit';
             $decreaseType = $delta > 0 ? 'credit' : 'debit';
             $lines = [
-                ['account' => '1200', 'type' => $increaseType, 'amount' => abs($delta)],
+                ['account' => '112.01', 'type' => $increaseType, 'amount' => abs($delta)],
                 ['account' => '4000', 'type' => $decreaseType, 'amount' => abs($delta)],
             ];
             $this->accountingService->postForDocument($invoice, $lines, "Koreksi nominal Invoice {$invoice->document_number}", now()->toDateString());

@@ -77,7 +77,7 @@ class CreditNote extends Model
     public function journalLines(): array
     {
         $lines = [
-            ['account' => '1200', 'type' => 'credit', 'amount' => (float) $this->total_amount], // Accounts Receivable, reduced
+            ['account' => '112.01', 'type' => 'credit', 'amount' => (float) $this->total_amount], // Accounts Receivable, reduced
         ];
 
         if ((float) $this->subtotal > 0) {

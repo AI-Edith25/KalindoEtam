@@ -1,0 +1,126 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\ChartOfAccount;
+use App\Models\Permission;
+use App\Models\User;
+use Database\Seeders\ChartOfAccountsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+/**
+ * Two-level parent/child COA hierarchy (2026-10-09, see project memory
+ * project_erp_coa_subaccount_backlog). Covers both the generic parent_id feature and the
+ * specific Piutang restructure (2026_10_09_000002_restructure_piutang_accounts_into_hierarchy)
+ * that uses it.
+ */
+class ChartOfAccountHierarchyTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Permission::query()->firstOrCreate(['name' => 'master.chart_of_accounts.create', 'guard_name' => 'web']);
+        Permission::query()->firstOrCreate(['name' => 'master.chart_of_accounts.update', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->givePermissionTo(['master.chart_of_accounts.create', 'master.chart_of_accounts.update']);
+        Sanctum::actingAs($user);
+    }
+
+    public function test_a_child_account_can_be_created_under_a_parent(): void
+    {
+        $parent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'GROUP', 'account_type' => 'asset']);
+
+        $response = $this->postJson('/api/v1/chart-of-accounts', [
+            'code' => '900.01',
+            'name' => 'Child',
+            'account_type' => 'asset',
+            'parent_id' => $parent->id,
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame($parent->id, $response->json('data.parent_id'));
+        $this->assertSame('900', $response->json('data.parent.code'));
+    }
+
+    public function test_three_level_nesting_is_rejected_choosing_a_child_as_parent(): void
+    {
+        $grandparent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'GROUP', 'account_type' => 'asset']);
+        $parent = ChartOfAccount::query()->create(['code' => '900.01', 'name' => 'Child', 'account_type' => 'asset', 'parent_id' => $grandparent->id]);
+
+        $response = $this->postJson('/api/v1/chart-of-accounts', [
+            'code' => '900.01.01',
+            'name' => 'Grandchild',
+            'account_type' => 'asset',
+            'parent_id' => $parent->id,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_an_account_with_children_cannot_itself_become_a_child(): void
+    {
+        $parent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'GROUP', 'account_type' => 'asset']);
+        ChartOfAccount::query()->create(['code' => '900.01', 'name' => 'Child', 'account_type' => 'asset', 'parent_id' => $parent->id]);
+        $otherParent = ChartOfAccount::query()->create(['code' => '950', 'name' => 'OTHER GROUP', 'account_type' => 'asset']);
+
+        $response = $this->putJson("/api/v1/chart-of-accounts/{$parent->id}", ['parent_id' => $otherParent->id]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_an_account_cannot_be_its_own_parent(): void
+    {
+        $account = ChartOfAccount::query()->create(['code' => '900', 'name' => 'GROUP', 'account_type' => 'asset']);
+
+        $response = $this->putJson("/api/v1/chart-of-accounts/{$account->id}", ['parent_id' => $account->id]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_seeded_piutang_hierarchy_has_one_parent_and_four_children(): void
+    {
+        $this->seed(ChartOfAccountsSeeder::class);
+
+        $parent = ChartOfAccount::query()->where('code', '112')->sole();
+        $this->assertNull($parent->parent_id);
+
+        $children = ChartOfAccount::query()->where('parent_id', $parent->id)->pluck('code')->sort()->values();
+        $this->assertSame(['112.01', '112.02', '112.03', '112.04'], $children->all());
+    }
+
+    public function test_migration_renames_legacy_1200_in_place_preserving_id_and_hard_deletes_piutang_direksi(): void
+    {
+        $ar = ChartOfAccount::query()->create(['code' => '1200', 'name' => 'PIUTANG USAHA', 'account_type' => 'asset']);
+        $karyawan = ChartOfAccount::query()->create(['code' => '1260', 'name' => 'PIUTANG KARYAWAN', 'account_type' => 'asset']);
+        $lainLain = ChartOfAccount::query()->create(['code' => '1225', 'name' => 'PIUTANG LAIN-LAIN', 'account_type' => 'asset']);
+        $cadangan = ChartOfAccount::query()->create(['code' => '1201', 'name' => 'CADANGAN PIUTANG', 'account_type' => 'asset']);
+        $direksi = ChartOfAccount::query()->create(['code' => '1215', 'name' => 'PIUTANG DIREKSI', 'account_type' => 'asset']);
+        $direksiTwin = ChartOfAccount::query()->create(['code' => '112.02.01', 'name' => 'PIUTANG DIREKSI', 'account_type' => 'asset']);
+
+        $arId = $ar->id;
+
+        (require database_path('migrations/2026_10_09_000002_restructure_piutang_accounts_into_hierarchy.php'))->up();
+
+        $this->assertSame('112.01', $ar->fresh()->code);
+        $this->assertSame($arId, $ar->fresh()->id); // same row — history/balance preserved, not a new account
+        $this->assertSame('112.02', $karyawan->fresh()->code);
+        $this->assertSame('112.03', $lainLain->fresh()->code);
+        $this->assertSame('112.04', $cadangan->fresh()->code);
+
+        $parent = ChartOfAccount::query()->where('code', '112')->sole();
+        $this->assertSame($parent->id, $ar->fresh()->parent_id);
+        $this->assertSame($parent->id, $karyawan->fresh()->parent_id);
+
+        $this->assertSame(0, ChartOfAccount::query()->whereKey($direksi->id)->count());
+        $this->assertSame(0, ChartOfAccount::query()->withTrashed()->whereKey($direksi->id)->count()); // hard-deleted, not soft
+        $this->assertSame(0, ChartOfAccount::query()->withTrashed()->whereKey($direksiTwin->id)->count());
+    }
+}

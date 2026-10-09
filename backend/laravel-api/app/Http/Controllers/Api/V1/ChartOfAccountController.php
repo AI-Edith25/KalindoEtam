@@ -31,19 +31,19 @@ class ChartOfAccountController extends Controller
     {
         $chartOfAccount = $this->chartOfAccountService->create($request->validated());
 
-        return $this->success(new ChartOfAccountResource($chartOfAccount), 'Chart of Account created.', 201);
+        return $this->success(new ChartOfAccountResource($chartOfAccount->load('parent:id,code,name')->loadCount('children')), 'Chart of Account created.', 201);
     }
 
     public function show(ChartOfAccount $chartOfAccount): JsonResponse
     {
-        return $this->success(new ChartOfAccountResource($chartOfAccount));
+        return $this->success(new ChartOfAccountResource($chartOfAccount->load('parent:id,code,name')->loadCount('children')));
     }
 
     public function update(UpdateChartOfAccountRequest $request, ChartOfAccount $chartOfAccount): JsonResponse
     {
         $chartOfAccount = $this->chartOfAccountService->update($chartOfAccount, $request->validated());
 
-        return $this->success(new ChartOfAccountResource($chartOfAccount), 'Chart of Account updated.');
+        return $this->success(new ChartOfAccountResource($chartOfAccount->load('parent:id,code,name')->loadCount('children')), 'Chart of Account updated.');
     }
 
     public function destroy(ChartOfAccount $chartOfAccount): JsonResponse

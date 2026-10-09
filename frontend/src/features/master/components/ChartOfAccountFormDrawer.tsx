@@ -11,11 +11,14 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import { createChartOfAccount, updateChartOfAccount } from '../api/chartOfAccountApi'
 import type { ChartOfAccount } from '../types'
 
 const UNCLASSIFIED = '__unclassified__'
+const NO_PARENT = '__no_parent__'
 
 const chartOfAccountFormSchema = z.object({
   code: z.string().min(1, 'Code is required').max(20),
@@ -24,6 +27,7 @@ const chartOfAccountFormSchema = z.object({
   is_active: z.boolean(),
   is_cash_bank: z.boolean(),
   cash_bank_category: z.enum(['petty_cash', 'cash_book']).nullable(),
+  parent_id: z.string().nullable(),
 })
 
 type ChartOfAccountFormValues = z.infer<typeof chartOfAccountFormSchema>
@@ -35,6 +39,7 @@ const emptyValues: ChartOfAccountFormValues = {
   is_active: true,
   is_cash_bank: false,
   cash_bank_category: null,
+  parent_id: null,
 }
 
 interface ChartOfAccountFormDrawerProps {
@@ -46,6 +51,7 @@ interface ChartOfAccountFormDrawerProps {
 export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }: ChartOfAccountFormDrawerProps) {
   const isEdit = !!chartOfAccount
   const queryClient = useQueryClient()
+  const accounts = useChartOfAccountsLookup()
 
   const form = useForm<ChartOfAccountFormValues>({
     resolver: zodResolver(chartOfAccountFormSchema),
@@ -64,10 +70,19 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
             is_active: chartOfAccount.is_active,
             is_cash_bank: chartOfAccount.is_cash_bank,
             cash_bank_category: chartOfAccount.cash_bank_category,
+            parent_id: chartOfAccount.parent_id,
           }
         : emptyValues,
     )
   }, [open, chartOfAccount, form])
+
+  // Two levels only: an account already carrying children can't also become a child (enforced
+  // again server-side by UpdateChartOfAccountRequest) — hide the field rather than let the user
+  // pick something the save will just reject.
+  const canHaveParent = !chartOfAccount || !chartOfAccount.children_count
+  const parentOptions = (accounts.data ?? [])
+    .filter((account) => account.id !== chartOfAccount?.id && !account.parent_id)
+    .map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` }))
 
   const mutation = useMutation({
     mutationFn: (values: ChartOfAccountFormValues) =>
@@ -145,6 +160,27 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
                   </FormItem>
                 )}
               />
+              {canHaveParent && (
+                <FormField
+                  control={form.control}
+                  name="parent_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Parent Account</FormLabel>
+                      <SearchableSelect
+                        options={[{ value: NO_PARENT, label: 'No parent — top-level account' }, ...parentOptions]}
+                        value={field.value ?? NO_PARENT}
+                        onChange={(value) => field.onChange(!value || value === NO_PARENT ? null : value)}
+                        loading={accounts.isLoading}
+                        clearable={false}
+                        placeholder="No parent — top-level account"
+                        aria-label="Parent Account"
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="is_active"

@@ -163,7 +163,7 @@ class DebitNoteTest extends TestCase
         $this->assertEquals(60000, (float) $journalEntry->total_credit);
 
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
-        $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->debit);
+        $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->debit);
         $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '4000')->credit);
     }
 
@@ -192,7 +192,7 @@ class DebitNoteTest extends TestCase
 
         $this->assertCount(2, $lines);
         $this->assertEquals(15000, (float) $lines->firstWhere('chartOfAccount.code', '4100')->credit);
-        $this->assertEquals(15000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->debit);
+        $this->assertEquals(15000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->debit);
     }
 
     public function test_freestanding_line_without_description_is_rejected(): void
@@ -230,7 +230,7 @@ class DebitNoteTest extends TestCase
 
         $this->assertCount(2, $lines);
         $this->assertEquals(5000, (float) $lines->firstWhere('chartOfAccount.code', '2100')->credit);
-        $this->assertEquals(5000, (float) $lines->firstWhere('chartOfAccount.code', '1200')->debit);
+        $this->assertEquals(5000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->debit);
     }
 
     public function test_tax_adjustment_with_lines_is_rejected(): void
@@ -362,7 +362,7 @@ class DebitNoteTest extends TestCase
         $reversalJournal = JournalEntry::query()->findOrFail($originalJournal->reversed_by_id);
         $reversalLines = $reversalJournal->lines()->with('chartOfAccount')->get();
         $this->assertEquals(40000, (float) $reversalLines->firstWhere('chartOfAccount.code', '4000')->debit);
-        $this->assertEquals(40000, (float) $reversalLines->firstWhere('chartOfAccount.code', '1200')->credit);
+        $this->assertEquals(40000, (float) $reversalLines->firstWhere('chartOfAccount.code', '112.01')->credit);
     }
 
     public function test_reverse_twice_throws(): void
