@@ -77,7 +77,7 @@ class PurchaseReturn extends Model
     public function journalLines(): array
     {
         $lines = [
-            ['account' => '2000', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Accounts Payable, reduced
+            ['account' => '210.01', 'type' => 'debit', 'amount' => (float) $this->total_amount], // Accounts Payable, reduced
         ];
 
         if ((float) $this->subtotal > 0) {
@@ -85,7 +85,7 @@ class PurchaseReturn extends Model
         }
 
         if ((float) $this->tax_amount > 0) {
-            $lines[] = ['account' => '2100', 'type' => 'credit', 'amount' => (float) $this->tax_amount]; // Tax Payable, reduced
+            $lines[] = ['account' => '213.01', 'type' => 'credit', 'amount' => (float) $this->tax_amount]; // Tax Payable, reduced
         }
 
         return $lines;

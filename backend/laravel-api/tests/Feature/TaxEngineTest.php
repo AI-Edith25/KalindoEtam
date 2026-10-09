@@ -291,7 +291,7 @@ class TaxEngineTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
 
-        $taxLine = collect($invoice->journalLines())->firstWhere('account', '2100');
+        $taxLine = collect($invoice->journalLines())->firstWhere('account', '213.01');
 
         $this->assertNotNull($taxLine);
         $this->assertEquals(11000.0, $taxLine['amount']);

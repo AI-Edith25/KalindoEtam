@@ -126,7 +126,7 @@ class PurchaseReturnTest extends TestCase
         $this->assertEquals(60000, (float) $journalEntry->total_credit);
 
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
-        $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '2000')->debit);
+        $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->debit);
         $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '5050')->credit);
 
         $stockAfterReturn = StockLedger::query()->where('item_id', $this->item->id)->sum('qty_change');

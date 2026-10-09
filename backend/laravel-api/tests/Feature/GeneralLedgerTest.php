@@ -78,7 +78,7 @@ class GeneralLedgerTest extends TestCase
 
         $this->arAccount = ChartOfAccount::query()->where('code', '112.01')->firstOrFail();
         $this->revenueAccount = ChartOfAccount::query()->where('code', '4000')->firstOrFail();
-        $this->taxAccount = ChartOfAccount::query()->where('code', '2100')->firstOrFail();
+        $this->taxAccount = ChartOfAccount::query()->where('code', '213.01')->firstOrFail();
     }
 
     protected function submittedInvoice(int $qty = 10, float $rate = 20000, float $taxAmount = 0, ?string $invoiceDate = null): Invoice

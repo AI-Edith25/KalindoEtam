@@ -104,7 +104,7 @@ class SalesPurchaseJournalImportServiceTest extends TestCase
         // Only the account NAME embedded in Particulars can resolve it. Deliberately distinct from
         // setUp()'s own "210.01.01 / HUTANG SUPPLIER" so this proves the fuzzy match, not a name
         // collision with an unrelated account.
-        ChartOfAccount::query()->create(['code' => '2000', 'name' => 'HUTANG SUPPLIER LEASING KENDARAAN', 'account_type' => 'liability', 'is_active' => true]);
+        ChartOfAccount::query()->create(['code' => '210.01', 'name' => 'HUTANG SUPPLIER LEASING KENDARAAN', 'account_type' => 'liability', 'is_active' => true]);
 
         $csv = self::PREAMBLE.self::HEADER
             .'Purchase Journal,,,,,,,,,,'."\r\n"
@@ -121,7 +121,7 @@ class SalesPurchaseJournalImportServiceTest extends TestCase
         $this->assertSame(1, $batch->preview_summary['needs_review_rows'], 'a fuzzy match is still flagged for human verification');
 
         $entry = JournalEntry::query()->where('source_document_number', 'PI-0002')->with('lines.chartOfAccount')->firstOrFail();
-        $fuzzyLine = $entry->lines->first(fn ($l) => $l->chartOfAccount->code === '2000');
+        $fuzzyLine = $entry->lines->first(fn ($l) => $l->chartOfAccount->code === '210.01');
         $this->assertNotNull($fuzzyLine, 'should resolve to the new HUTANG SUPPLIER account by name, not suspense');
         $this->assertEquals(100000, (float) $fuzzyLine->credit);
 

@@ -61,7 +61,7 @@ class PaymentEntryAllocation extends Model
     public function journalLines(): array
     {
         return [
-            ['account' => '2000', 'type' => 'debit', 'amount' => (float) $this->allocated_amount], // Accounts Payable
+            ['account' => '210.01', 'type' => 'debit', 'amount' => (float) $this->allocated_amount], // Accounts Payable
             ['account' => '1250', 'type' => 'credit', 'amount' => (float) $this->allocated_amount], // Advance to Suppliers
         ];
     }

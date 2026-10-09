@@ -26,8 +26,8 @@ class CashFlowMappingSeeder extends Seeder
         '112.01' => CashFlowSection::OPERATING_ADJUSTMENT,  // Accounts Receivable
         '1300' => CashFlowSection::OPERATING_ADJUSTMENT,  // Inventory
         '1150' => CashFlowSection::OPERATING_ADJUSTMENT,  // Unapplied Customer Payments
-        '2000' => CashFlowSection::OPERATING_ADJUSTMENT,  // Accounts Payable
-        '2100' => CashFlowSection::OPERATING_ADJUSTMENT,  // Tax Payable
+        '210.01' => CashFlowSection::OPERATING_ADJUSTMENT,  // Accounts Payable
+        '213.01' => CashFlowSection::OPERATING_ADJUSTMENT,  // Tax Payable
         '2200' => CashFlowSection::OPERATING_ADJUSTMENT,  // Accrued Expenses
         '3000' => CashFlowSection::FINANCING_ACTIVITY,    // Owner's Equity
 
@@ -91,22 +91,16 @@ class CashFlowMappingSeeder extends Seeder
         '1503' => CashFlowSection::INVESTING_ACTIVITY,
         '1504' => CashFlowSection::INVESTING_ACTIVITY,
 
-        '210.02.01' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '210.03.01' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '210.09.01' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '210.09.02' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '2101' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '2102' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '2103' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '2104' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '219.01.01' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '219.01.02' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '219.01.03' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '219.01.04' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '2300' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '2400' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '2500' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '2600' => CashFlowSection::OPERATING_ADJUSTMENT,
+        // Hutang (210.xx) and Hutang Pajak (213.xx) — see
+        // 2026_10_09_000004_restructure_hutang_accounts_into_hierarchy. Hutang kpd Direksi and
+        // the legacy-dotted duplicate twins are gone, same reasoning as the Piutang restructure.
+        '210.02' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '210.03' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '210.04' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '213.02' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '213.03' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '213.04' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '213.05' => CashFlowSection::OPERATING_ADJUSTMENT,
     ];
 
     public function run(): void

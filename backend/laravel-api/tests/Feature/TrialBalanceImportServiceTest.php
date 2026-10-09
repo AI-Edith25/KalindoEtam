@@ -56,7 +56,7 @@ class TrialBalanceImportServiceTest extends TestCase
     public function test_exact_and_fuzzy_matches_post_a_balanced_combined_journal_entry(): void
     {
         ChartOfAccount::query()->create(['code' => '1100', 'name' => 'KAS BESAR SAMARINDA', 'account_type' => 'asset', 'is_active' => true]);
-        ChartOfAccount::query()->create(['code' => '2000', 'name' => 'HUTANG SUPPLIER - BARU', 'account_type' => 'liability', 'is_active' => true]);
+        ChartOfAccount::query()->create(['code' => '210.01', 'name' => 'HUTANG SUPPLIER - BARU', 'account_type' => 'liability', 'is_active' => true]);
 
         $csv = self::PREAMBLE.self::HEADER
             // Exact code match — old code happens to equal the new one this time.
@@ -76,7 +76,7 @@ class TrialBalanceImportServiceTest extends TestCase
         $this->assertSame('submitted', $entry->status->value);
         $this->assertSame('2025-12-31', $entry->posting_date->toDateString());
 
-        $fuzzyLine = $entry->lines->first(fn ($l) => $l->chartOfAccount->code === '2000');
+        $fuzzyLine = $entry->lines->first(fn ($l) => $l->chartOfAccount->code === '210.01');
         $this->assertNotNull($fuzzyLine, 'fuzzy match by name should have resolved to the new HUTANG SUPPLIER account');
         $this->assertEquals(500000, (float) $fuzzyLine->credit);
 
@@ -215,7 +215,7 @@ class TrialBalanceImportServiceTest extends TestCase
 
         ChartOfAccount::query()->create(['code' => '101.01.01', 'name' => 'KAS BESAR SAMARINDA', 'account_type' => 'asset', 'is_active' => true]);
         ChartOfAccount::query()->create(['code' => '112.01', 'name' => 'PIUTANG USAHA', 'account_type' => 'asset', 'is_active' => true]);
-        ChartOfAccount::query()->create(['code' => '2000', 'name' => 'HUTANG SUPPLIER', 'account_type' => 'liability', 'is_active' => true]);
+        ChartOfAccount::query()->create(['code' => '210.01', 'name' => 'HUTANG SUPPLIER', 'account_type' => 'liability', 'is_active' => true]);
         ChartOfAccount::query()->create(['code' => '1300', 'name' => 'PERSEDIAAN BARANG DAGANG', 'account_type' => 'asset', 'is_active' => true]);
 
         $path = 'imports/real-trial-balance.xlsx';

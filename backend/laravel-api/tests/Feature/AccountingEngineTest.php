@@ -155,7 +155,7 @@ class AccountingEngineTest extends TestCase
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
         $this->assertEquals(111000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->debit);
         $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '4000')->credit);
-        $this->assertEquals(11000, (float) $lines->firstWhere('chartOfAccount.code', '2100')->credit);
+        $this->assertEquals(11000, (float) $lines->firstWhere('chartOfAccount.code', '213.01')->credit);
     }
 
     public function test_submitting_a_receipt_entry_posts_a_balanced_journal_entry(): void

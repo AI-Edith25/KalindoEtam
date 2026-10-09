@@ -232,7 +232,7 @@ class Invoice extends Model
         ];
 
         if ((float) $this->tax_amount > 0) {
-            $lines[] = ['account' => '2100', 'type' => 'credit', 'amount' => (float) $this->tax_amount]; // Tax Payable
+            $lines[] = ['account' => '213.01', 'type' => 'credit', 'amount' => (float) $this->tax_amount]; // Tax Payable
         }
 
         if ((float) $this->discount_amount > 0) {

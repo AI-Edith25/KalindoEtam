@@ -118,8 +118,8 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
         $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '5100')->debit);
-        $this->assertEquals(10000, (float) $lines->firstWhere('chartOfAccount.code', '2100')->debit);
-        $this->assertEquals(110000, (float) $lines->firstWhere('chartOfAccount.code', '2000')->credit);
+        $this->assertEquals(10000, (float) $lines->firstWhere('chartOfAccount.code', '213.01')->debit);
+        $this->assertEquals(110000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->credit);
     }
 
     public function test_multiple_goods_receipts_from_same_supplier_can_be_combined_into_one_invoice(): void
@@ -307,8 +307,8 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
         $this->assertEquals(150000, (float) $lines->firstWhere('chartOfAccount.code', '6100')->debit);
         $this->assertEquals(200000, (float) $lines->firstWhere('chartOfAccount.code', '6200')->debit);
-        $this->assertEquals(22000, (float) $lines->firstWhere('chartOfAccount.code', '2100')->debit);
-        $this->assertEquals(372000, (float) $lines->firstWhere('chartOfAccount.code', '2000')->credit);
+        $this->assertEquals(22000, (float) $lines->firstWhere('chartOfAccount.code', '213.01')->debit);
+        $this->assertEquals(372000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->credit);
     }
 
     public function test_direct_invoice_accounts_payable_can_be_settled_via_payment_entry(): void
@@ -425,7 +425,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         $this->assertEquals(0, (float) $lines->firstWhere('chartOfAccount.code', '6100')->credit);
         $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '2200')->credit);
         $this->assertEquals(0, (float) $lines->firstWhere('chartOfAccount.code', '2200')->debit);
-        $this->assertEquals(940000, (float) $lines->firstWhere('chartOfAccount.code', '2000')->credit);
+        $this->assertEquals(940000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->credit);
 
         $accountsPayable = $purchaseInvoice->accountsPayable()->firstOrFail();
         $this->assertEquals(940000, (float) $accountsPayable->amount);

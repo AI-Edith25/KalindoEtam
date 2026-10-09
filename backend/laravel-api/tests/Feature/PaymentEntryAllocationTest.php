@@ -33,7 +33,7 @@ use Tests\TestCase;
 /**
  * AP mirror of PaymentAllocationTest — same coverage shape, retargeted at
  * PaymentEntry/AccountsPayable/PaymentEntryAllocation and the '1250'
- * Advance to Suppliers / '2000' Accounts Payable accounts.
+ * Advance to Suppliers / '210.01' Accounts Payable accounts.
  */
 class PaymentEntryAllocationTest extends TestCase
 {
@@ -207,7 +207,7 @@ class PaymentEntryAllocationTest extends TestCase
         $this->assertEquals(100000, (float) $journalEntry->total_credit);
 
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
-        $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '2000')->debit);
+        $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->debit);
         $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '1250')->credit);
     }
 
@@ -389,7 +389,7 @@ class PaymentEntryAllocationTest extends TestCase
 
         $reversalJournal = JournalEntry::query()->findOrFail($originalJournal->reversed_by_id);
         $reversalLines = $reversalJournal->lines()->with('chartOfAccount')->get();
-        $this->assertEquals(100000, (float) $reversalLines->firstWhere('chartOfAccount.code', '2000')->credit);
+        $this->assertEquals(100000, (float) $reversalLines->firstWhere('chartOfAccount.code', '210.01')->credit);
         $this->assertEquals(100000, (float) $reversalLines->firstWhere('chartOfAccount.code', '1250')->debit);
     }
 

@@ -143,7 +143,7 @@ class PurchaseAccountingTest extends TestCase
 
         $result = $this->trialBalanceService->summarize([]);
         $purchaseExpense = collect($result['rows'])->firstWhere('account.code', '5100');
-        $accountsPayable = collect($result['rows'])->firstWhere('account.code', '2000');
+        $accountsPayable = collect($result['rows'])->firstWhere('account.code', '210.01');
 
         $this->assertEquals(100000.0, $purchaseExpense['debit']);
         $this->assertEquals(100000.0, $accountsPayable['credit']);
@@ -190,7 +190,7 @@ class PurchaseAccountingTest extends TestCase
         ]);
 
         $result = $this->trialBalanceService->summarize([]);
-        $accountsPayableRow = collect($result['rows'])->firstWhere('account.code', '2000');
+        $accountsPayableRow = collect($result['rows'])->firstWhere('account.code', '210.01');
         $advanceToSuppliersRow = collect($result['rows'])->firstWhere('account.code', '1250');
 
         // Net AP: 100000 credit (Goods Receipt) - 40000 debit (allocation) = 60000 credit remaining.
@@ -216,7 +216,7 @@ class PurchaseAccountingTest extends TestCase
         $result = $this->trialBalanceService->summarize([]);
         $transportRow = collect($result['rows'])->firstWhere('account.code', '6100');
         $cashRow = collect($result['rows'])->firstWhere('account.code', '1100');
-        $accountsPayableRow = collect($result['rows'])->firstWhere('account.code', '2000');
+        $accountsPayableRow = collect($result['rows'])->firstWhere('account.code', '210.01');
 
         $this->assertEquals(75000.0, $transportRow['debit']);
         $this->assertEquals(75000.0, $cashRow['credit']);

@@ -414,7 +414,7 @@ class DemoDataSeeder extends Seeder
         $this->summary['Goods Receipt'] = 2;
 
         // Purchase Invoice against each Goods Receipt — this, not Goods Receipt submit(), is what
-        // creates the AccountsPayable row and posts the '2000' Accounts Payable journal line.
+        // creates the AccountsPayable row and posts the '210.01' Accounts Payable journal line.
         $pi1 = $piService->create([
             'goods_receipt_ids' => [$gr1->id],
             'invoice_date' => $today,

@@ -247,7 +247,7 @@ class CreditNoteTest extends TestCase
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
 
         $this->assertCount(2, $lines);
-        $this->assertEquals(10000, (float) $lines->firstWhere('chartOfAccount.code', '2100')->debit);
+        $this->assertEquals(10000, (float) $lines->firstWhere('chartOfAccount.code', '213.01')->debit);
         $this->assertEquals(10000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->credit);
     }
 

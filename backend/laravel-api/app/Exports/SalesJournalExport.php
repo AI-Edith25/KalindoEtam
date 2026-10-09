@@ -30,7 +30,7 @@ use Maatwebsite\Excel\Events\AfterSheet;
  */
 class SalesJournalExport implements FromQuery, WithChunkReading, WithMapping, WithEvents
 {
-    protected const ACCOUNTS = ['112.01', '4000', '4050', '2100', '4900'];
+    protected const ACCOUNTS = ['112.01', '4000', '4050', '213.01', '4900'];
 
     protected float $totalDebit = 0.0;
 
@@ -91,14 +91,14 @@ class SalesJournalExport implements FromQuery, WithChunkReading, WithMapping, Wi
                 $lines[] = ['particulars' => $this->particulars('4000', $invoice->remarks ?: "Sales, {$customerName}"), 'debit' => 0.0, 'credit' => (float) $invoice->subtotal, 'taxCode' => $invoice->tax?->code];
             }
             if ((float) $invoice->tax_amount > 0) {
-                $lines[] = ['particulars' => $this->particulars('2100', 'Tax'), 'debit' => 0.0, 'credit' => (float) $invoice->tax_amount, 'taxCode' => $invoice->tax?->code];
+                $lines[] = ['particulars' => $this->particulars('213.01', 'Tax'), 'debit' => 0.0, 'credit' => (float) $invoice->tax_amount, 'taxCode' => $invoice->tax?->code];
             }
         } else {
             foreach ($invoice->items as $item) {
                 $lines[] = ['particulars' => $this->particulars('4000', $item->item_name), 'debit' => 0.0, 'credit' => (float) $item->amount, 'taxCode' => $item->tax?->code];
 
                 if ((float) $item->tax_amount > 0) {
-                    $lines[] = ['particulars' => $this->particulars('2100', "Tax : {$item->item_name}"), 'debit' => 0.0, 'credit' => (float) $item->tax_amount, 'taxCode' => $item->tax?->code];
+                    $lines[] = ['particulars' => $this->particulars('213.01', "Tax : {$item->item_name}"), 'debit' => 0.0, 'credit' => (float) $item->tax_amount, 'taxCode' => $item->tax?->code];
                 }
             }
         }
@@ -139,7 +139,7 @@ class SalesJournalExport implements FromQuery, WithChunkReading, WithMapping, Wi
         }
 
         if ((float) $creditNote->tax_amount > 0) {
-            $lines[] = ['particulars' => $this->particulars('2100', 'Tax'), 'debit' => (float) $creditNote->tax_amount, 'credit' => 0.0, 'taxCode' => null];
+            $lines[] = ['particulars' => $this->particulars('213.01', 'Tax'), 'debit' => (float) $creditNote->tax_amount, 'credit' => 0.0, 'taxCode' => null];
         }
 
         if ((float) $creditNote->discount_amount > 0) {

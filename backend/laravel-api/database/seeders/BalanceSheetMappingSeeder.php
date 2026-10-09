@@ -23,8 +23,8 @@ class BalanceSheetMappingSeeder extends Seeder
         '112.01' => BalanceSheetSection::CURRENT_ASSET,       // Accounts Receivable
         '1300' => BalanceSheetSection::CURRENT_ASSET,       // Inventory
         '1150' => BalanceSheetSection::CURRENT_LIABILITY,   // Unapplied Customer Payments (liability despite its 1xxx code)
-        '2000' => BalanceSheetSection::CURRENT_LIABILITY,   // Accounts Payable
-        '2100' => BalanceSheetSection::CURRENT_LIABILITY,   // Tax Payable
+        '210.01' => BalanceSheetSection::CURRENT_LIABILITY,   // Accounts Payable
+        '213.01' => BalanceSheetSection::CURRENT_LIABILITY,   // Tax Payable
         '2200' => BalanceSheetSection::CURRENT_LIABILITY,   // Accrued Expenses
         '3000' => BalanceSheetSection::SHARE_CAPITAL,       // Owner's Equity
         '3100' => BalanceSheetSection::RETAINED_EARNINGS,   // Retained Earnings
@@ -101,24 +101,17 @@ class BalanceSheetMappingSeeder extends Seeder
         '1503' => BalanceSheetSection::NON_CURRENT_ASSET,          // KENDARAAN RODA 2 & 4
         '1504' => BalanceSheetSection::NON_CURRENT_ASSET,          // AKUM. PENYUSUTAN KENDARAAN RODA 2 & 4
 
-        // Non-trade payables and detailed tax payables — same Current Liabilities
-        // bucket the legacy system itself used for these (B70/B72).
-        '210.02.01' => BalanceSheetSection::CURRENT_LIABILITY,     // HUTANG KPD DIREKSI
-        '210.03.01' => BalanceSheetSection::CURRENT_LIABILITY,     // HUTANG LEASING
-        '210.09.01' => BalanceSheetSection::CURRENT_LIABILITY,     // HUTANG LAIN-LAIN
-        '210.09.02' => BalanceSheetSection::CURRENT_LIABILITY,     // HUTANG BBM
-        '2101' => BalanceSheetSection::CURRENT_LIABILITY,          // HUTANG PPN
-        '2102' => BalanceSheetSection::CURRENT_LIABILITY,          // HUTANG PPH PASAL 21
-        '2103' => BalanceSheetSection::CURRENT_LIABILITY,          // HUTANG PPH PASAL 23
-        '2104' => BalanceSheetSection::CURRENT_LIABILITY,          // HUTANG PPH PASAL 25
-        '219.01.01' => BalanceSheetSection::CURRENT_LIABILITY,     // HUTANG PPN
-        '219.01.02' => BalanceSheetSection::CURRENT_LIABILITY,     // HUTANG PPH PASAL 23
-        '219.01.03' => BalanceSheetSection::CURRENT_LIABILITY,     // HUTANG PPH PASAL 21
-        '219.01.04' => BalanceSheetSection::CURRENT_LIABILITY,     // HUTANG PPH PASAL 25
-        '2300' => BalanceSheetSection::CURRENT_LIABILITY,          // HUTANG LEASING
-        '2400' => BalanceSheetSection::CURRENT_LIABILITY,          // HUTANG KPD DIREKSI
-        '2500' => BalanceSheetSection::CURRENT_LIABILITY,          // HUTANG LAIN-LAIN
-        '2600' => BalanceSheetSection::CURRENT_LIABILITY,          // HUTANG BBM
+        // Hutang (210.xx) and Hutang Pajak (213.xx) — see
+        // 2026_10_09_000004_restructure_hutang_accounts_into_hierarchy. Hutang kpd Direksi
+        // (2400, 210.02.01) and the legacy-dotted duplicate twins (210.03.01, 210.09.01,
+        // 210.09.02, 219.01.01-04) are gone — same reasoning as the Piutang restructure.
+        '210.02' => BalanceSheetSection::CURRENT_LIABILITY,        // Hutang Leasing
+        '210.03' => BalanceSheetSection::CURRENT_LIABILITY,        // Hutang Lain-lain
+        '210.04' => BalanceSheetSection::CURRENT_LIABILITY,        // Hutang BBM
+        '213.02' => BalanceSheetSection::CURRENT_LIABILITY,        // Hutang PPN
+        '213.03' => BalanceSheetSection::CURRENT_LIABILITY,        // Hutang PPh Pasal 21
+        '213.04' => BalanceSheetSection::CURRENT_LIABILITY,        // Hutang PPh Pasal 23
+        '213.05' => BalanceSheetSection::CURRENT_LIABILITY,        // Hutang PPh Pasal 25
     ];
 
     public function run(): void

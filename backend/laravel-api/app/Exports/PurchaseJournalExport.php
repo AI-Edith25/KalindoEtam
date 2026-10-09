@@ -28,7 +28,7 @@ use Maatwebsite\Excel\Events\AfterSheet;
  */
 class PurchaseJournalExport implements FromQuery, WithChunkReading, WithMapping, WithEvents
 {
-    protected const ACCOUNTS = ['2000', '5100', '5050', '2100'];
+    protected const ACCOUNTS = ['210.01', '5100', '5050', '213.01'];
 
     protected float $totalDebit = 0.0;
 
@@ -79,7 +79,7 @@ class PurchaseJournalExport implements FromQuery, WithChunkReading, WithMapping,
         $supplierName = $purchaseInvoice->supplier->supplier_name;
 
         $lines = [];
-        $lines[] = ['particulars' => $this->particulars('2000', "Purchases, {$supplierName}"), 'debit' => 0.0, 'credit' => (float) $purchaseInvoice->grand_total];
+        $lines[] = ['particulars' => $this->particulars('210.01', "Purchases, {$supplierName}"), 'debit' => 0.0, 'credit' => (float) $purchaseInvoice->grand_total];
 
         if ($purchaseInvoice->items->isEmpty()) {
             if ((float) $purchaseInvoice->subtotal > 0) {
@@ -92,7 +92,7 @@ class PurchaseJournalExport implements FromQuery, WithChunkReading, WithMapping,
         }
 
         if ((float) $purchaseInvoice->tax_amount > 0) {
-            $lines[] = ['particulars' => $this->particulars('2100', 'Tax'), 'debit' => (float) $purchaseInvoice->tax_amount, 'credit' => 0.0];
+            $lines[] = ['particulars' => $this->particulars('213.01', 'Tax'), 'debit' => (float) $purchaseInvoice->tax_amount, 'credit' => 0.0];
         }
 
         return $this->toRows($purchaseInvoice->document_number, $date, $ref1, $lines);
@@ -106,7 +106,7 @@ class PurchaseJournalExport implements FromQuery, WithChunkReading, WithMapping,
         $supplierName = $purchaseReturn->supplier->supplier_name;
 
         $lines = [];
-        $lines[] = ['particulars' => $this->particulars('2000', "Purchase Return, {$supplierName}"), 'debit' => (float) $purchaseReturn->total_amount, 'credit' => 0.0];
+        $lines[] = ['particulars' => $this->particulars('210.01', "Purchase Return, {$supplierName}"), 'debit' => (float) $purchaseReturn->total_amount, 'credit' => 0.0];
 
         if ((float) $purchaseReturn->subtotal > 0) {
             if ($purchaseReturn->items->isEmpty()) {
@@ -119,7 +119,7 @@ class PurchaseJournalExport implements FromQuery, WithChunkReading, WithMapping,
         }
 
         if ((float) $purchaseReturn->tax_amount > 0) {
-            $lines[] = ['particulars' => $this->particulars('2100', 'Tax'), 'debit' => 0.0, 'credit' => (float) $purchaseReturn->tax_amount];
+            $lines[] = ['particulars' => $this->particulars('213.01', 'Tax'), 'debit' => 0.0, 'credit' => (float) $purchaseReturn->tax_amount];
         }
 
         return $this->toRows($purchaseReturn->document_number, $date, $ref1, $lines);

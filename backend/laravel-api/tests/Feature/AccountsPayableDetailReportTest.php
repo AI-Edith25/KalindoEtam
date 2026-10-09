@@ -370,7 +370,7 @@ class AccountsPayableDetailReportTest extends TestCase
         $outstandingTotal = $this->accountsPayableRepository->outstandingTotal([]);
         $this->assertEquals(60000.0, $outstandingTotal);
 
-        $account2000Id = $this->accountId('2000');
+        $account2000Id = $this->accountId('210.01');
         $netCredit = JournalEntryLine::query()->where('chart_of_account_id', $account2000Id)
             ->selectRaw('COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) as net')
             ->value('net');

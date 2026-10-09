@@ -79,7 +79,7 @@ class TrialBalanceTest extends TestCase
         $this->arAccount = ChartOfAccount::query()->where('code', '112.01')->firstOrFail();
         $this->cashAccount = ChartOfAccount::query()->where('code', '1100')->firstOrFail();
         $this->revenueAccount = ChartOfAccount::query()->where('code', '4000')->firstOrFail();
-        $this->taxAccount = ChartOfAccount::query()->where('code', '2100')->firstOrFail();
+        $this->taxAccount = ChartOfAccount::query()->where('code', '213.01')->firstOrFail();
     }
 
     protected function submittedInvoice(int $qty = 10, float $rate = 20000, float $taxAmount = 0, ?string $invoiceDate = null): Invoice
@@ -194,7 +194,7 @@ class TrialBalanceTest extends TestCase
         $this->journalEntryService->post($journalEntry);
 
         $result = $this->trialBalanceService->summarize([]);
-        $row = collect($result['rows'])->firstWhere('account.code', '2100');
+        $row = collect($result['rows'])->firstWhere('account.code', '213.01');
 
         $this->assertEquals(30000.0, $row['debit']);
         $this->assertEquals(0.0, $row['credit']);

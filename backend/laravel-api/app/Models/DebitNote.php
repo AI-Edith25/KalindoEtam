@@ -89,7 +89,7 @@ class DebitNote extends Model
         }
 
         if ((float) $this->tax_amount > 0) {
-            $lines[] = ['account' => '2100', 'type' => 'credit', 'amount' => (float) $this->tax_amount]; // Tax Payable, increased
+            $lines[] = ['account' => '213.01', 'type' => 'credit', 'amount' => (float) $this->tax_amount]; // Tax Payable, increased
         }
 
         return $lines;

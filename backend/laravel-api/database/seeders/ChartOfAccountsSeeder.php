@@ -23,8 +23,6 @@ class ChartOfAccountsSeeder extends Seeder
             ['code' => '1300', 'name' => 'Inventory', 'account_type' => AccountType::ASSET],
             // Liabilities
             ['code' => '1150', 'name' => 'Unapplied Customer Payments', 'account_type' => AccountType::LIABILITY],
-            ['code' => '2000', 'name' => 'Accounts Payable', 'account_type' => AccountType::LIABILITY],
-            ['code' => '2100', 'name' => 'Tax Payable', 'account_type' => AccountType::LIABILITY],
             ['code' => '2200', 'name' => 'Accrued Expenses', 'account_type' => AccountType::LIABILITY],
             // Equity
             ['code' => '3000', 'name' => "Owner's Equity", 'account_type' => AccountType::EQUITY],
@@ -55,6 +53,8 @@ class ChartOfAccountsSeeder extends Seeder
         }
 
         $this->seedPiutangHierarchy();
+        $this->seedHutangHierarchy();
+        $this->seedHutangPajakHierarchy();
     }
 
     /**
@@ -84,6 +84,70 @@ class ChartOfAccountsSeeder extends Seeder
             ChartOfAccount::query()->firstOrCreate(
                 ['code' => $child['code']],
                 ['name' => $child['name'], 'account_type' => AccountType::ASSET, 'is_active' => true, 'parent_id' => $parent->id],
+            );
+        }
+    }
+
+    /**
+     * `210 HUTANG` — mirrors seedPiutangHierarchy() on the liability side. `210.01` is the one
+     * real code here: hardcoded in ~15 files (PurchaseInvoice/PurchaseReturn/
+     * PaymentEntryAllocation/AccountingService/PurchaseJournalExport and the three report
+     * mapping seeders) as the Accounts Payable posting target. Hutang kpd Direksi is
+     * deliberately not a child here — same decision as Piutang Direksi (zero postings anywhere
+     * in this system; real history lives only in legacy SkyBiz), see project memory
+     * project_erp_coa_subaccount_backlog.
+     */
+    protected function seedHutangHierarchy(): void
+    {
+        $parent = ChartOfAccount::query()->firstOrCreate(
+            ['code' => '210'],
+            ['name' => 'HUTANG', 'account_type' => AccountType::LIABILITY, 'is_active' => true],
+        );
+
+        $children = [
+            ['code' => '210.01', 'name' => 'Hutang Usaha'],
+            ['code' => '210.02', 'name' => 'Hutang Leasing'],
+            ['code' => '210.03', 'name' => 'Hutang Lain-lain'],
+            ['code' => '210.04', 'name' => 'Hutang BBM'],
+        ];
+
+        foreach ($children as $child) {
+            ChartOfAccount::query()->firstOrCreate(
+                ['code' => $child['code']],
+                ['name' => $child['name'], 'account_type' => AccountType::LIABILITY, 'is_active' => true, 'parent_id' => $parent->id],
+            );
+        }
+    }
+
+    /**
+     * `213 HUTANG PAJAK` — its own hierarchy, deliberately NOT nested under `210 HUTANG`: legacy
+     * itself keeps Trade/Other Payables (B70), Bank Borrowings (B20), and tax liabilities
+     * (B72/B80) as separate top-level Financial Categories — different balance-sheet lines by
+     * standard accounting classification, not an arbitrary split. `213.01` is the one real code
+     * here: hardcoded in ~15 files (Invoice/CreditNote/DebitNote/PurchaseInvoice/PurchaseReturn/
+     * AccountingService/both journal exports) as the generic Tax Payable posting target for
+     * every taxable transaction — not specific to PPN vs PPh, hence kept as a general child
+     * rather than renamed to one specific tax type.
+     */
+    protected function seedHutangPajakHierarchy(): void
+    {
+        $parent = ChartOfAccount::query()->firstOrCreate(
+            ['code' => '213'],
+            ['name' => 'HUTANG PAJAK', 'account_type' => AccountType::LIABILITY, 'is_active' => true],
+        );
+
+        $children = [
+            ['code' => '213.01', 'name' => 'Utang Pajak'],
+            ['code' => '213.02', 'name' => 'Hutang PPN'],
+            ['code' => '213.03', 'name' => 'Hutang PPh Pasal 21'],
+            ['code' => '213.04', 'name' => 'Hutang PPh Pasal 23'],
+            ['code' => '213.05', 'name' => 'Hutang PPh Pasal 25'],
+        ];
+
+        foreach ($children as $child) {
+            ChartOfAccount::query()->firstOrCreate(
+                ['code' => $child['code']],
+                ['name' => $child['name'], 'account_type' => AccountType::LIABILITY, 'is_active' => true, 'parent_id' => $parent->id],
             );
         }
     }

@@ -120,10 +120,10 @@ class PurchaseInvoice extends Model
                 ->all()
             : [['account' => '5100', 'type' => 'debit', 'amount' => (float) $this->subtotal]]; // Purchase Expense
 
-        $lines[] = ['account' => '2000', 'type' => 'credit', 'amount' => (float) $this->grand_total]; // Accounts Payable
+        $lines[] = ['account' => '210.01', 'type' => 'credit', 'amount' => (float) $this->grand_total]; // Accounts Payable
 
         if ((float) $this->tax_amount > 0) {
-            $lines[] = ['account' => '2100', 'type' => 'debit', 'amount' => (float) $this->tax_amount]; // Tax Payable
+            $lines[] = ['account' => '213.01', 'type' => 'debit', 'amount' => (float) $this->tax_amount]; // Tax Payable
         }
 
         return $lines;

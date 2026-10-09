@@ -229,7 +229,7 @@ class DebitNoteTest extends TestCase
         $lines = $journalEntry->lines()->with('chartOfAccount')->get();
 
         $this->assertCount(2, $lines);
-        $this->assertEquals(5000, (float) $lines->firstWhere('chartOfAccount.code', '2100')->credit);
+        $this->assertEquals(5000, (float) $lines->firstWhere('chartOfAccount.code', '213.01')->credit);
         $this->assertEquals(5000, (float) $lines->firstWhere('chartOfAccount.code', '112.01')->debit);
     }
 

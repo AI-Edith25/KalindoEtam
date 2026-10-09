@@ -140,4 +140,67 @@ class ChartOfAccountHierarchyTest extends TestCase
             $this->assertSame(0, ChartOfAccount::query()->withTrashed()->whereKey($twin->id)->count(), "{$twin->code} must be hard-deleted, not soft-deleted.");
         }
     }
+
+    public function test_seeded_hutang_hierarchy_has_one_parent_and_four_children(): void
+    {
+        $this->seed(ChartOfAccountsSeeder::class);
+
+        $parent = ChartOfAccount::query()->where('code', '210')->sole();
+        $this->assertNull($parent->parent_id);
+
+        $children = ChartOfAccount::query()->where('parent_id', $parent->id)->pluck('code')->sort()->values();
+        $this->assertSame(['210.01', '210.02', '210.03', '210.04'], $children->all());
+    }
+
+    public function test_seeded_hutang_pajak_hierarchy_has_one_parent_and_five_children(): void
+    {
+        $this->seed(ChartOfAccountsSeeder::class);
+
+        $parent = ChartOfAccount::query()->where('code', '213')->sole();
+        $this->assertNull($parent->parent_id);
+
+        $children = ChartOfAccount::query()->where('parent_id', $parent->id)->pluck('code')->sort()->values();
+        $this->assertSame(['213.01', '213.02', '213.03', '213.04', '213.05'], $children->all());
+    }
+
+    public function test_migration_renames_legacy_2000_and_2100_in_place_and_hard_deletes_hutang_direksi(): void
+    {
+        $ap = ChartOfAccount::query()->create(['code' => '2000', 'name' => 'Utang Usaha', 'account_type' => 'liability']);
+        $leasing = ChartOfAccount::query()->create(['code' => '2300', 'name' => 'HUTANG LEASING', 'account_type' => 'liability']);
+        $lainLain = ChartOfAccount::query()->create(['code' => '2500', 'name' => 'HUTANG LAIN-LAIN', 'account_type' => 'liability']);
+        $bbm = ChartOfAccount::query()->create(['code' => '2600', 'name' => 'HUTANG BBM', 'account_type' => 'liability']);
+        $direksi = ChartOfAccount::query()->create(['code' => '2400', 'name' => 'HUTANG KPD DIREKSI', 'account_type' => 'liability']);
+        $direksiTwin = ChartOfAccount::query()->create(['code' => '210.02.01', 'name' => 'HUTANG KPD DIREKSI', 'account_type' => 'liability']);
+        $leasingTwin = ChartOfAccount::query()->create(['code' => '210.03.01', 'name' => 'HUTANG LEASING', 'account_type' => 'liability']);
+
+        $tax = ChartOfAccount::query()->create(['code' => '2100', 'name' => 'Tax Payable', 'account_type' => 'liability']);
+        $ppn = ChartOfAccount::query()->create(['code' => '2101', 'name' => 'HUTANG PPN', 'account_type' => 'liability']);
+        $ppnTwin = ChartOfAccount::query()->create(['code' => '219.01.01', 'name' => 'HUTANG PPN', 'account_type' => 'liability']);
+
+        $apId = $ap->id;
+        $taxId = $tax->id;
+
+        (require database_path('migrations/2026_10_09_000004_restructure_hutang_accounts_into_hierarchy.php'))->up();
+        (require database_path('migrations/2026_10_09_000005_restructure_hutang_pajak_accounts_into_hierarchy.php'))->up();
+
+        $this->assertSame('210.01', $ap->fresh()->code);
+        $this->assertSame($apId, $ap->fresh()->id); // same row — history/balance preserved
+        $this->assertSame('210.02', $leasing->fresh()->code);
+        $this->assertSame('210.03', $lainLain->fresh()->code);
+        $this->assertSame('210.04', $bbm->fresh()->code);
+
+        $this->assertSame('213.01', $tax->fresh()->code);
+        $this->assertSame($taxId, $tax->fresh()->id);
+        $this->assertSame('213.02', $ppn->fresh()->code);
+
+        $hutangParent = ChartOfAccount::query()->where('code', '210')->sole();
+        $this->assertSame($hutangParent->id, $ap->fresh()->parent_id);
+
+        $pajakParent = ChartOfAccount::query()->where('code', '213')->sole();
+        $this->assertSame($pajakParent->id, $tax->fresh()->parent_id);
+
+        foreach ([$direksi, $direksiTwin, $leasingTwin, $ppnTwin] as $deleted) {
+            $this->assertSame(0, ChartOfAccount::query()->withTrashed()->whereKey($deleted->id)->count(), "{$deleted->code} must be hard-deleted.");
+        }
+    }
 }
