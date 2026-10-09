@@ -95,9 +95,16 @@ class ChartOfAccountsSeeder extends Seeder
      * matches legacy's own full name for code 210, not shortened. `210.01` is the one real code
      * here: hardcoded in ~15 files (PurchaseInvoice/PurchaseReturn/PaymentEntryAllocation/
      * AccountingService/PurchaseJournalExport and the three report mapping seeders) as the
-     * Accounts Payable posting target. Hutang kpd Direksi is deliberately not a child here —
-     * same decision as Piutang Direksi (zero postings anywhere in this system; real history
-     * lives only in legacy SkyBiz), see project memory project_erp_coa_subaccount_backlog.
+     * Accounts Payable posting target — named "Hutang Supplier" to match legacy's own leaf-level
+     * name for this exact account (legacy: `210.01 HUTANG SUPLIER` → `210.01.01 HUTANG
+     * SUPPLIER`), not the more generic "Hutang Usaha".
+     *
+     * Hutang kpd Direksi (`210.05`) was dropped once already (zero postings anywhere in this
+     * system — see project memory project_erp_coa_subaccount_backlog) and hard-deleted, then
+     * added back here per a later explicit request. It is a fresh account, not a restoration —
+     * the original row's id/history is gone for good; the real multi-year history (a director
+     * loan to the company, confirmed via legacy's own General Ledger) lives only in legacy
+     * SkyBiz, same as Piutang Direksi's.
      */
     protected function seedHutangHierarchy(): void
     {
@@ -107,10 +114,11 @@ class ChartOfAccountsSeeder extends Seeder
         );
 
         $children = [
-            ['code' => '210.01', 'name' => 'Hutang Usaha'],
+            ['code' => '210.01', 'name' => 'Hutang Supplier'],
             ['code' => '210.02', 'name' => 'Hutang Leasing'],
             ['code' => '210.03', 'name' => 'Hutang Lain-lain'],
             ['code' => '210.04', 'name' => 'Hutang BBM'],
+            ['code' => '210.05', 'name' => 'Hutang kpd Direksi'],
         ];
 
         foreach ($children as $child) {

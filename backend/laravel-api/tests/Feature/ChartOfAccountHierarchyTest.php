@@ -141,7 +141,7 @@ class ChartOfAccountHierarchyTest extends TestCase
         }
     }
 
-    public function test_seeded_hutang_hierarchy_has_one_parent_and_four_children(): void
+    public function test_seeded_hutang_hierarchy_has_one_parent_and_five_children(): void
     {
         $this->seed(ChartOfAccountsSeeder::class);
 
@@ -149,7 +149,9 @@ class ChartOfAccountHierarchyTest extends TestCase
         $this->assertNull($parent->parent_id);
 
         $children = ChartOfAccount::query()->where('parent_id', $parent->id)->pluck('code')->sort()->values();
-        $this->assertSame(['210.01', '210.02', '210.03', '210.04'], $children->all());
+        $this->assertSame(['210.01', '210.02', '210.03', '210.04', '210.05'], $children->all());
+        $this->assertSame('Hutang Supplier', ChartOfAccount::query()->where('code', '210.01')->sole()->name);
+        $this->assertSame('Hutang kpd Direksi', ChartOfAccount::query()->where('code', '210.05')->sole()->name);
     }
 
     public function test_seeded_hutang_pajak_hierarchy_has_one_parent_and_five_children(): void
@@ -251,5 +253,23 @@ class ChartOfAccountHierarchyTest extends TestCase
         $taxAccount = ChartOfAccount::query()->where('code', '213.01')->sole();
         $this->assertNotNull($taxAccount->parent_id);
         $this->assertSame('213', $taxAccount->parent->code);
+    }
+
+    public function test_followup_migration_renames_210_01_and_adds_back_hutang_kpd_direksi(): void
+    {
+        $this->seed(ChartOfAccountsSeeder::class);
+
+        // Simulate a pre-migration production row named the old way, same as the real migration
+        // will find on an environment that hasn't re-seeded yet.
+        ChartOfAccount::query()->where('code', '210.01')->first()->update(['name' => 'Utang Usaha']);
+        ChartOfAccount::query()->where('code', '210.05')->first()->forceDelete();
+
+        (require database_path('migrations/2026_10_09_000007_rename_hutang_supplier_and_restore_hutang_kpd_direksi.php'))->up();
+
+        $this->assertSame('Hutang Supplier', ChartOfAccount::query()->where('code', '210.01')->sole()->name);
+
+        $direksi = ChartOfAccount::query()->where('code', '210.05')->sole();
+        $this->assertSame('Hutang kpd Direksi', $direksi->name);
+        $this->assertSame('210', $direksi->parent->code);
     }
 }

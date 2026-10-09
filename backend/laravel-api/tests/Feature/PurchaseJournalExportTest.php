@@ -133,7 +133,7 @@ class PurchaseJournalExportTest extends TestCase
         $this->assertEquals('Purchase Journal', $sheet->getCell('A6')->getValue());
 
         $this->assertEquals($purchaseInvoice->document_number, $sheet->getCell('A7')->getValue());
-        $this->assertEquals('210.01 - Hutang Usaha - [Purchases, Acme Supplier]', $sheet->getCell('D7')->getValue());
+        $this->assertEquals('210.01 - Hutang Supplier - [Purchases, Acme Supplier]', $sheet->getCell('D7')->getValue());
         $this->assertEquals(0, $sheet->getCell('E7')->getValue());
         $this->assertEquals(200000, $sheet->getCell('F7')->getValue());
 
@@ -166,7 +166,7 @@ class PurchaseJournalExportTest extends TestCase
         $this->assertEquals('Purchase Return Journal', $sheet->getCell('A6')->getValue());
         $this->assertEquals($purchaseReturn->document_number, $sheet->getCell('A7')->getValue());
         $this->assertEquals('SUPPLIER-INV-001', $sheet->getCell('C7')->getValue()); // Ref. 1 # inherited from the parent Purchase Invoice
-        $this->assertEquals('210.01 - Hutang Usaha - [Purchase Return, Acme Supplier]', $sheet->getCell('D7')->getValue());
+        $this->assertEquals('210.01 - Hutang Supplier - [Purchase Return, Acme Supplier]', $sheet->getCell('D7')->getValue());
         $this->assertEquals(60000, $sheet->getCell('E7')->getValue());
         $this->assertEquals(0, $sheet->getCell('F7')->getValue());
         $this->assertEquals('Total For :[Purchase Return Journal]', $sheet->getCell('A9')->getValue());

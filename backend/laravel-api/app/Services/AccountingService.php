@@ -91,7 +91,7 @@ class AccountingService
         '1100' => 'Kas/Bank',
         '1150' => 'Uang Muka Pelanggan',
         '112.01' => 'Piutang Usaha',
-        '210.01' => 'Utang Usaha',
+        '210.01' => 'Hutang Supplier',
         '213.01' => 'Pajak',
         '4000' => 'Pendapatan Penjualan',
         '4050' => 'Retur Penjualan',
