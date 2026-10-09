@@ -56,11 +56,9 @@ class CashFlowMappingSeeder extends Seeder
 
         // 112.02/.03/.04 are the renamed 1260/1225/1201 (see
         // 2026_10_09_000002_restructure_piutang_accounts_into_hierarchy); Piutang Direksi
-        // (1215, 112.02.01) is gone. 112.01.02/.03.01/.09.01 are the untouched legacy-dotted
-        // duplicate twins of 112.04/112.02/112.03 — a separate cleanup.
-        '112.01.02' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '112.03.01' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '112.09.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        // (1215, 112.02.01) is gone, and so are its legacy-dotted duplicate twins
+        // (112.01.02, 112.03.01, 112.09.01) — see
+        // 2026_10_09_000003_delete_untouched_piutang_legacy_duplicate_twins.
         '112.02' => CashFlowSection::OPERATING_ADJUSTMENT,
         '112.03' => CashFlowSection::OPERATING_ADJUSTMENT,
         '112.04' => CashFlowSection::OPERATING_ADJUSTMENT,

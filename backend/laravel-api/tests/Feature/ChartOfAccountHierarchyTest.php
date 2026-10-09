@@ -123,4 +123,21 @@ class ChartOfAccountHierarchyTest extends TestCase
         $this->assertSame(0, ChartOfAccount::query()->withTrashed()->whereKey($direksi->id)->count()); // hard-deleted, not soft
         $this->assertSame(0, ChartOfAccount::query()->withTrashed()->whereKey($direksiTwin->id)->count());
     }
+
+    public function test_followup_migration_hard_deletes_the_remaining_legacy_dotted_twins(): void
+    {
+        // 112.01 already exists (seeded by 2026_10_09_000002, which ran during RefreshDatabase
+        // setup) — these three are the untouched legacy-dotted duplicate twins that migration
+        // deliberately left alone, a dot deeper than their sibling (112.01.02 reads as a child of
+        // 112.01), which is exactly the bug this follow-up migration fixes.
+        $cadanganTwin = ChartOfAccount::query()->create(['code' => '112.01.02', 'name' => 'CADANGAN PIUTANG', 'account_type' => 'asset']);
+        $karyawanTwin = ChartOfAccount::query()->create(['code' => '112.03.01', 'name' => 'PIUTANG KARYAWAN', 'account_type' => 'asset']);
+        $lainLainTwin = ChartOfAccount::query()->create(['code' => '112.09.01', 'name' => 'PIUTANG LAIN-LAIN', 'account_type' => 'asset']);
+
+        (require database_path('migrations/2026_10_09_000003_delete_untouched_piutang_legacy_duplicate_twins.php'))->up();
+
+        foreach ([$cadanganTwin, $karyawanTwin, $lainLainTwin] as $twin) {
+            $this->assertSame(0, ChartOfAccount::query()->withTrashed()->whereKey($twin->id)->count(), "{$twin->code} must be hard-deleted, not soft-deleted.");
+        }
+    }
 }

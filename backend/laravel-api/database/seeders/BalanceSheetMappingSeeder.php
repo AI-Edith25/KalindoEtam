@@ -56,12 +56,11 @@ class BalanceSheetMappingSeeder extends Seeder
 
         // Receivables (non-trade), advances, and prepaid tax. 112.02/.03/.04 are the renamed
         // 1260/1225/1201 (see 2026_10_09_000002_restructure_piutang_accounts_into_hierarchy) —
-        // Piutang Direksi (1215, 112.02.01) is gone, hard-deleted by that same migration.
-        // 112.01.02/.03.01/.09.01 are the untouched legacy-dotted duplicate twins of
-        // 112.04/112.02/112.03 — a separate cleanup, not part of this hierarchy.
-        '112.01.02' => BalanceSheetSection::CURRENT_ASSET,     // CADANGAN PIUTANG (legacy-coded twin)
-        '112.03.01' => BalanceSheetSection::CURRENT_ASSET,     // PIUTANG KARYAWAN (legacy-coded twin)
-        '112.09.01' => BalanceSheetSection::CURRENT_ASSET,     // PIUTANG LAIN-LAIN (legacy-coded twin)
+        // Piutang Direksi (1215, 112.02.01) is gone. Their legacy-dotted duplicate twins
+        // (112.01.02, 112.03.01, 112.09.01) are also gone, per
+        // 2026_10_09_000003_delete_untouched_piutang_legacy_duplicate_twins — a code one dot
+        // deeper than its sibling (112.01.02 under 112.01) broke the two-level hierarchy's own
+        // premise even though no parent_id ever linked them that way.
         '112.02' => BalanceSheetSection::CURRENT_ASSET,        // Piutang Karyawan
         '112.03' => BalanceSheetSection::CURRENT_ASSET,        // Piutang Lain-lain
         '112.04' => BalanceSheetSection::CURRENT_ASSET,        // Cadangan Piutang
