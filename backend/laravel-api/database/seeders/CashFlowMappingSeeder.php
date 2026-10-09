@@ -30,6 +30,83 @@ class CashFlowMappingSeeder extends Seeder
         '2100' => CashFlowSection::OPERATING_ADJUSTMENT,  // Tax Payable
         '2200' => CashFlowSection::OPERATING_ADJUSTMENT,  // Accrued Expenses
         '3000' => CashFlowSection::FINANCING_ACTIVITY,    // Owner's Equity
+
+        // Below: the legacy SkyBiz chart (175 accounts) — same Balance Sheet
+        // accounts BalanceSheetMappingSeeder now covers, translated into Cash
+        // Flow's own vocabulary. Revenue/Expense accounts are deliberately never
+        // mapped here (see class doc) — only Asset/Liability/Equity accounts need
+        // a Cash Flow section. `1199` stays excluded, same as everywhere else.
+        '1000' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1001' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1002' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1004' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1005' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '101.01.01' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '101.01.03' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '101.03.01' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '101.03.02' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '102.01.05' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '102.01.06' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '102.01.07' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '102.02.01' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1101' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1103' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1104' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1106' => CashFlowSection::CASH_AND_EQUIVALENTS,
+
+        '112.01.02' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '112.02.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '112.03.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '112.09.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1201' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1215' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1225' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1260' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1250' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '113.01.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '113.01.02' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1251' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1252' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '113.02.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '113.02.02' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '113.02.03' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '113.02.04' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1400' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1401' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1402' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1403' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '1404' => CashFlowSection::OPERATING_ADJUSTMENT,
+
+        // 2501 "HLL/JUDI JOHANES" — functions as a receivable, see
+        // BalanceSheetMappingSeeder for the full explanation.
+        '2501' => CashFlowSection::OPERATING_ADJUSTMENT,
+
+        '121.03.01' => CashFlowSection::INVESTING_ACTIVITY,
+        '121.03.02' => CashFlowSection::INVESTING_ACTIVITY,
+        '121.04.01' => CashFlowSection::INVESTING_ACTIVITY,
+        '121.04.02' => CashFlowSection::INVESTING_ACTIVITY,
+        '1500' => CashFlowSection::INVESTING_ACTIVITY,
+        '1501' => CashFlowSection::INVESTING_ACTIVITY,
+        '1502' => CashFlowSection::INVESTING_ACTIVITY,
+        '1503' => CashFlowSection::INVESTING_ACTIVITY,
+        '1504' => CashFlowSection::INVESTING_ACTIVITY,
+
+        '210.02.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '210.03.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '210.09.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '210.09.02' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '2101' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '2102' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '2103' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '2104' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '219.01.01' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '219.01.02' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '219.01.03' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '219.01.04' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '2300' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '2400' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '2500' => CashFlowSection::OPERATING_ADJUSTMENT,
+        '2600' => CashFlowSection::OPERATING_ADJUSTMENT,
     ];
 
     public function run(): void
