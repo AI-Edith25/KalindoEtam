@@ -115,4 +115,40 @@ class CustomerCodeGenerationTest extends TestCase
         $response = $this->postJson('/api/v1/customers', ['customer_name' => 'New Co'])->assertCreated();
         $this->assertSame('C-2105', $response->json('data.customer_code'));
     }
+
+    public function test_customers_default_to_trade_category(): void
+    {
+        $customer = Customer::query()->create(['customer_code' => 'C-9000', 'customer_name' => 'Acme']);
+
+        $this->assertSame(\App\Enums\ReceivableCategory::TRADE, $customer->receivable_category);
+    }
+
+    public function test_receivable_category_maps_to_the_right_coa_code(): void
+    {
+        $this->assertSame('112.01', \App\Enums\ReceivableCategory::TRADE->accountCode());
+        $this->assertSame('112.02', \App\Enums\ReceivableCategory::EMPLOYEE->accountCode());
+        $this->assertSame('112.03', \App\Enums\ReceivableCategory::OTHER->accountCode());
+    }
+
+    public function test_pl_naming_series_continues_after_the_real_existing_range(): void
+    {
+        // Simulates production shape: PL-0001..PL-0102 already exist (same pattern as the C-
+        // series' own test_series_correction_starts_after_the_real_existing_range above).
+        NamingSeries::query()->where('document_type', 'customer_pl')->update(['current_number' => 102]);
+
+        $response = $this->postJson('/api/v1/customers', [
+            'customer_name' => 'New PL Co', 'receivable_category' => 'PL',
+        ])->assertCreated();
+        $this->assertSame('PL-0103', $response->json('data.customer_code'));
+    }
+
+    public function test_pk_naming_series_continues_after_the_real_existing_range(): void
+    {
+        NamingSeries::query()->where('document_type', 'customer_pk')->update(['current_number' => 50]);
+
+        $response = $this->postJson('/api/v1/customers', [
+            'customer_name' => 'New PK Co', 'receivable_category' => 'PK',
+        ])->assertCreated();
+        $this->assertSame('PK-0051', $response->json('data.customer_code'));
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ReceivableCategory;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -14,6 +15,7 @@ class Customer extends Model
 
     protected $fillable = [
         'customer_code',
+        'receivable_category',
         'customer_name',
         'phone',
         'telephone',
@@ -32,6 +34,15 @@ class Customer extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'credit_limit' => 'decimal:2',
+        'receivable_category' => ReceivableCategory::class,
+    ];
+
+    // ponytail: the customers.receivable_category column already defaults to 'C' at the DB
+    // level (migration), but Eloquent doesn't read DB defaults back into a freshly-created
+    // in-memory model — without this, Customer::create() without receivable_category leaves
+    // the attribute (and its enum cast) null until the next fetch from DB.
+    protected $attributes = [
+        'receivable_category' => 'C',
     ];
 
     public function termsOfPayment(): BelongsTo
@@ -48,5 +59,11 @@ class Customer extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    /** The Piutang control account this customer's PV/OR transactions post to — see ReceivableCategory::accountCode(). */
+    public function receivableAccountCode(): string
+    {
+        return $this->receivable_category->accountCode();
     }
 }
