@@ -6,9 +6,7 @@ export interface JournalEntryListParams {
   page: number
   search?: string
   status?: string
-  reference_type?: string
   account_id?: string
-  branch_id?: string
   date_from?: string
   date_to?: string
   per_page?: number

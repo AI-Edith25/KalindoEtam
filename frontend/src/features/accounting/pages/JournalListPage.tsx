@@ -38,9 +38,7 @@ export function JournalListPage() {
 
   const generalJournalFilters: JournalEntryFilterValues = {
     status: searchParams.get('status') as JournalEntryFilterValues['status'],
-    referenceType: searchParams.get('reference_type'),
     accountId: searchParams.get('account_id'),
-    branchId: searchParams.get('branch_id'),
     dateFrom: searchParams.get('date_from') ?? '',
     dateTo: searchParams.get('date_to') ?? '',
   }
@@ -80,9 +78,7 @@ export function JournalListPage() {
 
   const setGeneralJournalFilters = (next: JournalEntryFilterValues) =>
     update({
-      branch_id: next.branchId,
       status: next.status,
-      reference_type: next.referenceType,
       account_id: next.accountId,
       date_from: next.dateFrom || null,
       date_to: next.dateTo || null,

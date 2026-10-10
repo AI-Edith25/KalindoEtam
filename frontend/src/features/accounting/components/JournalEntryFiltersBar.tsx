@@ -3,17 +3,11 @@ import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Input } from '@/components/ui/input'
-import { useBranchesLookup, useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
+import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import { emptyJournalEntryFilters, hasActiveJournalEntryFilters } from '../lib/journalEntryFilters'
 import type { DocumentStatus, JournalEntryFilterValues } from '../types'
 
 const ALL = '__all__'
-
-const REFERENCE_TYPE_OPTIONS = [
-  { value: 'invoice', label: 'Invoice' },
-  { value: 'receipt_entry', label: 'Receipt Entry' },
-  { value: 'payment_allocation', label: 'Payment Allocation' },
-]
 
 interface JournalEntryFiltersBarProps {
   value: JournalEntryFilterValues
@@ -24,7 +18,6 @@ interface JournalEntryFiltersBarProps {
 
 export function JournalEntryFiltersBar({ value, onChange, leading }: JournalEntryFiltersBarProps) {
   const accounts = useChartOfAccountsLookup()
-  const branches = useBranchesLookup()
 
   return (
     <FilterPanel onClear={() => onChange(emptyJournalEntryFilters)} hasActiveFilters={hasActiveJournalEntryFilters(value)}>
@@ -47,17 +40,6 @@ export function JournalEntryFiltersBar({ value, onChange, leading }: JournalEntr
         </Select>
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Reference Type</span>
-        <SearchableSelect
-          options={REFERENCE_TYPE_OPTIONS}
-          value={value.referenceType ?? undefined}
-          onChange={(next) => onChange({ ...value, referenceType: next ?? null })}
-          placeholder="All types"
-          className="w-36"
-          aria-label="Reference Type"
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Account</span>
         <SearchableSelect
           options={accounts.data?.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` })) ?? []}
@@ -67,18 +49,6 @@ export function JournalEntryFiltersBar({ value, onChange, leading }: JournalEntr
           placeholder="All accounts"
           className="w-48"
           aria-label="Account"
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Branch</span>
-        <SearchableSelect
-          options={branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []}
-          value={value.branchId ?? undefined}
-          onChange={(next) => onChange({ ...value, branchId: next ?? null })}
-          loading={branches.isLoading}
-          placeholder="All branches"
-          className="w-40"
-          aria-label="Branch"
         />
       </div>
       <div className="flex flex-col gap-1.5">

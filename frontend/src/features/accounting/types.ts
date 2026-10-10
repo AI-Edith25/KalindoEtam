@@ -48,9 +48,7 @@ export interface JournalEntryFormValues {
 
 export interface JournalEntryFilterValues {
   status: DocumentStatus | null
-  referenceType: string | null
   accountId: string | null
-  branchId: string | null
   dateFrom: string
   dateTo: string
 }

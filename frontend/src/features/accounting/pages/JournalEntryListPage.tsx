@@ -40,20 +40,18 @@ export function JournalEntryListPage() {
   useEffect(() => {
     setSelectedIds(new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, filters.status, filters.referenceType, filters.accountId, filters.branchId, filters.dateFrom, filters.dateTo, page])
+  }, [search, filters.status, filters.accountId, filters.dateFrom, filters.dateTo, page])
 
   const activeFilterParams = {
     ...(search ? { search } : {}),
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.referenceType ? { reference_type: filters.referenceType } : {}),
     ...(filters.accountId ? { account_id: filters.accountId } : {}),
-    ...(filters.branchId ? { branch_id: filters.branchId } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
   }
 
   const listQuery = useQuery({
-    queryKey: ['journal-entries', page, search, filters.status, filters.referenceType, filters.accountId, filters.branchId, filters.dateFrom, filters.dateTo],
+    queryKey: ['journal-entries', page, search, filters.status, filters.accountId, filters.dateFrom, filters.dateTo],
     queryFn: () => fetchJournalEntries({ page, ...activeFilterParams }),
     placeholderData: (previous) => previous,
   })
@@ -134,8 +132,6 @@ export function JournalEntryListPage() {
     selectionColumn,
     { header: 'Journal Number', accessor: (row) => row.document_number ?? '—' },
     { header: 'Posting Date', accessor: (row) => formatDate(row.posting_date) },
-    { header: 'Reference Type', accessor: (row) => row.reference_label ?? 'Manual' },
-    { header: 'Reference Number', accessor: (row) => row.reference_document_number ?? '—' },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status === 'submitted' ? 'posted' : row.status} /> },
     { header: 'Total Debit', accessor: (row) => formatCurrency(row.total_debit), className: 'text-right' },
     { header: 'Total Credit', accessor: (row) => formatCurrency(row.total_credit), className: 'text-right' },
@@ -147,9 +143,7 @@ export function JournalEntryListPage() {
     },
   ]
 
-  const hasFilters = !!(
-    search || filters.status || filters.referenceType || filters.accountId || filters.branchId || filters.dateFrom || filters.dateTo
-  )
+  const hasFilters = !!(search || filters.status || filters.accountId || filters.dateFrom || filters.dateTo)
 
   return (
     <div className="flex flex-col gap-4">
@@ -157,7 +151,7 @@ export function JournalEntryListPage() {
 
       <PageHeader
         title="General Journal"
-        description="Every posted debit/credit, system-generated or manually posted."
+        description="Manually posted debit/credit entries — not generated automatically by other modules."
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} entries` : undefined}
         actions={
           <>
