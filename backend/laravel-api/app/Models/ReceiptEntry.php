@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\DocumentStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\ReceivableCategory;
 use App\Enums\ReceiptEntryType;
 use App\Exceptions\BusinessException;
 use App\Models\Concerns\Documentable;
@@ -125,6 +126,10 @@ class ReceiptEntry extends Model
      * GENERAL_EXPENSE branch) credits the chosen income_account directly
      * instead — no suspense leg, no customer, standalone from the moment
      * it's submitted (never allocated, see ReceiptEntryService).
+     *
+     * A PK/PL customer (receivable_category) has no Invoice, ever — so instead of the 1150
+     * suspense leg above, its credit leg posts straight to its own Piutang account
+     * (ReceivableCategory::accountCode()). Only a 'C' (trade) customer still uses 1150.
      */
     public function journalLines(): array
     {
@@ -140,10 +145,15 @@ class ReceiptEntry extends Model
 
         return [
             ['account' => $this->cashAccount->code, 'type' => 'debit', 'amount' => (float) $this->total_amount],
-            [
-                'account' => '1150', 'type' => 'credit', 'amount' => (float) $this->total_amount,
-                'description' => "{$this->customer->customer_name}; {$this->cashAccount->name}",
-            ], // Unapplied Customer Payments
+            $this->customer->receivable_category === ReceivableCategory::TRADE
+                ? [
+                    'account' => '1150', 'type' => 'credit', 'amount' => (float) $this->total_amount,
+                    'description' => "{$this->customer->customer_name}; {$this->cashAccount->name}",
+                ] // Unapplied Customer Payments
+                : [
+                    'account' => $this->customer->receivableAccountCode(), 'type' => 'credit', 'amount' => (float) $this->total_amount,
+                    'description' => "{$this->customer->customer_name}; {$this->cashAccount->name}",
+                ], // PK/PL — no Invoice to later allocate against, so straight to the customer's own Piutang account
         ];
     }
 

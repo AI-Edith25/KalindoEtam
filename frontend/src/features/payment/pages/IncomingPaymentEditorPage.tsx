@@ -84,6 +84,9 @@ export function IncomingPaymentEditorPage() {
   const customerSelectedOption: SearchableSelectOption<Customer> | undefined = receiptQuery.data?.customer
     ? { value: receiptQuery.data.customer.id, label: receiptQuery.data.customer.customer_name, data: receiptQuery.data.customer }
     : selectedCustomerOption
+  // PK/PL customers have no Invoice, ever — there's nothing to allocate, so the Outstanding
+  // Invoices card below is skipped entirely for them rather than rendering a permanently-empty table.
+  const isNonTradeCustomer = customerSelectedOption?.data?.receivable_category === 'PK' || customerSelectedOption?.data?.receivable_category === 'PL'
 
   // Sprint 1 (Invoice Allocation): accounts_receivable_id -> user-entered "To
   // Allocate" amount. Checked and "has an entry in this map" are the same
@@ -508,7 +511,7 @@ export function IncomingPaymentEditorPage() {
             </Card>
           )}
 
-          {customerId && (!isEdit || receiptQuery.data?.status === 'draft') && (
+          {customerId && !isNonTradeCustomer && (!isEdit || receiptQuery.data?.status === 'draft') && (
             <Card>
               <CardHeader>
                 <CardTitle>Outstanding Invoices</CardTitle>
