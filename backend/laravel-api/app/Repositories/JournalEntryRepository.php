@@ -39,13 +39,20 @@ class JournalEntryRepository extends BaseRepository
      * Entry" form has reference_type = null (see StoreJournalEntryRequest's own docblock);
      * every row the Accounting Engine posts on behalf of OR/Invoice/Credit Note/Debit
      * Note/Payment Allocation/imports always has reference_type set. This is enforced
-     * unconditionally — not a filter option — so General Journal never shows a
-     * system-generated entry. See docs/superpowers/specs/2026-10-10-general-journal-manual-only-design.md.
+     * unconditionally for every *browsing* query (no `ids` given) — not a filter option —
+     * so General Journal's own list/export never shows a system-generated entry.
+     *
+     * Exempted when `ids` is given: fetching specific documents by id (used by the Print
+     * flow — JournalEntryDetailPage's Print button, reachable for any Journal Entry
+     * including a system-generated one, e.g. via General Ledger's drill-through) is not
+     * "browsing General Journal" and must behave like JournalEntryController::show()'s own
+     * unscoped lookup — otherwise printing a real, non-manual Journal Entry silently
+     * returns zero rows. See docs/superpowers/specs/2026-10-10-general-journal-manual-only-design.md.
      */
     protected function filteredQuery(array $filters): Builder
     {
         return $this->model->query()
-            ->whereNull('reference_type')
+            ->when(empty($filters['ids']), fn ($query) => $query->whereNull('reference_type'))
             ->when($filters['ids'] ?? null, fn ($query, $ids) => $query->whereIn('id', $ids))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['account_id'] ?? null, fn ($query, $accountId) => $query->whereHas(

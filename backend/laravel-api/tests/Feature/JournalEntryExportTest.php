@@ -113,4 +113,17 @@ class JournalEntryExportTest extends TestCase
             return $export->collection()->count() === 1;
         });
     }
+
+    public function test_fetching_by_ids_includes_non_manual_entries(): void
+    {
+        $this->actingUserWithJournalEntryView();
+
+        $invoiceEntry = $this->invoiceJournalEntry();
+
+        $response = $this->getJson("/api/v1/journal-entries?ids[]={$invoiceEntry->id}");
+
+        $response->assertOk();
+        $ids = collect($response->json('data'))->pluck('id')->all();
+        $this->assertEquals([$invoiceEntry->id], $ids);
+    }
 }
