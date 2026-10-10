@@ -14,6 +14,7 @@ use App\Models\ImportBatch;
 use App\Services\AuditLogService;
 use App\Services\CustomerOutstandingArchiveService;
 use App\Services\Import\CustomerOutstandingArchiveImportService;
+use App\Support\ImportErrorReportWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -75,7 +76,36 @@ class CustomerOutstandingArchiveController extends Controller
             'created_by' => Auth::id(),
         ]);
 
+        ImportErrorReportWriter::attachRejectedRows($batch, $this->rejectedRowsReport($preflight['si_preview']));
+
         return $this->success(new ImportBatchResource($batch), 'Menunggu konfirmasi import.', 201);
+    }
+
+    /**
+     * Flattens preflight()'s si_preview (3 skip categories, each row-detail arrays) into one
+     * CSV-ready report for ImportErrorReportWriter::attachRejectedRows() -- lets the operator
+     * download exactly which rows won't become a Sales Invoice, and why, right from the preview
+     * step (CustomerOutstandingArchiveImportDialog's "Unduh Baris Ditolak" button).
+     *
+     * @param  array{skipped_customer: array, skipped_type: array, skipped_duplicate: array}  $siPreview
+     * @return array<int, array<string, scalar|null>>
+     */
+    private function rejectedRowsReport(array $siPreview): array
+    {
+        $reasonByOutcome = [
+            'skipped_customer' => ['status' => 'skip_customer', 'reason' => 'Customer Code tidak ditemukan di master Customer'],
+            'skipped_type' => ['status' => 'skip_type', 'reason' => 'Ref. No bukan format SI/KE atau TR/KE'],
+            'skipped_duplicate' => ['status' => 'skip_duplicate', 'reason' => 'Ref. No sudah ada pada Invoice yang aktif'],
+        ];
+
+        $report = [];
+        foreach ($reasonByOutcome as $key => $meta) {
+            foreach ($siPreview[$key] as $row) {
+                $report[] = [...$row, ...$meta];
+            }
+        }
+
+        return $report;
     }
 
     public function resolve(ImportBatch $batch, AuditLogService $auditLogService): JsonResponse

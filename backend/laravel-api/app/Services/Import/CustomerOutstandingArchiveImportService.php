@@ -72,7 +72,7 @@ class CustomerOutstandingArchiveImportService
      *   failed_rows: array<int, array{row: int, reason: string}>,
      *   subtotal_mismatches: array<int, array{customer_code: string, customer_name: string, row: int, file_unpaid: float, file_overdue: float, computed_unpaid: float, computed_overdue: float}>,
      *   grand_total_mismatch: ?array{file_unpaid: float, file_overdue: float, computed_unpaid: float, computed_overdue: float},
-     *   si_preview: array{will_create: int, skipped_customer: array<int,string>, skipped_type: array<int,string>, skipped_duplicate: array<int,string>},
+     *   si_preview: array{will_create: int, skipped_customer: array<int,array{customer_code: string, customer_name: string, ref_no: string, invoice_amount: float, due_date: string}>, skipped_type: array<int,array{customer_code: string, customer_name: string, ref_no: string, invoice_amount: float, due_date: string}>, skipped_duplicate: array<int,array{customer_code: string, customer_name: string, ref_no: string, invoice_amount: float, due_date: string}>},
      * }
      */
     public function preflight(string $absolutePath, string $extension): array
@@ -175,19 +175,32 @@ class CustomerOutstandingArchiveImportService
         }, $lines);
     }
 
-    /** @param  array<int, array{line: array, outcome: string}>  $classified */
+    /**
+     * Full row detail (not just ref_no) for every skipped outcome -- lets the frontend preview
+     * dialog show WHICH rows will be left out and why, before the operator confirms, instead of
+     * just a count. Also doubles as the source for the rejected-rows CSV
+     * (CustomerOutstandingArchiveController::store() attaches it via ImportErrorReportWriter).
+     *
+     * @param  array<int, array{line: array, outcome: string}>  $classified
+     */
     private function summarizeClassification(array $classified): array
     {
-        $byOutcome = fn (string $outcome) => array_values(array_map(
-            fn ($c) => $c['line']['ref_no'],
+        $detail = fn (string $outcome) => array_values(array_map(
+            fn ($c) => [
+                'customer_code' => $c['line']['customer_code'],
+                'customer_name' => $c['line']['customer_name'],
+                'ref_no' => $c['line']['ref_no'],
+                'invoice_amount' => $c['line']['invoice_amount'],
+                'due_date' => $c['line']['due_date'],
+            ],
             array_filter($classified, fn ($c) => $c['outcome'] === $outcome)
         ));
 
         return [
-            'will_create' => count($byOutcome('create')),
-            'skipped_customer' => $byOutcome('skip_customer'),
-            'skipped_type' => $byOutcome('skip_type'),
-            'skipped_duplicate' => $byOutcome('skip_duplicate'),
+            'will_create' => count(array_filter($classified, fn ($c) => $c['outcome'] === 'create')),
+            'skipped_customer' => $detail('skip_customer'),
+            'skipped_type' => $detail('skip_type'),
+            'skipped_duplicate' => $detail('skip_duplicate'),
         ];
     }
 

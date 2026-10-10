@@ -127,6 +127,24 @@ class CustomerOutstandingArchiveRealFixtureTest extends TestCase
         $this->assertSame([], $siImport['skipped_duplicate']);
     }
 
+    /** Every row of this fixture skips SI creation (no Customer master exists) -- the preview's
+        si_preview detail must be attached as a downloadable rejected-rows CSV right at upload
+        time, same convention as the other document importers' ImportErrorReportWriter. */
+    public function test_preview_with_skipped_rows_attaches_a_downloadable_rejected_rows_csv(): void
+    {
+        $upload = $this->post('/api/v1/customer-outstanding-archive/snapshots', ['file' => $this->fixtureFile()]);
+        $upload->assertCreated();
+
+        $this->assertTrue($upload->json('data.has_failed_rows'));
+        $batchId = $upload->json('data.id');
+
+        $download = $this->get("/api/v1/import/batches/{$batchId}/failed-rows");
+        $download->assertOk();
+        $csv = $download->streamedContent();
+        $this->assertStringContainsString('customer_code', $csv);
+        $this->assertStringContainsString('skip_customer', $csv);
+    }
+
     public function test_a_second_import_creates_a_new_snapshot_and_becomes_the_active_one(): void
     {
         $first = $this->importFixture();

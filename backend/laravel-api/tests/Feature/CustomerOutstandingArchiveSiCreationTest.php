@@ -191,4 +191,41 @@ class CustomerOutstandingArchiveSiCreationTest extends TestCase
         $this->assertSame(0, Invoice::query()->count(), 'preflight must never write');
         $this->assertSame(0, AccountsReceivable::query()->count());
     }
+
+    public function test_preflight_skipped_rows_carry_full_row_detail_not_just_ref_no(): void
+    {
+        // No Customer master row exists for C-0100 at all -- skip_customer. C-0200 exists, so its
+        // row clears the customer check; CN/KE prefix is neither SI/KE nor TR/KE -- skip_type.
+        Customer::query()->create(['customer_code' => 'C-0200', 'customer_name' => 'Toko Jaya']);
+
+        $csv = $this->csv([
+            ['Customer Unpaid Bills With Overdue Advice'],
+            ['PT Test Company'],
+            ['Date as at : 30/09/2026'],
+            [''],
+            self::HEADER,
+            ['Customer : C-0100 - CV Sinar Abadi'],
+            ['01/09/2026', 'SI/KE/00001/09/2026', 100000, 0, 100000, 30, '01/10/2026', 0, 0],
+            ['Customer : C-0200 - Toko Jaya'],
+            ['02/09/2026', 'CN/KE/00002/09/2026', 50000, 0, 50000, 30, '02/10/2026', 0, 0],
+            ['', '', '', '', 150000, '', '', 0, ''],
+            ['Grand Total', '', '', '', 150000, '', '', 0, ''],
+            ['Printed By : Admin'],
+        ]);
+
+        $preview = $this->service->preflight($this->writeFixture($csv), 'csv');
+
+        $this->assertCount(1, $preview['si_preview']['skipped_customer']);
+        $this->assertSame([
+            'customer_code' => 'C-0100',
+            'customer_name' => 'CV Sinar Abadi',
+            'ref_no' => 'SI/KE/00001/09/2026',
+            'invoice_amount' => 100000.0,
+            'due_date' => '2026-10-01',
+        ], $preview['si_preview']['skipped_customer'][0]);
+
+        $this->assertCount(1, $preview['si_preview']['skipped_type']);
+        $this->assertSame('CN/KE/00002/09/2026', $preview['si_preview']['skipped_type'][0]['ref_no']);
+        $this->assertSame('C-0200', $preview['si_preview']['skipped_type'][0]['customer_code']);
+    }
 }

@@ -682,13 +682,24 @@ export interface CustomerOutstandingArchiveGrandTotalMismatch {
   computed_overdue: number
 }
 
-/** Per-line Invoice-creation outcome, from classifyLines()/createInvoicesFromLines() --
-    shared shape between preflight's dry-run preview and resolve's actual result. */
+/** One row.detail entry for a line that won't become a Sales Invoice -- enough for the preview
+    dialog to show WHICH rows and why, not just a count. See CustomerOutstandingArchiveImportService::summarizeClassification(). */
+export interface CustomerOutstandingArchiveSkippedRow {
+  customer_code: string
+  customer_name: string
+  ref_no: string
+  invoice_amount: number
+  due_date: string
+}
+
+/** Per-line Invoice-creation outcome, from classifyLines() -- preflight's dry-run preview only
+    (resolve's actual si_import result below keeps the older ref_no-only shape — nothing new
+    reads it, so it wasn't worth widening). */
 export interface CustomerOutstandingArchiveSiPreview {
   will_create: number
-  skipped_customer: string[]
-  skipped_type: string[]
-  skipped_duplicate: string[]
+  skipped_customer: CustomerOutstandingArchiveSkippedRow[]
+  skipped_type: CustomerOutstandingArchiveSkippedRow[]
+  skipped_duplicate: CustomerOutstandingArchiveSkippedRow[]
 }
 
 export interface CustomerOutstandingArchiveSiImportResult {
@@ -716,6 +727,9 @@ export interface CustomerOutstandingArchiveImportBatch {
   id: string
   status: 'previewed' | 'completed' | 'failed'
   preview_summary: CustomerOutstandingArchivePreflight | null
+  /** True once the preview step attaches a rejected-rows CSV (any skipped_customer/skipped_type/
+      skipped_duplicate row) -- see downloadImportBatchFailedRows(). */
+  has_failed_rows: boolean
 }
 
 /** resolve()'s response shape -- the snapshot plus what actually happened on the Invoice side. */

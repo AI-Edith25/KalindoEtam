@@ -33,6 +33,7 @@ trait AuthorizesImportModule
         'official-receipts' => 'finance.incoming_payment.import',
         'payment-vouchers' => 'finance.outgoing_payment.import',
         'skybiz-ledger-reconciliation' => 'finance.incoming_payment.import',
+        'customer-outstanding-archive' => 'reports.ar_archive.import',
     ];
 
     private function authorizeModule(string $module): void

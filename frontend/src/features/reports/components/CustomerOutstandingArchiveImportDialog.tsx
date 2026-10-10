@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Upload } from 'lucide-react'
+import { Download, Loader2, Upload } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,8 +9,24 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { downloadImportBatchFailedRows } from '@/shared/lib/downloadImportBatchFailedRows'
 import { resolveCustomerOutstandingImport, storeCustomerOutstandingSnapshot } from '../api/customerOutstandingArchiveApi'
-import type { CustomerOutstandingArchiveImportBatch, CustomerOutstandingSnapshot } from '../types'
+import type { CustomerOutstandingArchiveImportBatch, CustomerOutstandingArchiveSkippedRow, CustomerOutstandingSnapshot } from '../types'
+
+const MODULE = 'customer-outstanding-archive'
+
+function SkippedRowsList({ rows }: { rows: CustomerOutstandingArchiveSkippedRow[] }) {
+  return (
+    <ul className="mt-1 list-disc pl-5">
+      {rows.slice(0, 10).map((row, i) => (
+        <li key={i}>
+          {row.customer_code} — {row.customer_name}: {row.ref_no} ({formatCurrency(row.invoice_amount)})
+        </li>
+      ))}
+      {rows.length > 10 && <li className="list-none text-xs italic">...dan {formatNumber(rows.length - 10)} baris lainnya — unduh CSV untuk daftar lengkap.</li>}
+    </ul>
+  )
+}
 
 type Step = 'setup' | 'preview'
 
@@ -68,6 +84,11 @@ export function CustomerOutstandingArchiveImportDialog({ open, onClose, onImport
     onError: (error) => toastApiError(error),
   })
 
+  const downloadMutation = useMutation({
+    mutationFn: () => downloadImportBatchFailedRows(batch?.id ?? '', MODULE),
+    onError: (error) => toastApiError(error),
+  })
+
   const preview = batch?.preview_summary ?? null
   const hasIssues = !!preview && (preview.failed_rows.length > 0 || preview.subtotal_mismatches.length > 0 || !!preview.grand_total_mismatch)
   const siPreview = preview?.si_preview ?? null
@@ -121,16 +142,19 @@ export function CustomerOutstandingArchiveImportDialog({ open, onClose, onImport
                 {siPreview.skipped_customer.length > 0 && (
                   <div className="text-muted-foreground">
                     {formatNumber(siPreview.skipped_customer.length)} baris dilewati — Customer Code tidak ditemukan di master Customer.
+                    <SkippedRowsList rows={siPreview.skipped_customer} />
                   </div>
                 )}
                 {siPreview.skipped_type.length > 0 && (
                   <div className="text-muted-foreground">
                     {formatNumber(siPreview.skipped_type.length)} baris dilewati — Ref. No bukan format SI/KE atau TR/KE.
+                    <SkippedRowsList rows={siPreview.skipped_type} />
                   </div>
                 )}
                 {siPreview.skipped_duplicate.length > 0 && (
                   <div className="text-muted-foreground">
                     {formatNumber(siPreview.skipped_duplicate.length)} baris dilewati — Ref. No sudah ada pada Invoice yang aktif.
+                    <SkippedRowsList rows={siPreview.skipped_duplicate} />
                   </div>
                 )}
               </div>
@@ -188,6 +212,12 @@ export function CustomerOutstandingArchiveImportDialog({ open, onClose, onImport
               {uploadMutation.isPending && <Loader2 className="size-4 animate-spin" />}
               <Upload className="size-4" />
               Upload
+            </Button>
+          )}
+          {step === 'preview' && batch?.has_failed_rows && (
+            <Button type="button" variant="outline" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>
+              {downloadMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Unduh Baris Ditolak
             </Button>
           )}
           {step === 'preview' && (
