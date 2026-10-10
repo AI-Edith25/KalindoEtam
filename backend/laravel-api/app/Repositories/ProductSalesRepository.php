@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\DB;
  * aggregated over invoice_items/invoices via true DB-level SUM()/GROUP BY (never fetch-all-then-
  * sum-in-PHP), so pagination and the KPI row both reflect the full filtered set, not one page.
  *
- * Branch is resolved the same way JournalEntryRepository::branchMorphConstraint() already does for
- * Invoice: invoices.branch_id is Transportation-only (null for Goods — see Invoice::branch()'s own
- * docblock), so a Goods invoice's branch comes from its anchor Sales Order instead.
+ * Branch is resolved the same way Invoice branch resolution works everywhere else: invoices.branch_id
+ * is Transportation-only (null for Goods — see Invoice::branch()'s own docblock), so a Goods invoice's
+ * branch comes from its anchor Sales Order instead.
  */
 class ProductSalesRepository
 {
