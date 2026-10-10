@@ -25,6 +25,7 @@ class PaymentEntry extends Model
         'submitted_at',
         'cancelled_at',
         'supplier_id',
+        'customer_id',
         'payment_type',
         'expense_account_id',
         'description',
@@ -67,6 +68,11 @@ class PaymentEntry extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     public function expenseAccount(): BelongsTo
@@ -129,6 +135,13 @@ class PaymentEntry extends Model
      */
     public function journalLines(): array
     {
+        if ($this->payment_type === PaymentEntryType::CUSTOMER_ADVANCE) {
+            return [
+                ['account' => $this->customer->receivableAccountCode(), 'type' => 'debit', 'amount' => (float) $this->total_amount],
+                ['account' => $this->cashAccount->code, 'type' => 'credit', 'amount' => (float) $this->total_amount],
+            ];
+        }
+
         if ($this->payment_type === PaymentEntryType::GENERAL_EXPENSE) {
             return [
                 ['account' => $this->expenseAccount->code, 'type' => 'debit', 'amount' => (float) $this->total_amount],

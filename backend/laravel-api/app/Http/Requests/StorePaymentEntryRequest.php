@@ -18,6 +18,10 @@ class StorePaymentEntryRequest extends FormRequest
         return [
             'payment_type' => ['required', Rule::enum(PaymentEntryType::class)],
             'supplier_id' => ['required_if:payment_type,supplier', 'nullable', 'uuid', 'exists:suppliers,id'],
+            'customer_id' => [
+                'required_if:payment_type,customer_advance', 'nullable', 'uuid',
+                Rule::exists('customers', 'id')->where(fn ($query) => $query->whereIn('receivable_category', ['PK', 'PL'])),
+            ],
             'expense_account_id' => ['required_if:payment_type,general_expense', 'nullable', 'uuid', 'exists:chart_of_accounts,id'],
             'description' => ['required_if:payment_type,general_expense', 'nullable', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'gt:0'],

@@ -65,6 +65,24 @@ class PaymentEntryService
                 return $paymentEntry;
             }
 
+            if ($paymentType === PaymentEntryType::CUSTOMER_ADVANCE) {
+                $paymentEntry = $this->paymentEntryRepository->create([
+                    'payment_type' => $paymentType,
+                    'customer_id' => $data['customer_id'],
+                    'payment_date' => $data['payment_date'],
+                    'cash_account_id' => $data['cash_account_id'],
+                    'branch_id' => $data['branch_id'] ?? null,
+                    'reference_number' => $data['reference_number'] ?? null,
+                    'remarks' => $data['remarks'] ?? null,
+                    'total_amount' => $data['amount'],
+                ]);
+
+                $paymentEntry = $paymentEntry->fresh(['customer']);
+                $this->auditLogService->record('created', 'payment_entry', "Created Payment Entry \"{$paymentEntry->document_number}\".");
+
+                return $paymentEntry;
+            }
+
             if ($paymentType === PaymentEntryType::GENERAL_EXPENSE) {
                 $paymentEntry = $this->paymentEntryRepository->create([
                     'payment_type' => $paymentType,
@@ -138,6 +156,21 @@ class PaymentEntryService
                 return $paymentEntry;
             }
 
+            if ($paymentEntry->payment_type === PaymentEntryType::CUSTOMER_ADVANCE) {
+                $headerData = collect($data)->except('amount')->all();
+
+                if (isset($data['amount'])) {
+                    $headerData['total_amount'] = $data['amount'];
+                }
+
+                $this->paymentEntryRepository->update($paymentEntry, $headerData);
+
+                $paymentEntry = $paymentEntry->fresh(['customer']);
+                $this->auditLogService->record('updated', 'payment_entry', "Updated Payment Entry \"{$paymentEntry->document_number}\".");
+
+                return $paymentEntry;
+            }
+
             $headerData = collect($data)->except('amount')->all();
 
             if (isset($data['amount'])) {
@@ -192,6 +225,17 @@ class PaymentEntryService
                 $this->postJournalEntry($paymentEntry);
 
                 $paymentEntry = $paymentEntry->fresh(['expenseAccount']);
+                $this->auditLogService->record('submitted', 'payment_entry', "Submitted Payment Entry \"{$paymentEntry->document_number}\".");
+
+                return $paymentEntry;
+            }
+
+            if ($paymentEntry->payment_type === PaymentEntryType::CUSTOMER_ADVANCE) {
+                $paymentEntry->load('customer');
+                $paymentEntry->submit();
+                $this->postJournalEntry($paymentEntry);
+
+                $paymentEntry = $paymentEntry->fresh(['customer']);
                 $this->auditLogService->record('submitted', 'payment_entry', "Submitted Payment Entry \"{$paymentEntry->document_number}\".");
 
                 return $paymentEntry;

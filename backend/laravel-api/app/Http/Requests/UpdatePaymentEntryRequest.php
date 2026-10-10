@@ -22,6 +22,10 @@ class UpdatePaymentEntryRequest extends FormRequest
     {
         return [
             'supplier_id' => ['sometimes', 'required', 'uuid', 'exists:suppliers,id'],
+            'customer_id' => [
+                'sometimes', 'required', 'uuid',
+                Rule::exists('customers', 'id')->where(fn ($query) => $query->whereIn('receivable_category', ['PK', 'PL'])),
+            ],
             'expense_account_id' => ['sometimes', 'nullable', 'uuid', 'exists:chart_of_accounts,id'],
             'description' => ['sometimes', 'nullable', 'string', 'max:255'],
             'amount' => ['sometimes', 'nullable', 'numeric', 'gt:0'],

@@ -12,7 +12,7 @@ class PaymentEntryRepository extends BaseRepository
     // items.accountsPayable.supplier is needed even on the list page for a mixed voucher's own
     // "Supplier" column — it may span several different suppliers, one per line, unlike a plain
     // supplier voucher whose single supplier already lives on the header.
-    protected const EAGER = ['supplier', 'expenseAccount', 'cashAccount', 'branch', 'items.accountsPayable.supplier', 'expenseLines.expenseAccount'];
+    protected const EAGER = ['supplier', 'customer', 'expenseAccount', 'cashAccount', 'branch', 'items.accountsPayable.supplier', 'expenseLines.expenseAccount'];
 
     public function __construct(PaymentEntry $model)
     {

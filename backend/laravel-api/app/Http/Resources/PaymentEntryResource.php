@@ -19,6 +19,8 @@ class PaymentEntryResource extends JsonResource
             'payment_type' => $this->payment_type,
             'supplier_id' => $this->supplier_id,
             'supplier' => new SupplierResource($this->whenLoaded('supplier')),
+            'customer_id' => $this->customer_id,
+            'customer' => new CustomerResource($this->whenLoaded('customer')),
             'expense_account_id' => $this->expense_account_id,
             'expense_account' => new ChartOfAccountResource($this->whenLoaded('expenseAccount')),
             'description' => $this->description,
