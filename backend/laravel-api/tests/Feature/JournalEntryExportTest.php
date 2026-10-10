@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\DocumentStatus;
-use App\Models\Branch;
-use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
@@ -17,7 +15,11 @@ use Laravel\Sanctum\Sanctum;
 use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
 
-/** General Journal's Branch filter (resolved via the origin transaction, not journal_entry_lines.branch_id) and its Export endpoint. */
+/**
+ * General Journal is manual-entry only: JournalEntryRepository::filteredQuery() hard-filters
+ * to reference_type IS NULL, so a system-generated entry (e.g. posted for an Invoice) must
+ * never appear in its index or export, regardless of any other filter.
+ */
 class JournalEntryExportTest extends TestCase
 {
     use RefreshDatabase;
@@ -37,11 +39,25 @@ class JournalEntryExportTest extends TestCase
         Sanctum::actingAs($user);
     }
 
-    protected function invoiceJournalEntry(Branch $branch, Customer $customer): JournalEntry
+    protected function manualJournalEntry(): JournalEntry
     {
+        return JournalEntry::query()->create([
+            'status' => DocumentStatus::SUBMITTED,
+            'posting_date' => now()->toDateString(),
+            'reference_type' => null,
+            'reference_id' => null,
+            'description' => 'Manual journal entry',
+            'total_debit' => 50000,
+            'total_credit' => 50000,
+        ]);
+    }
+
+    protected function invoiceJournalEntry(): JournalEntry
+    {
+        $customer = Customer::query()->create(['customer_code' => 'C001', 'customer_name' => 'Acme']);
+
         $salesOrder = SalesOrder::query()->create([
             'customer_id' => $customer->id,
-            'branch_id' => $branch->id,
             'order_date' => now()->toDateString(),
         ]);
 
@@ -69,44 +85,29 @@ class JournalEntryExportTest extends TestCase
         ]);
     }
 
-    protected function makeBranch(Company $company, string $name, string $code): Branch
-    {
-        return Branch::query()->create(['company_id' => $company->id, 'name' => $name, 'code' => $code]);
-    }
-
-    public function test_branch_filter_narrows_journal_entries_to_the_right_branch(): void
+    public function test_index_only_returns_manual_entries(): void
     {
         $this->actingUserWithJournalEntryView();
 
-        $company = Company::query()->create(['name' => 'Test Co', 'code' => 'TC', 'fiscal_year_start' => now()->startOfYear()->toDateString()]);
-        $branchA = $this->makeBranch($company, 'Branch A', 'A');
-        $branchB = $this->makeBranch($company, 'Branch B', 'B');
-        $customer = Customer::query()->create(['customer_code' => 'C001', 'customer_name' => 'Acme']);
+        $manual = $this->manualJournalEntry();
+        $this->invoiceJournalEntry();
 
-        $entryA = $this->invoiceJournalEntry($branchA, $customer);
-        $this->invoiceJournalEntry($branchB, $customer);
-
-        $response = $this->getJson("/api/v1/journal-entries?branch_id={$branchA->id}");
+        $response = $this->getJson('/api/v1/journal-entries');
 
         $response->assertOk();
         $ids = collect($response->json('data'))->pluck('id')->all();
-        $this->assertEquals([$entryA->id], $ids);
+        $this->assertEquals([$manual->id], $ids);
     }
 
-    public function test_export_downloads_a_file_respecting_the_branch_filter(): void
+    public function test_export_only_includes_manual_entries(): void
     {
         $this->actingUserWithJournalEntryView();
         Excel::fake();
 
-        $company = Company::query()->create(['name' => 'Test Co', 'code' => 'TC', 'fiscal_year_start' => now()->startOfYear()->toDateString()]);
-        $branchA = $this->makeBranch($company, 'Branch A', 'A');
-        $branchB = $this->makeBranch($company, 'Branch B', 'B');
-        $customer = Customer::query()->create(['customer_code' => 'C001', 'customer_name' => 'Acme']);
+        $this->manualJournalEntry();
+        $this->invoiceJournalEntry();
 
-        $this->invoiceJournalEntry($branchA, $customer);
-        $this->invoiceJournalEntry($branchB, $customer);
-
-        $this->get("/api/v1/journal-entries/export?format=xlsx&branch_id={$branchA->id}")->assertOk();
+        $this->get('/api/v1/journal-entries/export?format=xlsx')->assertOk();
 
         Excel::assertDownloaded('general-journal.xlsx', function ($export) {
             return $export->collection()->count() === 1;
