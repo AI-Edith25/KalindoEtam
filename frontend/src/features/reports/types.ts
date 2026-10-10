@@ -622,6 +622,11 @@ export interface CustomerOutstandingSnapshot {
   grand_total_overdue: string
   importer: { id: string; name: string } | null
   created_at: string
+  import_batch_id: string | null
+  /** True when this snapshot's own import batch still has a rejected-rows CSV attached — lets
+      Riwayat Import offer the same "Unduh Baris Ditolak" download the import dialog's preview
+      step does, even after that dialog is long closed. */
+  has_failed_rows: boolean
 }
 
 export interface CustomerOutstandingArchiveLine {

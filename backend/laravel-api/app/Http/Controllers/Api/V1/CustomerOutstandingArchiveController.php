@@ -117,7 +117,7 @@ class CustomerOutstandingArchiveController extends Controller
         $extension = pathinfo($batch->file_path, PATHINFO_EXTENSION);
 
         try {
-            ['snapshot' => $snapshot, 'si_import' => $siImport] = $this->importService->commit($absolutePath, $extension, $batch->original_filename, $batch->created_by);
+            ['snapshot' => $snapshot, 'si_import' => $siImport] = $this->importService->commit($absolutePath, $extension, $batch->original_filename, $batch->created_by, $batch->id);
         } finally {
             Storage::disk($batch->disk)->delete($batch->file_path);
         }

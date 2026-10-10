@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,7 @@ class CustomerOutstandingSnapshot extends Model
         'grand_total_unpaid',
         'grand_total_overdue',
         'imported_by',
+        'import_batch_id',
     ];
 
     protected $casts = [
@@ -30,6 +32,12 @@ class CustomerOutstandingSnapshot extends Model
         'grand_total_overdue' => 'decimal:2',
     ];
 
+    /** importBatch itself never needs to reach the frontend (its error_report_path is an internal
+        disk path) -- only the has_failed_rows accessor it backs. */
+    protected $hidden = ['importBatch'];
+
+    protected $appends = ['has_failed_rows'];
+
     public function lines(): HasMany
     {
         return $this->hasMany(CustomerOutstandingSnapshotLine::class, 'snapshot_id');
@@ -38,5 +46,20 @@ class CustomerOutstandingSnapshot extends Model
     public function importer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'imported_by');
+    }
+
+    public function importBatch(): BelongsTo
+    {
+        return $this->belongsTo(ImportBatch::class, 'import_batch_id');
+    }
+
+    /** True when this snapshot's own import batch still has a rejected-rows CSV attached -- lets
+        Riwayat Import offer the same "Unduh Baris Ditolak" download the preview step does, after
+        the dialog has long since closed. */
+    protected function hasFailedRows(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->importBatch?->error_report_path !== null,
+        );
     }
 }

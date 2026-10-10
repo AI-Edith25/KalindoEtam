@@ -94,11 +94,11 @@ class CustomerOutstandingArchiveImportService
     }
 
     /** @return array{snapshot: CustomerOutstandingSnapshot, si_import: array{created: int, skipped_customer: array<int,string>, skipped_type: array<int,string>, skipped_duplicate: array<int,string>}} */
-    public function commit(string $absolutePath, string $extension, string $originalFilename, ?string $importedBy): array
+    public function commit(string $absolutePath, string $extension, string $originalFilename, ?string $importedBy, ?string $importBatchId = null): array
     {
         $parsed = $this->parse($absolutePath, $extension);
 
-        $snapshot = DB::transaction(function () use ($parsed, $originalFilename, $importedBy) {
+        $snapshot = DB::transaction(function () use ($parsed, $originalFilename, $importedBy, $importBatchId) {
             $snapshot = CustomerOutstandingSnapshot::query()->create([
                 'source_filename' => $originalFilename,
                 'company_name' => $parsed['company_name'],
@@ -108,6 +108,7 @@ class CustomerOutstandingArchiveImportService
                 'grand_total_unpaid' => $parsed['sum_unpaid'],
                 'grand_total_overdue' => $parsed['sum_overdue'],
                 'imported_by' => $importedBy,
+                'import_batch_id' => $importBatchId,
             ]);
 
             $now = now();

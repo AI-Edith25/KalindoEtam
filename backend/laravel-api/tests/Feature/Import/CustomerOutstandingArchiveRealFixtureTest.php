@@ -145,6 +145,26 @@ class CustomerOutstandingArchiveRealFixtureTest extends TestCase
         $this->assertStringContainsString('skip_customer', $csv);
     }
 
+    /** The "Unduh Baris Ditolak" button only ever existed inside the upload dialog's preview step
+        -- once resolve() commits, that batch's rejected-rows CSV became undownloadable from
+        anywhere in the UI even though the file was never deleted from disk. Snapshot must carry
+        its import_batch_id through to resolve()/snapshots() so the rejected-rows CSV stays
+        reachable from Riwayat Import after the fact. */
+    public function test_snapshot_exposes_its_import_batch_so_rejected_rows_stay_downloadable_after_resolve(): void
+    {
+        $result = $this->importFixture();
+        $batchId = $result['upload']->json('data.id');
+
+        $snapshots = $this->getJson('/api/v1/customer-outstanding-archive/snapshots');
+        $snapshots->assertOk();
+        $this->assertSame($batchId, $snapshots->json('data.0.import_batch_id'));
+        $this->assertTrue($snapshots->json('data.0.has_failed_rows'));
+
+        $download = $this->get("/api/v1/import/batches/{$batchId}/failed-rows");
+        $download->assertOk();
+        $this->assertStringContainsString('skip_customer', $download->streamedContent());
+    }
+
     public function test_a_second_import_creates_a_new_snapshot_and_becomes_the_active_one(): void
     {
         $first = $this->importFixture();

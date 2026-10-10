@@ -23,6 +23,7 @@ import { exportAccountsReceivables, fetchAccountsReceivables } from '@/features/
 import { fetchAccountsReceivablesAll } from '../api/accountsReceivableCustomerReportsApi'
 import type { AccountsReceivable } from '@/features/payment/types'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { downloadImportBatchFailedRows } from '@/shared/lib/downloadImportBatchFailedRows'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
@@ -598,7 +599,7 @@ export function AccountsReceivableDetailReportPage() {
         )}
       </div>
 
-      {viewMode === 'archive' && snapshotMode && (
+      {viewMode === 'archive' && (
         <Card>
           <button
             type="button"
@@ -620,6 +621,7 @@ export function AccountsReceivableDetailReportPage() {
                       <TableCell className="text-right">Baris</TableCell>
                       <TableCell className="text-right">Total Outstanding</TableCell>
                       <TableCell>Diimpor Oleh</TableCell>
+                      <TableCell>Baris Ditolak</TableCell>
                     </TableRow>
                     {(snapshotsQuery.data ?? []).map((snapshot) => (
                       <TableRow key={snapshot.id}>
@@ -629,6 +631,22 @@ export function AccountsReceivableDetailReportPage() {
                         <TableCell className="text-right">{formatNumber(snapshot.total_rows)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(snapshot.grand_total_unpaid)}</TableCell>
                         <TableCell>{snapshot.importer?.name ?? '—'}</TableCell>
+                        <TableCell>
+                          {canImportArchive && snapshot.has_failed_rows && snapshot.import_batch_id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                downloadImportBatchFailedRows(snapshot.import_batch_id as string, 'customer-outstanding-archive').catch(
+                                  (error) => toastApiError(error),
+                                )
+                              }
+                            >
+                              <Download className="size-4" />
+                              Unduh
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

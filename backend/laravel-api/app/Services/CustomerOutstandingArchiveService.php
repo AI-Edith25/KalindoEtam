@@ -17,7 +17,7 @@ class CustomerOutstandingArchiveService
     public function snapshots(): Collection
     {
         return CustomerOutstandingSnapshot::query()
-            ->with('importer:id,name')
+            ->with(['importer:id,name', 'importBatch:id,error_report_path'])
             ->orderByDesc('created_at')
             ->get();
     }
