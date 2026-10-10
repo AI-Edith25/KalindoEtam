@@ -19,6 +19,7 @@ class StoreCustomerRequest extends FormRequest
             // supplied value is honored (still validated unique below). whereNull('deleted_at') —
             // see StoreChartOfAccountRequest's own comment.
             'customer_code' => ['nullable', 'string', 'max:255', Rule::unique('customers', 'customer_code')->whereNull('deleted_at')],
+            'receivable_category' => ['nullable', Rule::in(['C', 'PK', 'PL'])],
             'customer_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'telephone' => ['nullable', 'string', 'max:50'],

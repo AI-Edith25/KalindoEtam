@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\DocumentNumberGeneratorInterface;
+use App\Enums\ReceivableCategory;
 use App\Models\Customer;
 use App\Repositories\CustomerRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -18,9 +19,9 @@ class CustomerService
     ) {}
 
     /** Preview only — see DocumentNumberGeneratorInterface::peek(). The authoritative code is generated fresh in create(). */
-    public function peekNextCode(): string
+    public function peekNextCode(ReceivableCategory $category = ReceivableCategory::TRADE): string
     {
-        return $this->documentNumberGenerator->peek('customer');
+        return $this->documentNumberGenerator->peek($category->namingSeriesDocumentType());
     }
 
     /**
@@ -28,9 +29,9 @@ class CustomerService
      * (searchCustomersLookup in lookupsApi.ts) — callers that omit it get the
      * unfiltered first `perPage` rows, unchanged from before.
      */
-    public function list(int $perPage = 200, ?string $search = null): LengthAwarePaginator
+    public function list(int $perPage = 200, ?string $search = null, ?array $categories = null): LengthAwarePaginator
     {
-        return $this->customerRepository->paginate($perPage, $search);
+        return $this->customerRepository->paginate($perPage, $search, $categories);
     }
 
     public function exportCount(?string $search, ?bool $isActive): int
@@ -52,10 +53,13 @@ class CustomerService
     public function create(array $data): Customer
     {
         return DB::transaction(function () use ($data) {
+            $category = ReceivableCategory::from($data['receivable_category'] ?? ReceivableCategory::TRADE->value);
+            $data['receivable_category'] = $category->value;
+
             // Always consume a number — keeps future peekNextCode() suggestions moving forward even
             // when the caller overrides customer_code below, so the next New Customer form doesn't
             // offer a code that was already "spent" (and would just collide) on this one.
-            $generated = $this->documentNumberGenerator->generate('customer');
+            $generated = $this->documentNumberGenerator->generate($category->namingSeriesDocumentType());
             if (! filled($data['customer_code'] ?? null)) {
                 $data['customer_code'] = $generated;
             }

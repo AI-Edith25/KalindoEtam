@@ -13,12 +13,16 @@ class CustomerRepository extends BaseRepository
         parent::__construct($model);
     }
 
-    public function paginate(int $perPage = 15, ?string $search = null): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?string $search = null, ?array $categories = null): LengthAwarePaginator
     {
         $query = $this->model->query()->with(['salesPerson', 'location']);
 
         if ($search) {
             $query->where(fn ($q) => $q->where('customer_code', 'like', "%{$search}%")->orWhere('customer_name', 'like', "%{$search}%"));
+        }
+
+        if ($categories) {
+            $query->whereIn('receivable_category', $categories);
         }
 
         // UUID primary key means an unordered scan has no relation to insertion order — without this,

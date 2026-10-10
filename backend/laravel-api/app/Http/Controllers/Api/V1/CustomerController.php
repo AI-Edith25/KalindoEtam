@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\ReceivableCategory;
 use App\Exports\CustomerListingExport;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
@@ -27,16 +28,22 @@ class CustomerController extends Controller
     ) {}
 
     /** Preview of the code the New Customer form will get on save — see CustomerService::peekNextCode(). */
-    public function nextCode(): JsonResponse
+    public function nextCode(Request $request): JsonResponse
     {
-        return $this->success(['customer_code' => $this->customerService->peekNextCode()]);
+        $category = ReceivableCategory::tryFrom($request->query('category', '')) ?? ReceivableCategory::TRADE;
+
+        return $this->success(['customer_code' => $this->customerService->peekNextCode($category)]);
     }
 
     public function index(Request $request): JsonResponse
     {
+        $categoriesParam = $request->query('receivable_category');
+        $categories = $categoriesParam ? explode(',', $categoriesParam) : null;
+
         return $this->success(CustomerResource::collection($this->customerService->list(
             (int) ($request->query('per_page') ?? 200),
             $request->query('search'),
+            $categories,
         )));
     }
 
