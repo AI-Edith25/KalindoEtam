@@ -224,6 +224,7 @@ export interface SupplierFormValues {
 export interface Customer {
   id: string
   customer_code: string
+  receivable_category: 'C' | 'PK' | 'PL'
   customer_name: string
   phone: string | null
   telephone: string | null
@@ -246,6 +247,7 @@ export interface Customer {
 
 export interface CustomerFormValues {
   customer_code: string
+  receivable_category: 'C' | 'PK' | 'PL'
   customer_name: string
   phone: string | null
   telephone: string | null

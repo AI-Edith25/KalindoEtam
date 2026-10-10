@@ -13,8 +13,8 @@ export const updateCustomer = customerCrud.update
 export const deleteCustomer = customerCrud.remove
 
 /** Preview of the code the New Customer form will get on save — see CustomerController::nextCode(). Cosmetic only, can go stale if another user creates one first; the server generates the real value fresh on submit regardless. */
-export async function fetchNextCustomerCode(): Promise<string> {
-  const { data } = await apiClient.get<ApiResponse<{ customer_code: string }>>('/customers/next-code')
+export async function fetchNextCustomerCode(category: 'C' | 'PK' | 'PL' = 'C'): Promise<string> {
+  const { data } = await apiClient.get<ApiResponse<{ customer_code: string }>>('/customers/next-code', { params: { category } })
   return data.data.customer_code
 }
 

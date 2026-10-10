@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchSalesPersonsLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '../api/lookupsApi'
 import { createCustomer, fetchNextCustomerCode, updateCustomer } from '../api/customerApi'
@@ -19,6 +20,7 @@ import type { Customer } from '../types'
 
 const customerFormSchema = z.object({
   customer_code: z.string().min(1, 'Customer Code is required').max(255),
+  receivable_category: z.enum(['C', 'PK', 'PL']),
   customer_name: z.string().min(1, 'Customer Name is required').max(255),
   phone: z.string().max(50).optional().or(z.literal('')),
   telephone: z.string().max(50).optional().or(z.literal('')),
@@ -41,6 +43,7 @@ type CustomerFormValues = z.infer<typeof customerFormSchema>
 
 const emptyValues: CustomerFormValues = {
   customer_code: '',
+  receivable_category: 'C',
   customer_name: '',
   phone: '',
   telephone: '',
@@ -67,21 +70,22 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const locations = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const form = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerFormSchema),
+    defaultValues: emptyValues,
+  })
+
   /**
    * Suggested default only, not a lock — the field stays editable (user feedback: codes need
    * to stay correctable even with a system default). Can go stale under concurrent creates;
    * CustomerService::create() re-consumes a fresh number server-side regardless of what's shown
    * here, and only falls back to it when the submitted customer_code is blank.
    */
+  const category = form.watch('receivable_category')
   const nextCode = useQuery({
-    queryKey: ['customers', 'next-code'],
-    queryFn: fetchNextCustomerCode,
+    queryKey: ['customers', 'next-code', category],
+    queryFn: () => fetchNextCustomerCode(category),
     enabled: open && !isEdit,
-  })
-
-  const form = useForm<CustomerFormValues>({
-    resolver: zodResolver(customerFormSchema),
-    defaultValues: emptyValues,
   })
 
   useEffect(() => {
@@ -91,6 +95,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
       customer
         ? {
             customer_code: customer.customer_code,
+            receivable_category: customer.receivable_category,
             customer_name: customer.customer_name,
             phone: customer.phone ?? '',
             telephone: customer.telephone ?? '',
@@ -108,14 +113,14 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
     )
   }, [open, customer, form])
 
-  // Fills the suggestion in once it arrives — only if the user hasn't already typed something
-  // over it (e.g. the query resolving after they started editing shouldn't clobber their input).
+  // Re-suggests whenever the category changes — switching it is a deliberate "give me a
+  // different series" action, so it's always allowed to overwrite (the field is a suggestion,
+  // never a lock — see its own placeholder/description).
   useEffect(() => {
     if (!open || isEdit || !nextCode.data) return
-    if (!form.getValues('customer_code')) {
-      form.setValue('customer_code', nextCode.data)
-    }
-  }, [open, isEdit, nextCode.data, form])
+    form.setValue('customer_code', nextCode.data)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEdit, nextCode.data])
 
   const mutation = useMutation({
     mutationFn: (values: CustomerFormValues) => {
@@ -170,6 +175,28 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                         {...field}
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="receivable_category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={isEdit}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="C">C — Piutang Usaha</SelectItem>
+                        <SelectItem value="PK">PK — Piutang Karyawan</SelectItem>
+                        <SelectItem value="PL">PL — Piutang Lain-lain</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -301,37 +328,41 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="credit_limit"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Credit Limit</FormLabel>
-                    <FormControl>
-                      <RupiahInput value={field.value ?? ''} onChange={field.onChange} placeholder="Leave blank for unlimited" aria-label="Credit Limit" decimals={2} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="terms_of_payment_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Default Terms of Payment</FormLabel>
-                    <SearchableSelect
-                      options={termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []}
-                      value={field.value || undefined}
-                      onChange={(value) => field.onChange(value ?? '')}
-                      loading={termsOfPayment.isLoading}
-                      placeholder="No default"
-                      aria-label="Default Terms of Payment"
-                    />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {category === 'C' && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="credit_limit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Credit Limit</FormLabel>
+                        <FormControl>
+                          <RupiahInput value={field.value ?? ''} onChange={field.onChange} placeholder="Leave blank for unlimited" aria-label="Credit Limit" decimals={2} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="terms_of_payment_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Default Terms of Payment</FormLabel>
+                        <SearchableSelect
+                          options={termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []}
+                          value={field.value || undefined}
+                          onChange={(value) => field.onChange(value ?? '')}
+                          loading={termsOfPayment.isLoading}
+                          placeholder="No default"
+                          aria-label="Default Terms of Payment"
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
               <FormField
                 control={form.control}
                 name="is_active"
