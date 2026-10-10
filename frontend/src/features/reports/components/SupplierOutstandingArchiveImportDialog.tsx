@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Upload } from 'lucide-react'
+import { Download, Loader2, Upload } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,8 +9,11 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { downloadImportBatchFailedRows } from '@/shared/lib/downloadImportBatchFailedRows'
 import { resolveSupplierOutstandingImport, storeSupplierOutstandingSnapshot } from '../api/supplierOutstandingArchiveApi'
 import type { SupplierOutstandingArchiveImportBatch, SupplierOutstandingSnapshot } from '../types'
+
+const MODULE = 'supplier-outstanding-archive'
 
 type Step = 'setup' | 'preview'
 
@@ -55,6 +58,11 @@ export function SupplierOutstandingArchiveImportDialog({ open, onClose, onImport
       onImported(snapshot)
       handleClose()
     },
+    onError: (error) => toastApiError(error),
+  })
+
+  const downloadMutation = useMutation({
+    mutationFn: () => downloadImportBatchFailedRows(batch?.id ?? '', MODULE),
     onError: (error) => toastApiError(error),
   })
 
@@ -152,6 +160,12 @@ export function SupplierOutstandingArchiveImportDialog({ open, onClose, onImport
               {uploadMutation.isPending && <Loader2 className="size-4 animate-spin" />}
               <Upload className="size-4" />
               Upload
+            </Button>
+          )}
+          {step === 'preview' && batch?.has_failed_rows && (
+            <Button type="button" variant="outline" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>
+              {downloadMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Unduh Baris Ditolak
             </Button>
           )}
           {step === 'preview' && (

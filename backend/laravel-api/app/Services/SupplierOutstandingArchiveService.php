@@ -13,7 +13,7 @@ class SupplierOutstandingArchiveService
     public function snapshots(): Collection
     {
         return SupplierOutstandingSnapshot::query()
-            ->with('importer:id,name')
+            ->with(['importer:id,name', 'importBatch:id,error_report_path'])
             ->orderByDesc('created_at')
             ->get();
     }

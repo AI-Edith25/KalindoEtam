@@ -34,6 +34,7 @@ trait AuthorizesImportModule
         'payment-vouchers' => 'finance.outgoing_payment.import',
         'skybiz-ledger-reconciliation' => 'finance.incoming_payment.import',
         'customer-outstanding-archive' => 'reports.ar_archive.import',
+        'supplier-outstanding-archive' => 'reports.ap_archive.import',
     ];
 
     private function authorizeModule(string $module): void

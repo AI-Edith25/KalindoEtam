@@ -767,6 +767,9 @@ export interface SupplierOutstandingSnapshot {
   grand_total_overdue: string
   importer: { id: string; name: string } | null
   created_at: string
+  import_batch_id: string | null
+  /** See CustomerOutstandingSnapshot.has_failed_rows -- same meaning, AP mirror. */
+  has_failed_rows: boolean
 }
 
 export interface SupplierOutstandingArchiveLine {
@@ -843,6 +846,9 @@ export interface SupplierOutstandingArchiveImportBatch {
   id: string
   status: 'previewed' | 'completed' | 'failed'
   preview_summary: SupplierOutstandingArchivePreflight | null
+  /** True once store() attaches a rejected-rows CSV (failed_rows -- this module has no AR-side
+      si_preview to classify against) -- see downloadImportBatchFailedRows(). */
+  has_failed_rows: boolean
 }
 
 export interface SupplierOutstandingArchiveFilterValues {

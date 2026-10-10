@@ -14,6 +14,7 @@ use App\Models\SupplierOutstandingSnapshot;
 use App\Services\AuditLogService;
 use App\Services\Import\SupplierOutstandingArchiveImportService;
 use App\Services\SupplierOutstandingArchiveService;
+use App\Support\ImportErrorReportWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -62,7 +63,22 @@ class SupplierOutstandingArchiveController extends Controller
             'created_by' => Auth::id(),
         ]);
 
+        ImportErrorReportWriter::attachRejectedRows($batch, $this->rejectedRowsReport($preflight['failed_rows']));
+
         return $this->success(new ImportBatchResource($batch), 'Menunggu konfirmasi import.', 201);
+    }
+
+    /**
+     * This module never classifies/creates anything downstream (no AR mirror's si_preview here --
+     * see SupplierOutstandingArchiveImportService's own docblock, this archive stays standalone) --
+     * its only rejected rows are failed_rows, rows that failed to parse at all.
+     *
+     * @param  array<int, array{row: int, reason: string}>  $failedRows
+     * @return array<int, array<string, scalar|null>>
+     */
+    private function rejectedRowsReport(array $failedRows): array
+    {
+        return array_map(fn ($row) => [...$row, 'status' => 'failed_parse'], $failedRows);
     }
 
     public function resolve(ImportBatch $batch, AuditLogService $auditLogService): JsonResponse
@@ -74,7 +90,7 @@ class SupplierOutstandingArchiveController extends Controller
         $extension = pathinfo($batch->file_path, PATHINFO_EXTENSION);
 
         try {
-            $snapshot = $this->importService->commit($absolutePath, $extension, $batch->original_filename, $batch->created_by);
+            $snapshot = $this->importService->commit($absolutePath, $extension, $batch->original_filename, $batch->created_by, $batch->id);
         } finally {
             Storage::disk($batch->disk)->delete($batch->file_path);
         }

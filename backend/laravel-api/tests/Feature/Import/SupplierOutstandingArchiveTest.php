@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 /**
@@ -29,6 +30,17 @@ class SupplierOutstandingArchiveTest extends TestCase
         $user = User::factory()->create();
         $user->givePermissionTo(['reports.ap_archive.view', 'reports.ap_archive.import']);
         Sanctum::actingAs($user);
+    }
+
+    private ?string $generatedFixturePath = null;
+
+    protected function tearDown(): void
+    {
+        if ($this->generatedFixturePath !== null && file_exists($this->generatedFixturePath)) {
+            unlink($this->generatedFixturePath);
+        }
+
+        parent::tearDown();
     }
 
     private function fixtureFile(string $originalName = 'xlsSupplierOutstandingBills.xlsx'): UploadedFile
@@ -112,5 +124,61 @@ class SupplierOutstandingArchiveTest extends TestCase
         $s2 = $suppliers->firstWhere('supplier_code', 'S-0002');
         $this->assertSame('PT CONCH - CABANG SMD', $s2['supplier_name']);
         $this->assertCount(2, $s2['rows']);
+    }
+
+    /** Blanks one transaction row's Ref. No in a copy of the fixture -- triggers parseBody()'s
+        "Ref. No kosong." failed-row path, the AP mirror of what the AR test exercises. */
+    private function fixtureFileWithOneBlankRefNo(): UploadedFile
+    {
+        $spreadsheet = IOFactory::load(base_path('tests/Fixtures/xlsSupplierOutstandingBills.xlsx'));
+        $sheet = $spreadsheet->getActiveSheet();
+
+        foreach ($sheet->getRowIterator() as $row) {
+            $refCell = null;
+            foreach ($row->getCellIterator() as $cell) {
+                if ($cell->getValue() !== null && str_starts_with((string) $cell->getValue(), 'PI/KE/')) {
+                    $refCell = $cell;
+                    break;
+                }
+            }
+            if ($refCell !== null) {
+                $refCell->setValue(null);
+                break;
+            }
+        }
+
+        $path = storage_path('app/test-'.uniqid('supplier-outstanding-blank-ref').'.xlsx');
+        IOFactory::createWriter($spreadsheet, 'Xlsx')->save($path);
+        $this->generatedFixturePath = $path;
+
+        return new UploadedFile($path, 'xlsSupplierOutstandingBills.xlsx', null, null, true);
+    }
+
+    /** The rejected-rows CSV previously only existed during the upload dialog's preview step --
+        once resolve() committed, it became unreachable even though the file was never deleted.
+        AP mirror of the AR fix: snapshot must carry its import_batch_id through so the CSV stays
+        downloadable from Riwayat Import after the fact. */
+    public function test_snapshot_exposes_its_import_batch_so_rejected_rows_stay_downloadable_after_resolve(): void
+    {
+        $upload = $this->post('/api/v1/supplier-outstanding-archive/snapshots', ['file' => $this->fixtureFileWithOneBlankRefNo()]);
+        $upload->assertCreated();
+
+        $failedRows = $upload->json('data.preview_summary.failed_rows');
+        $this->assertNotEmpty($failedRows, 'fixture mutation did not produce a failed row -- check the Ref. No prefix match');
+        $this->assertSame('Ref. No kosong.', $failedRows[0]['reason']);
+        $this->assertTrue($upload->json('data.has_failed_rows'));
+        $batchId = $upload->json('data.id');
+
+        $resolve = $this->postJson("/api/v1/supplier-outstanding-archive/batches/{$batchId}/resolve");
+        $resolve->assertCreated();
+
+        $snapshots = $this->getJson('/api/v1/supplier-outstanding-archive/snapshots');
+        $snapshots->assertOk();
+        $this->assertSame($batchId, $snapshots->json('data.0.import_batch_id'));
+        $this->assertTrue($snapshots->json('data.0.has_failed_rows'));
+
+        $download = $this->get("/api/v1/import/batches/{$batchId}/failed-rows");
+        $download->assertOk();
+        $this->assertStringContainsString('failed_parse', $download->streamedContent());
     }
 }

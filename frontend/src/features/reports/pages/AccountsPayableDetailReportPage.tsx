@@ -22,6 +22,7 @@ import { fetchAccountsPayableGroupedDetail } from '../api/accountsPayableGrouped
 import { fetchUnallocatedPaymentVouchers } from '../api/accountsPayableUnallocatedApi'
 import type { AccountsPayable } from '@/features/payment/types'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
+import { downloadImportBatchFailedRows } from '@/shared/lib/downloadImportBatchFailedRows'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { AccountsPayableDetailReportFiltersBar } from '../components/AccountsPayableDetailReportFiltersBar'
@@ -422,6 +423,7 @@ export function AccountsPayableDetailReportPage() {
                       <TableCell className="text-right">Baris</TableCell>
                       <TableCell className="text-right">Total Outstanding</TableCell>
                       <TableCell>Diimpor Oleh</TableCell>
+                      <TableCell>Baris Ditolak</TableCell>
                     </TableRow>
                     {(snapshotsQuery.data ?? []).map((snapshot) => (
                       <TableRow key={snapshot.id}>
@@ -431,6 +433,22 @@ export function AccountsPayableDetailReportPage() {
                         <TableCell className="text-right">{formatNumber(snapshot.total_rows)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(snapshot.grand_total_unpaid)}</TableCell>
                         <TableCell>{snapshot.importer?.name ?? '—'}</TableCell>
+                        <TableCell>
+                          {canImportArchive && snapshot.has_failed_rows && snapshot.import_batch_id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                downloadImportBatchFailedRows(snapshot.import_batch_id as string, 'supplier-outstanding-archive').catch(
+                                  (error) => toastApiError(error),
+                                )
+                              }
+                            >
+                              <Download className="size-4" />
+                              Unduh
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

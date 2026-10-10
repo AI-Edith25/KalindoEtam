@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +22,7 @@ class SupplierOutstandingSnapshot extends Model
         'grand_total_unpaid',
         'grand_total_overdue',
         'imported_by',
+        'import_batch_id',
     ];
 
     protected $casts = [
@@ -31,6 +33,10 @@ class SupplierOutstandingSnapshot extends Model
         'grand_total_overdue' => 'decimal:2',
     ];
 
+    protected $hidden = ['importBatch'];
+
+    protected $appends = ['has_failed_rows'];
+
     public function lines(): HasMany
     {
         return $this->hasMany(SupplierOutstandingSnapshotLine::class, 'snapshot_id');
@@ -39,5 +45,18 @@ class SupplierOutstandingSnapshot extends Model
     public function importer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'imported_by');
+    }
+
+    public function importBatch(): BelongsTo
+    {
+        return $this->belongsTo(ImportBatch::class, 'import_batch_id');
+    }
+
+    /** See CustomerOutstandingSnapshot::hasFailedRows() -- same accessor, AP mirror. */
+    protected function hasFailedRows(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->importBatch?->error_report_path !== null,
+        );
     }
 }

@@ -52,11 +52,11 @@ class SupplierOutstandingArchiveImportService
         ];
     }
 
-    public function commit(string $absolutePath, string $extension, string $originalFilename, ?string $importedBy): SupplierOutstandingSnapshot
+    public function commit(string $absolutePath, string $extension, string $originalFilename, ?string $importedBy, ?string $importBatchId = null): SupplierOutstandingSnapshot
     {
         $parsed = $this->parse($absolutePath, $extension, $originalFilename);
 
-        return DB::transaction(function () use ($parsed, $originalFilename, $importedBy) {
+        return DB::transaction(function () use ($parsed, $originalFilename, $importedBy, $importBatchId) {
             $snapshot = SupplierOutstandingSnapshot::query()->create([
                 'source_filename' => $originalFilename,
                 'company_name' => $parsed['company_name'],
@@ -66,6 +66,7 @@ class SupplierOutstandingArchiveImportService
                 'grand_total_unpaid' => $parsed['sum_unpaid'],
                 'grand_total_overdue' => $parsed['sum_overdue'],
                 'imported_by' => $importedBy,
+                'import_batch_id' => $importBatchId,
             ]);
 
             $now = now();
