@@ -16,8 +16,9 @@ import { z } from 'zod'
  */
 export const paymentEntryFormSchema = z
   .object({
-    payment_type: z.enum(['supplier', 'general_expense', 'mixed']),
+    payment_type: z.enum(['supplier', 'general_expense', 'mixed', 'customer_advance']),
     supplier_id: z.string(),
+    customer_id: z.string(),
     expense_account_id: z.string(),
     description: z.string(),
     amount: z.string(),
@@ -38,6 +39,10 @@ export const paymentEntryFormSchema = z
     if (values.payment_type === 'supplier') {
       if (!values.supplier_id) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Supplier is required', path: ['supplier_id'] })
+      }
+    } else if (values.payment_type === 'customer_advance') {
+      if (!values.customer_id) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Customer is required', path: ['customer_id'] })
       }
     } else if (values.payment_type === 'general_expense') {
       if (!values.expense_account_id) {

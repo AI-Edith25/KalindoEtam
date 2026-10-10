@@ -26,6 +26,7 @@ export interface PaymentEntryListParams {
 export interface PaymentEntryPayload {
   payment_type: PaymentEntryType
   supplier_id?: string | null
+  customer_id?: string | null
   expense_account_id?: string | null
   description?: string | null
   amount?: number

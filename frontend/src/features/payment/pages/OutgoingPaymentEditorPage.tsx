@@ -16,7 +16,7 @@ import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
-import { fetchBranches, fetchSuppliersLookup, fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
+import { fetchBranches, fetchSuppliersLookup, fetchChartOfAccountsLookup, fetchAdvanceCustomersLookup } from '@/features/master/api/lookupsApi'
 import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymentEntry, type PaymentEntryPayload } from '../api/paymentEntryApi'
 import { fetchAccountsPayables } from '../api/accountsPayableApi'
 import { allocatePaymentEntry } from '../api/paymentEntryAllocationApi'
@@ -29,6 +29,7 @@ import { cn, formatCurrency } from '@/lib/utils'
 const emptyValues: PaymentEntryEditorValues = {
   payment_type: 'supplier',
   supplier_id: '',
+  customer_id: '',
   expense_account_id: '',
   description: '',
   amount: '',
@@ -53,6 +54,8 @@ export function OutgoingPaymentEditorPage() {
 
   const suppliers = useQuery({ queryKey: ['suppliers-lookup'], queryFn: fetchSuppliersLookup })
   const supplierOptions = suppliers.data?.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code} — ${supplier.supplier_name}` })) ?? []
+  const advanceCustomers = useQuery({ queryKey: ['advance-customers-lookup'], queryFn: fetchAdvanceCustomersLookup })
+  const advanceCustomerOptions = advanceCustomers.data?.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}` })) ?? []
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
   const expenseAccountOptions =
     chartOfAccounts.data?.filter((account) => account.account_type === 'expense').map((account) => ({ value: account.id, label: account.name })) ?? []
@@ -69,6 +72,7 @@ export function OutgoingPaymentEditorPage() {
   const paymentType = form.watch('payment_type')
   const isSupplierType = paymentType === 'supplier'
   const isMixedType = paymentType === 'mixed'
+  const isCustomerAdvanceType = paymentType === 'customer_advance'
   const headerAmount = Number(form.watch('amount')) || 0
 
   // Payable -> user-entered "To Allocate" amount. Checked and "has an entry in this
@@ -187,6 +191,7 @@ export function OutgoingPaymentEditorPage() {
     form.reset({
       payment_type: payment.payment_type,
       supplier_id: payment.supplier_id ?? '',
+      customer_id: payment.customer_id ?? '',
       expense_account_id: payment.expense_account_id ?? '',
       description: payment.description ?? '',
       amount: String(payment.total_amount),
@@ -226,16 +231,27 @@ export function OutgoingPaymentEditorPage() {
                 reference_number: values.reference_number || null,
                 remarks: values.remarks || null,
               }
-            : {
-                payment_type: 'supplier',
-                supplier_id: values.supplier_id,
-                amount: Number(values.amount),
-                payment_date: values.payment_date,
-                cash_account_id: values.cash_account_id,
-                branch_id: values.branch_id || null,
-                reference_number: values.reference_number || null,
-                remarks: values.remarks || null,
-              }
+            : values.payment_type === 'customer_advance'
+              ? {
+                  payment_type: 'customer_advance',
+                  customer_id: values.customer_id,
+                  amount: Number(values.amount),
+                  payment_date: values.payment_date,
+                  cash_account_id: values.cash_account_id,
+                  branch_id: values.branch_id || null,
+                  reference_number: values.reference_number || null,
+                  remarks: values.remarks || null,
+                }
+              : {
+                  payment_type: 'supplier',
+                  supplier_id: values.supplier_id,
+                  amount: Number(values.amount),
+                  payment_date: values.payment_date,
+                  cash_account_id: values.cash_account_id,
+                  branch_id: values.branch_id || null,
+                  reference_number: values.reference_number || null,
+                  remarks: values.remarks || null,
+                }
 
       return isEdit ? updatePaymentEntry(id!, payload) : createPaymentEntry(payload)
     },
@@ -330,7 +346,7 @@ export function OutgoingPaymentEditorPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${paymentQuery.data?.document_number ?? 'Payment'}` : 'New Payment Voucher'}
-        description="Record a payment to a supplier, a general office expense, or a mix of several purposes from one payment."
+        description="Record a payment to a supplier, a customer cash advance (PK/PL), a general office expense, or a mix of several purposes from one payment."
       />
 
       <Form {...form}>
@@ -352,6 +368,7 @@ export function OutgoingPaymentEditorPage() {
                       onValueChange={(next) => {
                         field.onChange(next as PaymentEntryType)
                         form.setValue('supplier_id', '')
+                        form.setValue('customer_id', '')
                         form.setValue('expense_account_id', '')
                         form.setValue('description', '')
                         form.setValue('amount', '')
@@ -368,6 +385,7 @@ export function OutgoingPaymentEditorPage() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="supplier">Against Supplier (Purchase)</SelectItem>
+                        <SelectItem value="customer_advance">Terhadap Customer (PK/PL)</SelectItem>
                         <SelectItem value="general_expense">General Expense / Office Cash</SelectItem>
                         <SelectItem value="mixed">Mixed / Multiple Purposes</SelectItem>
                       </SelectContent>
@@ -397,6 +415,24 @@ export function OutgoingPaymentEditorPage() {
                         }}
                         loading={suppliers.isLoading}
                         placeholder="Select supplier"
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : isCustomerAdvanceType ? (
+                <FormField
+                  control={form.control}
+                  name="customer_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer (PK/PL)</FormLabel>
+                      <SearchableSelect
+                        options={advanceCustomerOptions}
+                        value={field.value}
+                        onChange={(next) => field.onChange(next ?? '')}
+                        loading={advanceCustomers.isLoading}
+                        placeholder="Select customer"
                       />
                       <FormMessage />
                     </FormItem>
