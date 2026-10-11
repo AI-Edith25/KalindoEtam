@@ -15,6 +15,7 @@ use App\Services\InvoiceService;
 use App\Support\DocumentDuplicateChecker;
 use App\Support\SettlementStatus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -325,11 +326,21 @@ class CustomerOutstandingArchiveImportService
                     ]);
                 });
                 $created++;
-            } catch (Throwable) {
-                // Reclassified as a duplicate for reporting purposes only when the failure really
-                // was one (a race against a concurrent import) -- any other cause (e.g. missing
-                // CoA) just silently doesn't create this one Invoice; the archive line itself is
-                // already safely saved regardless, so nothing is lost, only this extra detail.
+            } catch (Throwable $e) {
+                // Never reclassified or rethrown -- the archive line itself is already safely
+                // saved regardless, so nothing is lost, only this one Invoice. Logged (not
+                // silent) precisely because "skipped, reason unknown" was undiagnosable in
+                // practice: 2026-10-12 a large fraction of a batch silently failed to create with
+                // no way to tell a real bug (e.g. missing CoA, schema drift) apart from a benign
+                // race against a concurrent import without this.
+                Log::warning('CustomerOutstandingArchiveImportService: failed to create Invoice for an outstanding-bill line.', [
+                    'ref_no' => $line['ref_no'],
+                    'customer_code' => $line['customer_code'],
+                    'invoice_type' => $entry['invoice_type'] ?? null,
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ]);
+
                 continue;
             }
         }
