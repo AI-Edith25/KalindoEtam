@@ -112,6 +112,89 @@ class CustomerOutstandingArchiveSiCreationTest extends TestCase
         $this->assertSame(0, Invoice::query()->count());
     }
 
+    public function test_commit_creates_an_invoice_for_a_hyphen_formatted_si_ke_ref_no(): void
+    {
+        $customer = Customer::query()->create(['customer_code' => 'C-0113', 'customer_name' => 'BERDIKARI 1']);
+
+        $csv = $this->csv([
+            ['Customer Unpaid Bills With Overdue Advice'],
+            ['PT Test Company'],
+            ['Date as at : 30/09/2026'],
+            [''],
+            self::HEADER,
+            ['Customer : C-0113 - BERDIKARI 1'],
+            ['01/09/2026', 'SI-KE-01123-02-2024', 350000, 0, 350000, 30, '01/10/2026', 0, 0],
+            ['02/09/2026', 'TR-KE-01943-03-2024', 215000, 0, 215000, 30, '01/10/2026', 0, 0],
+            ['', '', '', '', 565000, '', '', 0, ''],
+            ['Grand Total', '', '', '', 565000, '', '', 0, ''],
+            ['Printed By : Admin'],
+        ]);
+
+        ['si_import' => $siImport] = $this->service->commit($this->writeFixture($csv), 'csv', 'test.csv', null);
+
+        $this->assertSame(2, $siImport['created']);
+        $this->assertSame([], $siImport['skipped_type']);
+
+        $si = Invoice::query()->where('source_document_number', 'SI-KE-01123-02-2024')->firstOrFail();
+        $this->assertSame($customer->id, $si->customer_id);
+        $this->assertSame('goods', $si->invoice_type->value);
+
+        $tr = Invoice::query()->where('source_document_number', 'TR-KE-01943-03-2024')->firstOrFail();
+        $this->assertSame('transportation', $tr->invoice_type->value);
+    }
+
+    public function test_commit_creates_a_goods_invoice_for_a_legacy_numeric_ref_no(): void
+    {
+        $customer = Customer::query()->create(['customer_code' => 'C-0094', 'customer_name' => 'BANGUNAN SABRA - SMD']);
+
+        $csv = $this->csv([
+            ['Customer Unpaid Bills With Overdue Advice'],
+            ['PT Test Company'],
+            ['Date as at : 30/09/2026'],
+            [''],
+            self::HEADER,
+            ['Customer : C-0094 - BANGUNAN SABRA - SMD'],
+            ['31/12/2021', '125', 1450000, 0, 1450000, 30, '30/01/2022', 0, 0],
+            ['', '', '', '', 1450000, '', '', 0, ''],
+            ['Grand Total', '', '', '', 1450000, '', '', 0, ''],
+            ['Printed By : Admin'],
+        ]);
+
+        ['si_import' => $siImport] = $this->service->commit($this->writeFixture($csv), 'csv', 'test.csv', null);
+
+        $this->assertSame(1, $siImport['created']);
+        $this->assertSame([], $siImport['skipped_type']);
+
+        $invoice = Invoice::query()->where('source_document_number', '125')->firstOrFail();
+        $this->assertSame($customer->id, $invoice->customer_id);
+        $this->assertSame('goods', $invoice->invoice_type->value);
+    }
+
+    public function test_commit_still_skips_a_general_journal_or_payment_voucher_ref_no(): void
+    {
+        Customer::query()->create(['customer_code' => 'C-1322', 'customer_name' => 'PT. SEMEN KALTIM JAYA']);
+
+        $csv = $this->csv([
+            ['Customer Unpaid Bills With Overdue Advice'],
+            ['PT Test Company'],
+            ['Date as at : 30/09/2026'],
+            [''],
+            self::HEADER,
+            ['Customer : C-1322 - PT. SEMEN KALTIM JAYA'],
+            ['16/09/2025', 'GJ-1373-09-2025', 450000, 0, 450000, 30, '16/10/2025', 0, 0],
+            ['27/03/2026', 'PV/KE/00760/03/2026', 8480000, 0, 8480000, 30, '26/04/2026', 0, 0],
+            ['', '', '', '', 8930000, '', '', 0, ''],
+            ['Grand Total', '', '', '', 8930000, '', '', 0, ''],
+            ['Printed By : Admin'],
+        ]);
+
+        ['si_import' => $siImport] = $this->service->commit($this->writeFixture($csv), 'csv', 'test.csv', null);
+
+        $this->assertSame(0, $siImport['created']);
+        $this->assertSame(['GJ-1373-09-2025', 'PV/KE/00760/03/2026'], $siImport['skipped_type']);
+        $this->assertSame(0, Invoice::query()->count());
+    }
+
     public function test_commit_skips_a_ref_no_with_an_unrecognized_prefix(): void
     {
         Customer::query()->create(['customer_code' => 'C-0100', 'customer_name' => 'CV Sinar Abadi']);

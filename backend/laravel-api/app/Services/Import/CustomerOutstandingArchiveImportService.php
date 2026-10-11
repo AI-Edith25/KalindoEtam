@@ -59,6 +59,12 @@ class CustomerOutstandingArchiveImportService
         now-removed Sales Invoice history importer. */
     private const PREFIX_TYPE = ['SI' => 'goods', 'TR' => 'transportation'];
 
+    /** Pre-2022 Ref. Nos predate the SI/TR document-type split entirely (plain sequential numbers,
+        e.g. "125" -- confirmed against the source SkyBiz ledger, business decision 2026-10-12):
+        "goods" is the closest real-world equivalent, since transportation billing as its own
+        document type didn't exist yet at the time these were raised. */
+    private const LEGACY_NUMERIC_TYPE = 'goods';
+
     public function __construct(
         protected InvoiceRepository $invoiceRepository,
         protected InvoiceItemRepository $invoiceItemRepository,
@@ -159,8 +165,7 @@ class CustomerOutstandingArchiveImportService
                 return ['line' => $line, 'outcome' => 'skip_customer'];
             }
 
-            $prefix = mb_strtoupper(explode('/', $line['ref_no'])[0] ?? '');
-            $invoiceType = self::PREFIX_TYPE[$prefix] ?? null;
+            $invoiceType = $this->resolveInvoiceType($line['ref_no']);
 
             if ($invoiceType === null) {
                 return ['line' => $line, 'outcome' => 'skip_type'];
@@ -174,6 +179,32 @@ class CustomerOutstandingArchiveImportService
 
             return ['line' => $line, 'outcome' => 'create', 'customer_id' => $customer->id, 'invoice_type' => $invoiceType];
         }, $lines);
+    }
+
+    /**
+     * Recognizes an SI/TR document regardless of the separator the exporting era used --
+     * "SI/KE/00001/09/2026" (current KE format) and "SI-KE-01123-02-2024" (older Skybiz-era
+     * format, confirmed against the source ledger) both resolve the same way. Tokenizing on any
+     * non-alphanumeric run (same technique as SkybizDocumentKeyNormalizer) fixed a real bug: the
+     * old `explode('/', ...)` prefix check only ever matched the slash format, so every
+     * hyphen-formatted SI-KE-/TR-KE- row in a real import was silently misclassified as
+     * skip_type even though it's a genuine SI/TR document.
+     *
+     * A ref_no that is purely digits (e.g. "125") predates the SI/TR scheme entirely -- see
+     * LEGACY_NUMERIC_TYPE. Anything else (CN/KE/..., GJ-..., PV/KE/...) genuinely isn't an SI/TR
+     * document and stays null -> skip_type.
+     */
+    private function resolveInvoiceType(string $refNo): ?string
+    {
+        $tokens = preg_split('/[^A-Za-z0-9]+/', mb_strtoupper(trim($refNo)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        foreach (self::PREFIX_TYPE as $prefix => $type) {
+            if (in_array($prefix, $tokens, true)) {
+                return $type;
+            }
+        }
+
+        return ctype_digit($refNo) ? self::LEGACY_NUMERIC_TYPE : null;
     }
 
     /**
