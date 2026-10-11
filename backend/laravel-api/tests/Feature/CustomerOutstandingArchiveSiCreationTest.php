@@ -6,6 +6,7 @@ use App\Models\AccountsReceivable;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Services\Import\CustomerOutstandingArchiveImportService;
+use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -249,6 +250,47 @@ class CustomerOutstandingArchiveSiCreationTest extends TestCase
         $this->assertSame(0, $siImport['created']);
         $this->assertSame(['SI/KE/00001/09/2026'], $siImport['skipped_duplicate']);
         $this->assertSame(1, Invoice::query()->count(), 'only the pre-existing one, nothing new created');
+    }
+
+    public function test_commit_auto_generates_a_document_number_when_the_legacy_one_belongs_to_a_soft_deleted_invoice(): void
+    {
+        $this->seed(DocumentEngineSeeder::class);
+        $customer = Customer::query()->create(['customer_code' => 'C-2021', 'customer_name' => 'CV Contoh Jaya']);
+
+        $ghost = Invoice::query()->create([
+            'customer_id' => $customer->id,
+            'document_number' => 'SI/KE/04440/05/2026',
+            'invoice_type' => 'goods',
+            'invoice_date' => '2026-05-28',
+            'due_date' => '2026-06-27',
+            'subtotal' => 7000001.88, 'discount_amount' => 0, 'discount_type' => 'amount', 'tax_amount' => 0,
+            'grand_total' => 7000001.88,
+        ]);
+        $ghost->update(['status' => 'submitted']);
+        $ghost->delete();
+        $this->assertSoftDeleted('invoices', ['id' => $ghost->id]);
+
+        $csv = $this->csv([
+            ['Customer Unpaid Bills With Overdue Advice'],
+            ['PT Test Company'],
+            ['Date as at : 30/09/2026'],
+            [''],
+            self::HEADER,
+            ['Customer : C-2021 - CV Contoh Jaya'],
+            ['28/05/2026', 'SI/KE/04440/05/2026', 7000001.88, 0, 7000001.88, 30, '27/06/2026', 0, 0],
+            ['', '', '', '', 7000001.88, '', '', 0, ''],
+            ['Grand Total', '', '', '', 7000001.88, '', '', 0, ''],
+            ['Printed By : Admin'],
+        ]);
+
+        ['si_import' => $siImport] = $this->service->commit($this->writeFixture($csv), 'csv', 'test.csv', null);
+
+        $this->assertSame(1, $siImport['created'], 'must still create the Invoice, not silently drop it');
+        $this->assertSame([], $siImport['skipped_duplicate']);
+
+        $new = Invoice::query()->where('source_document_number', 'SI/KE/04440/05/2026')->firstOrFail();
+        $this->assertNotSame('SI/KE/04440/05/2026', $new->document_number, 'the ghost already owns that number -- must fall back to auto-generation, not collide');
+        $this->assertSame($customer->id, $new->customer_id);
     }
 
     public function test_preflight_reports_the_same_si_classification_without_writing_anything(): void

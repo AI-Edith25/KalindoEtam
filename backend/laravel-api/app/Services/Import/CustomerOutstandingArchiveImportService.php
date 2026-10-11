@@ -358,10 +358,20 @@ class CustomerOutstandingArchiveImportService
      * removed Sales Invoice history importer: null (Documentable auto-generates) only when that
      * exact number is already owned by another Invoice, which only happens if a bad import was
      * reversed and the same legacy document is deliberately re-imported.
+     *
+     * withTrashed() deliberately, not the live-only default: Invoice's own unique index on
+     * document_number (migration *_create_invoices_table) is a plain `unique()`, not scoped to
+     * exclude soft-deleted rows the way source_document_number_normalized is explicitly freed on
+     * cancel() -- MySQL enforces it against every row regardless of deleted_at. A live-only check
+     * here (found 2026-10-12: a batch of 1,852 lines failing with
+     * "Duplicate entry ... for key invoices_document_number_unique" on every single retry) says a
+     * soft-deleted invoice's old number is free, reuse it; the INSERT then always collides with
+     * the still-indexed trashed row. Checking withTrashed() correctly falls through to
+     * auto-generate instead, which is what this method's own docblock already promised.
      */
     private function resolveDocumentNumber(string $legacyNumber): ?string
     {
-        return Invoice::query()->where('document_number', $legacyNumber)->exists() ? null : $legacyNumber;
+        return Invoice::withTrashed()->where('document_number', $legacyNumber)->exists() ? null : $legacyNumber;
     }
 
     /** @return array{company_name: ?string, snapshot_as_of_date: string, lines: array, sum_unpaid: float, sum_overdue: float, customer_count: int, failed_rows: array, subtotal_mismatches: array, grand_total_mismatch: ?array} */
