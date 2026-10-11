@@ -10,6 +10,18 @@ use App\Enums\DocumentStatus;
  * A live match is always rejected outright, no override. A cancelled match is only rejected until
  * the caller's resolutions say to proceed — see Documentable::cancel(), which frees a cancelled
  * row's normalized column so it never also double-rejects via the unique index.
+ *
+ * withTrashed() on every query here, deliberately — the unique index on *_normalized (migration
+ * 2026_10_01_000003) enforces uniqueness against soft-deleted rows too (MySQL doesn't know about
+ * Eloquent's SoftDeletingScope), but a row soft-deleted directly (e.g.
+ * PurgeHistoricalSalesInvoiceImportCommand's plain ->delete(), never through cancel()) never gets
+ * its normalized column freed. A live-only check here said that number was clear, classified the
+ * line 'create', and the INSERT then always collided with the still-indexed trashed row — found
+ * 2026-10-12 on the Customer Outstanding Bills re-import: every single one of 1,851 lines
+ * previewed as "will create" instead threw UniqueConstraintViolationException on
+ * invoices_source_document_number_normalized_unique and was silently swallowed. Same fix already
+ * applied to this importer's own resolveDocumentNumber() check on document_number; this is the
+ * other half of the same blind spot, shared by every caller of this class.
  */
 class DocumentDuplicateChecker
 {
@@ -32,17 +44,17 @@ class DocumentDuplicateChecker
             return 'Nomor dokumen ini duplikat di dalam file yang sama — dilewati.';
         }
 
-        if ($modelClass::query()->where('source_document_number_normalized', $normalized)->exists()) {
+        if ($modelClass::query()->withTrashed()->where('source_document_number_normalized', $normalized)->exists()) {
             return 'Nomor dokumen ini sudah ada pada data yang aktif (input manual maupun import sebelumnya) — ditolak.';
         }
 
         foreach ($fallbackReferenceColumns as $column) {
-            if ($modelClass::query()->whereRaw("UPPER(TRIM({$column})) = ?", [$normalized])->exists()) {
+            if ($modelClass::query()->withTrashed()->whereRaw("UPPER(TRIM({$column})) = ?", [$normalized])->exists()) {
                 return "Nomor dokumen ini sudah tercatat pada {$column} dokumen lain — ditolak.";
             }
         }
 
-        $cancelledMatch = $modelClass::query()
+        $cancelledMatch = $modelClass::query()->withTrashed()
             ->where('status', DocumentStatus::CANCELLED->value)
             ->whereRaw('UPPER(TRIM(source_document_number)) = ?', [$normalized])
             ->exists();
