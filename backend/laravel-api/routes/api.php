@@ -71,6 +71,7 @@ use App\Http\Controllers\Api\V1\ReceiptEntryController;
 use App\Http\Controllers\Api\V1\ReceiptStockController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesArchiveController;
+use App\Http\Controllers\Api\V1\SalesInvoiceDetailBackfillController;
 use App\Http\Controllers\Api\V1\SalesJournalController;
 use App\Http\Controllers\Api\V1\SalesListingController;
 use App\Http\Controllers\Api\V1\SalesOrderController;
@@ -416,6 +417,13 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Transportation only — Branch is metadata, not a financial field, so it stays editable
     // regardless of Draft/Submitted status. See InvoiceService::updateBranch().
     Route::patch('invoices/{invoice}/branch', [InvoiceController::class, 'updateBranch'])->middleware('permission:sales.invoices.update');
+
+    // Sales Invoice detail backfill: fills in real item detail on Invoices the Customer
+    // Outstanding Bills import already created — never creates a new Invoice. Reuses the
+    // existing sales.invoices.import permission (already in RolePermissionSeeder, unused until
+    // now — no seeder change needed).
+    Route::post('invoices/import-detail', [SalesInvoiceDetailBackfillController::class, 'store'])->middleware('permission:sales.invoices.import');
+    Route::post('invoices/import-detail/{batch}/resolve', [SalesInvoiceDetailBackfillController::class, 'resolve'])->middleware('permission:sales.invoices.import');
 
     // Invoice Angkutan nominal lock + approval: a Submitted Transportation Invoice's Rate/Amount/
     // Grand Total are otherwise immutable (no write path exists at all); this is the sole, audited,
