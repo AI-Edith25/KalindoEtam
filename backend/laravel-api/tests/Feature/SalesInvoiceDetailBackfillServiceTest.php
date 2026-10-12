@@ -139,4 +139,51 @@ class SalesInvoiceDetailBackfillServiceTest extends TestCase
         $this->assertEquals(945946.2, (float) $line->amount);
         $this->assertEquals(104054.08, (float) $line->tax_amount);
     }
+
+    public function test_preflight_skips_a_document_number_not_found_among_outstanding_bills_archive_invoices(): void
+    {
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['12/09/2026', 'SI/KE/99999/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 500000, '', ''],
+            ['MISC', '', 'Something', '', 'UNIT', 1, 500000, 0, 0, '', 500000],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $preflight = $this->service->preflight($this->writeFixture($csv), 'csv');
+
+        $this->assertSame(0, $preflight['will_update']);
+        $this->assertSame(['document_number' => 'SI/KE/99999/09/2026', 'customer_code' => 'C-1364'], $preflight['skipped_not_found'][0]);
+    }
+
+    public function test_preflight_skips_when_the_files_customer_does_not_match_the_invoices_customer(): void
+    {
+        $otherCustomer = Customer::query()->create(['customer_code' => 'C-9999', 'customer_name' => 'Someone Else']);
+        $this->makeOutstandingBillsInvoice('SI/KE/08111/09/2026', 'goods', 500000);
+        // Reassign to a different customer than the file will claim.
+        Invoice::query()->where('source_document_number', 'SI/KE/08111/09/2026')->update(['customer_id' => $otherCustomer->id]);
+
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['12/09/2026', 'SI/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 500000, '', ''],
+            ['MISC', '', 'Something', '', 'UNIT', 1, 500000, 0, 0, '', 500000],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $preflight = $this->service->preflight($this->writeFixture($csv), 'csv');
+
+        $this->assertSame(0, $preflight['will_update']);
+        $this->assertSame('SI/KE/08111/09/2026', $preflight['skipped_customer_mismatch'][0]['document_number']);
+        $this->assertSame('C-1364', $preflight['skipped_customer_mismatch'][0]['file_customer_code']);
+        $this->assertSame('C-9999', $preflight['skipped_customer_mismatch'][0]['invoice_customer_code']);
+    }
 }
