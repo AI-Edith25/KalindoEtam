@@ -86,6 +86,50 @@ class SalesInvoiceDetailBackfillServiceTest extends TestCase
 
     private const ITEM_SUB_HEADER = ['ITEM #', '', 'DESCRIPTION', '', 'UOM', 'QUANTITY', 'UNIT PRICE', 'DISC', 'TAX', 'T.CODE', 'LINE AMOUNT'];
 
+    /** Found 2026-10-12 against the real export: this file's own per-line DISC column (item
+        sub-header col index 7) is where the real discount lives -- the header row's own DISC
+        column is 0 on every Goods document observed. A formula that only reads the header DISC
+        (as the old, now-removed SalesInvoiceImportService's totals() also did) silently drops
+        every item's discount, overstating the recomputed grand_total by exactly the sum of the
+        item DISC values -- confirmed against 12 real documents that all failed
+        skipped_amount_mismatch for this exact reason. */
+    public function test_commit_subtracts_each_items_own_disc_column_not_just_the_header_disc(): void
+    {
+        $account = ChartOfAccount::query()->where('code', '1100')->firstOrFail();
+        MiscellaneousItem::query()->create([
+            'misc_code' => 'TOKKA_1_2KG', 'description' => 'Paku Tokka 1 inci @ 2 KG', 'rate' => 0,
+            'charge_type' => 'addition', 'unit_cost' => 0,
+            'sales_account_id' => $account->id, 'purchase_account_id' => $account->id,
+        ]);
+        $invoice = $this->makeOutstandingBillsInvoice('SI/KE/08657/09/2026', 'goods', 499800.00);
+
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['28/09/2026', 'SI/KE/08657/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 499800, '', ''],
+            ['TOKKA_1_2KG', '', 'PAKU TOKKA 1 inci @ 2 KG', '', 'DUS', 1, '"459459,46"', '"9189,19"', '"49529,73"', 'PPN-K11(EXC)', 499800],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $path = $this->writeFixture($csv);
+        $preflight = $this->service->preflight($path, 'csv');
+
+        $this->assertSame(1, $preflight['will_update'], 'must reconcile once the item disc is subtracted, not be skipped_amount_mismatch');
+        $this->assertSame([], $preflight['skipped_amount_mismatch']);
+
+        $this->service->commit($path, 'csv');
+
+        $invoice->refresh();
+        $this->assertEquals(459459.46, (float) $invoice->subtotal);
+        $this->assertEquals(9189.19, (float) $invoice->discount_amount, 'the item-level disc must land in the Invoice header, not be dropped');
+        $this->assertEquals(49529.73, (float) $invoice->tax_amount);
+        $this->assertEquals(499800.00, (float) $invoice->grand_total, 'grand_total must stay untouched');
+    }
+
     public function test_preflight_matches_and_will_update_a_goods_invoice_with_a_real_item(): void
     {
         $item = Item::query()->create([

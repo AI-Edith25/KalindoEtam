@@ -172,10 +172,16 @@ class SalesInvoiceDetailBackfillService
     }
 
     /**
-     * Same formula the old, now-removed SalesInvoiceImportService::totals() used: subtotal is the
-     * sum of qty*rate across item rows (pre-tax), tax_amount is the sum of each item's own TAX
-     * (not the file's header TAX column — summing the lines keeps it consistent with subtotal),
-     * discount_amount is the file's header DISC column directly.
+     * subtotal is the sum of qty*rate across item rows (pre-disc, pre-tax); tax_amount is the sum
+     * of each item's own TAX (not the file's header TAX column — summing the lines keeps it
+     * consistent with subtotal); discount_amount is the file's header DISC column PLUS the sum of
+     * each item's own DISC column.
+     *
+     * The old, now-removed SalesInvoiceImportService::totals() only read the header DISC — found
+     * 2026-10-12 against the real export: every Goods document's header DISC is 0, the real
+     * discount lives entirely on each item row (sub-header col index 7). Dropping it overstated
+     * the recomputed grand_total by exactly the sum of the item DISC values, which is exactly why
+     * 12 real, otherwise-correct documents all failed skipped_amount_mismatch.
      *
      * @return array{subtotal: float, tax_amount: float, discount_amount: float, grand_total: float}
      */
@@ -183,15 +189,17 @@ class SalesInvoiceDetailBackfillService
     {
         $subtotal = 0.0;
         $taxTotal = 0.0;
+        $itemDiscTotal = 0.0;
 
         foreach ($group['items'] as $itemRow) {
             $subtotal += (float) $itemRow['qty'] * (float) $itemRow['rate'];
             $taxTotal += (float) $itemRow['tax'];
+            $itemDiscTotal += (float) $itemRow['disc'];
         }
 
         $subtotal = round($subtotal, 2);
         $taxTotal = round($taxTotal, 2);
-        $discountAmount = round((float) $group['header_disc'], 2);
+        $discountAmount = round((float) $group['header_disc'] + $itemDiscTotal, 2);
 
         return [
             'subtotal' => $subtotal,
