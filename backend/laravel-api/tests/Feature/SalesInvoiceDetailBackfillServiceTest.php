@@ -186,4 +186,72 @@ class SalesInvoiceDetailBackfillServiceTest extends TestCase
         $this->assertSame('C-1364', $preflight['skipped_customer_mismatch'][0]['file_customer_code']);
         $this->assertSame('C-9999', $preflight['skipped_customer_mismatch'][0]['invoice_customer_code']);
     }
+
+    public function test_preflight_skips_when_the_files_document_type_does_not_match_the_invoices_type(): void
+    {
+        $this->makeOutstandingBillsInvoice('SI/KE/08111/09/2026', 'transportation', 500000);
+
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['12/09/2026', 'SI/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 500000, '', ''],
+            ['MISC', '', 'Something', '', 'UNIT', 1, 500000, 0, 0, '', 500000],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $preflight = $this->service->preflight($this->writeFixture($csv), 'csv');
+
+        $this->assertSame(0, $preflight['will_update']);
+        $this->assertSame('goods', $preflight['skipped_type_mismatch'][0]['file_type']);
+        $this->assertSame('transportation', $preflight['skipped_type_mismatch'][0]['invoice_type']);
+    }
+
+    public function test_preflight_skips_a_goods_group_with_an_unresolvable_item_code(): void
+    {
+        $this->makeOutstandingBillsInvoice('SI/KE/08111/09/2026', 'goods', 500000);
+
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['12/09/2026', 'SI/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 500000, '', ''],
+            ['NOPE-999', '', 'Barang Entah', '', 'UNIT', 1, 500000, 0, 0, '', 500000],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $preflight = $this->service->preflight($this->writeFixture($csv), 'csv');
+
+        $this->assertSame(0, $preflight['will_update']);
+        $this->assertSame('SI/KE/08111/09/2026', $preflight['skipped_item_unresolved'][0]['document_number']);
+    }
+
+    public function test_preflight_skips_when_the_recomputed_total_is_beyond_tolerance(): void
+    {
+        $this->makeOutstandingBillsInvoice('TR/KE/08111/09/2026', 'transportation', 999999);
+
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['12/09/2026', 'TR/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 999999, '', ''],
+            ['MISC', '', 'Something', '', 'UNIT', 1, 500000, 0, 0, '', 500000],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $preflight = $this->service->preflight($this->writeFixture($csv), 'csv');
+
+        $this->assertSame(0, $preflight['will_update']);
+        $this->assertSame('TR/KE/08111/09/2026', $preflight['skipped_amount_mismatch'][0]['document_number']);
+        $this->assertEquals(500000.0, $preflight['skipped_amount_mismatch'][0]['computed_amount']);
+    }
 }
