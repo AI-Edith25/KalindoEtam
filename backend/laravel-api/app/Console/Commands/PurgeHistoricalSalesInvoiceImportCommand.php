@@ -139,54 +139,70 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
      * never frees source_document_number_normalized -- that leaves CustomerOutstandingArchiveImportService
      * permanently unable to recreate the same unpaid bill (DocumentDuplicateChecker::reject() keeps
      * finding the trashed row). Business decision 2026-10-12: finish the job by hard-deleting
-     * whatever an earlier run left trashed, so the unique index is actually freed. The already-
-     * reversed PaymentAllocation row is hard-deleted first -- restrictOnDelete on
-     * accounts_receivable_id would otherwise block the AR's own forceDelete -- its GL impact lives
-     * in the journal entry it posted, not in this row, so nothing financial is lost. InvoiceItem
-     * rows are left to invoices.id's cascadeOnDelete (migration create_invoice_items_table).
+     * whatever an earlier run left trashed, so the unique index is actually freed.
+     *
+     * Bulk query-builder deletes, not a chunked Eloquent loop like the live-row pass above --
+     * found 2026-10-12: a per-row loop (one SELECT + one DELETE each for AR, PaymentAllocation,
+     * Invoice, plus two more for the CN/DN block check) over 16,185 already-dead rows is ~80,000
+     * round trips, intolerably slow for what's otherwise a single cleanup sweep with nothing left
+     * to react to per row (reverseAllocations() does not apply here -- PaymentAllocation rows on
+     * an already-trashed invoice were reversed, never deleted, by the run that trashed it).
+     * Batched by 1,000 ids instead: a handful of queries per batch, each batch its own transaction
+     * (same reasoning as the live pass -- never one lock held for the whole run).
+     *
+     * PaymentAllocation force-deleted first -- restrictOnDelete on accounts_receivable_id would
+     * otherwise block the AR's own delete -- its GL impact lives in the journal entry it posted,
+     * not in this row, so nothing financial is lost. InvoiceItem rows are left to invoices.id's
+     * cascadeOnDelete (migration create_invoice_items_table).
      *
      * @param  array<int, string>  $alreadyTrashedIds  Snapshot taken before this run's own purge loop, see handle().
      * @return array{0: int, 1: array<int, string>}
      */
     private function hardDeleteAlreadyTrashed(array $alreadyTrashedIds): array
     {
+        if ($alreadyTrashedIds === []) {
+            return [0, []];
+        }
+
         $deleted = 0;
         $blocked = [];
 
-        if ($alreadyTrashedIds === []) {
-            return [$deleted, $blocked];
+        foreach (array_chunk($alreadyTrashedIds, 1000) as $idBatch) {
+            $blockedIds = $this->blockedInvoiceIds($idBatch);
+
+            foreach ($blockedIds as $id) {
+                $blocked[] = "{$id}: has a Credit or Debit Note issued against it.";
+            }
+
+            $deletableIds = array_values(array_diff($idBatch, $blockedIds));
+
+            if ($deletableIds === []) {
+                continue;
+            }
+
+            DB::transaction(function () use ($deletableIds, &$deleted) {
+                $arIds = DB::table('accounts_receivables')->whereIn('invoice_id', $deletableIds)->pluck('id');
+
+                if ($arIds->isNotEmpty()) {
+                    DB::table('payment_allocations')->whereIn('accounts_receivable_id', $arIds)->delete();
+                    DB::table('accounts_receivables')->whereIn('invoice_id', $deletableIds)->delete();
+                }
+
+                $deleted += DB::table('invoices')->whereIn('id', $deletableIds)->delete();
+            });
         }
 
-        Invoice::onlyTrashed()->whereIn('id', $alreadyTrashedIds)
-            ->chunkById(200, function ($invoices) use (&$deleted, &$blocked) {
-                foreach ($invoices as $invoice) {
-                    $reason = $this->blockingReason($invoice);
-
-                    if ($reason !== null) {
-                        $blocked[] = "{$invoice->document_number}: {$reason}";
-
-                        continue;
-                    }
-
-                    try {
-                        DB::transaction(function () use ($invoice) {
-                            $ar = $invoice->accountsReceivable()->withTrashed()->first();
-
-                            if ($ar !== null) {
-                                PaymentAllocation::query()->withTrashed()->where('accounts_receivable_id', $ar->id)->forceDelete();
-                                $ar->forceDelete();
-                            }
-
-                            $invoice->forceDelete();
-                        });
-                        $deleted++;
-                    } catch (Throwable $e) {
-                        $blocked[] = "{$invoice->document_number}: {$e->getMessage()}";
-                    }
-                }
-            });
-
         return [$deleted, $blocked];
+    }
+
+    /** Same rule as blockingReason(), bulk-checked for a whole id batch in two queries instead of
+        one Eloquent model + two exists() queries per row. @return array<int, string> */
+    private function blockedInvoiceIds(array $ids): array
+    {
+        return array_values(array_unique([
+            ...DB::table('credit_notes')->whereIn('invoice_id', $ids)->pluck('invoice_id')->all(),
+            ...DB::table('debit_notes')->whereIn('invoice_id', $ids)->pluck('invoice_id')->all(),
+        ]));
     }
 
     /** Pure count, no mutation and no lock — blockingReason() alone is enough to classify every row without touching it. */
@@ -202,24 +218,18 @@ class PurgeHistoricalSalesInvoiceImportCommand extends Command
             }
         });
 
+        $trashedIds = Invoice::onlyTrashed()->where('import_source_type', 'historical_invoice')->pluck('id')->all();
         $trashedBlockedCount = 0;
-        $trashedTotal = 0;
 
-        Invoice::onlyTrashed()->where('import_source_type', 'historical_invoice')->chunkById(200, function ($invoices) use (&$trashedBlockedCount, &$trashedTotal) {
-            foreach ($invoices as $invoice) {
-                $trashedTotal++;
-
-                if ($this->blockingReason($invoice) !== null) {
-                    $trashedBlockedCount++;
-                }
-            }
-        });
+        foreach (array_chunk($trashedIds, 1000) as $idBatch) {
+            $trashedBlockedCount += count($this->blockedInvoiceIds($idBatch));
+        }
 
         $this->info("Historical-imported invoices found: {$total}");
         $this->info("  of which would be blocked (credit/debit note against them): {$blockedCount}");
         $this->info('  of which would be deleted (reversing any real payment allocated first): '.($total - $blockedCount));
         $this->info("Import batches that would be removed: {$batchCount}");
-        $this->info('Already-trashed invoices that would be hard-deleted: '.($trashedTotal - $trashedBlockedCount));
+        $this->info('Already-trashed invoices that would be hard-deleted: '.(count($trashedIds) - $trashedBlockedCount));
         $this->info("  of which blocked instead (credit/debit note against them): {$trashedBlockedCount}");
         $this->warn('Dry run — no changes were made. Pass --commit to actually delete.');
 
