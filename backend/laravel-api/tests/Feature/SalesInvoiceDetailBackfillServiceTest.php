@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Models\ChartOfAccount;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\MiscellaneousItem;
 use App\Models\UnitOfMeasurement;
 use App\Services\Import\SalesInvoiceDetailBackfillService;
+use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -35,6 +38,7 @@ class SalesInvoiceDetailBackfillServiceTest extends TestCase
 
         Storage::fake('local');
         $this->seed(DocumentEngineSeeder::class);
+        $this->seed(ChartOfAccountsSeeder::class);
         $this->service = app(SalesInvoiceDetailBackfillService::class);
         $this->customer = Customer::query()->create(['customer_code' => 'C-1364', 'customer_name' => 'TK. DENDYA']);
     }
@@ -258,5 +262,95 @@ class SalesInvoiceDetailBackfillServiceTest extends TestCase
         $this->assertSame(0, $preflight['will_update']);
         $this->assertSame('TR/KE/08111/09/2026', $preflight['skipped_amount_mismatch'][0]['document_number']);
         $this->assertEquals(500000.0, $preflight['skipped_amount_mismatch'][0]['computed_amount']);
+    }
+
+    public function test_commit_resolves_an_unmatched_item_code_against_miscellaneous_item(): void
+    {
+        $account = ChartOfAccount::query()->where('code', '1100')->firstOrFail();
+        $misc = MiscellaneousItem::query()->create([
+            'misc_code' => 'TRANSPORT', 'description' => 'Ongkos Angkut', 'rate' => 0,
+            'charge_type' => 'addition', 'unit_cost' => 0,
+            'sales_account_id' => $account->id, 'purchase_account_id' => $account->id,
+        ]);
+        $invoice = $this->makeOutstandingBillsInvoice('SI/KE/08111/09/2026', 'goods', 150000);
+
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['12/09/2026', 'SI/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 150000, '', ''],
+            ['TRANSPORT', '', 'Ongkos Angkut', '', 'UNIT', 1, 150000, 0, 0, '', 150000],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $this->service->commit($this->writeFixture($csv), 'csv');
+
+        $line = $invoice->items()->sole();
+        $this->assertNull($line->item_id);
+        $this->assertSame('Ongkos Angkut', $line->item_name);
+    }
+
+    public function test_commit_writes_freeform_items_for_a_transportation_group_without_any_item_lookup(): void
+    {
+        $invoice = $this->makeOutstandingBillsInvoice('TR/KE/07644/10/2026', 'transportation', 2000000);
+
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['10/10/2026', 'TR/KE/07644/10/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 2000000, '', ''],
+            // col 0 ("ITEM #") is always the literal code "TRANSPORT" on a TR document, never a
+            // real Item code — no Item/MiscellaneousItem lookup is ever attempted for it (see
+            // SalesInvoiceHistoryParser's own docblock + this service's classifyOne()).
+            ['TRANSPORT', '', 'Angkutan Semen ke Gudang', '', 'UNIT', 1, 2000000, 0, 0, '', 2000000],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $result = $this->service->commit($this->writeFixture($csv), 'csv');
+
+        $this->assertSame(1, $result['updated']);
+        $line = $invoice->refresh()->items()->sole();
+        $this->assertNull($line->item_id);
+        $this->assertSame('Angkutan Semen ke Gudang', $line->item_name);
+        $this->assertEquals(2000000, (float) $line->amount);
+        $this->assertEquals(2000000, (float) $invoice->grand_total, 'grand_total must stay untouched');
+    }
+
+    public function test_commit_never_touches_an_invoice_that_is_not_from_the_outstanding_bills_archive(): void
+    {
+        $manual = Invoice::query()->create([
+            'customer_id' => $this->customer->id,
+            'invoice_type' => 'goods',
+            'invoice_date' => '2026-09-12', 'due_date' => '2026-10-12',
+            'subtotal' => 150000, 'discount_amount' => 0, 'tax_amount' => 0, 'grand_total' => 150000,
+            'source_document_number' => 'SI/KE/08111/09/2026',
+        ]);
+        $originalItem = InvoiceItem::query()->create([
+            'invoice_id' => $manual->id, 'item_name' => 'Manually Entered Line',
+            'uom' => null, 'rate' => 150000, 'qty' => 1, 'qty_category' => 'weight', 'amount' => 150000,
+        ]);
+
+        $csv = $this->csv([
+            ['SALES INVOICE LISTING - DETAIL'],
+            ['12/09/2026 - 12/10/2026 - Base Currency'],
+            [], [], ['PT. KALINDO ETAM'], [], [],
+            self::HEADER_ROW,
+            self::ITEM_SUB_HEADER,
+            ['12/09/2026', 'SI/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 150000, '', ''],
+            ['MISC', '', 'Something', '', 'UNIT', 1, 150000, 0, 0, '', 150000],
+            ['TAX SUMMARY'],
+            ['Printed By : Admin'],
+        ]);
+
+        $result = $this->service->commit($this->writeFixture($csv), 'csv');
+
+        $this->assertSame(0, $result['updated']);
+        $this->assertNotNull(InvoiceItem::query()->find($originalItem->id), 'the manually-entered line must survive untouched');
     }
 }
