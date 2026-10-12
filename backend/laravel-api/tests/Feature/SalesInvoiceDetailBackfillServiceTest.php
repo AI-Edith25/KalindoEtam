@@ -197,6 +197,8 @@ class SalesInvoiceDetailBackfillServiceTest extends TestCase
             [], [], ['PT. KALINDO ETAM'], [], [],
             self::HEADER_ROW,
             self::ITEM_SUB_HEADER,
+            // Deliberately SI/ (goods), not TR/: type-mismatch must fire before item lookup runs,
+            // or the unresolved MISC item code would short-circuit this test for the wrong reason.
             ['12/09/2026', 'SI/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 500000, '', ''],
             ['MISC', '', 'Something', '', 'UNIT', 1, 500000, 0, 0, '', 500000],
             ['TAX SUMMARY'],
@@ -234,6 +236,9 @@ class SalesInvoiceDetailBackfillServiceTest extends TestCase
 
     public function test_preflight_skips_when_the_recomputed_total_is_beyond_tolerance(): void
     {
+        // Deliberately TR/ (transportation) on both sides: Transportation skips item lookup
+        // entirely, so the unresolved MISC item code never gets in the way of reaching the
+        // amount check this test is actually exercising.
         $this->makeOutstandingBillsInvoice('TR/KE/08111/09/2026', 'transportation', 999999);
 
         $csv = $this->csv([
