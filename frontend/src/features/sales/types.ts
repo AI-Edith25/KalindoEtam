@@ -568,3 +568,38 @@ export interface DebitNoteFormValues {
   items: { invoice_item_id: string | null; description: string | null; qty_adjusted: number; rate: number | null; amount: number }[]
 }
 
+export interface SalesInvoiceDetailBackfillSkippedRow {
+  document_number: string
+  customer_code?: string
+  file_customer_code?: string
+  invoice_customer_code?: string
+  file_type?: string
+  invoice_type?: string
+  file_amount?: number
+  computed_amount?: number
+}
+
+export interface SalesInvoiceDetailBackfillPreview {
+  total_rows: number
+  will_update: number
+  skipped_not_found: SalesInvoiceDetailBackfillSkippedRow[]
+  skipped_customer_mismatch: SalesInvoiceDetailBackfillSkippedRow[]
+  skipped_type_mismatch: SalesInvoiceDetailBackfillSkippedRow[]
+  skipped_item_unresolved: SalesInvoiceDetailBackfillSkippedRow[]
+  skipped_amount_mismatch: SalesInvoiceDetailBackfillSkippedRow[]
+  warnings: string[]
+}
+
+export interface SalesInvoiceDetailBackfillImportBatch {
+  id: string
+  status: string
+  total_rows: number
+  preview_summary: SalesInvoiceDetailBackfillPreview | null
+  has_failed_rows: boolean
+}
+
+export interface SalesInvoiceDetailBackfillResult {
+  updated: number
+  document_numbers: string[]
+}
+
