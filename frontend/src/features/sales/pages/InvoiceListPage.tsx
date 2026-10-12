@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -48,15 +48,14 @@ export function InvoiceListPage() {
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null)
   // Set() iterates in insertion order — the Tanda Terima Invoice print page relies on this to
   // find the first-checked invoice's customer for its "To." line, not just the first table row.
+  //
+  // Deliberately survives search/filter/page changes — the operator builds up one checklist by
+  // searching/paging to find different invoices across several queries before printing (Print
+  // Invoices / Tanda Terima Invoice / Laporan Penagihan Harian all read this same set). Checkbox
+  // state itself (selectedIds.has(row.id)) already re-renders correctly however rows reappear;
+  // only toggleAll's "deselect" branch needs to stay scoped to the currently visible rows so it
+  // never wipes out a selection made on a different page/search.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-
-  // Selection intentionally doesn't survive a filter/search/page change — matches Sales >
-  // Invoices' existing behavior of resetting scroll/highlighted rows on any query change, and
-  // avoids the complexity of tracking selections against rows no longer in view.
-  useEffect(() => {
-    setSelectedIds(new Set())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, filters.status, filters.dateFrom, filters.dateTo, page])
 
   const listQuery = useQuery({
     queryKey: ['invoices', page, search, filters.status, filters.dateFrom, filters.dateTo],
@@ -191,9 +190,10 @@ export function InvoiceListPage() {
   const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id))
   const toggleAll = () => {
     setSelectedIds((prev) => {
-      if (allVisibleSelected) return new Set()
       const next = new Set(prev)
-      rows.forEach((row) => next.add(row.id))
+      // Only the currently visible rows -- a selection made on a different page/search must
+      // survive deselecting "all" on this one.
+      rows.forEach((row) => (allVisibleSelected ? next.delete(row.id) : next.add(row.id)))
       return next
     })
   }
