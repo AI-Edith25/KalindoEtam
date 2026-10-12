@@ -664,7 +664,7 @@ git commit -m "test(sales): cover skip_not_found and skip_customer_mismatch for 
 
     public function test_preflight_skips_when_the_recomputed_total_is_beyond_tolerance(): void
     {
-        $this->makeOutstandingBillsInvoice('SI/KE/08111/09/2026', 'goods', 999999);
+        $this->makeOutstandingBillsInvoice('TR/KE/08111/09/2026', 'transportation', 999999);
 
         $csv = $this->csv([
             ['SALES INVOICE LISTING - DETAIL'],
@@ -672,7 +672,7 @@ git commit -m "test(sales): cover skip_not_found and skip_customer_mismatch for 
             [], [], ['PT. KALINDO ETAM'], [], [],
             self::HEADER_ROW,
             self::ITEM_SUB_HEADER,
-            ['12/09/2026', 'SI/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 999999, '', ''],
+            ['12/09/2026', 'TR/KE/08111/09/2026', 'C-1364', 'TK. DENDYA', '', '', '', 0, 0, '', 999999, '', ''],
             ['MISC', '', 'Something', '', 'UNIT', 1, 500000, 0, 0, '', 500000],
             ['TAX SUMMARY'],
             ['Printed By : Admin'],
@@ -681,22 +681,16 @@ git commit -m "test(sales): cover skip_not_found and skip_customer_mismatch for 
         $preflight = $this->service->preflight($this->writeFixture($csv), 'csv');
 
         $this->assertSame(0, $preflight['will_update']);
-        $this->assertSame('SI/KE/08111/09/2026', $preflight['skipped_amount_mismatch'][0]['document_number']);
+        $this->assertSame('TR/KE/08111/09/2026', $preflight['skipped_amount_mismatch'][0]['document_number']);
         $this->assertEquals(500000.0, $preflight['skipped_amount_mismatch'][0]['computed_amount']);
     }
 ```
 
-Note: `MISC` must not resolve to any `Item`/`MiscellaneousItem` in these fixtures for the amount-mismatch and type-mismatch tests — none is created in `setUp()`, so it would normally hit `skipped_item_unresolved` first. Use a **Transportation** group there instead so item resolution never runs — fix the two tests above by setting the group type to transportation:
+Note: `classifyOne()` checks type mismatch *before* attempting any item lookup, and skips item lookup entirely for a Transportation group. That has two consequences for these three tests:
 
-```php
-    // In test_preflight_skips_when_the_files_document_type_does_not_match_the_invoices_type()
-    // and test_preflight_skips_when_the_recomputed_total_is_beyond_tolerance(): change the
-    // DOCUMENT # to a TR/ prefix so the parser classifies the group as 'transportation' and no
-    // Item lookup is attempted — e.g. 'TR/KE/08111/09/2026' instead of 'SI/KE/08111/09/2026' in
-    // both the header row's DOCUMENT # cell and makeOutstandingBillsInvoice()'s argument.
-```
-
-Apply that change directly to the two test methods' fixtures and assertions (replace every `SI/KE/08111/09/2026` with `TR/KE/08111/09/2026` and `'goods'` with `'transportation'` in those two tests only — leave `test_preflight_skips_a_goods_group_with_an_unresolvable_item_code` as `SI/` since that one is specifically testing the Goods item-resolution path).
+- `test_preflight_skips_when_the_files_document_type_does_not_match_the_invoices_type` needs **no change** from how it's written above — the invoice is `'transportation'` but the file's `TR`-less `SI/KE/...` document number makes the *file's own group* type `'goods'`, so the type-mismatch check fires and returns before `'MISC'` (unresolved, no `Item`/`MiscellaneousItem` fixture exists for it) is ever looked at. Do not apply the Transportation swap to this test — doing so would make both sides `'transportation'`, eliminating the very mismatch it's testing.
+- `test_preflight_skips_a_goods_group_with_an_unresolvable_item_code` also needs no change — it's already Goods on both sides, which is the point (it's specifically testing the Goods item-resolution path).
+- `test_preflight_skips_when_the_recomputed_total_is_beyond_tolerance` is the ONLY one of the three that needed fixing, and the code above already has the fix applied: both the invoice and the file's document number are `TR/KE/...` / `'transportation'`, so type matches (no mismatch triggered) and item lookup is skipped entirely (Transportation never attempts it) — the flow reaches the amount check with `'MISC'` never evaluated.
 
 - [ ] **Step 2: Run to verify all pass**
 
