@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Ban, Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2 } from 'lucide-react'
+import { Ban, Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
@@ -23,6 +23,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { cancelInvoice, deleteInvoice, fetchInvoices, submitInvoice } from '../api/invoiceApi'
 import { exportSalesReport } from '../api/salesReportApi'
 import { InvoiceFiltersBar } from '../components/InvoiceFiltersBar'
+import { SalesInvoiceDetailBackfillImportDialog } from '../components/SalesInvoiceDetailBackfillImportDialog'
 import { emptyInvoiceFilters, hasActiveInvoiceFilters } from '../lib/invoiceFilters'
 import type { Invoice, InvoiceFilterValues } from '../types'
 
@@ -40,6 +41,8 @@ export function InvoiceListPage() {
   const canUpdate = useHasPermission('sales.invoices.update')
   const canDelete = useHasPermission('sales.invoices.delete')
   const canEditSubmitted = useHasPermission('sales.invoices.edit')
+  const canImportDetail = useHasPermission('sales.invoices.import')
+  const [importDetailOpen, setImportDetailOpen] = useState(false)
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -312,7 +315,10 @@ export function InvoiceListPage() {
               </DropdownMenuContent>
             </DropdownMenu>
             <ActionBar
-              actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching }]}
+              actions={[
+                { label: 'Refresh', icon: RotateCw, onClick: () => listQuery.refetch(), disabled: listQuery.isFetching },
+                ...(canImportDetail ? [{ label: 'Import Detail', icon: Upload, onClick: () => setImportDetailOpen(true) }] : []),
+              ]}
               primary={canCreate ? { label: 'New Invoice', icon: Plus, onClick: () => navigate('/sales/invoices/new') } : undefined}
             />
           </>
@@ -358,6 +364,12 @@ export function InvoiceListPage() {
         onConfirm={() => {
           if (deletingInvoice) deleteMutation.mutate(deletingInvoice.id)
         }}
+      />
+
+      <SalesInvoiceDetailBackfillImportDialog
+        open={importDetailOpen}
+        onClose={() => setImportDetailOpen(false)}
+        onImported={() => listQuery.refetch()}
       />
     </div>
   )
