@@ -120,7 +120,12 @@ Full UI import feature, mirroring `CustomerOutstandingArchiveController` /
   from `CustomerOutstandingArchiveController::rejectedRowsReport()`).
 - **Permission**: new permission added via `RolePermissionSeeder` (never a migration — this app's
   deploy always re-runs `db:seed RolePermissionSeeder`, which replaces all role grants; a
-  migration-only grant would be silently wiped on the next deploy).
+  migration-only grant would be silently wiped on the next deploy). Named to match this page's
+  existing convention (`sales.invoices.create`/`update`/`delete`/`edit`), e.g.
+  `sales.invoices.import_detail` — confirmed with the user: the button lives on the **Sales >
+  Invoices list page** (`InvoiceListPage.tsx`, next to "New Invoice"), not on the Reports >
+  Accounts Receivable Detail page where the original Customer Outstanding Bills import button
+  lives (checked both; this one's about Sales Invoices specifically).
 - **Frontend**: new import dialog component, entry point button on the Sales Invoice List page
   (next to "New Invoice"), preview shows will_update count + a breakdown per skip reason + a
   "download rejected rows" link, confirm → commit → toast with final counts.
