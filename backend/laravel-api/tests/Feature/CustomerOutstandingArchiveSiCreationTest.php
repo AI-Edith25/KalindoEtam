@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AccountsReceivable;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Models\JournalEntry;
 use App\Services\Import\CustomerOutstandingArchiveImportService;
 use Database\Seeders\DocumentEngineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -88,7 +89,10 @@ class CustomerOutstandingArchiveSiCreationTest extends TestCase
         $this->assertSame('partially_paid', $ar->status->value);
 
         // No GL posted for this invoice (import_source_type set) -- see InvoiceService::submit().
-        $this->assertSame(0, \App\Models\JournalEntry::query()->where('reference_type', $invoice->getMorphClass())->where('reference_id', $invoice->id)->count());
+        $this->assertSame(0, JournalEntry::query()->where('reference_type', $invoice->getMorphClass())->where('reference_id', $invoice->id)->count());
+
+        $item = $invoice->items()->firstOrFail();
+        $this->assertSame('SI/KE/00001/09/2026', $item->item_name, 'the printed Description must be just the ref_no, no "Outstanding Balance —" prefix');
     }
 
     public function test_commit_skips_a_line_whose_customer_code_does_not_match_any_live_customer(): void

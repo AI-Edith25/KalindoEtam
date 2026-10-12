@@ -305,7 +305,7 @@ class CustomerOutstandingArchiveImportService
                         'delivery_item_id' => null,
                         'item_id' => null,
                         'item_code' => null,
-                        'item_name' => "Outstanding Balance — {$line['ref_no']}",
+                        'item_name' => $line['ref_no'],
                         'uom' => null,
                         'rate' => $line['invoice_amount'],
                         'qty' => 1,
