@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\ImportBatchStatus;
 use App\Models\AccountsReceivable;
+use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\ImportBatch;
 use App\Models\Invoice;
@@ -165,7 +166,7 @@ class PurgeHistoricalSalesInvoiceImportCommandTest extends TestCase
     public function test_an_invoice_with_a_credit_note_is_still_skipped(): void
     {
         $invoice = $this->makeHistoricalInvoice('SI/KE/00001/09/2026');
-        \App\Models\CreditNote::query()->create([
+        CreditNote::query()->create([
             'invoice_id' => $invoice->id,
             'customer_id' => $this->customer->id,
             'credit_note_date' => '2026-10-01',
@@ -179,5 +180,79 @@ class PurgeHistoricalSalesInvoiceImportCommandTest extends TestCase
         $this->artisan('sales-invoice-import:purge', ['--commit' => true])->assertExitCode(0);
 
         $this->assertNotNull(Invoice::query()->find($invoice->id), 'an invoice with a Credit Note must still survive');
+    }
+
+    /** The exact collision found 2026-10-12: a prior --commit run only soft-deletes (so
+        source_document_number_normalized stays occupied), permanently blocking
+        CustomerOutstandingArchiveImportService from ever recreating that same unpaid bill. A
+        later --commit run must finish the job by hard-deleting what an earlier run left trashed,
+        including its already-reversed PaymentAllocation row (restrictOnDelete on
+        accounts_receivable_id would otherwise block the AR's own forceDelete). */
+    public function test_commit_also_hard_deletes_already_trashed_historical_invoices(): void
+    {
+        $invoice = $this->makeHistoricalInvoice('SI/KE/00001/09/2026');
+        $ar = $invoice->accountsReceivable;
+        $receipt = ReceiptEntry::query()->create([
+            'customer_id' => $this->customer->id,
+            'receipt_date' => '2026-10-01',
+            'payment_method' => 'cash',
+            'total_amount' => 111000,
+            'allocated_amount' => 0,
+        ]);
+        $allocation = PaymentAllocation::query()->create([
+            'receipt_entry_id' => $receipt->id,
+            'accounts_receivable_id' => $ar->id,
+            'allocated_amount' => 111000,
+            'allocation_date' => '2026-10-01',
+            'is_reversed' => true,
+        ]);
+        $invoice->items()->delete();
+        $ar->delete();
+        $invoice->delete();
+
+        $this->artisan('sales-invoice-import:purge', ['--commit' => true])->assertExitCode(0);
+
+        $this->assertNull(Invoice::withTrashed()->find($invoice->id), 'the trashed invoice must be hard-deleted, not merely left trashed');
+        $this->assertNull(AccountsReceivable::withTrashed()->find($ar->id));
+        $this->assertNull(PaymentAllocation::withTrashed()->find($allocation->id));
+    }
+
+    /** The dry run must surface the hard-delete candidate count too, so the operator knows the
+        blast radius before passing --commit on production. */
+    public function test_dry_run_reports_already_trashed_hard_delete_candidates_without_deleting(): void
+    {
+        $invoice = $this->makeHistoricalInvoice('SI/KE/00001/09/2026');
+        $invoice->items()->delete();
+        $invoice->accountsReceivable()->delete();
+        $invoice->delete();
+
+        $this->artisan('sales-invoice-import:purge')
+            ->expectsOutputToContain('Already-trashed invoices that would be hard-deleted: 1')
+            ->assertExitCode(0);
+
+        $this->assertNotNull(Invoice::withTrashed()->find($invoice->id), 'dry run must never delete anything');
+    }
+
+    /** Same refusal as a live row with a Credit Note — this command never unwinds one, trashed or not. */
+    public function test_an_already_trashed_invoice_with_a_credit_note_is_not_hard_deleted(): void
+    {
+        $invoice = $this->makeHistoricalInvoice('SI/KE/00001/09/2026');
+        CreditNote::query()->create([
+            'invoice_id' => $invoice->id,
+            'customer_id' => $this->customer->id,
+            'credit_note_date' => '2026-10-01',
+            'reason' => 'price_adjustment',
+            'subtotal' => 0,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'total_amount' => 0,
+        ]);
+        $invoice->items()->delete();
+        $invoice->accountsReceivable()->delete();
+        $invoice->delete();
+
+        $this->artisan('sales-invoice-import:purge', ['--commit' => true])->assertExitCode(0);
+
+        $this->assertNotNull(Invoice::withTrashed()->find($invoice->id), 'a trashed invoice with a Credit Note must survive the hard-delete pass');
     }
 }
