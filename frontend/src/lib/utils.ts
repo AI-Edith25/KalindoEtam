@@ -8,7 +8,8 @@ export function cn(...inputs: ClassValue[]) {
 const currencyFormatter = new Intl.NumberFormat('id-ID', {
   style: 'currency',
   currency: 'IDR',
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 })
 
 export function formatCurrency(value: number | string): string {
