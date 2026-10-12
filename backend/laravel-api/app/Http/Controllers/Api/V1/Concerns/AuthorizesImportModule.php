@@ -35,6 +35,7 @@ trait AuthorizesImportModule
         'skybiz-ledger-reconciliation' => 'finance.incoming_payment.import',
         'customer-outstanding-archive' => 'reports.ar_archive.import',
         'supplier-outstanding-archive' => 'reports.ap_archive.import',
+        'sales-invoice-detail-backfill' => 'sales.invoices.import',
     ];
 
     private function authorizeModule(string $module): void
