@@ -7,6 +7,8 @@ interface PaginationProps {
   onPageChange: (page: number) => void
 }
 
+const JUMP = 2
+
 export function Pagination({ meta, onPageChange }: PaginationProps) {
   const { current_page, last_page, total, per_page } = meta
 
@@ -28,6 +30,14 @@ export function Pagination({ meta, onPageChange }: PaginationProps) {
           size="sm"
           disabled={current_page <= 1}
           onClick={() => onPageChange(1)}
+        >
+          First
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={current_page <= 1}
+          onClick={() => onPageChange(Math.max(1, current_page - JUMP))}
         >
           <ChevronsLeft className="size-4" />
         </Button>
@@ -56,9 +66,17 @@ export function Pagination({ meta, onPageChange }: PaginationProps) {
           variant="outline"
           size="sm"
           disabled={current_page >= last_page}
-          onClick={() => onPageChange(last_page)}
+          onClick={() => onPageChange(Math.min(last_page, current_page + JUMP))}
         >
           <ChevronsRight className="size-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={current_page >= last_page}
+          onClick={() => onPageChange(last_page)}
+        >
+          Last
         </Button>
       </div>
     </div>
