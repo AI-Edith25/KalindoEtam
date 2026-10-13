@@ -53,7 +53,12 @@ export function LaporanPenagihanHarianPrintPage() {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none">
-      <style>{'@page { size: A4; margin: 0; }'}</style>
+      <style>
+        {`@page { size: A4; margin: 0; }
+          /* thead defaults to display:table-header-group, which Chrome repeats at the top of every
+             printed page — this report's header should only print once, like Laporan_penagihan.pdf. */
+          @media print { thead { display: table-row-group; } }`}
+      </style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Laporan Penagihan Harian Print Preview</h1>
@@ -68,14 +73,34 @@ export function LaporanPenagihanHarianPrintPage() {
         <p className="text-right">Tanggal : {formatDdMmYyyy(today)}</p>
         <hr className="mt-2 border-black" />
 
-        <table className="mt-2 w-full border-collapse text-left">
+        {/*
+          Fixed column widths (table-layout: fixed) instead of browser auto-layout — auto-layout
+          sized each column to whatever its WIDEST row happened to need, so columns jittered in
+          width from page to page and made the whole table look uneven. Widths below are measured
+          against real Arial-13px content (customer names, document/reference numbers from actual
+          invoices) so a typical value fits on one line while a long one wraps predictably instead
+          of forcing the row onto one line or stretching the column. Sum = 186mm = A4 content width
+          (210mm - 12mm print padding each side). CUSTOMER NAME/DOCUMENT/REFERENCE carry no spaces
+          in the worst case (a document number), so they also need overflow-wrap: break-word or a
+          long one would overflow its column instead of wrapping.
+        */}
+        <table className="mt-2 w-full border-collapse text-left" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '16mm' }} />
+            <col style={{ width: '48mm' }} />
+            <col style={{ width: '18mm' }} />
+            <col style={{ width: '26mm' }} />
+            <col style={{ width: '34mm' }} />
+            <col style={{ width: '18mm' }} />
+            <col style={{ width: '26mm' }} />
+          </colgroup>
           <thead>
             <tr className="border-b border-black">
               <th className="whitespace-nowrap py-1 pr-2 font-bold">CUSTOMER</th>
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">CUSTOMER NAME</th>
+              <th className="py-1 pr-2 font-bold">CUSTOMER NAME</th>
               <th className="whitespace-nowrap py-1 pr-2 font-bold">INV DATE</th>
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">DOCUMENT</th>
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">REFERENCE</th>
+              <th className="py-1 pr-2 font-bold">DOCUMENT</th>
+              <th className="py-1 pr-2 font-bold">REFERENCE</th>
               <th className="whitespace-nowrap py-1 pr-2 font-bold">DUE DATE</th>
               <th className="py-1 text-right font-bold leading-tight">
                 OUTSTANDING
@@ -87,13 +112,13 @@ export function LaporanPenagihanHarianPrintPage() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td className="py-1 pr-2 align-top">{row.customer?.customer_code ?? ''}</td>
-                <td className="py-1 pr-2 align-top">{row.customer?.customer_name ?? ''}</td>
-                <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
-                <td className="py-1 pr-2 align-top">{row.invoice?.document_number ?? ''}</td>
-                <td className="py-1 pr-2 align-top">{(row.invoice?.deliveries ?? []).join(', ')}</td>
-                <td className="py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
-                <td className="py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
+                <td className="whitespace-nowrap py-1 pr-2 align-top">{row.customer?.customer_code ?? ''}</td>
+                <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{row.customer?.customer_name ?? ''}</td>
+                <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
+                <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{row.invoice?.document_number ?? ''}</td>
+                <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{(row.invoice?.deliveries ?? []).join(', ')}</td>
+                <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
+                <td className="whitespace-nowrap py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
               </tr>
             ))}
             {/* A <tfoot> row repeats on every printed page (browser default for table-footer-group) —
