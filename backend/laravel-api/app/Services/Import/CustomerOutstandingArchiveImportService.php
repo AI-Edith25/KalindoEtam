@@ -292,7 +292,7 @@ class CustomerOutstandingArchiveImportService
                         'tax_id' => null,
                         'tax_amount' => 0,
                         'grand_total' => $line['invoice_amount'],
-                        'remarks' => 'Diimpor dari Customer Outstanding Bills.',
+                        'remarks' => null,
                         'reference_1' => null,
                         'reference_2' => null,
                         'source_document_number' => $line['ref_no'],
