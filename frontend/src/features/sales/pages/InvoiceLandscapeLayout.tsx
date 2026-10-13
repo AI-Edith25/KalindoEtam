@@ -17,6 +17,7 @@ import {
   TOTALS_BOX,
   TOTALS_BOX_ROW_HEIGHT_MM,
   NOTES_TO_WORDS_GAP_MM,
+  PT_TO_MM,
 } from './invoicePrintConstants'
 
 export { DEJAVU_FONT_STACK }
@@ -182,15 +183,33 @@ type ItemCol = { key: string; label: string; align: ColAlign; width: number; pad
  * top of the header pad (Section 7's documented "data selalu bergeser 0.32mm ke dalam").
  * Widths sum to exactly 210mm (the full page width) — see getItemCols for how the HCTax column
  * is dropped when Tax is off.
+ *
+ * Description/UOM/HCTax widths were redistributed from the frozen baseline's own 40.99/24.04/27.6
+ * (keeping the 210mm total unchanged, every other column untouched) after a bug report showed
+ * Description wrapping to 2 lines on most ordinary invoices, overflowing the dot-matrix sheet.
+ * Real production data (2,067 invoice lines, Sep 2026) plus actual DejaVu Sans Condensed glyph
+ * widths (measured the same way as every other constant in this file — see file doc comment)
+ * drove the new split:
+ *  - UOM's real content never exceeds "LEMBAR" (13.05mm + 0.32mm pad ≈ 13.4mm) — the old 24.04mm
+ *    was carrying ~10mm of dead space. Cut to 16mm, still ~2.6mm of margin over "LEMBAR".
+ *  - HCTax's real max observed is 55,009,907.24 (23.19mm + pad); even an 8-digit safety ceiling
+ *    ("99,999,999.99") measures the same. Cut from 27.6mm to 25.6mm, ~1.8mm margin kept.
+ *  - ItemCode/HCUnitCost/HCLineAmt were measured too and left untouched: ItemCode's common
+ *    "TOKKA_x_13KG"-style codes (90th pct, 14 chars) already need ~27.8mm, matching its current
+ *    27.45mm almost exactly — shrinking it would make a common code wrap, not just a rare one.
+ *    HCUnitCost/HCLineAmt have under ~2mm of margin against real observed maxima already.
+ *  - The reclaimed ~10mm goes entirely to Description (40.99mm -> 51.03mm), which now fits the
+ *    real median line (21 chars, "SEMEN CONCH PCC 50 KG" = 41.75mm) and the 95th percentile
+ *    (22 chars) on one line, wrapping only for rarer 27+-char lines (the 99th percentile).
  */
 const ITEM_COLS: ItemCol[] = [
   { key: 'no', label: 'No', align: 'left', width: 19.99, pad: 10.53 },
   { key: 'itemCode', label: 'ItemCode', align: 'left', width: 27.45, pad: 0 },
-  { key: 'description', label: 'Description', align: 'left', width: 40.99, pad: 0 },
+  { key: 'description', label: 'Description', align: 'left', width: 51.03, pad: 0 },
   { key: 'qty', label: 'Qty', align: 'right', width: 12.53, pad: 0.53 },
-  { key: 'uom', label: 'UOM', align: 'left', width: 24.04, pad: 0 },
+  { key: 'uom', label: 'UOM', align: 'left', width: 16.0, pad: 0 },
   { key: 'unitCost', label: 'HCUnitCost', align: 'right', width: 19.07, pad: 0 },
-  { key: 'tax', label: 'HCTax', align: 'right', width: 27.6, pad: 0 },
+  { key: 'tax', label: 'HCTax', align: 'right', width: 25.6, pad: 0 },
   { key: 'lineAmt', label: 'HCLineAmt', align: 'right', width: 38.33, pad: 10.72 },
 ]
 
@@ -231,8 +250,12 @@ const ITEM_THEAD_HEIGHT_MM = 6.4
 const ITEM_ROW_HEIGHT_MM = 5.92
 /** One extra printed line of description text at 10pt (line-height 1.2). */
 const ITEM_TEXT_LINE_HEIGHT_MM = 4.23
-/** Characters that fit on one line of the 40.99mm Description column at table size — kept a little low on purpose. */
-const DESCRIPTION_CHARS_PER_LINE = 19
+/** Characters that fit on one line of the 51.03mm Description column at table size — kept a little
+    low on purpose, same margin-of-safety this constant always had (see ITEM_COLS's own comment for
+    the width change). Scaled from the same real-font measurement: "SEMEN CONCH PCC 50 KG" (21
+    chars) measures 41.75mm, i.e. ~1.988mm/char average, so the ~50.7mm usable width fits ~25
+    chars at that rate — rounded down to 23 to keep the original's conservative margin. */
+const DESCRIPTION_CHARS_PER_LINE = 23
 /** Same derivation as DESCRIPTION_CHARS_PER_LINE, scaled by column width (27.45mm here vs
     Description's 40.99mm) — ItemCode has no measurement pass either, so this is the only thing
     that can grow its row before text wraps into a row sized for one line. */
@@ -292,6 +315,125 @@ export function paginateHalfInvoiceItems(rowHeightsMm: number[], middleAvailMm: 
     start = end
   }
   return pages
+}
+
+/**
+ * Overflow safety net for the LAST page only (see paginateHalfInvoiceItems's own cap/budget —
+ * that already keeps every OTHER page within bounds). A short dot-matrix Sheet Height plus a
+ * handful of wrapped rows can still push the footer cluster (via footerExtraShiftMm) past the
+ * physical page bottom on the last page specifically — previously this silently clipped on
+ * screen (overflow:hidden) while Chrome's print engine still emitted a near-empty extra page for
+ * the un-clipped remainder (see InvoiceLandscapeLayout's own doc comment, "the one exception").
+ *
+ * Two remedies, tried in order, both scoped to the LAST page only — earlier pages (and their
+ * CONTINUE TO NEXT PAGE footer-free rendering) are untouched either way:
+ *  1. Shrink the whole last page uniformly via CSS transform:scale (9.99pt -> 9pt -> 8.5pt ->
+ *     8pt, the smallest still legible on dot-matrix) — scaling the page's own root element scales
+ *     every descendant's absolute mm position by the same ratio, so this is a true proportional
+ *     shrink of the entire block (table, totals box, signature), not just a font-size tweak that
+ *     would leave the frozen absolute gaps between them unchanged.
+ *  2. If even 8pt still doesn't fit, the last page's own rows genuinely don't belong on one
+ *     sheet — split them across one more physical page instead, moving the overflowing trailing
+ *     rows onto a new page of their own. That new page is a "continuation" (see isContinuation
+ *     in the component body): it renders an abbreviated "Lanjutan Invoice ... (Hal N)" line
+ *     instead of repeating the full company/customer header block, keeping the already-frozen
+ *     47.51mm ITEM_TABLE_TOP_MM unchanged (the blank space above it is the deliberate, lazy
+ *     trade-off — this path only runs for the rare invoice that overflows even after Task A's
+ *     wider Description column and a full shrink pass).
+ */
+const CAPTION_LINE_HEIGHT_MM = FONT_PT.signatureCaption * LINE_HEIGHT * PT_TO_MM
+/** 9.99pt -> 9pt -> 8.5pt -> 8pt, as ratios of the baseline 9.99pt table font — tried in order,
+    first one that fits wins. 8pt is the floor: smaller is not reliably legible on a dot-matrix
+    impact printer, especially with a worn ribbon, so below this the page splits instead. */
+const SHRINK_RATIOS = [9 / 9.99, 8.5 / 9.99, 8 / 9.99]
+
+/** Everything the last page's footer cluster needs to know it fits — see this function's own
+    caller for how pageBottomShiftMm/totalsTableTopMm/signatureNameTop feed the actual render. */
+function computePageFooterGeometry(itemsBottomMm: number, bottomShiftMm: number, notesReservedMm: number, totalsRowCount: number) {
+  const footerExtraShiftMm = Math.max(0, itemsBottomMm + FOOTER_GAP_MM - (TERBILANG_TOP_MM - bottomShiftMm - notesReservedMm))
+  const pageBottomShiftMm = bottomShiftMm - footerExtraShiftMm
+  const totalsTableTopMm = TOTALS_TABLE_TOP_MM - pageBottomShiftMm
+  const totalsBoxBottom = totalsTableTopMm + totalsRowCount * TOTALS_BOX_ROW_HEIGHT_MM
+  const signatureNameTop = Math.max(LANDSCAPE_LEFT_COLUMN_BOTTOM_MM - pageBottomShiftMm, totalsBoxBottom) + LANDSCAPE_SIGNATURE_GAP_MM
+  const contentBottomMm = signatureNameTop + 25.93 + CAPTION_LINE_HEIGHT_MM
+  return { pageBottomShiftMm, totalsTableTopMm, signatureNameTop, contentBottomMm }
+}
+
+export interface RenderPage {
+  rowIndexes: number[]
+  isLastPage: boolean
+  /** True only for a page this safety net inserted (remedy 2) — renders the abbreviated header. */
+  isContinuation: boolean
+  /** CSS transform:scale ratio for this page's root element — 1 unless remedy 1 applied. */
+  scale: number
+}
+
+/**
+ * Resolves one candidate "last page" into one or more render pages. Recurses when a split still
+ * doesn't fit — a severely overflowing invoice (very long descriptions, many rows) can need more
+ * than one continuation page, and each one gets the same shrink-then-split treatment as the
+ * first; checking only the KEPT portion and assuming the overflow tail is automatically fine was
+ * the actual bug a smoke test for this function caught before shipping (an overflow tail can
+ * itself still be too tall for one page).
+ */
+function resolveLastPage(
+  rowIndexes: number[],
+  rowHeightsMm: number[],
+  bottomShiftMm: number,
+  notesReservedMm: number,
+  totalsRowCount: number,
+  sheetHeightMm: number,
+  isContinuation: boolean,
+): RenderPage[] {
+  const bottomMmFor = (idxs: number[]) => {
+    const itemsBottomMm = ITEM_TABLE_TOP_MM + ITEM_THEAD_HEIGHT_MM + idxs.reduce((sum, i) => sum + rowHeightsMm[i], 0)
+    return computePageFooterGeometry(itemsBottomMm, bottomShiftMm, notesReservedMm, totalsRowCount).contentBottomMm
+  }
+
+  const naturalBottomMm = bottomMmFor(rowIndexes)
+  if (naturalBottomMm <= sheetHeightMm) {
+    return [{ rowIndexes, isLastPage: true, isContinuation, scale: 1 }]
+  }
+
+  const fittingRatio = SHRINK_RATIOS.find((ratio) => naturalBottomMm * ratio <= sheetHeightMm)
+  if (fittingRatio) {
+    return [{ rowIndexes, isLastPage: true, isContinuation, scale: fittingRatio }]
+  }
+
+  // Move trailing rows off this page until what remains fits at full scale, then recurse on the
+  // overflow tail (it gets its own shrink-then-split pass, not an unchecked assumption it fits).
+  let keepCount = rowIndexes.length
+  while (keepCount > 0 && bottomMmFor(rowIndexes.slice(0, keepCount)) > sheetHeightMm) {
+    keepCount -= 1
+  }
+  if (keepCount === 0) {
+    // Degenerate: even an empty item table + footer alone doesn't fit this Sheet Height — nothing
+    // left to split off. Render as one (still maximally shrunk) page rather than loop forever;
+    // a Sheet Height this tiny is a misconfiguration outside anything this ticket covers.
+    return [{ rowIndexes, isLastPage: true, isContinuation, scale: SHRINK_RATIOS[SHRINK_RATIOS.length - 1] }]
+  }
+  const kept = rowIndexes.slice(0, keepCount)
+  const overflow = rowIndexes.slice(keepCount)
+  return [
+    { rowIndexes: kept, isLastPage: false, isContinuation, scale: 1 },
+    ...resolveLastPage(overflow, rowHeightsMm, bottomShiftMm, notesReservedMm, totalsRowCount, sheetHeightMm, true),
+  ]
+}
+
+/** Applies the safety net described above to whatever paginateHalfInvoiceItems already produced
+    — only ever touches the last entry, by either marking it for a shrink (scale < 1) or splitting
+    it into one or more continuation pages. Every other page passes through unchanged. */
+export function applyLastPageOverflowSafetyNet(
+  basePages: number[][],
+  rowHeightsMm: number[],
+  bottomShiftMm: number,
+  notesReservedMm: number,
+  totalsRowCount: number,
+  sheetHeightMm: number,
+): RenderPage[] {
+  const earlierPages: RenderPage[] = basePages.slice(0, -1).map((rowIndexes) => ({ rowIndexes, isLastPage: false, isContinuation: false, scale: 1 }))
+  const lastRowIndexes = basePages[basePages.length - 1]
+  return [...earlierPages, ...resolveLastPage(lastRowIndexes, rowHeightsMm, bottomShiftMm, notesReservedMm, totalsRowCount, sheetHeightMm, false)]
 }
 
 /** Printed line count of a string at the given column's chars-per-line (greedy word wrap — an
@@ -391,12 +533,14 @@ export function InvoiceLandscapeLayout({
   const middlePageItemBottomMm = sheetHeightMm - PAGE_BOTTOM_MARGIN_MM - CONTINUE_ROW_HEIGHT_MM
   const rowHeightsMm = invoice.items.map(itemRowHeightMm)
   const middleAvailMm = middlePageItemBottomMm - ITEM_TABLE_TOP_MM - ITEM_THEAD_HEIGHT_MM
-  const pages = paginateHalfInvoiceItems(rowHeightsMm, middleAvailMm)
+  const basePages = paginateHalfInvoiceItems(rowHeightsMm, middleAvailMm)
+  // Safety net (see its own doc comment): only ever adjusts the last entry basePages produced,
+  // either by scaling it down or splitting it into [adjusted last page, continuation page].
+  const renderPages = applyLastPageOverflowSafetyNet(basePages, rowHeightsMm, bottomShiftMm, notesReservedMm, totalsRows.length, sheetHeightMm)
 
   return (
     <>
-      {pages.map((rowIndexes, pageIndex) => {
-        const isLastPage = pageIndex === pages.length - 1
+      {renderPages.map(({ rowIndexes, isLastPage, isContinuation, scale }, pageIndex) => {
         const itemsBottomMm = ITEM_TABLE_TOP_MM + ITEM_THEAD_HEIGHT_MM + rowIndexes.reduce((sum, idx) => sum + rowHeightsMm[idx], 0)
         const continueRowTop = itemsBottomMm + 1
 
@@ -404,19 +548,15 @@ export function InvoiceLandscapeLayout({
         // When this page's own rows already run past that spot, the whole footer cluster grows
         // downward by the difference instead — the footer always shares the last page, never gets
         // an empty page of its own (see paginateHalfInvoiceItems' own doc comment). Zero for every
-        // normal invoice (few rows, plenty of room above the footer's usual spot).
-        const footerExtraShiftMm = isLastPage
-          ? Math.max(0, itemsBottomMm + FOOTER_GAP_MM - (TERBILANG_TOP_MM - bottomShiftMm - notesReservedMm))
-          : 0
-        const pageBottomShiftMm = bottomShiftMm - footerExtraShiftMm
-        // Predicts the totals table's own rendered height (real <table> below, auto-fit) so the
-        // signature block can be positioned with real clearance regardless of row count — see
-        // LANDSCAPE_SIGNATURE_GAP_MM's own derivation comment. Verified fit at the worst case (Tax +
-        // Discount both on, 4 rows): totalsBoxBottom ≈ 113.5mm, signatureNameTop ≈ 116.2mm, signature
-        // caption ends ≈145.4mm — inside the 148.5mm page with margin to spare (footerExtraShiftMm 0).
-        const totalsTableTopMm = TOTALS_TABLE_TOP_MM - pageBottomShiftMm
-        const totalsBoxBottom = totalsTableTopMm + totalsRows.length * TOTALS_BOX_ROW_HEIGHT_MM
-        const signatureNameTop = Math.max(LANDSCAPE_LEFT_COLUMN_BOTTOM_MM - pageBottomShiftMm, totalsBoxBottom) + LANDSCAPE_SIGNATURE_GAP_MM
+        // normal invoice (few rows, plenty of room above the footer's usual spot). Verified fit at
+        // the worst case (Tax + Discount both on, 4 rows): totalsBoxBottom ≈ 113.5mm, signatureNameTop
+        // ≈ 116.2mm, signature caption ends ≈145.4mm — inside the 148.5mm page with margin to spare
+        // (footerExtraShiftMm 0). Beyond that, applyLastPageOverflowSafetyNet's own scale/split
+        // already guarantees this page's un-scaled contentBottomMm fits once scaled — see its doc
+        // comment for why a uniform transform:scale on the root element below is enough on its own.
+        const { pageBottomShiftMm, totalsTableTopMm, signatureNameTop } = isLastPage
+          ? computePageFooterGeometry(itemsBottomMm, bottomShiftMm, notesReservedMm, totalsRows.length)
+          : { pageBottomShiftMm: bottomShiftMm, totalsTableTopMm: 0, signatureNameTop: 0 }
 
         return (
           <div
@@ -439,42 +579,59 @@ export function InvoiceLandscapeLayout({
               fontFamily: effectiveFontFamily,
               color: '#000',
               lineHeight: LINE_HEIGHT,
+              // Overflow safety net remedy 1 (see applyLastPageOverflowSafetyNet) — scaling the
+              // root element scales every absolutely-positioned descendant by the same ratio, a
+              // true proportional shrink of the whole page, not just its text.
+              transform: scale !== 1 ? `scale(${scale})` : undefined,
+              transformOrigin: 'top left',
             }}
           >
             <style>{DEJAVU_FONT_FACES}</style>
 
-            {/* ---------- BLOK KIRI (company + customer) — repeats on every page ---------- */}
-            <T top={5.94} left={10} size={FONT_PT.companyName} bold>{legacyCompanyName(companyName)}</T>
-            {printHeader?.address && <T top={12.65} left={10} size={FONT_PT.metaLeft}>{printHeader.address}</T>}
-            <MetaField top={16.88} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="TEL" value={printHeader?.phone ?? ''} size={FONT_PT.metaLeft} />
-            <MetaField top={20.85} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="EMAIL" value={printHeader?.email ?? ''} size={FONT_PT.metaLeft} />
-            <T top={26.46} left={10} size={FONT_PT.customerName} bold>{invoice.customer?.customer_name ?? '—'}</T>
-            {invoice.customer?.address && <T top={31.7} left={10} size={FONT_PT.metaLeft}>{invoice.customer.address}</T>}
-            <MetaField top={36.99} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="Tel" value={customerTel} size={FONT_PT.metaLeft} bold valueBold={false} />
+            {isContinuation ? (
+              /* ---------- Continuation page (remedy 2) — abbreviated header instead of the full
+                 company/customer block. ITEM_TABLE_TOP_MM stays 47.51mm unchanged (same capacity
+                 math as every other page); the blank space above the item table is the deliberate
+                 trade-off for this rare fallback path. */
+              <T top={10} left={10} width={190} size={FONT_PT.title} bold>
+                {`Lanjutan Invoice ${invoice.document_number ?? ''} (Hal ${pageIndex + 1} dari ${renderPages.length})`}
+              </T>
+            ) : (
+              <>
+                {/* ---------- BLOK KIRI (company + customer) — repeats on every page ---------- */}
+                <T top={5.94} left={10} size={FONT_PT.companyName} bold>{legacyCompanyName(companyName)}</T>
+                {printHeader?.address && <T top={12.65} left={10} size={FONT_PT.metaLeft}>{printHeader.address}</T>}
+                <MetaField top={16.88} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="TEL" value={printHeader?.phone ?? ''} size={FONT_PT.metaLeft} />
+                <MetaField top={20.85} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="EMAIL" value={printHeader?.email ?? ''} size={FONT_PT.metaLeft} />
+                <T top={26.46} left={10} size={FONT_PT.customerName} bold>{invoice.customer?.customer_name ?? '—'}</T>
+                {invoice.customer?.address && <T top={31.7} left={10} size={FONT_PT.metaLeft}>{invoice.customer.address}</T>}
+                <MetaField top={36.99} labelLeft={10} labelWidth={META_LABEL_WIDTH_LEFT_MM} label="Tel" value={customerTel} size={FONT_PT.metaLeft} bold valueBold={false} />
 
-            {/* ---------- BLOK KANAN (info kanan) — Page No added, computed, repeats every page; omitted entirely when there's only 1 page ---------- */}
-            {(
-              [
-                ['NO', invoice.document_number ?? '—', 5.26, true],
-                ['Date', ddmmyyyy(invoice.invoice_date), 9.76, false],
-                ['Reference 1', invoice.reference_1 ?? '', 14.25, false],
-                ['Payment Term', invoice.terms_of_payment?.name ?? '', 18.23, false],
-                ['Jatuh Tempo', ddmmyyyy(invoice.due_date), 22.73, false],
-                ['Sales Person', invoice.sales_person?.name ?? '', 26.95, false],
-                ['Location', location, 31.46, false],
-                ...(pages.length > 1 ? [['Page No', `${pageIndex + 1} of ${pages.length}`, 35.96, false] as [string, string, number, boolean]] : []),
-              ] as [string, string, number, boolean][]
-            ).map(([label, value, top, bold]) => (
-              <MetaField key={label} top={top} labelLeft={127.21} labelWidth={META_LABEL_WIDTH_RIGHT_MM} label={label} value={value} size={FONT_PT.metaRight} bold={bold} />
-            ))}
+                {/* ---------- BLOK KANAN (info kanan) — Page No added, computed, repeats every page; omitted entirely when there's only 1 page ---------- */}
+                {(
+                  [
+                    ['NO', invoice.document_number ?? '—', 5.26, true],
+                    ['Date', ddmmyyyy(invoice.invoice_date), 9.76, false],
+                    ['Reference 1', invoice.reference_1 ?? '', 14.25, false],
+                    ['Payment Term', invoice.terms_of_payment?.name ?? '', 18.23, false],
+                    ['Jatuh Tempo', ddmmyyyy(invoice.due_date), 22.73, false],
+                    ['Sales Person', invoice.sales_person?.name ?? '', 26.95, false],
+                    ['Location', location, 31.46, false],
+                    ...(renderPages.length > 1 ? [['Page No', `${pageIndex + 1} of ${renderPages.length}`, 35.96, false] as [string, string, number, boolean]] : []),
+                  ] as [string, string, number, boolean][]
+                ).map(([label, value, top, bold]) => (
+                  <MetaField key={label} top={top} labelLeft={127.21} labelWidth={META_LABEL_WIDTH_RIGHT_MM} label={label} value={value} size={FONT_PT.metaRight} bold={bold} />
+                ))}
 
-            {/* ---------- JUDUL ---------- */}
-            <T top={37.75} left={10} width={190} size={FONT_PT.title} bold align="center">INVOICE</T>
+                {/* ---------- JUDUL ---------- */}
+                <T top={37.75} left={10} width={190} size={FONT_PT.title} bold align="center">INVOICE</T>
 
-            {/* ---------- GARIS ---------- */}
-            <Line top={45.22} left={10} width={190} height={0.8} color="#000" />
-            <Line top={46.79} left={10.66} width={188.49} height={0.26} color="#383838" />
-            <Line top={52.34} left={10.66} width={188.49} height={0.26} color="#383838" />
+                {/* ---------- GARIS ---------- */}
+                <Line top={45.22} left={10} width={190} height={0.8} color="#000" />
+                <Line top={46.79} left={10.66} width={188.49} height={0.26} color="#383838" />
+                <Line top={52.34} left={10.66} width={188.49} height={0.26} color="#383838" />
+              </>
+            )}
 
             {/* ---------- TABEL ITEM (this page's row slice only) ---------- */}
             <table
