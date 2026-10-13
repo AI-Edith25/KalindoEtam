@@ -17,12 +17,13 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
   return `${day}/${month}/${year}`
 }
 
-/** See this page's own doc comment — deliveries is the normal source, reference_1/2 only ever
-    stand in for a historical-imported Invoice, which has no real Delivery to read deliveries from. */
-function resolveReference(invoice: { deliveries?: string[]; reference_1?: string | null; reference_2?: string | null } | null | undefined): string {
+/** See this page's own doc comment — deliveries is the normal source, reference_1 only ever
+    stands in for a historical-imported Invoice, which has no real Delivery to read deliveries
+    from. reference_2 is deliberately ignored — this column only ever shows one reference. */
+function resolveReference(invoice: { deliveries?: string[]; reference_1?: string | null } | null | undefined): string {
   const deliveries = invoice?.deliveries ?? []
   if (deliveries.length > 0) return deliveries.join(', ')
-  return [invoice?.reference_1, invoice?.reference_2].filter(Boolean).join(', ')
+  return invoice?.reference_1 ?? ''
 }
 
 /**
@@ -41,11 +42,12 @@ function resolveReference(invoice: { deliveries?: string[]; reference_1?: string
  *
  * A historical-imported Invoice (CustomerOutstandingArchiveImportService) has no real Delivery/
  * Sales Order at all — deliveries is always empty for it — so REFERENCE falls back to
- * reference_1/reference_2 (joined) whenever deliveries is empty. Those two only ever get
- * populated for an imported Invoice via the separate "Import Detail" backfill step
- * (SalesInvoiceDetailBackfillService), so an invoice this still shows blank for hasn't had that
- * step run on it yet, or was skipped by it. Never a double-fallback risk for a real invoice — one
- * with at least one real Delivery always has a non-empty deliveries array.
+ * reference_1 (reference_2 deliberately ignored — this column only ever shows one reference)
+ * whenever deliveries is empty. reference_1 only ever gets populated for an imported Invoice via
+ * the separate "Import Detail" backfill step (SalesInvoiceDetailBackfillService), so an invoice
+ * this still shows blank for hasn't had that step run on it yet, or was skipped by it. Never a
+ * double-fallback risk for a real invoice — one with at least one real Delivery always has a
+ * non-empty deliveries array.
  *
  * OUTSTANDING AMOUNT reads invoice.grand_total (the Invoice's own billed amount), not
  * AccountsReceivable.outstanding_amount — a historical-imported Invoice's AR paid_amount is
