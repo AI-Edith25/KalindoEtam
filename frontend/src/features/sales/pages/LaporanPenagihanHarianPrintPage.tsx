@@ -78,21 +78,24 @@ export function LaporanPenagihanHarianPrintPage() {
           sized each column to whatever its WIDEST row happened to need, so columns jittered in
           width from page to page and made the whole table look uneven. Widths below are measured
           against real Arial-13px content (customer names, document/reference numbers from actual
-          invoices) so a typical value fits on one line while a long one wraps predictably instead
-          of forcing the row onto one line or stretching the column. Sum = 186mm = A4 content width
-          (210mm - 12mm print padding each side). CUSTOMER NAME/DOCUMENT/REFERENCE carry no spaces
-          in the worst case (a document number), so they also need overflow-wrap: break-word or a
-          long one would overflow its column instead of wrapping.
+          invoices, AND each bold header's own text — "CUSTOMER"/"DUE DATE" need more room than
+          their data ever does, and a column too narrow for its own header's nowrap text spills
+          visibly into the next column instead of wrapping) so a typical value fits on one line
+          while a long one wraps predictably instead of forcing the row onto one line, stretching
+          the column, or overflowing it. Sum = 186mm = A4 content width (210mm - 12mm print padding
+          each side). CUSTOMER NAME/DOCUMENT/REFERENCE carry no spaces in the worst case (a document
+          number), so they also need overflow-wrap: break-word or a long one would overflow its
+          column instead of wrapping.
         */}
         <table className="mt-2 w-full border-collapse text-left" style={{ tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: '16mm' }} />
-            <col style={{ width: '48mm' }} />
-            <col style={{ width: '18mm' }} />
-            <col style={{ width: '26mm' }} />
-            <col style={{ width: '34mm' }} />
-            <col style={{ width: '18mm' }} />
-            <col style={{ width: '26mm' }} />
+            <col style={{ width: '23mm' }} />
+            <col style={{ width: '40mm' }} />
+            <col style={{ width: '19mm' }} />
+            <col style={{ width: '24mm' }} />
+            <col style={{ width: '32mm' }} />
+            <col style={{ width: '21mm' }} />
+            <col style={{ width: '27mm' }} />
           </colgroup>
           <thead>
             <tr className="border-b border-black">
