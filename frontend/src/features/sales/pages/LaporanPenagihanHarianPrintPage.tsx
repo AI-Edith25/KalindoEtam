@@ -52,11 +52,14 @@ export function LaporanPenagihanHarianPrintPage() {
   const today = new Date().toISOString().slice(0, 10)
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-0 print:shadow-none">
       <style>
-        {`@page { size: A4; margin: 0; }
-          /* thead defaults to display:table-header-group, which Chrome repeats at the top of every
-             printed page — this report's header should only print once, like Laporan_penagihan.pdf. */
+        {`@page { size: A4; margin: 12mm; }
+          /* A one-time padding on this div only insets the TOP of page 1 / BOTTOM of the last page —
+             a table that breaks across pages gets no padding at the interior break, so continuation
+             pages started flush against the paper edge. @page margin is the only thing that re-applies
+             on every physical page, so it's the sole source of print spacing now (print:p-0 above).
+             Still 12mm, so column widths below (sum 186mm = 210mm - 2x12mm) don't need to change. */
           @media print { thead { display: table-row-group; } }`}
       </style>
 
