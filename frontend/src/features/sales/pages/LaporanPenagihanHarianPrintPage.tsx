@@ -17,6 +17,14 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
   return `${day}/${month}/${year}`
 }
 
+/** See this page's own doc comment — deliveries is the normal source, reference_1/2 only ever
+    stand in for a historical-imported Invoice, which has no real Delivery to read deliveries from. */
+function resolveReference(invoice: { deliveries?: string[]; reference_1?: string | null; reference_2?: string | null } | null | undefined): string {
+  const deliveries = invoice?.deliveries ?? []
+  if (deliveries.length > 0) return deliveries.join(', ')
+  return [invoice?.reference_1, invoice?.reference_2].filter(Boolean).join(', ')
+}
+
 /**
  * Reached from Sales > Invoices' checkbox selection (?ids=uuid,uuid,...), replacing the old
  * /reports/penagihan-harian — same AccountsReceivable list-all endpoint (now filtered by
@@ -30,6 +38,14 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
  * (regressed by df284d4, only partially caught by 18d532c's own revert — see 83bfe00 for the
  * original fix and reasoning, same field/logic Sales > Invoices' own "Reference" column uses).
  * No # suffix on any column header (Reference 2 dropped entirely).
+ *
+ * A historical-imported Invoice (CustomerOutstandingArchiveImportService) has no real Delivery/
+ * Sales Order at all — deliveries is always empty for it — so REFERENCE falls back to
+ * reference_1/reference_2 (joined) whenever deliveries is empty. Those two only ever get
+ * populated for an imported Invoice via the separate "Import Detail" backfill step
+ * (SalesInvoiceDetailBackfillService), so an invoice this still shows blank for hasn't had that
+ * step run on it yet, or was skipped by it. Never a double-fallback risk for a real invoice — one
+ * with at least one real Delivery always has a non-empty deliveries array.
  *
  * OUTSTANDING AMOUNT reads invoice.grand_total (the Invoice's own billed amount), not
  * AccountsReceivable.outstanding_amount — a historical-imported Invoice's AR paid_amount is
@@ -122,7 +138,7 @@ export function LaporanPenagihanHarianPrintPage() {
                 <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{row.customer?.customer_name ?? ''}</td>
                 <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
                 <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{row.invoice?.document_number ?? ''}</td>
-                <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{(row.invoice?.deliveries ?? []).join(', ')}</td>
+                <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{resolveReference(row.invoice)}</td>
                 <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
                 <td className="whitespace-nowrap py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
               </tr>
