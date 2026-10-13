@@ -90,13 +90,22 @@ export const INVOICE_PAPER_TYPE_LABELS: Partial<Record<PrintPaperType, string>> 
 }
 
 /**
- * Maps any stored invoice paper type (localStorage or the server's per-user setting) onto the
- * three the Sales Invoice dropdown offers. Old values fold in: 'dotmatrix_half' is the same
- * sheet as the new 'half'; 'continuous' and 'dotmatrix_auto' had no equivalent left, so they
- * fall back to A4 — the same fallback an unknown value already got.
+ * Maps any stored invoice paper type (localStorage or the server's per-user setting) onto what
+ * InvoicePaper.tsx actually knows how to render. 'dotmatrix_half' folds into the new 'half' (same
+ * sheet, see above); 'continuous' has no equivalent and falls back to A4, the same fallback an
+ * unknown value already got.
+ *
+ * 'dotmatrix_auto' passes through even though it's deliberately NOT one of
+ * INVOICE_PAPER_TYPE_OPTIONS (the print-time dropdown every user sees) — it's only ever reached
+ * through the admin-only Print Settings dialog (administration/PrintSettingsDialog.tsx), which
+ * has its own separate options list and exists specifically to tune one stakeholder's printer
+ * without changing what every other user's "Half" does. Previously this silently discarded
+ * 'dotmatrix_auto' back to 'a4', so an admin-saved setting for exactly that scenario never
+ * actually took effect on the stakeholder's own invoice print.
  */
 export function normalizeInvoicePaperType(value: unknown): PrintPaperType {
   if (value === 'half' || value === 'dotmatrix_half') return 'half'
+  if (value === 'dotmatrix_auto') return 'dotmatrix_auto'
   if (value === 'roll') return 'roll'
   return 'a4'
 }
