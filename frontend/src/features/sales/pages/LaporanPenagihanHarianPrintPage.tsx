@@ -77,7 +77,11 @@ export function LaporanPenagihanHarianPrintPage() {
               <th className="whitespace-nowrap py-1 pr-2 font-bold">DOCUMENT</th>
               <th className="whitespace-nowrap py-1 pr-2 font-bold">REFERENCE</th>
               <th className="whitespace-nowrap py-1 pr-2 font-bold">DUE DATE</th>
-              <th className="whitespace-nowrap py-1 text-right font-bold">OUTSTANDING AMOUNT</th>
+              <th className="py-1 text-right font-bold leading-tight">
+                OUTSTANDING
+                <br />
+                AMOUNT
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -92,15 +96,15 @@ export function LaporanPenagihanHarianPrintPage() {
                 <td className="py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
               </tr>
             ))}
-          </tbody>
-          <tfoot>
+            {/* A <tfoot> row repeats on every printed page (browser default for table-footer-group) —
+                TOTAL must only ever print once, at the very end, so it's a normal last <tbody> row. */}
             <tr className="border-t border-black font-bold">
               <td colSpan={6} className="py-1 pr-2 text-right">
                 TOTAL
               </td>
               <td className="py-1 text-right">{formatNum(total, 2)}</td>
             </tr>
-          </tfoot>
+          </tbody>
         </table>
 
         <p className="mt-8 text-center text-xs font-medium">PEMBAYARAN DENGAN CHEQUE / GIRO DIANGGAP LUNAS SETELAH DICAIRKAN</p>
