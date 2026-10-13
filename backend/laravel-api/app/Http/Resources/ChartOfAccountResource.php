@@ -24,6 +24,7 @@ class ChartOfAccountResource extends JsonResource
                 'name' => $this->parent->name,
             ] : null),
             'children_count' => $this->whenCounted('children'),
+            'journal_entry_lines_count' => $this->whenCounted('journalEntryLines'),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -12,9 +12,12 @@ import { RupiahInput } from '@/components/shared/RupiahInput'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { formatCurrency } from '@/lib/utils'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchBranches, fetchChartOfAccountsLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
 import type { Customer } from '@/features/master/types'
@@ -103,6 +106,21 @@ export function IncomingPaymentEditorPage() {
     () => (outstandingQuery.data?.data ?? []).filter((ar) => ar.status !== 'paid' && ar.invoice_id !== null),
     [outstandingQuery.data],
   )
+
+  // Confirmation preview shown right before "Confirm Payment" actually posts the journal —
+  // purely derived from form state already in hand, no extra request needed.
+  const [showPostingPreview, setShowPostingPreview] = useState(false)
+  const cashAccountName = cashAccountOptions.find((o) => o.value === form.watch('cash_account_id'))?.label ?? '—'
+  const incomeAccountName = incomeAccountOptions.find((o) => o.value === form.watch('income_account_id'))?.label ?? '—'
+  const previewTotalAmount = Number(form.watch('total_amount')) || 0
+  const previewAllocatedRows = Array.from(allocations.entries())
+    .filter(([, amount]) => amount > 0)
+    .map(([arId, amount]) => ({
+      label: outstandingInvoices.find((ar) => ar.id === arId)?.invoice?.document_number ?? outstandingInvoices.find((ar) => ar.id === arId)?.reference_number ?? arId,
+      amount,
+    }))
+  const previewAllocatedTotal = previewAllocatedRows.reduce((sum, row) => sum + row.amount, 0)
+  const previewUnallocated = Math.max(0, Math.round((previewTotalAmount - previewAllocatedTotal) * 100) / 100)
 
   function commitAllocations(next: Map<string, number>) {
     setAllocations(next)
@@ -547,7 +565,7 @@ export function IncomingPaymentEditorPage() {
               {isEdit && receiptQuery.data?.status === 'submitted' ? 'Save Changes' : 'Save Draft'}
             </Button>
             {isEdit && receiptQuery.data?.status === 'draft' && (
-              <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+              <Button type="button" onClick={() => setShowPostingPreview(true)} disabled={submitMutation.isPending}>
                 {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 Confirm Payment
               </Button>
@@ -555,6 +573,78 @@ export function IncomingPaymentEditorPage() {
           </div>
         </form>
       </Form>
+
+      <Dialog open={showPostingPreview} onOpenChange={setShowPostingPreview}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Periksa Sebelum Konfirmasi</DialogTitle>
+            <DialogDescription>Pembayaran ini akan dicatat sebagai:</DialogDescription>
+          </DialogHeader>
+          <ul className="list-disc space-y-2 pl-5 text-sm">
+            <li>
+              Masuk ke <span className="font-medium">{cashAccountName}</span> sebesar{' '}
+              <span className="font-medium">{formatCurrency(previewTotalAmount)}</span>
+            </li>
+            {isOtherIncome ? (
+              <li>
+                Dicatat sebagai pemasukan <span className="font-medium">{incomeAccountName}</span> sebesar{' '}
+                <span className="font-medium">{formatCurrency(previewTotalAmount)}</span>
+              </li>
+            ) : (
+              <>
+                {previewAllocatedTotal > 0 && (
+                  <li>
+                    Mengurangi piutang <span className="font-medium">{customerSelectedOption?.label ?? '—'}</span> sebesar{' '}
+                    <span className="font-medium">{formatCurrency(previewAllocatedTotal)}</span>
+                  </li>
+                )}
+                {previewUnallocated > 0 && (
+                  <li>
+                    <span className="font-medium">{formatCurrency(previewUnallocated)}</span> akan tercatat sebagai pembayaran belum dialokasikan
+                    (unallocated).
+                  </li>
+                )}
+              </>
+            )}
+          </ul>
+          {previewAllocatedRows.length > 0 && (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead className="text-right">Nominal Dialokasikan</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {previewAllocatedRows.map((row) => (
+                    <TableRow key={row.label}>
+                      <TableCell>{row.label}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowPostingPreview(false)}>
+              Periksa Lagi
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setShowPostingPreview(false)
+                submitMutation.mutate()
+              }}
+              disabled={submitMutation.isPending}
+            >
+              {submitMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Konfirmasi & Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

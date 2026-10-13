@@ -1,8 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -11,10 +11,11 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
-import { createChartOfAccount, updateChartOfAccount } from '../api/chartOfAccountApi'
+import { createChartOfAccount, fetchChartOfAccount, updateChartOfAccount } from '../api/chartOfAccountApi'
 import type { ChartOfAccount } from '../types'
 
 const UNCLASSIFIED = '__unclassified__'
@@ -52,6 +53,15 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
   const isEdit = !!chartOfAccount
   const queryClient = useQueryClient()
   const accounts = useChartOfAccountsLookup()
+
+  // Warn before the toggle actually goes on — fetched lazily (only while the dialog is up) since
+  // the paged list this drawer's `chartOfAccount` prop comes from never carries usage counts.
+  const [confirmingCashBank, setConfirmingCashBank] = useState(false)
+  const usageQuery = useQuery({
+    queryKey: ['chart-of-account-usage', chartOfAccount?.id],
+    queryFn: () => fetchChartOfAccount(chartOfAccount!.id),
+    enabled: confirmingCashBank && isEdit,
+  })
 
   const form = useForm<ChartOfAccountFormValues>({
     resolver: zodResolver(chartOfAccountFormSchema),
@@ -203,7 +213,10 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
                       <span className="text-xs text-muted-foreground">Appears as a Payment Method option on Incoming/Outgoing Payments.</span>
                     </div>
                     <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => (checked ? setConfirmingCashBank(true) : field.onChange(false))}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -249,6 +262,42 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
           </form>
         </Form>
       </SheetContent>
+
+      <Dialog open={confirmingCashBank} onOpenChange={setConfirmingCashBank}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Aktifkan Cash/Bank Account?</DialogTitle>
+            <DialogDescription>
+              Mengaktifkan opsi ini akan membuat akun &quot;{form.watch('name') || chartOfAccount?.name}&quot; muncul sebagai pilihan Cash/Bank di
+              semua transaksi pembayaran (Official Receipt & Payment Voucher). Pastikan tipe akun ini sudah benar (Asset) sebelum melanjutkan.
+              Lanjutkan?
+            </DialogDescription>
+          </DialogHeader>
+          {isEdit && (
+            <p className="text-sm text-muted-foreground">
+              {usageQuery.isLoading
+                ? 'Memeriksa riwayat transaksi akun ini…'
+                : (usageQuery.data?.journal_entry_lines_count ?? 0) > 0
+                  ? `Akun ini sudah digunakan di ${usageQuery.data!.journal_entry_lines_count} transaksi. Perubahan pengaturan dapat memengaruhi laporan yang sudah ada.`
+                  : null}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirmingCashBank(false)}>
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                form.setValue('is_cash_bank', true)
+                setConfirmingCashBank(false)
+              }}
+            >
+              Ya, Aktifkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   )
 }

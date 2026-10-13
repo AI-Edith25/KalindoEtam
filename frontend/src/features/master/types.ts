@@ -14,6 +14,8 @@ export interface ChartOfAccount {
   parent: { id: string; code: string; name: string } | null
   /** Two levels only — a non-zero count means this account cannot itself become a child (see UpdateChartOfAccountRequest). */
   children_count: number | null
+  /** Only present on `show` (not the paged list) — number of posted journal lines against this account. */
+  journal_entry_lines_count?: number | null
   created_at: string
   updated_at: string
 }

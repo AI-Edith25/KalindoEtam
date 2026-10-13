@@ -36,7 +36,7 @@ class ChartOfAccountController extends Controller
 
     public function show(ChartOfAccount $chartOfAccount): JsonResponse
     {
-        return $this->success(new ChartOfAccountResource($chartOfAccount->load('parent:id,code,name')->loadCount('children')));
+        return $this->success(new ChartOfAccountResource($chartOfAccount->load('parent:id,code,name')->loadCount(['children', 'journalEntryLines'])));
     }
 
     public function update(UpdateChartOfAccountRequest $request, ChartOfAccount $chartOfAccount): JsonResponse

@@ -52,4 +52,10 @@ class ChartOfAccount extends Model
     {
         return $this->hasMany(self::class, 'parent_id');
     }
+
+    /** Every posted document's journal lands here — the single signal for "has this account been used in a transaction". */
+    public function journalEntryLines(): HasMany
+    {
+        return $this->hasMany(JournalEntryLine::class, 'chart_of_account_id');
+    }
 }
