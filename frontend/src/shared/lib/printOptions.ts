@@ -80,33 +80,23 @@ export const defaultPrintOptions: PrintOptions = {
  * or PRINT_PAPER_PAGE_CSS below: Delivery print still offers 'half' (A5) and 'dotmatrix_half'
  * from the shared dialog. Here 'half' means the 9.5in x 5.5in dot-matrix sheet — the same
  * physical paper and tuning that 'dotmatrix_half' used, now under the name "Half".
- *
- * 'dotmatrix_auto' was missing from this list entirely until a real SIMPLIDOTS/EPSON LX-310
- * printer (see print-page-count.mjs's own comment) hit exactly the failure mode it exists for —
- * its driver substitutes its own registered paper form instead of honoring 'half'/'dotmatrix_half'
- * fixed @page size, overflowing a short invoice onto a blank 2nd page no CSS change on the page
- * itself can fix (the mismatch happens at the OS/driver level, below anything the page controls).
- * The mode had full layout support (InvoicePaper.tsx/InvoicePortraitLayout.tsx) and test coverage
- * the whole time — it just wasn't reachable from this dropdown.
  */
-export const INVOICE_PAPER_TYPE_OPTIONS: PrintPaperType[] = ['a4', 'half', 'dotmatrix_auto', 'roll']
+export const INVOICE_PAPER_TYPE_OPTIONS: PrintPaperType[] = ['a4', 'half', 'roll']
 
 export const INVOICE_PAPER_TYPE_LABELS: Partial<Record<PrintPaperType, string>> = {
   a4: 'A4',
   half: 'Half',
-  dotmatrix_auto: 'Dot Matrix (Auto)',
   roll: 'Roll (Thermal 80mm)',
 }
 
 /**
  * Maps any stored invoice paper type (localStorage or the server's per-user setting) onto the
- * choices the Sales Invoice dropdown offers. 'dotmatrix_half' folds into the new 'half' (same
- * sheet, see above); 'continuous' has no equivalent and falls back to A4, the same fallback an
- * unknown value already got.
+ * three the Sales Invoice dropdown offers. Old values fold in: 'dotmatrix_half' is the same
+ * sheet as the new 'half'; 'continuous' and 'dotmatrix_auto' had no equivalent left, so they
+ * fall back to A4 — the same fallback an unknown value already got.
  */
 export function normalizeInvoicePaperType(value: unknown): PrintPaperType {
   if (value === 'half' || value === 'dotmatrix_half') return 'half'
-  if (value === 'dotmatrix_auto') return 'dotmatrix_auto'
   if (value === 'roll') return 'roll'
   return 'a4'
 }
