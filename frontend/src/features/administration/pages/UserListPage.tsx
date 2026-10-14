@@ -53,7 +53,11 @@ export function UserListPage() {
   const rows = (listQuery.data?.data ?? []).filter((user) => {
     const query = search.trim().toLowerCase()
     if (!query) return true
-    return user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
+    return (
+      user.name.toLowerCase().includes(query) ||
+      user.username.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query)
+    )
   })
 
   const openCreate = () => {
@@ -68,6 +72,7 @@ export function UserListPage() {
 
   const columns: DataTableColumn<User>[] = [
     { header: 'Name', accessor: (row) => row.name },
+    { header: 'Username', accessor: (row) => row.username },
     { header: 'Email', accessor: (row) => row.email },
     {
       header: 'Role',

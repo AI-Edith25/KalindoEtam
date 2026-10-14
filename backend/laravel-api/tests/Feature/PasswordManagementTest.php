@@ -69,6 +69,7 @@ class PasswordManagementTest extends TestCase
     {
         $response = $this->postJson('/api/v1/auth/register', [
             'name' => 'New Guy',
+            'username' => 'newguy',
             'email' => 'newguy@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
@@ -87,6 +88,7 @@ class PasswordManagementTest extends TestCase
 
         $this->postJson('/api/v1/auth/register', [
             'name' => 'Someone',
+            'username' => 'someone',
             'email' => 'taken@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',

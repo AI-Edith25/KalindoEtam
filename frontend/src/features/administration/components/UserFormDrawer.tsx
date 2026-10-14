@@ -17,6 +17,7 @@ import type { User } from '../types'
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
+  username: z.string().min(1, 'Username is required').max(255),
   email: z.string().email('Must be a valid email').max(255),
   password: z.string().min(8, 'Must be at least 8 characters'),
   role: z.string(),
@@ -24,6 +25,7 @@ const createSchema = z.object({
 
 const editSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
+  username: z.string().min(1, 'Username is required').max(255),
   email: z.string().email('Must be a valid email').max(255),
   password: z.string(),
   role: z.string(),
@@ -44,7 +46,7 @@ export function UserFormDrawer({ open, onOpenChange, user }: UserFormDrawerProps
 
   const form = useForm<UserFormSchemaValues>({
     resolver: zodResolver(isEdit ? editSchema : createSchema),
-    defaultValues: { name: '', email: '', password: '', role: '' },
+    defaultValues: { name: '', username: '', email: '', password: '', role: '' },
   })
 
   useEffect(() => {
@@ -52,8 +54,8 @@ export function UserFormDrawer({ open, onOpenChange, user }: UserFormDrawerProps
 
     form.reset(
       user
-        ? { name: user.name, email: user.email, password: '', role: user.roles[0] ?? '' }
-        : { name: '', email: '', password: '', role: '' },
+        ? { name: user.name, username: user.username, email: user.email, password: '', role: user.roles[0] ?? '' }
+        : { name: '', username: '', email: '', password: '', role: '' },
     )
   }, [open, user, form])
 
@@ -61,7 +63,9 @@ export function UserFormDrawer({ open, onOpenChange, user }: UserFormDrawerProps
     mutationFn: (values: UserFormSchemaValues) => {
       const role = values.role || undefined
 
-      return isEdit ? updateUser(user.id, { name: values.name, email: values.email }) : createUser({ ...values, role })
+      return isEdit
+        ? updateUser(user.id, { name: values.name, username: values.username, email: values.email })
+        : createUser({ ...values, role })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users-paged'] })
@@ -90,6 +94,19 @@ export function UserFormDrawer({ open, onOpenChange, user }: UserFormDrawerProps
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
                     <FormControl>
                       <Input autoComplete="off" {...field} />
                     </FormControl>

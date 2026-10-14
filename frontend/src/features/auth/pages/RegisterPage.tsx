@@ -23,6 +23,7 @@ export function RegisterPage() {
   const navigate = useNavigate()
 
   const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -34,6 +35,10 @@ export function RegisterPage() {
 
     if (!name.trim()) {
       setError('Nama wajib diisi')
+      return
+    }
+    if (!username.trim()) {
+      setError('Username wajib diisi')
       return
     }
     if (!email.trim()) {
@@ -52,7 +57,7 @@ export function RegisterPage() {
     setError(null)
     setIsSubmitting(true)
     try {
-      await registerRequest({ name, email, password, password_confirmation: confirmPassword })
+      await registerRequest({ name, username, email, password, password_confirmation: confirmPassword })
       toast.success('Registrasi berhasil. Akun Anda menunggu persetujuan Admin.')
       navigate('/login', { replace: true })
     } catch (apiError) {
@@ -74,6 +79,15 @@ export function RegisterPage() {
             <div className="grid gap-2">
               <Label htmlFor="register-name">Nama</Label>
               <Input id="register-name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="register-username">Username</Label>
+              <Input
+                id="register-username"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="register-email">Email</Label>

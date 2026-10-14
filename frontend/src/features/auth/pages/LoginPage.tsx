@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
+  username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
 })
 
@@ -26,7 +26,7 @@ export function LoginPage() {
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { username: '', password: '' },
   })
 
   if (isAuthenticated) {
@@ -37,7 +37,7 @@ export function LoginPage() {
     setIsSubmitting(true)
 
     try {
-      await login(values.email, values.password)
+      await login(values.username, values.password)
       const redirectTo = (location.state as { from?: string } | null)?.from ?? '/dashboard'
       navigate(redirectTo, { replace: true })
     } catch (error) {
@@ -59,12 +59,12 @@ export function LoginPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <FormField
                 control={form.control}
-                name="email"
+                name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Username</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="admin@example.com" autoComplete="username" {...field} />
+                      <Input type="text" placeholder="admin" autoComplete="username" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

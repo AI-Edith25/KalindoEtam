@@ -33,6 +33,7 @@ class UserService
         return DB::transaction(function () use ($data) {
             $user = $this->userRepository->create([
                 'name' => $data['name'],
+                'username' => $data['username'],
                 'email' => $data['email'],
                 'password' => Hash::make($data['password']),
             ]);

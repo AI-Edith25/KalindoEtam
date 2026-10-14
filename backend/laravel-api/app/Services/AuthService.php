@@ -23,18 +23,18 @@ class AuthService
         protected AuditLogService $auditLogService,
     ) {}
 
-    public function login(string $email, string $password): array
+    public function login(string $username, string $password): array
     {
-        $user = $this->userRepository->findByEmail($email);
+        $user = $this->userRepository->findByUsername($username);
 
         if (! $user || ! Hash::check($password, $user->password)) {
-            $this->auditLogService->record('login_failed', 'auth', "Failed login attempt for {$email}.", userId: $user?->id);
+            $this->auditLogService->record('login_failed', 'auth', "Failed login attempt for {$username}.", userId: $user?->id);
 
-            throw new BusinessException('Invalid email or password.', 401);
+            throw new BusinessException('Invalid username or password.', 401);
         }
 
         if (! $user->is_active) {
-            $this->auditLogService->record('login_blocked', 'auth', "Login blocked for deactivated user {$email}.", userId: $user->id);
+            $this->auditLogService->record('login_blocked', 'auth', "Login blocked for deactivated user {$username}.", userId: $user->id);
 
             throw new BusinessException('This account is deactivated.', 401);
         }
@@ -81,6 +81,7 @@ class AuthService
         return DB::transaction(function () use ($data) {
             $user = $this->userRepository->create([
                 'name' => $data['name'],
+                'username' => $data['username'],
                 'email' => $data['email'],
                 'password' => Hash::make($data['password']),
                 'is_active' => false,

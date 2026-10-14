@@ -7,7 +7,7 @@ interface AuthContextValue {
   user: AuthUser | null
   isLoading: boolean
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   clearSession: () => void
 }
@@ -32,8 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false))
   }, [])
 
-  const login = async (email: string, password: string) => {
-    const result = await loginRequest({ email, password })
+  const login = async (username: string, password: string) => {
+    const result = await loginRequest({ username, password })
     localStorage.setItem(AUTH_TOKEN_KEY, result.token)
     setUser(result.user)
   }
