@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\User;
 use App\Repositories\UserRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -85,6 +86,25 @@ class UserService
             $this->auditLogService->record('password_reset', 'user', "Password reset for user {$user->email}.");
 
             return $newPassword;
+        });
+    }
+
+    /**
+     * Soft-delete only (see routes/api.php) — every created_by/updated_by/deleted_by across the
+     * app and audit_logs.user_id is nullOnDelete, so a hard delete would erase "who did this"
+     * everywhere that user ever touched. Soft-delete hides them and revokes access without that.
+     */
+    public function delete(User $user, User $actingUser): void
+    {
+        if ($user->is($actingUser)) {
+            throw new BusinessException('You cannot delete your own account.');
+        }
+
+        DB::transaction(function () use ($user) {
+            $user->tokens()->delete();
+            $user->delete();
+
+            $this->auditLogService->record('deleted', 'user', "Deleted user {$user->email}.");
         });
     }
 

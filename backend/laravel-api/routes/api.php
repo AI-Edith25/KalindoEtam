@@ -177,9 +177,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
 
     // Administration — User Management (docs/ADMINISTRATION_DESIGN.md §4): the backend
     // this sprint adds, since only auth/login|logout|me existed before.
-    // No destroy — deactivate (below) is the intended lifecycle action, same
-    // "prefer deactivation over deletion" convention Tax already established.
-    $withPagePermissions(Route::apiResource('users', UserController::class)->except('destroy'), 'administration.users');
+    // destroy is a soft-delete (UserService::delete) — created_by/updated_by/deleted_by
+    // across every other table and audit_logs.user_id are nullOnDelete, so a hard delete
+    // would wipe out "who did this" everywhere; soft-delete keeps those intact while still
+    // hiding the user and revoking their tokens.
+    $withPagePermissions(Route::apiResource('users', UserController::class), 'administration.users');
     Route::post('users/{user}/activate', [UserController::class, 'activate'])->middleware('permission:administration.users.update');
     Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])->middleware('permission:administration.users.update');
     Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->middleware('permission:administration.users.update');

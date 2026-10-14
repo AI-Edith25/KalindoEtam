@@ -23,7 +23,7 @@ class RolePermissionSeeder extends Seeder
         'administration.company' => ['view', 'create', 'update', 'delete'],
         'administration.branch' => ['view', 'create', 'update', 'delete'],
         'administration.roles' => ['view', 'create', 'update', 'delete'],
-        'administration.users' => ['view', 'create', 'update'],
+        'administration.users' => ['view', 'create', 'update', 'delete'],
         'administration.audit_log' => ['view'],
         'administration.naming_series' => ['view', 'create', 'update', 'delete'],
         'administration.purchase_settings' => ['view', 'update'],

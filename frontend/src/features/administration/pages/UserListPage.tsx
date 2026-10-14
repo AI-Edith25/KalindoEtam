@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Key, Pencil, Plus, Power, PowerOff, Printer, RotateCw, ShieldPlus } from 'lucide-react'
+import { Key, Pencil, Plus, Power, PowerOff, Printer, RotateCw, ShieldPlus, Trash2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -10,11 +10,13 @@ import { RowActionsMenu } from '@/components/shared/RowActionsMenu'
 import { Pagination } from '@/components/shared/Pagination'
 import { SectionNav } from '@/components/shared/SectionNav'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { Badge } from '@/components/ui/badge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
+import { useAuth } from '@/app/AuthContext'
 import { formatNumber } from '@/lib/utils'
-import { activateUser, deactivateUser, fetchUsersPaged } from '../api/userApi'
+import { activateUser, deactivateUser, deleteUser, fetchUsersPaged } from '../api/userApi'
 import { UserFormDrawer } from '../components/UserFormDrawer'
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog'
 import { AssignRoleDialog } from '../components/AssignRoleDialog'
@@ -23,8 +25,10 @@ import type { User } from '../types'
 
 export function UserListPage() {
   const queryClient = useQueryClient()
+  const { user: currentUser } = useAuth()
   const canCreate = useHasPermission('administration.users.create')
   const canUpdate = useHasPermission('administration.users.update')
+  const canDelete = useHasPermission('administration.users.delete')
   const canViewPrintSettings = useHasPermission('administration.print_settings.view')
   const canUpdatePrintSettings = useHasPermission('administration.print_settings.update')
   const [page, setPage] = useState(1)
@@ -34,6 +38,7 @@ export function UserListPage() {
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null)
   const [assignRoleUser, setAssignRoleUser] = useState<User | null>(null)
   const [printSettingsUser, setPrintSettingsUser] = useState<User | null>(null)
+  const [deletingUser, setDeletingUser] = useState<User | null>(null)
 
   const listQuery = useQuery({
     queryKey: ['users-paged', page],
@@ -46,6 +51,16 @@ export function UserListPage() {
     onSuccess: (user) => {
       queryClient.invalidateQueries({ queryKey: ['users-paged'] })
       toast.success(user.is_active ? `${user.email} activated.` : `${user.email} deactivated.`)
+    },
+    onError: (error) => toastApiError(error),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (user: User) => deleteUser(user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users-paged'] })
+      toast.success('User deleted.')
+      setDeletingUser(null)
     },
     onError: (error) => toastApiError(error),
   })
@@ -91,6 +106,9 @@ export function UserListPage() {
                 ]
               : []),
             ...(canViewPrintSettings ? [{ label: 'Print Settings', icon: Printer, onClick: () => setPrintSettingsUser(row) }] : []),
+            ...(canDelete && row.id !== currentUser?.id
+              ? [{ label: 'Delete', icon: Trash2, variant: 'destructive' as const, onClick: () => setDeletingUser(row) }]
+              : []),
           ]}
         />
       ),
@@ -135,6 +153,14 @@ export function UserListPage() {
         onOpenChange={(open) => !open && setPrintSettingsUser(null)}
         user={printSettingsUser}
         canUpdate={canUpdatePrintSettings}
+      />
+      <DeleteDialog
+        open={!!deletingUser}
+        onOpenChange={(open) => !open && setDeletingUser(null)}
+        itemLabel={deletingUser?.name}
+        onConfirm={() => {
+          if (deletingUser) deleteMutation.mutate(deletingUser)
+        }}
       />
     </div>
   )

@@ -11,6 +11,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
@@ -40,6 +41,13 @@ class UserController extends Controller
         $user = $this->userService->update($user, $request->validated());
 
         return $this->success(new UserResource($user), 'User updated.');
+    }
+
+    public function destroy(Request $request, User $user): JsonResponse
+    {
+        $this->userService->delete($user, $request->user());
+
+        return $this->success(null, 'User deleted.');
     }
 
     public function activate(User $user): JsonResponse

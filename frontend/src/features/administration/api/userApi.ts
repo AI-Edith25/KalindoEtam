@@ -27,6 +27,11 @@ export async function deactivateUser(id: string): Promise<User> {
   return data.data
 }
 
+/** Soft-delete (see UserService::delete) — created_by/updated_by/audit_logs tied to this user stay intact. */
+export async function deleteUser(id: string): Promise<void> {
+  await apiClient.delete(`/users/${id}`)
+}
+
 /** Returns the new plain-text password once — no email infra exists to send a reset link (docs/ADMINISTRATION_DESIGN.md Open Question 4). */
 export async function resetUserPassword(id: string): Promise<string> {
   const { data } = await apiClient.post<ApiResponse<{ password: string }>>(`/users/${id}/reset-password`)
