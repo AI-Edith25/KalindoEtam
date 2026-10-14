@@ -576,19 +576,42 @@ export function InvoiceLandscapeLayout({
               marginTop: offsetTopMm ? `${offsetTopMm}mm` : undefined,
               breakAfter: isLastPage ? 'avoid' : 'page',
               pageBreakAfter: isLastPage ? 'avoid' : 'always',
-              fontFamily: effectiveFontFamily,
-              color: '#000',
-              lineHeight: LINE_HEIGHT,
-              // Overflow safety net remedy 1 (see applyLastPageOverflowSafetyNet) — scaling the
-              // root element scales every absolutely-positioned descendant by the same ratio, a
-              // true proportional shrink of the whole page, not just its text.
-              transform: scale !== 1 ? `scale(${scale})` : undefined,
-              transformOrigin: 'top left',
             }}
           >
-            <style>{DEJAVU_FONT_FACES}</style>
+            {/*
+             * Overflow safety net remedy 1 (see applyLastPageOverflowSafetyNet) lives on THIS inner
+             * wrapper, not the outer page div above — `zoom`, not `transform: scale`, and on a
+             * separate element on purpose:
+             *  - transform is paint-only: it never changes the element's own generated box, so a
+             *    page whose un-transformed content is taller than sheetHeightMm still measures as
+             *    overflowing for every purpose EXCEPT painting — print pagination fragments it onto
+             *    a 2nd (near-empty) page and the signature block (laid out past sheetHeightMm) gets
+             *    clipped by the outer `overflow: hidden`, regardless of how small the transform
+             *    paints it on screen. Confirmed via real Ctrl+P/Save-as-PDF output, not just the
+             *    on-screen preview, which looked fine under the old transform approach and never
+             *    caught this.
+             *  - `zoom` DOES reflow, which is what we want for the content — but putting it on the
+             *    SAME element that also declares the physical `height: sheetHeightMm` above would
+             *    leave it ambiguous whether that explicit height is itself zoomed (shrinking the
+             *    clip boundary along with the content, reintroducing a smaller version of the same
+             *    clip). Zooming only this un-sized inner wrapper keeps the outer box's physical
+             *    139.7mm page boundary fixed and unambiguous, while every absolutely-positioned
+             *    descendant below (all positioned relative to THIS wrapper) renders at genuinely
+             *    smaller physical offsets — safely inside that boundary instead of merely painted
+             *    smaller within it.
+             */}
+            <div
+              style={{
+                position: 'relative',
+                zoom: scale !== 1 ? scale : undefined,
+                fontFamily: effectiveFontFamily,
+                color: '#000',
+                lineHeight: LINE_HEIGHT,
+              }}
+            >
+              <style>{DEJAVU_FONT_FACES}</style>
 
-            {isContinuation ? (
+              {isContinuation ? (
               /* ---------- Continuation page (remedy 2) — abbreviated header instead of the full
                  company/customer block. ITEM_TABLE_TOP_MM stays 47.51mm unchanged (same capacity
                  math as every other page); the blank space above the item table is the deliberate
@@ -816,6 +839,7 @@ export function InvoiceLandscapeLayout({
                 <T top={signatureNameTop + 25.93} left={133.82} width={65} size={FONT_PT.signatureCaption} align="center">({signatureRightLabel})</T>
               </>
             )}
+            </div>
           </div>
         )
       })}
