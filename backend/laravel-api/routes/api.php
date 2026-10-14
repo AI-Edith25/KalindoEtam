@@ -132,11 +132,16 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login']);
     // Public self-registration — always creates an inactive, no-role account pending Admin approval
     // (see AuthService::register). Throttled: the only public write endpoint that creates rows.
-    Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:5,10');
+    // Explicit prefix on every throttle below: Laravel's default (prefix-less) `throttle:N,M` keys
+    // its counter by domain+IP ONLY (ThrottleRequests::resolveRequestSignature), not by route — so
+    // without a prefix these three (and the pre-existing diagnostics route below) would all share
+    // one counter per IP regardless of each route's own N,M, and a burst on one would block the
+    // others. The prefix argument gives each route its own bucket.
+    Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:5,10,register');
     // Phase 2 self-service reset — emailed, single-use, time-limited token (see AuthService::forgotPassword
     // / resetPassword), replacing the earlier unverified reset.
-    Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,10');
-    Route::post('auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,10');
+    Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,10,forgot-password');
+    Route::post('auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,10,reset-password');
     // One-shot-per-session browser capability report (see reportBrowserDiagnostics.ts) — no auth
     // required since it fires before login too; throttled since it's unauthenticated.
     Route::post('diagnostics/browser-support', [BrowserDiagnosticsController::class, 'store'])->middleware('throttle:10,1');
