@@ -10,7 +10,7 @@ import { navTree, extraPermissions, standalonePermissions, permissionName, type 
 import { assignRolePermissions, fetchPermissions } from '../api/roleApi'
 import type { Role } from '../types'
 
-const ALL_ACTIONS: Action[] = ['view', 'create', 'update', 'delete', 'approve']
+const ALL_ACTIONS: Action[] = ['view', 'create', 'update', 'delete', 'approve', 'import']
 
 interface PermissionMatrixDrawerProps {
   open: boolean

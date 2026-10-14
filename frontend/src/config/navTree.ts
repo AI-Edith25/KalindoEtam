@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export type Action = 'view' | 'create' | 'update' | 'delete' | 'approve'
+export type Action = 'view' | 'create' | 'update' | 'delete' | 'approve' | 'import'
 
 export interface NavPage {
   /** Unique within its group — combines with the group key to form the permission name. */
@@ -56,19 +56,19 @@ export const navTree: NavGroup[] = [
     label: 'Maintenance',
     icon: Database,
     pages: [
-      { key: 'items', label: 'Items', path: '/master/items', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'miscellaneous', label: 'Miscellaneous', path: '/master/miscellaneous', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'suppliers', label: 'Suppliers', path: '/master/suppliers', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'customers', label: 'Customers', path: '/master/customers', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'sales_persons', label: 'Sales Persons', path: '/master/sales-persons', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'items', label: 'Items', path: '/master/items', actions: ['view', 'create', 'update', 'delete', 'import'] },
+      { key: 'miscellaneous', label: 'Miscellaneous', path: '/master/miscellaneous', actions: ['view', 'create', 'update', 'delete', 'import'] },
+      { key: 'suppliers', label: 'Suppliers', path: '/master/suppliers', actions: ['view', 'create', 'update', 'delete', 'import'] },
+      { key: 'customers', label: 'Customers', path: '/master/customers', actions: ['view', 'create', 'update', 'delete', 'import'] },
+      { key: 'sales_persons', label: 'Sales Persons', path: '/master/sales-persons', actions: ['view', 'create', 'update', 'delete', 'import'] },
       // Sales Targets — hidden from nav (feature retired, historical data kept in DB, see UpdateSalesTargetRequest/SalesTargetController).
       // { key: 'sales_targets', label: 'Sales Targets', path: '/master/sales-targets', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'terms_of_payment', label: 'Terms of Payment', path: '/master/terms-of-payment', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'warehouses', label: 'Location', path: '/master/warehouses', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'item_groups', label: 'Item Groups', path: '/master/item-groups', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'uoms', label: 'UOMs', path: '/master/uoms', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'warehouses', label: 'Location', path: '/master/warehouses', actions: ['view', 'create', 'update', 'delete', 'import'] },
+      { key: 'item_groups', label: 'Item Groups', path: '/master/item-groups', actions: ['view', 'create', 'update', 'delete', 'import'] },
+      { key: 'uoms', label: 'UOMs', path: '/master/uoms', actions: ['view', 'create', 'update', 'delete', 'import'] },
       { key: 'taxes', label: 'Taxes', path: '/master/taxes', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'item_prices', label: 'Item Prices', path: '/master/item-prices', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'item_prices', label: 'Item Prices', path: '/master/item-prices', actions: ['view', 'create', 'update', 'delete', 'import'] },
     ],
   },
   {
@@ -82,7 +82,7 @@ export const navTree: NavGroup[] = [
       // Stock, no longer live here to claim it).
       { key: 'adjustments', label: 'Adjustments', path: '/inventory/adjustments', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'transfers', label: 'Transfer Stock', path: '/inventory/transfers', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'opening_stock', label: 'Opening Stock', path: '/inventory/opening-stock', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'opening_stock', label: 'Opening Stock', path: '/inventory/opening-stock', actions: ['view', 'create', 'update', 'delete', 'import'] },
       { key: 'issue_stock', label: 'Issue Stock', path: '/inventory/issue-stock', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'receipt_stock', label: 'Receipt Stock', path: '/inventory/receipt-stock', actions: ['view', 'create', 'update', 'delete'] },
     ],
@@ -124,7 +124,7 @@ export const navTree: NavGroup[] = [
         actions: ['view', 'create', 'update', 'delete', 'approve'],
         permissionGroup: 'accounting',
       },
-      { key: 'chart_of_accounts', label: 'Chart of Accounts', path: '/finance/chart-of-accounts', actions: ['view', 'create', 'update', 'delete'], permissionGroup: 'master' },
+      { key: 'chart_of_accounts', label: 'Chart of Accounts', path: '/finance/chart-of-accounts', actions: ['view', 'create', 'update', 'delete', 'import'], permissionGroup: 'master' },
       { key: 'bank_reconciliation', label: 'Bank Reconciliation', path: '/finance/bank-reconciliation', actions: ['view', 'create', 'update'] },
     ],
   },
@@ -217,6 +217,12 @@ export const extraPermissions: ExtraPermission[] = [
   { key: 'document_attachment', label: 'Document Attachment', group: 'system', actions: ['view', 'create', 'delete'] },
   { key: 'document_timeline', label: 'Document Timeline', group: 'system', actions: ['view'] },
   { key: 'currencies', label: 'Currencies', group: 'master', actions: ['view', 'create', 'update', 'delete'] },
+  // Neither a CRUD page of its own — see RolePermissionSeeder's own comment on this
+  // singular/plural inconsistency (CRUD lives on master.terms_of_payment, Import on
+  // master.terms_of_payments).
+  { key: 'terms_of_payments', label: 'Terms of Payment Import', group: 'master', actions: ['import'] },
+  // Item Prices page's second import action (see RolePermissionSeeder), no CRUD page of its own.
+  { key: 'item_standard_rates', label: 'Item Standard Rates Import', group: 'master', actions: ['import'] },
 ]
 
 /** dashboard.view is a genuinely flat, standalone permission — not `group.page.action` like everything
