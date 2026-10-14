@@ -2,7 +2,9 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { PrintPreviewShell } from '@/layouts/PrintPreviewShell'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { RegisterPage } from '@/features/auth/pages/RegisterPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { ItemListPage } from '@/features/master/pages/ItemListPage'
 import { ImportWizardPage } from '@/features/master/components/import/ImportWizardPage'
@@ -139,7 +141,9 @@ export function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route
         element={

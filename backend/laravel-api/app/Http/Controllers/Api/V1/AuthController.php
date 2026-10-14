@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ChangePasswordRequest;
+use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
-use App\Http\Requests\ResetPasswordUnverifiedRequest;
+use App\Http\Requests\RegisterRequest;
+use App\Http\Requests\ResetPasswordRequest;
 use App\Http\Resources\UserResource;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
@@ -47,10 +49,24 @@ class AuthController extends Controller
         return $this->success(null, 'Password changed. Please log in again.');
     }
 
-    public function resetPasswordUnverified(ResetPasswordUnverifiedRequest $request): JsonResponse
+    public function register(RegisterRequest $request): JsonResponse
     {
-        $this->authService->resetPasswordUnverified($request->validated('email'), $request->validated('password'));
+        $this->authService->register($request->validated());
 
-        return $this->success(null, 'If an account exists with that email, the password has been reset.');
+        return $this->success(null, 'Registrasi berhasil. Akun Anda menunggu persetujuan Admin.');
+    }
+
+    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
+    {
+        $this->authService->forgotPassword($request->validated('email'));
+
+        return $this->success(null, 'Jika email terdaftar, link reset password telah dikirim.');
+    }
+
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
+    {
+        $this->authService->resetPassword($request->validated('email'), $request->validated('token'), $request->validated('password'));
+
+        return $this->success(null, 'Password berhasil diubah. Silakan login.');
     }
 }

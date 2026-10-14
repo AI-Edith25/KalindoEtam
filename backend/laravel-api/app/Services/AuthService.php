@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Exceptions\BusinessException;
+use App\Mail\PasswordResetMail;
 use App\Models\User;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 /**
  * Minimum viable auth for Frontend Sprint 1: token issuance via Sanctum,
@@ -64,15 +67,37 @@ class AuthService
         });
     }
 
+    /** Minutes a password reset link stays valid after being requested. */
+    private const RESET_TOKEN_EXPIRY_MINUTES = 60;
+
     /**
-     * Phase 1 (no email/OTP verification — known, temporary trade-off): anyone who
-     * knows an account's email can reset its password. Silently no-ops on unknown
-     * emails so the response never reveals whether an account exists.
-     * ponytail: phase 2 would add a token/OTP check here before allowing the update
-     * (reusing the unused password_reset_tokens table + Password facade, or TOTP) —
-     * deliberately deferred, not built now.
+     * Public self-registration — always inactive, no role (admin approves + assigns a role
+     * afterward via the existing Activate action, see UserService::setActive()). Kept here
+     * rather than reusing UserService::create() since it's a distinct public-entry path with
+     * its own audit action, not the admin-creation flow.
      */
-    public function resetPasswordUnverified(string $email, string $newPassword): void
+    public function register(array $data): User
+    {
+        return DB::transaction(function () use ($data) {
+            $user = $this->userRepository->create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'is_active' => false,
+            ]);
+
+            $this->auditLogService->record('self_registered', 'auth', "{$user->email} registered and is pending approval.", userId: $user->id);
+
+            return $user;
+        });
+    }
+
+    /**
+     * Phase 2 forgot-password: emails a single-use, time-limited reset link. Silently no-ops on
+     * unknown emails — the controller always returns the same generic response regardless, which
+     * (not a separate "check" step here) is what actually prevents account enumeration.
+     */
+    public function forgotPassword(string $email): void
     {
         $user = $this->userRepository->findByEmail($email);
 
@@ -80,11 +105,41 @@ class AuthService
             return;
         }
 
-        DB::transaction(function () use ($user, $newPassword) {
+        $rawToken = Str::random(64);
+
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $email],
+            ['token' => Hash::make($rawToken), 'created_at' => now()],
+        );
+
+        $resetUrl = rtrim(config('app.frontend_url'), '/').'/reset-password?email='.urlencode($email).'&token='.$rawToken;
+
+        Mail::to($email)->send(new PasswordResetMail($resetUrl, $user->name));
+
+        $this->auditLogService->record('password_reset_requested', 'auth', "Password reset requested for {$user->email}.", userId: $user->id);
+    }
+
+    /**
+     * Validates the emailed token (hashed at rest, single-use — the row is deleted on success)
+     * and applies the new password. The failure message is deliberately vague (same reasoning as
+     * login's "Invalid email or password") — it doesn't distinguish "no such request", "wrong
+     * token", and "expired".
+     */
+    public function resetPassword(string $email, string $token, string $newPassword): void
+    {
+        $row = DB::table('password_reset_tokens')->where('email', $email)->first();
+        $user = $row ? $this->userRepository->findByEmail($email) : null;
+
+        if (! $row || ! $user || ! Hash::check($token, $row->token) || now()->diffInMinutes($row->created_at) > self::RESET_TOKEN_EXPIRY_MINUTES) {
+            throw new BusinessException('Link reset password tidak valid atau sudah kedaluwarsa.', 400);
+        }
+
+        DB::transaction(function () use ($user, $email, $newPassword) {
             $user->update(['password' => Hash::make($newPassword)]);
             $user->tokens()->delete();
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
 
-            $this->auditLogService->record('password_reset_unverified', 'auth', "Password reset (unverified) for {$user->email}.", userId: $user->id);
+            $this->auditLogService->record('password_reset_verified', 'auth', "Password reset (verified) for {$user->email}.", userId: $user->id);
         });
     }
 }

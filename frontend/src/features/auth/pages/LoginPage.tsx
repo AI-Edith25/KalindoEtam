@@ -94,6 +94,13 @@ export function LoginPage() {
               </Button>
             </form>
           </Form>
+
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Belum punya akun?{' '}
+            <Link to="/register" className="underline-offset-4 hover:underline">
+              Daftar
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

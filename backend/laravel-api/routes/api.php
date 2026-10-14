@@ -130,8 +130,13 @@ $withPagePermissions = function (PendingResourceRegistration $resource, string $
 
 Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login']);
-    // Phase 1 self-service reset (no email/OTP verification) — see AuthService::resetPasswordUnverified.
-    Route::post('auth/reset-password-unverified', [AuthController::class, 'resetPasswordUnverified']);
+    // Public self-registration — always creates an inactive, no-role account pending Admin approval
+    // (see AuthService::register). Throttled: the only public write endpoint that creates rows.
+    Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:5,10');
+    // Phase 2 self-service reset — emailed, single-use, time-limited token (see AuthService::forgotPassword
+    // / resetPassword), replacing the earlier unverified reset.
+    Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,10');
+    Route::post('auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,10');
     // One-shot-per-session browser capability report (see reportBrowserDiagnostics.ts) — no auth
     // required since it fires before login too; throttled since it's unauthenticated.
     Route::post('diagnostics/browser-support', [BrowserDiagnosticsController::class, 'store'])->middleware('throttle:10,1');
