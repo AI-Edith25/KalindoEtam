@@ -10,7 +10,23 @@ import { navTree, extraPermissions, standalonePermissions, permissionName, type 
 import { assignRolePermissions, fetchPermissions } from '../api/roleApi'
 import type { Role } from '../types'
 
-const ALL_ACTIONS: Action[] = ['view', 'create', 'update', 'delete', 'approve', 'import']
+const ALL_ACTIONS: Action[] = [
+  'view',
+  'create',
+  'update',
+  'delete',
+  'approve',
+  'import',
+  'edit',
+  'override_credit_check',
+  'override_stock_check',
+]
+
+/** capitalize-CSS-only labels read fine for single words but mangle snake_case ones. */
+const ACTION_LABELS: Partial<Record<Action, string>> = {
+  override_credit_check: 'Override Credit Check',
+  override_stock_check: 'Override Stock Check',
+}
 
 interface PermissionMatrixDrawerProps {
   open: boolean
@@ -127,7 +143,7 @@ export function PermissionMatrixDrawer({ open, onOpenChange, role }: PermissionM
                             <th className="py-2 pl-9 font-medium">Page</th>
                             {ALL_ACTIONS.map((action) => (
                               <th key={action} className="py-2 text-center font-medium capitalize">
-                                {action}
+                                {ACTION_LABELS[action] ?? action}
                               </th>
                             ))}
                           </tr>
@@ -183,7 +199,7 @@ export function PermissionMatrixDrawer({ open, onOpenChange, role }: PermissionM
                       <th className="py-2 pl-9 font-medium">Permission</th>
                       {ALL_ACTIONS.map((action) => (
                         <th key={action} className="py-2 text-center font-medium capitalize">
-                          {action}
+                          {ACTION_LABELS[action] ?? action}
                         </th>
                       ))}
                     </tr>

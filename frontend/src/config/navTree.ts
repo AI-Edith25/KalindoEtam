@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export type Action = 'view' | 'create' | 'update' | 'delete' | 'approve' | 'import'
+export type Action = 'view' | 'create' | 'update' | 'delete' | 'approve' | 'import' | 'edit' | 'override_credit_check' | 'override_stock_check'
 
 export interface NavPage {
   /** Unique within its group — combines with the group key to form the permission name. */
@@ -103,9 +103,14 @@ export const navTree: NavGroup[] = [
     label: 'Sales',
     icon: Receipt,
     pages: [
-      { key: 'orders', label: 'Orders', path: '/sales/orders', actions: ['view', 'create', 'update', 'delete', 'approve'] },
-      { key: 'deliveries', label: 'Deliveries', path: '/sales/deliveries', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'invoices', label: 'Invoices', path: '/sales/invoices', actions: ['view', 'create', 'update', 'delete'] },
+      {
+        key: 'orders',
+        label: 'Orders',
+        path: '/sales/orders',
+        actions: ['view', 'create', 'update', 'delete', 'approve', 'override_credit_check', 'override_stock_check'],
+      },
+      { key: 'deliveries', label: 'Deliveries', path: '/sales/deliveries', actions: ['view', 'create', 'update', 'delete', 'edit'] },
+      { key: 'invoices', label: 'Invoices', path: '/sales/invoices', actions: ['view', 'create', 'update', 'delete', 'approve', 'import', 'edit'] },
       { key: 'credit_notes', label: 'Credit Notes', path: '/sales/credit-notes', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'debit_notes', label: 'Debit Notes', path: '/sales/debit-notes', actions: ['view', 'create', 'update', 'delete'] },
     ],
@@ -115,8 +120,8 @@ export const navTree: NavGroup[] = [
     label: 'Finance',
     icon: Wallet,
     pages: [
-      { key: 'outgoing_payment', label: 'Payment Voucher', path: '/finance/outgoing', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'incoming_payment', label: 'Official Receipt', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'outgoing_payment', label: 'Payment Voucher', path: '/finance/outgoing', actions: ['view', 'create', 'update', 'delete', 'import'] },
+      { key: 'incoming_payment', label: 'Official Receipt', path: '/finance/incoming', actions: ['view', 'create', 'update', 'delete', 'import'] },
       {
         key: 'journal_entries',
         label: 'General Journal',
@@ -125,7 +130,7 @@ export const navTree: NavGroup[] = [
         permissionGroup: 'accounting',
       },
       { key: 'chart_of_accounts', label: 'Chart of Accounts', path: '/finance/chart-of-accounts', actions: ['view', 'create', 'update', 'delete', 'import'], permissionGroup: 'master' },
-      { key: 'bank_reconciliation', label: 'Bank Reconciliation', path: '/finance/bank-reconciliation', actions: ['view', 'create', 'update'] },
+      { key: 'bank_reconciliation', label: 'Bank Reconciliation', path: '/finance/bank-reconciliation', actions: ['view', 'create', 'update', 'delete'] },
     ],
   },
   {
@@ -133,7 +138,7 @@ export const navTree: NavGroup[] = [
     label: 'Reports',
     icon: BarChart3,
     pages: [
-      { key: 'purchase', label: 'Purchase', path: '/reports/purchase', actions: ['view'] },
+      { key: 'purchase', label: 'Purchase', path: '/reports/purchase', actions: ['view', 'import'] },
       { key: 'goods_receipts', label: 'Goods Receipt', path: '/reports/goods-receipts', actions: ['view'] },
       { key: 'sales', label: 'Sales', path: '/reports/sales', actions: ['view'] },
       // Split out of Sales Report's old Margin tab (2026-09-19) — its own reports.gross_profit.view
@@ -169,11 +174,11 @@ export const navTree: NavGroup[] = [
     // to stay listed before this group too (their old shared prefix was `/finance/`).
     hideFromSidebar: true,
     pages: [
-      { key: 'general_ledger', label: 'Print Ledger', path: '/reports/general-ledger', actions: ['view'] },
-      { key: 'journal_list', label: 'Journal List', path: '/reports/general-ledger/journal-list', actions: ['view'] },
-      { key: 'trial_balance', label: 'Trial Balance', path: '/reports/general-ledger/trial-balance', actions: ['view'] },
-      { key: 'profit_loss', label: 'Income Statement', path: '/reports/general-ledger/income-statement', actions: ['view'] },
-      { key: 'balance_sheet', label: 'Balance Sheet', path: '/reports/general-ledger/balance-sheet', actions: ['view'] },
+      { key: 'general_ledger', label: 'Print Ledger', path: '/reports/general-ledger', actions: ['view', 'import'] },
+      { key: 'journal_list', label: 'Journal List', path: '/reports/general-ledger/journal-list', actions: ['view', 'import'] },
+      { key: 'trial_balance', label: 'Trial Balance', path: '/reports/general-ledger/trial-balance', actions: ['view', 'import'] },
+      { key: 'profit_loss', label: 'Income Statement', path: '/reports/general-ledger/income-statement', actions: ['view', 'import'] },
+      { key: 'balance_sheet', label: 'Balance Sheet', path: '/reports/general-ledger/balance-sheet', actions: ['view', 'import'] },
       { key: 'cash_flow', label: 'Cash Flow', path: '/reports/general-ledger/cash-flow', actions: ['view'] },
       { key: 'period_closing', label: 'Period Closing', path: '/reports/general-ledger/period-closing', actions: ['view', 'create', 'update'] },
     ],
@@ -185,7 +190,7 @@ export const navTree: NavGroup[] = [
     pages: [
       { key: 'company', label: 'Company', path: '/administration/company', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'branch', label: 'Branches', path: '/administration/branches', actions: ['view', 'create', 'update', 'delete'] },
-      { key: 'users', label: 'Users', path: '/administration/users', actions: ['view', 'create', 'update'] },
+      { key: 'users', label: 'Users', path: '/administration/users', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'roles', label: 'Roles & Permissions', path: '/administration/roles', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'naming_series', label: 'Naming Series', path: '/administration/naming-series', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'purchase_settings', label: 'Purchase Settings', path: '/administration/purchase-settings', actions: ['view', 'update'] },
@@ -213,7 +218,10 @@ export interface ExtraPermission {
 export const extraPermissions: ExtraPermission[] = [
   { key: 'accounts_payable', label: 'Accounts Payable', group: 'finance', actions: ['view'] },
   { key: 'accounts_receivable', label: 'Accounts Receivable', group: 'finance', actions: ['view'] },
-  { key: 'payment_allocation', label: 'Payment Allocation', group: 'finance', actions: ['create', 'update'] },
+  { key: 'payment_allocation', label: 'Payment Allocation (AR)', group: 'finance', actions: ['create', 'update'] },
+  // AP-side mirror of Payment Allocation above — a genuinely separate permission, not the same one
+  // under a different name (see routes/api.php payment-entries/{paymentEntry}/allocate).
+  { key: 'ap_payment_allocation', label: 'Payment Allocation (AP)', group: 'finance', actions: ['create', 'update'] },
   { key: 'document_attachment', label: 'Document Attachment', group: 'system', actions: ['view', 'create', 'delete'] },
   { key: 'document_timeline', label: 'Document Timeline', group: 'system', actions: ['view'] },
   { key: 'currencies', label: 'Currencies', group: 'master', actions: ['view', 'create', 'update', 'delete'] },
@@ -223,6 +231,18 @@ export const extraPermissions: ExtraPermission[] = [
   { key: 'terms_of_payments', label: 'Terms of Payment Import', group: 'master', actions: ['import'] },
   // Item Prices page's second import action (see RolePermissionSeeder), no CRUD page of its own.
   { key: 'item_standard_rates', label: 'Item Standard Rates Import', group: 'master', actions: ['import'] },
+  // Admin trial-and-error of another user's Print Options — see navTree's own comment on
+  // administration.print_settings in routes/api.php; not a nav page of its own.
+  { key: 'print_settings', label: 'Print Settings (Admin)', group: 'administration', actions: ['view', 'update'] },
+  // View-mode tabs INSIDE the AR/AP Detail and Sales report pages (imported legacy archive
+  // snapshots), not their own navTree pages — see those pages' ViewMode unions.
+  { key: 'ar_archive', label: 'Customer Outstanding Bills Archive', group: 'reports', actions: ['view', 'import'] },
+  { key: 'ap_archive', label: 'Supplier Outstanding Bills Archive', group: 'reports', actions: ['view', 'import'] },
+  { key: 'sales_archive', label: 'Sales Archive', group: 'reports', actions: ['view', 'import'] },
+  // Sales > Invoices' checkbox print flow (Tanda Terima Invoice / Laporan Penagihan Harian) — gates
+  // an OR-branch on an existing endpoint, not a page of its own.
+  { key: 'tanda_terima_invoice', label: 'Tanda Terima Invoice (Print)', group: 'reports', actions: ['view'] },
+  { key: 'penagihan_harian', label: 'Penagihan Harian (Print)', group: 'reports', actions: ['view'] },
 ]
 
 /** dashboard.view is a genuinely flat, standalone permission — not `group.page.action` like everything
