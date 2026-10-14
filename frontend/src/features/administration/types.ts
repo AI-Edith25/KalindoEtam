@@ -68,7 +68,6 @@ export interface DocumentAttachment {
 export interface User {
   id: string
   name: string
-  username: string
   email: string
   is_active: boolean
   roles: string[]
@@ -78,7 +77,6 @@ export interface User {
 
 export interface UserFormValues {
   name: string
-  username: string
   email: string
   password?: string
   role?: string | null
