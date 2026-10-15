@@ -29,10 +29,12 @@ function resolveReference(invoice: { deliveries?: string[]; reference_1?: string
 /**
  * Reached from Sales > Invoices' checkbox selection (?ids=uuid,uuid,...), replacing the old
  * /reports/penagihan-harian — same AccountsReceivable list-all endpoint (now filtered by
- * invoice_ids instead of due-date/branch/salesman), deliberately rendered as a flat list (no
- * per-customer grouping/subtotals like the old page —
- * CUSTOMER / CUSTOMER NAME repeat on every row instead), matching Laporan_penagihan.pdf's
- * 7-column layout. REFERENCE reads invoice.deliveries' document numbers (joined with ", " when
+ * invoice_ids instead of due-date/branch/salesman). Rows are sorted ascending by customer code
+ * (not left in server/selection order) and CUSTOMER/CUSTOMER NAME print once per customer, not
+ * once per invoice — a customer with several invoices gets one labeled row followed by blank-
+ * customer continuation rows, matching Laporan_penagihan.pdf's own grouping (2026-10-15 fix; no
+ * per-customer subtotal row, just the grouped label). REFERENCE reads invoice.deliveries' document
+ * numbers (joined with ", " when
  * an invoice merges more than one Delivery/Sales Order), not invoice.reference_1 — a single
  * scalar column that only ever holds the anchor source's own reference (InvoiceService::create()),
  * so a merged invoice's later sources silently disappeared when this read reference_1 instead
@@ -65,7 +67,19 @@ export function LaporanPenagihanHarianPrintPage() {
     enabled: ids.length > 0,
   })
 
-  const rows = listQuery.data ?? []
+  // Ascending by customer code's numeric part (C-0005 before C-0044 before C-2111) — plain string
+  // sort would do the same thing here since every code is zero-padded to the same width, but this
+  // stays correct if that ever changes. Customer's own row order among ties is left as-is (stable
+  // sort), which is what groups a customer's own invoices together below.
+  const rows = useMemo(() => {
+    return [...(listQuery.data ?? [])].sort((a, b) => {
+      const codeA = a.customer?.customer_code ?? ''
+      const codeB = b.customer?.customer_code ?? ''
+      const numA = Number(codeA.replace(/\D/g, ''))
+      const numB = Number(codeB.replace(/\D/g, ''))
+      return Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB ? numA - numB : codeA.localeCompare(codeB)
+    })
+  }, [listQuery.data])
   const total = rows.reduce((sum, row) => sum + Number(row.invoice?.grand_total ?? 0), 0)
   const today = new Date().toISOString().slice(0, 10)
 
@@ -134,17 +148,22 @@ export function LaporanPenagihanHarianPrintPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td className="whitespace-nowrap py-1 pr-2 align-top">{row.customer?.customer_code ?? ''}</td>
-                <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{row.customer?.customer_name ?? ''}</td>
-                <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
-                <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{row.invoice?.document_number ?? ''}</td>
-                <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{resolveReference(row.invoice)}</td>
-                <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
-                <td className="whitespace-nowrap py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
-              </tr>
-            ))}
+            {rows.map((row, index) => {
+              // Same customer as the row directly above (sorted order, above) — Laporan_penagihan.pdf's
+              // reference layout prints CUSTOMER/CUSTOMER NAME once per customer, not once per invoice.
+              const sameCustomerAsPrevious = index > 0 && rows[index - 1].customer_id === row.customer_id
+              return (
+                <tr key={row.id}>
+                  <td className="whitespace-nowrap py-1 pr-2 align-top">{sameCustomerAsPrevious ? '' : row.customer?.customer_code ?? ''}</td>
+                  <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{sameCustomerAsPrevious ? '' : row.customer?.customer_name ?? ''}</td>
+                  <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
+                  <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{row.invoice?.document_number ?? ''}</td>
+                  <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{resolveReference(row.invoice)}</td>
+                  <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
+                  <td className="whitespace-nowrap py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
+                </tr>
+              )
+            })}
             {/* A <tfoot> row repeats on every printed page (browser default for table-footer-group) —
                 TOTAL must only ever print once, at the very end, so it's a normal last <tbody> row. */}
             <tr className="border-t border-black font-bold">
