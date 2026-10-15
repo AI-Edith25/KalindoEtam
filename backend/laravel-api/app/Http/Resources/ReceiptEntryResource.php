@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\DocumentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -36,6 +37,12 @@ class ReceiptEntryResource extends JsonResource
             'source' => $this->source,
             'imported_at' => $this->imported_at,
             'items' => ReceiptEntryItemResource::collection($this->whenLoaded('items')),
+            // Real posted GL entries touching this receipt — its own submit journal plus one per
+            // allocation. Only meaningful once Submitted; draft receipts have nothing posted yet.
+            'accounting_entries' => $this->when(
+                $this->status === DocumentStatus::SUBMITTED && $this->relationLoaded('journalEntries') && $this->relationLoaded('items'),
+                fn () => JournalEntryResource::collection($this->accountingEntries())
+            ),
             'submitted_at' => $this->submitted_at,
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,

@@ -6,6 +6,7 @@ use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -43,6 +44,11 @@ class PaymentAllocation extends Model
     public function accountsReceivable(): BelongsTo
     {
         return $this->belongsTo(AccountsReceivable::class);
+    }
+
+    public function journalEntries(): MorphMany
+    {
+        return $this->morphMany(JournalEntry::class, 'reference');
     }
 
     /**

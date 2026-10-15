@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SourceBadge } from '@/components/shared/SourceBadge'
 import { DeleteDialog } from '@/components/shared/DeleteDialog'
 import { DetailField, DetailSection } from '@/components/shared/DetailDrawerLayout'
+import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -20,6 +21,16 @@ import { PaymentAllocationDrawer } from '../components/PaymentAllocationDrawer'
 import { resolveSourceDocumentLink } from '../lib/sourceDocumentLink'
 import { PAYMENT_METHOD_LABELS } from '../lib/paymentMethodLabels'
 import { ReceiptEntryAttachments } from '../components/ReceiptEntryAttachments'
+import type { JournalEntryLine } from '@/features/accounting/types'
+
+// Same column shape as JournalEntryDetailPage's own lineColumns — one real posted GL line's
+// Account/Description/Debit/Credit, nothing synthesized.
+const accountingLineColumns: DataTableColumn<JournalEntryLine>[] = [
+  { header: 'Account', accessor: (row) => (row.chart_of_account ? `${row.chart_of_account.code} — ${row.chart_of_account.name}` : '—') },
+  { header: 'Description', accessor: (row) => row.description || '—' },
+  { header: 'Debit', accessor: (row) => (Number(row.debit) > 0 ? formatCurrency(row.debit) : '—'), className: 'text-right' },
+  { header: 'Credit', accessor: (row) => (Number(row.credit) > 0 ? formatCurrency(row.credit) : '—'), className: 'text-right' },
+]
 
 /** Read-only, section-grouped — mirrors OutgoingPaymentDetailPage exactly. */
 export function IncomingPaymentDetailPage() {
@@ -231,6 +242,28 @@ export function IncomingPaymentDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Accounting Detail</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {receipt.status !== 'submitted' ? (
+            <p className="text-sm text-muted-foreground">Akan muncul setelah payment ini disubmit.</p>
+          ) : receipt.accounting_entries && receipt.accounting_entries.length > 0 ? (
+            receipt.accounting_entries.map((entry) => (
+              <div key={entry.id} className="flex flex-col gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {entry.document_number} · {formatDate(entry.posting_date)}
+                </span>
+                <DataTable columns={accountingLineColumns} data={entry.lines} rowKey={(row) => row.id} emptyMessage="No lines." />
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )}
+        </CardContent>
+      </Card>
 
       <DeleteDialog
         open={confirmingDelete}

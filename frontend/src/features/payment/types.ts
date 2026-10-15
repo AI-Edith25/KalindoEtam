@@ -1,4 +1,5 @@
 import type { Branch, ChartOfAccount, Customer, Supplier } from '@/features/master/types'
+import type { JournalEntry } from '@/features/accounting/types'
 
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 export type SettlementStatus = 'unpaid' | 'partially_paid' | 'paid'
@@ -284,6 +285,9 @@ export interface ReceiptEntry {
   allocated_amount: string | number
   unallocated_amount: string | number
   items: ReceiptEntryItem[]
+  // Real posted GL entries touching this receipt (its own submit journal + one per allocation) —
+  // only present once status is 'submitted'. See ReceiptEntry::accountingEntries() on the backend.
+  accounting_entries?: JournalEntry[]
   submitted_at: string | null
   cancelled_at: string | null
   created_at: string

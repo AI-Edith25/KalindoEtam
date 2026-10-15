@@ -13,7 +13,9 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 
 class ReceiptEntry extends Model
 {
@@ -94,6 +96,12 @@ class ReceiptEntry extends Model
         return $this->hasMany(PaymentAllocation::class);
     }
 
+    /** This receipt's own submit journal (Dr Cash/Cr suspense or income account) — not the per-allocation ones, see accountingEntries(). */
+    public function journalEntries(): MorphMany
+    {
+        return $this->morphMany(JournalEntry::class, 'reference');
+    }
+
     /**
      * Cache-derived, computed not stored — see allocated_amount's column
      * comment. The one place this subtraction happens; PaymentAllocationService
@@ -104,6 +112,25 @@ class ReceiptEntry extends Model
         // Rounded to 2dp — see AccountsReceivableService::assertWithinOutstanding()'s own note on
         // why raw subtraction of two decimal-cast columns needs this.
         return round((float) $this->total_amount - (float) $this->allocated_amount, 2);
+    }
+
+    /**
+     * Every real, still-active posted Journal Entry touching this receipt: its own submit journal
+     * plus one per non-reversed PaymentAllocation (each allocation posts its own Dr suspense/Cr AR
+     * journal — see PaymentAllocation::journalLines()). This is the "Accounting Detail" shown on
+     * the detail page — the actual GL postings, not a synthetic re-derivation of them.
+     */
+    public function accountingEntries(): Collection
+    {
+        $own = $this->journalEntries->filter(fn (JournalEntry $entry) => $entry->status === DocumentStatus::SUBMITTED && $entry->reversed_by_id === null && $entry->reverses_id === null);
+
+        $allocations = $this->items
+            ->filter(fn (PaymentAllocation $allocation) => ! $allocation->is_reversed)
+            ->flatMap(fn (PaymentAllocation $allocation) => $allocation->journalEntries->filter(
+                fn (JournalEntry $entry) => $entry->status === DocumentStatus::SUBMITTED && $entry->reversed_by_id === null && $entry->reverses_id === null
+            ));
+
+        return $own->concat($allocations)->sortBy('posting_date')->values();
     }
 
     /**
