@@ -152,9 +152,11 @@ export function terbilangIdr(amount: number | string): string {
 
 /** Payment Voucher print's own terbilang — same Indonesian words as terbilangIdr but with NO
     "RUPIAH" suffix (the "RP: " prefix is printed separately by the caller). When `decimals > 0`
-    and the amount has a nonzero cents remainder, appends "KOMA <cents> SEN" — no real legacy
-    voucher sample has nonzero cents to verify this wording against, so treat it as best-effort. */
-export function terbilangIdrPlain(amount: number | string, decimals = 0): string {
+    and the amount has a nonzero cents remainder, appends "KOMA <cents>" plus `centsSuffix` (default
+    "SEN" — no real legacy voucher sample has nonzero cents to verify this wording against, so treat
+    it as best-effort). Official Receipt print's reference PDF (a real sample with nonzero cents,
+    "...SATU KOMA SEBELAS") confirms NO suffix word there — it passes `centsSuffix: ''`. */
+export function terbilangIdrPlain(amount: number | string, decimals = 0, centsSuffix = 'SEN'): string {
   const n = Number(amount)
   const rounded = decimals > 0 ? Math.round(n * 100) / 100 : Math.round(n)
   const integerPart = Math.floor(rounded)
@@ -162,7 +164,7 @@ export function terbilangIdrPlain(amount: number | string, decimals = 0): string
 
   if (decimals > 0) {
     const cents = Math.round((rounded - integerPart) * 100)
-    if (cents > 0) return `${words} KOMA ${angkaToKata(cents).toUpperCase()} SEN`
+    if (cents > 0) return `${words} KOMA ${angkaToKata(cents).toUpperCase()}${centsSuffix ? ` ${centsSuffix}` : ''}`
   }
 
   return words

@@ -231,6 +231,10 @@ const paymentVoucherPrintOptionsStorage = createPrintOptionsStorage('print-optio
 export const loadPaymentVoucherPrintOptions = paymentVoucherPrintOptionsStorage.load
 export const savePaymentVoucherPrintOptions = paymentVoucherPrintOptionsStorage.save
 
+const officialReceiptPrintOptionsStorage = createPrintOptionsStorage('print-options:official-receipt')
+export const loadOfficialReceiptPrintOptions = officialReceiptPrintOptionsStorage.load
+export const saveOfficialReceiptPrintOptions = officialReceiptPrintOptionsStorage.save
+
 export const PRINT_FONT_SIZE_PX: Record<PrintFontSize, string> = {
   small: '11px',
   medium: '13px',
