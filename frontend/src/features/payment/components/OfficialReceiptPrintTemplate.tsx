@@ -89,7 +89,7 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
         <div>
           <PrintMetaTable size={bodyPt} rows={[{ label: 'Diterima Dari', value: receivedFromName, bold: true, valueBold: false }]} />
-          <p style={{ margin: 0, fontSize: `${bodyPt * (8 / 9)}pt`, fontWeight: 700 }}>PARTICULAR :</p>
+          <p style={{ margin: 0, fontSize: `${bodyPt * (8 / 9)}pt`, fontWeight: 700 }}>Keterangan :</p>
           <p style={{ margin: 0 }}>
             {receivedFromName}
             {cashAccountName ? `; ${cashAccountName}` : ''}
