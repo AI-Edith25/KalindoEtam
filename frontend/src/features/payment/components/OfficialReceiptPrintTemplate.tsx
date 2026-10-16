@@ -19,19 +19,6 @@ const SUBTABLE_COLS = [
 
 const SIGNATURE_LABELS = ['Menyetujui,', 'Mengetahui,', 'Dibayar Oleh,', 'Diterima Oleh,']
 
-/** The Piutang control account this receipt's A/C row shows — mirrors ReceivableCategory::accountCode()
-    (backend), real codes/names from ChartOfAccountsSeeder::seedPiutangHierarchy(). Kept as a small
-    frontend constant (same pattern as PAYMENT_METHOD_LABELS) rather than fetching the full
-    Chart-of-Accounts list just to look up 1 of 3 fixed codes.
-    Reference PDF shows "112.01.01" (a sub-account level this system's real COA doesn't have — see
-    the restructure migration's own comment on why); same deliberate "real system account over the
-    legacy PDF's code" deviation PaymentVoucherPrintTemplate already documents for its own A/C column. */
-const RECEIVABLE_ACCOUNT_BY_CATEGORY: Record<'C' | 'PK' | 'PL', { code: string; name: string }> = {
-  C: { code: '112.01', name: 'Piutang Usaha' },
-  PK: { code: '112.02', name: 'Piutang Karyawan' },
-  PL: { code: '112.03', name: 'Piutang Lain-lain' },
-}
-
 interface OfficialReceiptPrintTemplateProps {
   receipt: ReceiptEntry
   companyName: string
@@ -48,9 +35,14 @@ interface OfficialReceiptPrintTemplateProps {
  * replaces: PaymentAllocation.allocated_amount already nets out reversals, so re-including a
  * reversed row here would make the sub-table rows not foot to the Amount it's nested under).
  *
- * payment_type=other_income has no customer/AR allocations at all — falls back to the receipt's
- * own description/income_account so the template never crashes on a null customer, rather than
- * assuming payment_type=customer everywhere.
+ * The A/C row is read off the receipt's own REAL posted journal entry (receipt.accounting_entries)
+ * rather than derived/hardcoded — a receipt not yet allocated to any invoice posts against 1150
+ * Uang Muka Pelanggan (Customer Advance), not Piutang Usaha, and PK/PL customers post against their
+ * own Piutang account (ReceiptEntry::journalLines()) — only the real posted line is ever correct.
+ * The receipt's own submit journal is the one entry whose lines include the Cash/Bank account
+ * itself (allocation journals, by contrast, only ever touch 1150/AR, never cash) — its other line
+ * is the one this table shows, description included verbatim (already backend-formatted as
+ * "{customer}; {cash account}").
  */
 export function OfficialReceiptPrintTemplate({ receipt, companyName, printOptions }: OfficialReceiptPrintTemplateProps) {
   const decimals = printOptions.amountDecimals
@@ -58,13 +50,14 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
 
   const receivedFromName = receipt.customer?.customer_name ?? receipt.description ?? ''
   const cashAccountName = receipt.cash_account?.name ?? ''
-  const account =
-    receipt.payment_type === 'customer' && receipt.customer
-      ? RECEIVABLE_ACCOUNT_BY_CATEGORY[receipt.customer.receivable_category]
-      : receipt.income_account
-        ? { code: receipt.income_account.code, name: receipt.income_account.name }
-        : { code: '', name: '' }
-  const chequeNo = receipt.giro_number || receipt.reference_number || ''
+
+  const ownJournal = receipt.accounting_entries?.find((entry) => entry.lines.some((line) => line.chart_of_account_id === receipt.cash_account_id))
+  const nonCashLine = ownJournal?.lines.find((line) => line.chart_of_account_id !== receipt.cash_account_id)
+  const account = nonCashLine?.chart_of_account ?? { code: '', name: '' }
+  const accountDescription = nonCashLine?.description ?? `${receivedFromName}; ${cashAccountName}`
+  const accountAmount = nonCashLine ? Number(nonCashLine.credit) || Number(nonCashLine.debit) : Number(receipt.total_amount)
+
+  const chequeNo = receipt.reference_number || ''
   const activeItems = receipt.items.filter((item) => !item.is_reversed)
 
   const extraRows = Math.max(0, activeItems.length - 1)
@@ -92,8 +85,8 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
       {/* ---------- Header: two columns, no outer border ---------- */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
         <div>
-          <PrintMetaTable size={bodyPt} rows={[{ label: 'Diterima Dari', value: receivedFromName, bold: true, valueBold: false }]} />
-          <p style={{ margin: 0, fontSize: `${bodyPt * (8 / 9)}pt`, fontWeight: 700 }}>Keterangan :</p>
+          <PrintMetaTable size={bodyPt} rows={[{ label: 'Bank Account', value: cashAccountName, bold: true, valueBold: false }]} />
+          <p style={{ margin: 0, fontSize: `${bodyPt * (8 / 9)}pt`, fontWeight: 700 }}>PARTICULAR :</p>
           <p style={{ margin: 0 }}>
             {receivedFromName}
             {cashAccountName ? `; ${cashAccountName}` : ''}
@@ -107,8 +100,7 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
               rows={[
                 { label: 'NO', value: receipt.document_number ?? '', bold: true },
                 { label: 'Date', value: formatDdMmYyyy(receipt.receipt_date) },
-                { label: 'Account', value: cashAccountName },
-                { label: 'Cheque No', value: chequeNo },
+                { label: 'Cheque No', value: chequeNo || '-' },
               ]}
             />
           </div>
@@ -144,12 +136,10 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
         <tbody>
           <tr>
             <td style={{ padding: '1mm 1.5mm', textAlign: 'left', borderRight: '0.75pt solid #000', verticalAlign: 'top' }}>
-              {account.code} {account.name.toUpperCase()}
+              {account.code} {account.name}
             </td>
-            <td style={{ padding: '1mm 1.5mm', textAlign: 'left', borderRight: '0.75pt solid #000', verticalAlign: 'top' }}>
-              {account.name.toUpperCase()}, {receivedFromName}, {cashAccountName}
-            </td>
-            <td style={{ padding: '1mm 1.5mm', textAlign: 'right', verticalAlign: 'top' }}>{formatNum(receipt.total_amount, decimals)}</td>
+            <td style={{ padding: '1mm 1.5mm', textAlign: 'left', borderRight: '0.75pt solid #000', verticalAlign: 'top' }}>{accountDescription}</td>
+            <td style={{ padding: '1mm 1.5mm', textAlign: 'right', verticalAlign: 'top' }}>{formatNum(accountAmount, decimals)}</td>
           </tr>
           {activeItems.length > 0 && (
             <tr>
