@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { exportAccountsReceivables, fetchAccountsReceivables } from '@/features/payment/api/accountsReceivableApi'
@@ -39,11 +39,214 @@ import {
   fetchCustomerOutstandingSnapshots,
 } from '../api/customerOutstandingArchiveApi'
 import { resolveJournalReferenceLink } from '@/features/accounting/lib/journalReferenceLink'
-import { emptyArDetailReportFilters, emptyCustomerOutstandingArchiveFilters } from '../lib/reportFilters'
+import { emptyArDetailReportFilters, emptyCustomerOutstandingArchiveFilters, hasActiveArDetailReportFilters } from '../lib/reportFilters'
+import type { PaginationMeta } from '@/shared/types/api'
 import { groupByAgingBucket } from '../lib/outstandingArchiveAging'
 import type { ArDetailReportFilterValues, CustomerOutstandingArchiveFilterValues } from '../types'
 
 type ViewMode = 'aging' | 'grouped' | 'ledger' | 'archive'
+
+interface KartuPiutangCustomerRow {
+  customer_id: string
+  customer_code: string
+  customer_name: string
+  jumlah_dokumen: number
+  sisa: number
+  terlewat: number
+}
+
+/** Kartu Piutang's per-customer summary row, grouped client-side from the same unpaginated,
+ *  fully-filtered AR rows fetchAccountsReceivablesAll() already serves to Aging List's
+ *  "select all". `terlewat` sums outstanding_amount for rows whose due_date is in the past
+ *  as of today — same definition openByCustomer() uses for its own overdue_amount. */
+function groupKartuPiutangCustomers(rows: AccountsReceivable[]): KartuPiutangCustomerRow[] {
+  const today = new Date().toISOString().slice(0, 10)
+  const byCustomer = new Map<string, KartuPiutangCustomerRow>()
+  for (const row of rows) {
+    const outstanding = Number(row.outstanding_amount)
+    let entry = byCustomer.get(row.customer_id)
+    if (!entry) {
+      entry = {
+        customer_id: row.customer_id,
+        customer_code: row.customer?.customer_code ?? '—',
+        customer_name: row.customer?.customer_name ?? '—',
+        jumlah_dokumen: 0,
+        sisa: 0,
+        terlewat: 0,
+      }
+      byCustomer.set(row.customer_id, entry)
+    }
+    entry.jumlah_dokumen += 1
+    entry.sisa += outstanding
+    if (row.due_date && row.due_date.slice(0, 10) < today) entry.terlewat += outstanding
+  }
+  return [...byCustomer.values()].sort((a, b) => a.customer_code.localeCompare(b.customer_code))
+}
+
+const KARTU_PIUTANG_PAGE_SIZE = 15
+
+/** Kartu Piutang's lazily-loaded per-customer detail — unchanged header card + mutation table +
+ *  aging summary the single-customer view already rendered, just parameterized by customerId
+ *  instead of reading filters.customer_id directly. Mounted only while its row is expanded. */
+function KartuPiutangDetail({
+  customerId,
+  invoiceDateFrom,
+  invoiceDateTo,
+}: {
+  customerId: string
+  invoiceDateFrom: string
+  invoiceDateTo: string
+}) {
+  const [ledgerPage, setLedgerPage] = useState(1)
+
+  const ledgerQuery = useQuery({
+    queryKey: ['ar-ledger', customerId, invoiceDateFrom, invoiceDateTo, ledgerPage],
+    queryFn: () =>
+      fetchAccountsReceivableLedger({
+        customer_id: customerId,
+        ...(invoiceDateFrom ? { invoice_date_from: invoiceDateFrom } : {}),
+        ...(invoiceDateTo ? { invoice_date_to: invoiceDateTo } : {}),
+        page: ledgerPage,
+      }),
+    placeholderData: (previous) => previous,
+  })
+
+  useEffect(() => {
+    setLedgerPage(1)
+  }, [customerId, invoiceDateFrom, invoiceDateTo])
+
+  if (!ledgerQuery.data) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-muted-foreground">
+          {ledgerQuery.isLoading ? 'Loading…' : 'Gagal memuat Kartu Piutang.'}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4 py-2">
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-x-6 gap-y-1 py-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
+          <div>
+            <p className="text-xs text-muted-foreground">Nama Pelanggan</p>
+            <p className="font-medium">{ledgerQuery.data.data.header.customer_name}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Kode</p>
+            <p className="font-medium">{ledgerQuery.data.data.header.customer_code}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Branch</p>
+            <p className="font-medium">{ledgerQuery.data.data.header.branch_name ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Sales Person</p>
+            <p className="font-medium">{ledgerQuery.data.data.header.sales_person_name ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Terms of Payment</p>
+            <p className="font-medium">{ledgerQuery.data.data.header.terms_of_payment_name ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Saldo Akhir</p>
+            <p className="font-semibold">{formatCurrency(ledgerQuery.data.data.closing_balance)}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="overflow-x-auto rounded-md border">
+        <Table>
+          <TableBody>
+            <TableRow className="bg-muted/50 font-medium">
+              <TableCell>Tanggal</TableCell>
+              <TableCell>Jenis Dokumen</TableCell>
+              <TableCell>Nomor Dokumen</TableCell>
+              <TableCell>Keterangan</TableCell>
+              <TableCell>Jatuh Tempo</TableCell>
+              <TableCell className="text-right">Debit</TableCell>
+              <TableCell className="text-right">Kredit</TableCell>
+              <TableCell className="text-right">Saldo Berjalan</TableCell>
+            </TableRow>
+            {ledgerQuery.data.meta.current_page === 1 && (
+              <TableRow className="bg-muted/20">
+                <TableCell colSpan={7} className="font-medium">
+                  Saldo Awal
+                </TableCell>
+                <TableCell className="text-right font-medium">{formatCurrency(ledgerQuery.data.data.opening_balance)}</TableCell>
+              </TableRow>
+            )}
+            {ledgerQuery.data.data.rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  Tidak ada mutasi pada periode ini.
+                </TableCell>
+              </TableRow>
+            )}
+            {ledgerQuery.data.data.rows.map((row, index) => {
+              const link = row.reference_id ? resolveJournalReferenceLink(row.document_type, row.reference_id) : null
+
+              return (
+                <TableRow key={index}>
+                  <TableCell>{formatDate(row.date)}</TableCell>
+                  <TableCell>{row.document_type}</TableCell>
+                  <TableCell>
+                    {link ? (
+                      <Link to={link} className="text-primary underline-offset-2 hover:underline">
+                        {row.document_number ?? '—'}
+                      </Link>
+                    ) : (
+                      (row.document_number ?? '—')
+                    )}
+                  </TableCell>
+                  <TableCell>{row.description ?? '—'}</TableCell>
+                  <TableCell>{row.due_date ? formatDate(row.due_date) : '—'}</TableCell>
+                  <TableCell className="text-right">{row.debit ? formatCurrency(row.debit) : '—'}</TableCell>
+                  <TableCell className="text-right">{row.credit ? formatCurrency(row.credit) : '—'}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(row.running_balance)}</TableCell>
+                </TableRow>
+              )
+            })}
+            {ledgerQuery.data.meta.current_page === ledgerQuery.data.meta.last_page && (
+              <TableRow className="bg-muted/50 font-semibold">
+                <TableCell colSpan={7}>Saldo Akhir</TableCell>
+                <TableCell className="text-right">{formatCurrency(ledgerQuery.data.data.closing_balance)}</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Pagination meta={ledgerQuery.data.meta} onPageChange={setLedgerPage} />
+
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-4 py-4 text-sm sm:grid-cols-5">
+          <div>
+            <p className="text-xs text-muted-foreground">Belum Jatuh Tempo</p>
+            <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.not_due)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">1-30 Hari</p>
+            <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.due_1_30)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">31-60 Hari</p>
+            <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.due_31_60)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">61-90 Hari</p>
+            <p className="font-medium text-destructive">{formatCurrency(ledgerQuery.data.data.aging.due_61_90)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">&gt; 90 Hari</p>
+            <p className="font-medium text-destructive">{formatCurrency(ledgerQuery.data.data.aging.due_over_90)}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
 /**
  * Reads live Accounts Receivable data when there is any; falls back to the imported Customer
@@ -63,8 +266,12 @@ export function AccountsReceivableDetailReportPage() {
     setUrlFilters({ salesPersonIds: next.sales_person_ids })
   }
   const [viewMode, setViewMode] = useState<ViewMode>('aging')
-  const [ledgerPage, setLedgerPage] = useState(1)
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
+  // Kartu Piutang's own customer-list state — independent of selectedInvoiceIds/expandedCustomers
+  // above, which belong to the Aging List / Perincian Piutang checkbox flows.
+  const [kpPage, setKpPage] = useState(1)
+  const [kpSelected, setKpSelected] = useState<Set<string>>(new Set())
+  const [kpExpanded, setKpExpanded] = useState<Set<string>>(new Set())
 
   // Unfiltered, fired once — the single source of truth for "does the live AR table have any
   // row at all", independent of whatever the active table filters currently narrow down to.
@@ -254,22 +461,72 @@ export function AccountsReceivableDetailReportPage() {
     placeholderData: (previous) => previous,
   })
 
-  const ledgerQuery = useQuery({
-    queryKey: ['ar-ledger', filters.customer_id, filters.invoiceDateFrom, filters.invoiceDateTo, ledgerPage],
-    queryFn: () =>
-      fetchAccountsReceivableLedger({
-        customer_id: filters.customer_id,
-        ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
-        ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
-        page: ledgerPage,
-      }),
-    enabled: viewMode === 'ledger' && hasLiveData && !!filters.customer_id,
+  // Kartu Piutang's customer list — same unpaginated, fully-filtered AR rows Aging List's own
+  // "select all" already fetches, grouped per customer client-side (groupKartuPiutangCustomers).
+  const kartuPiutangListQuery = useQuery({
+    queryKey: ['ar-kartu-piutang-customers', activeFilterParams],
+    queryFn: () => fetchAccountsReceivablesAll(activeFilterParams),
+    enabled: viewMode === 'ledger' && hasLiveData,
     placeholderData: (previous) => previous,
   })
 
+  const kartuPiutangCustomers = useMemo(
+    () => groupKartuPiutangCustomers(kartuPiutangListQuery.data ?? []),
+    [kartuPiutangListQuery.data],
+  )
+
   useEffect(() => {
-    setLedgerPage(1)
-  }, [filters.customer_id, filters.invoiceDateFrom, filters.invoiceDateTo])
+    setKpPage(1)
+  }, [
+    filters.customer_id,
+    filters.status,
+    filters.agingBucket,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.invoiceDateFrom,
+    filters.invoiceDateTo,
+    filters.branch_id,
+    filters.sales_person_ids,
+  ])
+
+  const kpMeta: PaginationMeta = {
+    current_page: kpPage,
+    last_page: Math.max(1, Math.ceil(kartuPiutangCustomers.length / KARTU_PIUTANG_PAGE_SIZE)),
+    total: kartuPiutangCustomers.length,
+    per_page: KARTU_PIUTANG_PAGE_SIZE,
+  }
+  const kpPageRows = kartuPiutangCustomers.slice((kpPage - 1) * KARTU_PIUTANG_PAGE_SIZE, kpPage * KARTU_PIUTANG_PAGE_SIZE)
+  const kpAllVisibleSelected = kpPageRows.length > 0 && kpPageRows.every((row) => kpSelected.has(row.customer_id))
+
+  const toggleKpSelected = (customerId: string) =>
+    setKpSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(customerId)) next.delete(customerId)
+      else next.add(customerId)
+      return next
+    })
+
+  const toggleKpAllVisible = () =>
+    setKpSelected((prev) => {
+      const next = new Set(prev)
+      kpPageRows.forEach((row) => (kpAllVisibleSelected ? next.delete(row.customer_id) : next.add(row.customer_id)))
+      return next
+    })
+
+  const toggleKpExpanded = (customerId: string) =>
+    setKpExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(customerId)) next.delete(customerId)
+      else next.add(customerId)
+      return next
+    })
+
+  const expandSelectedKartuPiutang = () => setKpExpanded((prev) => new Set([...prev, ...kpSelected]))
+
+  // Export/Print/Refresh for this tab still only make sense for exactly one customer — the
+  // Customer filter wins when set, otherwise fall back to the single checked/expanded customer.
+  const kpActiveCustomerIds = new Set([...kpSelected, ...kpExpanded])
+  const resolvedKpCustomerId = filters.customer_id || (kpActiveCustomerIds.size === 1 ? [...kpActiveCustomerIds][0] : '')
 
   const [isExporting, setIsExporting] = useState(false)
   const exportReport = async (type: 'detail' | 'summary', format: 'xlsx' | 'csv') => {
@@ -289,12 +546,12 @@ export function AccountsReceivableDetailReportPage() {
   }
 
   const exportLedger = async (format: 'xlsx' | 'csv') => {
-    if (!filters.customer_id) return
+    if (!resolvedKpCustomerId) return
     setIsExporting(true)
     try {
       const blob = await exportAccountsReceivableLedger(
         {
-          customer_id: filters.customer_id,
+          customer_id: resolvedKpCustomerId,
           ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
           ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
         },
@@ -432,25 +689,30 @@ export function AccountsReceivableDetailReportPage() {
         actions={
           viewMode === 'ledger' && !snapshotMode ? (
             <>
-              <Button variant="outline" disabled={isExporting || !filters.customer_id} onClick={() => exportLedger('csv')}>
+              <Button variant="outline" disabled={isExporting || !resolvedKpCustomerId} onClick={() => exportLedger('csv')}>
                 <Download className="size-4" />
                 Export CSV
               </Button>
-              <Button variant="outline" disabled={isExporting || !filters.customer_id} onClick={() => exportLedger('xlsx')}>
+              <Button variant="outline" disabled={isExporting || !resolvedKpCustomerId} onClick={() => exportLedger('xlsx')}>
                 <Download className="size-4" />
                 Export XLSX
               </Button>
               <ActionBar
                 actions={[
-                  { label: 'Refresh', icon: RotateCw, onClick: () => ledgerQuery.refetch(), disabled: ledgerQuery.isFetching },
+                  {
+                    label: 'Refresh',
+                    icon: RotateCw,
+                    onClick: () => kartuPiutangListQuery.refetch(),
+                    disabled: kartuPiutangListQuery.isFetching,
+                  },
                   {
                     label: 'Print',
                     icon: Printer,
-                    disabled: !filters.customer_id,
+                    disabled: !resolvedKpCustomerId,
                     onClick: () =>
                       openPrintWindow(
                         `/reports/ar-detail/statement-print?${new URLSearchParams({
-                          customer_id: filters.customer_id,
+                          customer_id: resolvedKpCustomerId,
                           ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
                           ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
                         }).toString()}`,
@@ -814,135 +1076,97 @@ export function AccountsReceivableDetailReportPage() {
               </div>
             </>
           )
-        ) : !filters.customer_id ? (
+        ) : kartuPiutangListQuery.isLoading ? (
           <Card>
-            <CardContent className="py-10 text-center text-muted-foreground">Pilih pelanggan untuk melihat Kartu Piutang.</CardContent>
+            <CardContent className="py-10 text-center text-muted-foreground">Loading…</CardContent>
           </Card>
-        ) : !ledgerQuery.data ? (
+        ) : kartuPiutangCustomers.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-muted-foreground">
-              {ledgerQuery.isLoading ? 'Loading…' : 'Gagal memuat Kartu Piutang.'}
+              {hasActiveArDetailReportFilters(filters) ? 'Tidak ada data yang cocok dengan filter.' : 'Belum ada piutang.'}
             </CardContent>
           </Card>
         ) : (
           <>
-            <Card>
-              <CardContent className="grid grid-cols-2 gap-x-6 gap-y-1 py-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
-                <div>
-                  <p className="text-xs text-muted-foreground">Nama Pelanggan</p>
-                  <p className="font-medium">{ledgerQuery.data.data.header.customer_name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Kode</p>
-                  <p className="font-medium">{ledgerQuery.data.data.header.customer_code}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Branch</p>
-                  <p className="font-medium">{ledgerQuery.data.data.header.branch_name ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Sales Person</p>
-                  <p className="font-medium">{ledgerQuery.data.data.header.sales_person_name ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Terms of Payment</p>
-                  <p className="font-medium">{ledgerQuery.data.data.header.terms_of_payment_name ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Saldo Akhir</p>
-                  <p className="font-semibold">{formatCurrency(ledgerQuery.data.data.closing_balance)}</p>
-                </div>
-              </CardContent>
-            </Card>
-
+            {kpSelected.size > 0 && (
+              <div className="flex items-center justify-end">
+                <Button type="button" size="sm" onClick={expandSelectedKartuPiutang}>
+                  Lihat Detail Terpilih ({kpSelected.size})
+                </Button>
+              </div>
+            )}
             <div className="overflow-x-auto rounded-md border">
               <Table>
-                <TableBody>
-                  <TableRow className="bg-muted/50 font-medium">
-                    <TableCell>Tanggal</TableCell>
-                    <TableCell>Jenis Dokumen</TableCell>
-                    <TableCell>Nomor Dokumen</TableCell>
-                    <TableCell>Keterangan</TableCell>
-                    <TableCell>Jatuh Tempo</TableCell>
-                    <TableCell className="text-right">Debit</TableCell>
-                    <TableCell className="text-right">Kredit</TableCell>
-                    <TableCell className="text-right">Saldo Berjalan</TableCell>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10" />
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={kpAllVisibleSelected}
+                        onCheckedChange={toggleKpAllVisible}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
+                    <TableHead>Kode</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Jumlah Dokumen</TableHead>
+                    <TableHead className="text-right">Sisa</TableHead>
+                    <TableHead className="text-right">Terlewat Jatuh Tempo</TableHead>
                   </TableRow>
-                  {ledgerQuery.data.meta.current_page === 1 && (
-                    <TableRow className="bg-muted/20">
-                      <TableCell colSpan={7} className="font-medium">
-                        Saldo Awal
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(ledgerQuery.data.data.opening_balance)}</TableCell>
-                    </TableRow>
-                  )}
-                  {ledgerQuery.data.data.rows.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                        Tidak ada mutasi pada periode ini.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {ledgerQuery.data.data.rows.map((row, index) => {
-                    const link = row.reference_id ? resolveJournalReferenceLink(row.document_type, row.reference_id) : null
-
+                </TableHeader>
+                <TableBody>
+                  {kpPageRows.map((customer) => {
+                    const isExpanded = kpExpanded.has(customer.customer_id)
                     return (
-                      <TableRow key={index}>
-                        <TableCell>{formatDate(row.date)}</TableCell>
-                        <TableCell>{row.document_type}</TableCell>
-                        <TableCell>
-                          {link ? (
-                            <Link to={link} className="text-primary underline-offset-2 hover:underline">
-                              {row.document_number ?? '—'}
-                            </Link>
-                          ) : (
-                            (row.document_number ?? '—')
-                          )}
-                        </TableCell>
-                        <TableCell>{row.description ?? '—'}</TableCell>
-                        <TableCell>{row.due_date ? formatDate(row.due_date) : '—'}</TableCell>
-                        <TableCell className="text-right">{row.debit ? formatCurrency(row.debit) : '—'}</TableCell>
-                        <TableCell className="text-right">{row.credit ? formatCurrency(row.credit) : '—'}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.running_balance)}</TableCell>
-                      </TableRow>
+                      <Fragment key={customer.customer_id}>
+                        <TableRow className="font-medium">
+                          <TableCell>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              aria-expanded={isExpanded}
+                              aria-label={isExpanded ? 'Tutup Kartu Piutang' : 'Lihat Kartu Piutang'}
+                              onClick={() => toggleKpExpanded(customer.customer_id)}
+                            >
+                              {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Checkbox
+                              checked={kpSelected.has(customer.customer_id)}
+                              onCheckedChange={() => toggleKpSelected(customer.customer_id)}
+                              aria-label={`Select ${customer.customer_name}`}
+                            />
+                          </TableCell>
+                          <TableCell>{customer.customer_code}</TableCell>
+                          <TableCell>{customer.customer_name}</TableCell>
+                          <TableCell className="text-right">{formatNumber(customer.jumlah_dokumen)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(customer.sisa)}</TableCell>
+                          <TableCell className={`text-right ${customer.terlewat > 0 ? 'text-destructive' : ''}`}>
+                            {formatCurrency(customer.terlewat)}
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={7} className="bg-muted/20 p-4">
+                              <KartuPiutangDetail
+                                customerId={customer.customer_id}
+                                invoiceDateFrom={filters.invoiceDateFrom}
+                                invoiceDateTo={filters.invoiceDateTo}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
                     )
                   })}
-                  {ledgerQuery.data.meta.current_page === ledgerQuery.data.meta.last_page && (
-                    <TableRow className="bg-muted/50 font-semibold">
-                      <TableCell colSpan={7}>Saldo Akhir</TableCell>
-                      <TableCell className="text-right">{formatCurrency(ledgerQuery.data.data.closing_balance)}</TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             </div>
 
-            <Pagination meta={ledgerQuery.data.meta} onPageChange={setLedgerPage} />
-
-            <Card>
-              <CardContent className="grid grid-cols-2 gap-4 py-4 text-sm sm:grid-cols-5">
-                <div>
-                  <p className="text-xs text-muted-foreground">Belum Jatuh Tempo</p>
-                  <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.not_due)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">1-30 Hari</p>
-                  <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.due_1_30)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">31-60 Hari</p>
-                  <p className="font-medium">{formatCurrency(ledgerQuery.data.data.aging.due_31_60)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">61-90 Hari</p>
-                  <p className="font-medium text-destructive">{formatCurrency(ledgerQuery.data.data.aging.due_61_90)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">&gt; 90 Hari</p>
-                  <p className="font-medium text-destructive">{formatCurrency(ledgerQuery.data.data.aging.due_over_90)}</p>
-                </div>
-              </CardContent>
-            </Card>
+            <Pagination meta={kpMeta} onPageChange={setKpPage} />
           </>
         )
       ) : viewMode === 'archive' && !snapshotMode ? (
