@@ -1,4 +1,5 @@
 import { PrintMetaTable } from '@/components/shared/PrintMetaTable'
+import { DEJAVU_FONT_FACES, DEJAVU_FONT_STACK } from '@/features/sales/pages/invoicePrintConstants'
 import { terbilangIdrPlain } from '@/shared/lib/numberToWords'
 import type { PrintOptions } from '@/shared/lib/printOptions'
 import { DETAIL_TABLE_BASE_GAP_MM, DETAIL_TABLE_ROW_HEIGHT_MM, FONT_PT, PAGE_HEIGHT_MM, PAGE_PADDING, PAGE_WIDTH_MM, formatDdMmYyyy, formatNum } from '../pages/officialReceiptPrintConstants'
@@ -12,7 +13,7 @@ const TABLE1_COLS = [
 
 const SUBTABLE_COLS = [
   { key: 'doc_date', label: 'Doc Date', percent: 18 },
-  { key: 'document_no', label: 'Document #', percent: 37 },
+  { key: 'document_no', label: 'Document', percent: 37 },
   { key: 'org_amt', label: 'Org. Amt', percent: 22.5 },
   { key: 'paid_amt', label: 'Paid Amt', percent: 22.5 },
 ]
@@ -72,12 +73,14 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
         minHeight: `${PAGE_HEIGHT_MM}mm`,
         boxSizing: 'border-box',
         padding: PAGE_PADDING,
-        fontFamily: 'Arial, Helvetica, sans-serif',
+        fontFamily: DEJAVU_FONT_STACK,
         fontSize: `${bodyPt}pt`,
         color: '#000',
         lineHeight: 1.3,
       }}
     >
+      <style>{DEJAVU_FONT_FACES}</style>
+
       {/* Letterhead — the reference PDF has no logo/company-name placement of its own, so this keeps
           the same small top-left spot the old PAYMENT RECEIPT layout used. */}
       <p style={{ margin: '0 0 2mm 0', fontWeight: 700, fontSize: `${bodyPt}pt` }}>{companyName}</p>
@@ -98,9 +101,9 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
             <PrintMetaTable
               size={bodyPt}
               rows={[
-                { label: 'NO', value: receipt.document_number ?? '', bold: true },
-                { label: 'Date', value: formatDdMmYyyy(receipt.receipt_date) },
-                { label: 'Cheque No', value: chequeNo || '-' },
+                { label: 'NO', value: receipt.document_number ?? '', bold: true, valueBold: false },
+                { label: 'Date', value: formatDdMmYyyy(receipt.receipt_date), bold: true, valueBold: false },
+                { label: 'Cheque No', value: chequeNo || '-', bold: true, valueBold: false },
               ]}
             />
           </div>
@@ -122,7 +125,7 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
                 key={col.key}
                 style={{
                   textAlign: col.key === 'amount' ? 'right' : 'left',
-                  fontWeight: 400,
+                  fontWeight: 700,
                   fontSize: `${bodyPt * (8.8 / 9)}pt`,
                   padding: '1mm 1.5mm',
                   borderRight: index < TABLE1_COLS.length - 1 ? '0.75pt solid #000' : undefined,
@@ -139,7 +142,7 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
               {account.code} {account.name}
             </td>
             <td style={{ padding: '1mm 1.5mm', textAlign: 'left', borderRight: '0.75pt solid #000', verticalAlign: 'top' }}>{accountDescription}</td>
-            <td style={{ padding: '1mm 1.5mm', textAlign: 'right', verticalAlign: 'top' }}>{formatNum(accountAmount, decimals)}</td>
+            <td style={{ padding: '1mm 1.5mm', textAlign: 'center', verticalAlign: 'top' }}>{formatNum(accountAmount, decimals)}</td>
           </tr>
           {activeItems.length > 0 && (
             <tr>
@@ -203,7 +206,7 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
       <div style={{ marginTop: '16.4mm', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '2mm' }}>
         {SIGNATURE_LABELS.map((label) => (
           <div key={label}>
-            <p style={{ margin: 0, fontSize: `${bodyPt * (10 / 9)}pt` }}>{label}</p>
+            <p style={{ margin: 0, fontSize: `${bodyPt * (10 / 9)}pt`, fontWeight: 700 }}>{label}</p>
             <div style={{ height: '22mm' }} />
             <div style={{ width: '80%', borderTop: '0.75pt solid #000' }} />
           </div>
