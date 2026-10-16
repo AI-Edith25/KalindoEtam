@@ -88,7 +88,7 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
       {/* ---------- Header: two columns, no outer border ---------- */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
         <div>
-          <PrintMetaTable size={bodyPt} rows={[{ label: 'Bank Account', value: cashAccountName, bold: true, valueBold: false }]} />
+          <PrintMetaTable size={bodyPt} rows={[{ label: 'Diterima Dari', value: receivedFromName, bold: true, valueBold: false }]} />
           <p style={{ margin: 0, fontSize: `${bodyPt * (8 / 9)}pt`, fontWeight: 700 }}>PARTICULAR :</p>
           <p style={{ margin: 0 }}>
             {receivedFromName}
@@ -103,6 +103,7 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
               rows={[
                 { label: 'NO', value: receipt.document_number ?? '', bold: true, valueBold: false },
                 { label: 'Date', value: formatDdMmYyyy(receipt.receipt_date), bold: true, valueBold: false },
+                { label: 'Account', value: cashAccountName, bold: true, valueBold: false },
                 { label: 'Cheque No', value: chequeNo || '-', bold: true, valueBold: false },
               ]}
             />
@@ -124,7 +125,7 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
               <th
                 key={col.key}
                 style={{
-                  textAlign: col.key === 'amount' ? 'right' : 'left',
+                  textAlign: col.key === 'amount' ? 'center' : 'left',
                   fontWeight: 700,
                   fontSize: `${bodyPt * (8.8 / 9)}pt`,
                   padding: '1mm 1.5mm',
