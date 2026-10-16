@@ -36,14 +36,21 @@ interface OfficialReceiptPrintTemplateProps {
  * replaces: PaymentAllocation.allocated_amount already nets out reversals, so re-including a
  * reversed row here would make the sub-table rows not foot to the Amount it's nested under).
  *
- * The A/C row is read off the receipt's own REAL posted journal entry (receipt.accounting_entries)
- * rather than derived/hardcoded — a receipt not yet allocated to any invoice posts against 1150
- * Uang Muka Pelanggan (Customer Advance), not Piutang Usaha, and PK/PL customers post against their
- * own Piutang account (ReceiptEntry::journalLines()) — only the real posted line is ever correct.
- * The receipt's own submit journal is the one entry whose lines include the Cash/Bank account
- * itself (allocation journals, by contrast, only ever touch 1150/AR, never cash) — its other line
- * is the one this table shows, description included verbatim (already backend-formatted as
- * "{customer}; {cash account}").
+ * The A/C row is read off the receipt's own REAL posted journal entries (receipt.accounting_entries,
+ * which already includes both the receipt's own submit journal AND every allocation's Dr 1150/Cr AR
+ * journal — see ReceiptEntry::accountingEntries()) rather than derived/hardcoded, and its account
+ * follows the receipt's current allocation status (SkyBiz's own print behavior):
+ * - unallocated_amount > 0 (still carrying an unapplied balance, whether nothing or only part of it
+ *   has been allocated): show the 1150 Uang Muka Pelanggan leg — the receipt's own submit journal is
+ *   the one entry whose lines include the Cash/Bank account itself (allocation journals, by
+ *   contrast, only ever touch 1150/AR, never cash); its other line is the one shown, description
+ *   verbatim (already backend-formatted as "{customer}; {cash account}").
+ * - unallocated_amount === 0 (fully matched to one or more invoices): the 1150 leg has since been
+ *   fully cleared by the allocation journals, so show the AR account those allocations actually
+ *   posted to instead (read off the first allocation journal's non-1150 line — real posted account,
+ *   not a hardcoded "112.01"), with a SkyBiz-style synthesized description ("PIUTANG USAHA, <customer>,
+ *   <cash account>") since the allocation journal's own line description ("Allocation of ... to ...")
+ *   doesn't match that legacy wording.
  */
 export function OfficialReceiptPrintTemplate({ receipt, companyName, printOptions }: OfficialReceiptPrintTemplateProps) {
   const decimals = printOptions.amountDecimals
@@ -52,14 +59,22 @@ export function OfficialReceiptPrintTemplate({ receipt, companyName, printOption
   const receivedFromName = receipt.customer?.customer_name ?? receipt.description ?? ''
   const cashAccountName = receipt.cash_account?.name ?? ''
 
+  const activeItems = receipt.items.filter((item) => !item.is_reversed)
+
   const ownJournal = receipt.accounting_entries?.find((entry) => entry.lines.some((line) => line.chart_of_account_id === receipt.cash_account_id))
   const nonCashLine = ownJournal?.lines.find((line) => line.chart_of_account_id !== receipt.cash_account_id)
-  const account = nonCashLine?.chart_of_account ?? { code: '', name: '' }
-  const accountDescription = nonCashLine?.description ?? `${receivedFromName}; ${cashAccountName}`
-  const accountAmount = nonCashLine ? Number(nonCashLine.credit) || Number(nonCashLine.debit) : Number(receipt.total_amount)
+
+  const isFullyAllocated = Math.abs(Number(receipt.unallocated_amount)) < 0.005 && activeItems.length > 0
+  const allocationJournal = isFullyAllocated ? receipt.accounting_entries?.find((entry) => entry !== ownJournal) : undefined
+  const arLine = allocationJournal?.lines.find((line) => line.chart_of_account_id !== nonCashLine?.chart_of_account_id)
+
+  const account = arLine?.chart_of_account ?? nonCashLine?.chart_of_account ?? { code: '', name: '' }
+  const accountDescription = arLine?.chart_of_account
+    ? `${arLine.chart_of_account.name.toUpperCase()}, ${receivedFromName}, ${cashAccountName}`
+    : nonCashLine?.description ?? `${receivedFromName}; ${cashAccountName}`
+  const accountAmount = Number(receipt.total_amount)
 
   const chequeNo = receipt.reference_number || ''
-  const activeItems = receipt.items.filter((item) => !item.is_reversed)
 
   const extraRows = Math.max(0, activeItems.length - 1)
   const detailSpacerMm = Math.max(0, DETAIL_TABLE_BASE_GAP_MM - extraRows * DETAIL_TABLE_ROW_HEIGHT_MM)
