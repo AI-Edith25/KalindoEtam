@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronsUpDown, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronsUpDown, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -13,7 +13,19 @@ export interface MultiSelectOption {
 }
 
 interface MultiSelectFilterProps {
-  options: MultiSelectOption[]
+  /** Sync mode: full option list already fetched — filtered client-side as you type. */
+  options?: MultiSelectOption[]
+  /**
+   * Async mode: called (debounced ~250ms) with the current query as the user types, for
+   * datasets too large to load upfront (e.g. Customer). Mutually exclusive with `options` —
+   * when present, the search box hits the server instead of filtering `options`, same contract
+   * as SearchableSelect.tsx's own `loadOptions`.
+   */
+  loadOptions?: (query: string) => Promise<MultiSelectOption[]>
+  /** Async mode only: the label to show on the trigger when exactly one id is selected — the
+   *  caller resolves it (that one id may not be in the last search result at all). Ignored in
+   *  sync mode, where the label comes straight from `options`. */
+  resolvedSingleLabel?: string
   /** Selected option ids — never labels, so callers store/URL-sync stable ids. */
   value: string[]
   onChange: (next: string[]) => void
@@ -28,35 +40,73 @@ interface MultiSelectFilterProps {
 
 /**
  * Reusable multi-select filter: search box, checkbox list, "Pilih semua" (scoped to the current
- * search — see selectAllFiltered) / "Hapus pilihan", selected options pinned to the top, and a
- * small x on the trigger for a one-click reset. Modeled on SearchableSelect.tsx's own skeleton
- * (DropdownMenu + Input + plain buttons, no new popover/command dependency) — the one behavioral
- * difference is that picking a row here never closes the menu, since picking several is the point.
+ * search — see selectAllFiltered) / "Hapus pilihan", selected options pinned to the top (sync
+ * mode only), and a small x on the trigger for a one-click reset. Modeled on SearchableSelect.tsx's
+ * own skeleton (DropdownMenu + Input + plain buttons, no new popover/command dependency) — the one
+ * behavioral difference is that picking a row here never closes the menu, since picking several
+ * is the point.
  *
  * Every row gets a tooltip with its full label (`Tooltip`, not a conditional-on-overflow check —
  * the trigger's own width already fits the longest label via `ch`, so this only ever fires for a
  * font-metric edge case `ch` didn't account for; always mounting it is simpler than a measured
  * overflow check for that rare case).
  */
-export function MultiSelectFilter({ options, value, onChange, loading, placeholder = 'All', itemLabel = 'item', className, ...rest }: MultiSelectFilterProps) {
+export function MultiSelectFilter({
+  options,
+  loadOptions,
+  resolvedSingleLabel,
+  value,
+  onChange,
+  loading,
+  placeholder = 'All',
+  itemLabel = 'item',
+  className,
+  ...rest
+}: MultiSelectFilterProps) {
+  const isAsync = !!loadOptions
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
+  const [asyncOptions, setAsyncOptions] = useState<MultiSelectOption[]>([])
+  const [searching, setSearching] = useState(false)
+  const requestId = useRef(0)
 
   const selectedSet = useMemo(() => new Set(value), [value])
 
-  // Selected-first (A.5) — stable otherwise (source order).
+  useEffect(() => {
+    if (!isAsync || !open) return
+    const id = ++requestId.current
+    setSearching(true)
+    const handle = setTimeout(() => {
+      loadOptions!(query.trim())
+        .then((result) => {
+          if (requestId.current === id) setAsyncOptions(result)
+        })
+        .finally(() => {
+          if (requestId.current === id) setSearching(false)
+        })
+    }, 250)
+
+    return () => clearTimeout(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, open, isAsync])
+
+  // Selected-first (A.5) — stable otherwise (source order). Sync mode only: the full option set
+  // isn't loaded client-side in async mode, so pinning selected rows above the search result
+  // isn't meaningful there (ponytail: skipped — add if this turns out to matter).
   const ordered = useMemo(() => {
-    const selected = options.filter((o) => selectedSet.has(o.value))
-    const unselected = options.filter((o) => !selectedSet.has(o.value))
+    if (isAsync) return options ?? []
+    const selected = (options ?? []).filter((o) => selectedSet.has(o.value))
+    const unselected = (options ?? []).filter((o) => !selectedSet.has(o.value))
     return [...selected, ...unselected]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options, value])
+  }, [options, value, isAsync])
 
   const filtered = useMemo(() => {
+    if (isAsync) return asyncOptions
     const q = query.trim().toLowerCase()
     return q ? ordered.filter((o) => o.label.toLowerCase().includes(q)) : ordered
-  }, [ordered, query])
+  }, [ordered, query, isAsync, asyncOptions])
 
   useEffect(() => setHighlighted(0), [filtered.length, query])
 
@@ -86,14 +136,19 @@ export function MultiSelectFilter({ options, value, onChange, loading, placehold
     }
   }
 
-  const selectedOptions = options.filter((o) => selectedSet.has(o.value))
+  const selectedOptions = isAsync ? [] : (options ?? []).filter((o) => selectedSet.has(o.value))
   const label =
-    selectedOptions.length === 0 ? placeholder : selectedOptions.length === 1 ? selectedOptions[0].label : `${selectedOptions.length} ${itemLabel} dipilih`
+    value.length === 0
+      ? placeholder
+      : value.length === 1
+        ? (isAsync ? resolvedSingleLabel ?? placeholder : selectedOptions[0]?.label ?? placeholder)
+        : `${value.length} ${itemLabel} dipilih`
 
   // Popover width: 260px floor, or the longest label + room for the checkbox/padding, whichever
   // is wider — `ch` is font-metric-approximate but cheap (no measurement pass needed for a filter
-  // dropdown; the per-row tooltip covers the rare miss).
-  const widthCh = Math.max(...options.map((o) => o.label.length), 0) + 6
+  // dropdown; the per-row tooltip covers the rare miss). Async mode has no upfront option list to
+  // measure, so it just keeps the 260px floor.
+  const widthCh = isAsync ? 0 : Math.max(...(options ?? []).map((o) => o.label.length), 0) + 6
 
   return (
     <DropdownMenu
@@ -111,11 +166,11 @@ export function MultiSelectFilter({ options, value, onChange, loading, placehold
           aria-expanded={open}
           aria-label={rest['aria-label']}
           disabled={loading}
-          className={cn('w-full justify-between font-normal', selectedOptions.length === 0 && 'text-muted-foreground', className)}
+          className={cn('w-full justify-between font-normal', value.length === 0 && 'text-muted-foreground', className)}
         >
           <span className="truncate">{loading ? 'Loading…' : label}</span>
           <span className="flex shrink-0 items-center gap-1">
-            {selectedOptions.length > 0 && (
+            {value.length > 0 && (
               <X
                 className="size-3.5 opacity-60 hover:opacity-100"
                 onClick={(event) => {
@@ -128,7 +183,13 @@ export function MultiSelectFilter({ options, value, onChange, loading, placehold
           </span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="p-0 duration-0" style={{ width: `max(260px, ${widthCh}ch)` }} align="start" side="bottom" avoidCollisions={false}>
+      <DropdownMenuContent
+        className="p-0 duration-0"
+        style={{ width: isAsync ? '260px' : `max(260px, ${widthCh}ch)` }}
+        align="start"
+        side="bottom"
+        avoidCollisions={false}
+      >
         <div className="p-1.5">
           <Input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleKeyDown} placeholder="Cari…" className="h-8" aria-label="Cari" />
         </div>
@@ -142,7 +203,14 @@ export function MultiSelectFilter({ options, value, onChange, loading, placehold
         </div>
         <TooltipProvider>
           <div role="listbox" aria-multiselectable className="max-h-64 overflow-y-auto p-1">
-            {filtered.length === 0 && <p className="px-2 py-1.5 text-sm text-muted-foreground">Tidak ada data yang cocok</p>}
+            {isAsync && searching && filtered.length === 0 && (
+              <p className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+                <Loader2 className="size-3.5 animate-spin" /> Memuat…
+              </p>
+            )}
+            {!(isAsync && searching) && filtered.length === 0 && (
+              <p className="px-2 py-1.5 text-sm text-muted-foreground">Tidak ada data yang cocok</p>
+            )}
             {filtered.map((option, index) => {
               const checked = selectedSet.has(option.value)
               return (

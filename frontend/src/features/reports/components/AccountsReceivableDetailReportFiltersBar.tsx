@@ -15,6 +15,15 @@ const ALL = '__all__'
 interface AccountsReceivableDetailReportFiltersBarProps {
   value: ArDetailReportFilterValues
   onChange: (value: ArDetailReportFilterValues) => void
+  /** Kartu Piutang only — swaps the single-select Customer field for a multi-select checklist.
+   *  Aging List / Perincian Piutang don't pass this, so they keep the single `value.customer_id`
+   *  field exactly as before. */
+  customerMultiSelect?: {
+    value: string[]
+    onChange: (ids: string[]) => void
+    /** Label to show on the trigger when exactly one customer is checked. */
+    resolvedSingleLabel?: string
+  }
 }
 
 function customerLabel(customer: { customer_code: string; customer_name: string }) {
@@ -22,7 +31,7 @@ function customerLabel(customer: { customer_code: string; customer_name: string 
 }
 
 /** Own filter set for this report — deliberately not a shared generic filter engine, matching every other report's FiltersBar in this codebase. */
-export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: AccountsReceivableDetailReportFiltersBarProps) {
+export function AccountsReceivableDetailReportFiltersBar({ value, onChange, customerMultiSelect }: AccountsReceivableDetailReportFiltersBarProps) {
   const salesPersons = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
 
@@ -48,15 +57,28 @@ export function AccountsReceivableDetailReportFiltersBar({ value, onChange }: Ac
     <FilterPanel onClear={() => onChange(emptyArDetailReportFilters)} hasActiveFilters={hasActiveArDetailReportFilters(value)}>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Customer</span>
-        <SearchableSelect
-          loadOptions={loadCustomerOptions}
-          selectedOption={selectedCustomerOption}
-          value={value.customer_id || undefined}
-          onChange={(next) => onChange({ ...value, customer_id: next ?? '' })}
-          placeholder="All customers"
-          aria-label="Customer"
-          className="w-56"
-        />
+        {customerMultiSelect ? (
+          <MultiSelectFilter
+            loadOptions={loadCustomerOptions}
+            resolvedSingleLabel={customerMultiSelect.resolvedSingleLabel}
+            value={customerMultiSelect.value}
+            onChange={customerMultiSelect.onChange}
+            placeholder="All customers"
+            itemLabel="customer"
+            aria-label="Customer"
+            className="w-56"
+          />
+        ) : (
+          <SearchableSelect
+            loadOptions={loadCustomerOptions}
+            selectedOption={selectedCustomerOption}
+            value={value.customer_id || undefined}
+            onChange={(next) => onChange({ ...value, customer_id: next ?? '' })}
+            placeholder="All customers"
+            aria-label="Customer"
+            className="w-56"
+          />
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Branch</span>

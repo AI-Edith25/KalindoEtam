@@ -21,6 +21,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { exportAccountsReceivables, fetchAccountsReceivables } from '@/features/payment/api/accountsReceivableApi'
 import { fetchAccountsReceivablesAll } from '../api/accountsReceivableCustomerReportsApi'
+import { fetchCustomer } from '@/features/master/api/customerApi'
 import type { AccountsReceivable } from '@/features/payment/types'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { downloadImportBatchFailedRows } from '@/shared/lib/downloadImportBatchFailedRows'
@@ -268,9 +269,10 @@ export function AccountsReceivableDetailReportPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('aging')
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
   // Kartu Piutang's own customer-list state — independent of selectedInvoiceIds/expandedCustomers
-  // above, which belong to the Aging List / Perincian Piutang checkbox flows.
+  // above, which belong to the Aging List / Perincian Piutang checkbox flows. Selection now lives
+  // in the Customer filter dropdown (kpCustomerIds), not in the table itself.
   const [kpPage, setKpPage] = useState(1)
-  const [kpSelected, setKpSelected] = useState<Set<string>>(new Set())
+  const [kpCustomerIds, setKpCustomerIds] = useState<string[]>([])
   const [kpExpanded, setKpExpanded] = useState<Set<string>>(new Set())
 
   // Unfiltered, fired once — the single source of truth for "does the live AR table have any
@@ -461,24 +463,37 @@ export function AccountsReceivableDetailReportPage() {
     placeholderData: (previous) => previous,
   })
 
-  // Kartu Piutang's customer list — same unpaginated, fully-filtered AR rows Aging List's own
-  // "select all" already fetches, grouped per customer client-side (groupKartuPiutangCustomers).
+  // Kartu Piutang's customer list — same Branch/Salesman/Status/Aging/date filters as the other
+  // tabs, but Customer is its own multi-select (kpCustomerIds) rather than the shared single
+  // filters.customer_id, so it's left out of this query's params and applied client-side below.
+  const kartuPiutangFilterParams = {
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.agingBucket ? { aging_bucket: filters.agingBucket } : {}),
+    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+    ...(filters.invoiceDateFrom ? { invoice_date_from: filters.invoiceDateFrom } : {}),
+    ...(filters.invoiceDateTo ? { invoice_date_to: filters.invoiceDateTo } : {}),
+    ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+    ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
+  }
+
   const kartuPiutangListQuery = useQuery({
-    queryKey: ['ar-kartu-piutang-customers', activeFilterParams],
-    queryFn: () => fetchAccountsReceivablesAll(activeFilterParams),
+    queryKey: ['ar-kartu-piutang-customers', kartuPiutangFilterParams],
+    queryFn: () => fetchAccountsReceivablesAll(kartuPiutangFilterParams),
     enabled: viewMode === 'ledger' && hasLiveData,
     placeholderData: (previous) => previous,
   })
 
-  const kartuPiutangCustomers = useMemo(
-    () => groupKartuPiutangCustomers(kartuPiutangListQuery.data ?? []),
-    [kartuPiutangListQuery.data],
-  )
+  const kartuPiutangCustomers = useMemo(() => {
+    const rows = kartuPiutangListQuery.data ?? []
+    const scoped = kpCustomerIds.length === 0 ? rows : rows.filter((row) => kpCustomerIds.includes(row.customer_id))
+    return groupKartuPiutangCustomers(scoped)
+  }, [kartuPiutangListQuery.data, kpCustomerIds])
 
   useEffect(() => {
     setKpPage(1)
   }, [
-    filters.customer_id,
+    kpCustomerIds,
     filters.status,
     filters.agingBucket,
     filters.dateFrom,
@@ -489,6 +504,13 @@ export function AccountsReceivableDetailReportPage() {
     filters.sales_person_ids,
   ])
 
+  // Point D — checking a customer in the filter expands it right away; unioning only on
+  // kpCustomerIds changes (not every render) means a manual collapse afterward sticks.
+  useEffect(() => {
+    if (kpCustomerIds.length === 0) return
+    setKpExpanded((prev) => new Set([...prev, ...kpCustomerIds]))
+  }, [kpCustomerIds])
+
   const kpMeta: PaginationMeta = {
     current_page: kpPage,
     last_page: Math.max(1, Math.ceil(kartuPiutangCustomers.length / KARTU_PIUTANG_PAGE_SIZE)),
@@ -496,22 +518,6 @@ export function AccountsReceivableDetailReportPage() {
     per_page: KARTU_PIUTANG_PAGE_SIZE,
   }
   const kpPageRows = kartuPiutangCustomers.slice((kpPage - 1) * KARTU_PIUTANG_PAGE_SIZE, kpPage * KARTU_PIUTANG_PAGE_SIZE)
-  const kpAllVisibleSelected = kpPageRows.length > 0 && kpPageRows.every((row) => kpSelected.has(row.customer_id))
-
-  const toggleKpSelected = (customerId: string) =>
-    setKpSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(customerId)) next.delete(customerId)
-      else next.add(customerId)
-      return next
-    })
-
-  const toggleKpAllVisible = () =>
-    setKpSelected((prev) => {
-      const next = new Set(prev)
-      kpPageRows.forEach((row) => (kpAllVisibleSelected ? next.delete(row.customer_id) : next.add(row.customer_id)))
-      return next
-    })
 
   const toggleKpExpanded = (customerId: string) =>
     setKpExpanded((prev) => {
@@ -521,12 +527,20 @@ export function AccountsReceivableDetailReportPage() {
       return next
     })
 
-  const expandSelectedKartuPiutang = () => setKpExpanded((prev) => new Set([...prev, ...kpSelected]))
-
   // Export/Print/Refresh for this tab still only make sense for exactly one customer — the
-  // Customer filter wins when set, otherwise fall back to the single checked/expanded customer.
-  const kpActiveCustomerIds = new Set([...kpSelected, ...kpExpanded])
-  const resolvedKpCustomerId = filters.customer_id || (kpActiveCustomerIds.size === 1 ? [...kpActiveCustomerIds][0] : '')
+  // Customer filter wins when exactly one is checked, otherwise fall back to a single expanded row.
+  const resolvedKpCustomerId = kpCustomerIds.length === 1 ? kpCustomerIds[0] : kpExpanded.size === 1 ? [...kpExpanded][0] : ''
+
+  // Resolves the checked-customer label for the filter trigger once exactly one is selected —
+  // same pattern the FiltersBar's own single-select used (fetchCustomer by id).
+  const kpSingleCustomerQuery = useQuery({
+    queryKey: ['customer', kpCustomerIds[0]],
+    queryFn: () => fetchCustomer(kpCustomerIds[0]),
+    enabled: kpCustomerIds.length === 1,
+  })
+  const kpResolvedSingleLabel = kpSingleCustomerQuery.data
+    ? `${kpSingleCustomerQuery.data.customer_code} — ${kpSingleCustomerQuery.data.customer_name}`
+    : undefined
 
   const [isExporting, setIsExporting] = useState(false)
   const exportReport = async (type: 'detail' | 'summary', format: 'xlsx' | 'csv') => {
@@ -856,6 +870,11 @@ export function AccountsReceivableDetailReportPage() {
                 setFilters(value)
                 setPage(1)
               }}
+              customerMultiSelect={
+                viewMode === 'ledger'
+                  ? { value: kpCustomerIds, onChange: setKpCustomerIds, resolvedSingleLabel: kpResolvedSingleLabel }
+                  : undefined
+              }
             />
           </>
         )}
@@ -1088,25 +1107,11 @@ export function AccountsReceivableDetailReportPage() {
           </Card>
         ) : (
           <>
-            {kpSelected.size > 0 && (
-              <div className="flex items-center justify-end">
-                <Button type="button" size="sm" onClick={expandSelectedKartuPiutang}>
-                  Lihat Detail Terpilih ({kpSelected.size})
-                </Button>
-              </div>
-            )}
             <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10" />
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={kpAllVisibleSelected}
-                        onCheckedChange={toggleKpAllVisible}
-                        aria-label="Select all"
-                      />
-                    </TableHead>
                     <TableHead>Kode</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead className="text-right">Jumlah Dokumen</TableHead>
@@ -1133,13 +1138,6 @@ export function AccountsReceivableDetailReportPage() {
                               {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                             </Button>
                           </TableCell>
-                          <TableCell>
-                            <Checkbox
-                              checked={kpSelected.has(customer.customer_id)}
-                              onCheckedChange={() => toggleKpSelected(customer.customer_id)}
-                              aria-label={`Select ${customer.customer_name}`}
-                            />
-                          </TableCell>
                           <TableCell>{customer.customer_code}</TableCell>
                           <TableCell>{customer.customer_name}</TableCell>
                           <TableCell className="text-right">{formatNumber(customer.jumlah_dokumen)}</TableCell>
@@ -1150,7 +1148,7 @@ export function AccountsReceivableDetailReportPage() {
                         </TableRow>
                         {isExpanded && (
                           <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={7} className="bg-muted/20 p-4">
+                            <TableCell colSpan={6} className="bg-muted/20 p-4">
                               <KartuPiutangDetail
                                 customerId={customer.customer_id}
                                 invoiceDateFrom={filters.invoiceDateFrom}
