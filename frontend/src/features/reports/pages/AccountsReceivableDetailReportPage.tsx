@@ -33,7 +33,7 @@ import { CustomerOutstandingArchiveFiltersBar } from '../components/CustomerOuts
 import { CustomerOutstandingBillsLiveView } from '../components/CustomerOutstandingBillsLiveView'
 import { CustomerOutstandingArchiveImportDialog } from '../components/CustomerOutstandingArchiveImportDialog'
 import { fetchAccountsReceivableGroupedDetail } from '../api/accountsReceivableGroupedDetailApi'
-import { exportAccountsReceivableLedger, fetchAccountsReceivableLedger } from '../api/accountsReceivableLedgerApi'
+import { exportAccountsReceivableLedger, fetchAccountsReceivableLedger, fetchUnappliedPaymentTotals } from '../api/accountsReceivableLedgerApi'
 import {
   exportCustomerOutstandingArchive,
   fetchCustomerOutstandingArchiveDetail,
@@ -59,8 +59,13 @@ interface KartuPiutangCustomerRow {
 /** Kartu Piutang's per-customer summary row, grouped client-side from the same unpaginated,
  *  fully-filtered AR rows fetchAccountsReceivablesAll() already serves to Aging List's
  *  "select all". `terlewat` sums outstanding_amount for rows whose due_date is in the past
- *  as of today — same definition openByCustomer() uses for its own overdue_amount. */
-function groupKartuPiutangCustomers(rows: AccountsReceivable[]): KartuPiutangCustomerRow[] {
+ *  as of today — same definition openByCustomer() uses for its own overdue_amount.
+ *
+ *  `unappliedTotals` subtracts each customer's unapplied/on-account payments (money received but
+ *  not tied to any AccountsReceivable row, so sum(outstanding_amount) alone never sees it) — this
+ *  is what keeps "Sisa" here equal to the detail ledger's closing_balance, which already nets
+ *  those payments out (see AccountsReceivableRepository::ledgerRows()). */
+function groupKartuPiutangCustomers(rows: AccountsReceivable[], unappliedTotals: Record<string, number>): KartuPiutangCustomerRow[] {
   const today = new Date().toISOString().slice(0, 10)
   const byCustomer = new Map<string, KartuPiutangCustomerRow>()
   for (const row of rows) {
@@ -80,6 +85,9 @@ function groupKartuPiutangCustomers(rows: AccountsReceivable[]): KartuPiutangCus
     entry.jumlah_dokumen += 1
     entry.sisa += outstanding
     if (row.due_date && row.due_date.slice(0, 10) < today) entry.terlewat += outstanding
+  }
+  for (const entry of byCustomer.values()) {
+    entry.sisa -= unappliedTotals[entry.customer_id] ?? 0
   }
   return [...byCustomer.values()].sort((a, b) => a.customer_code.localeCompare(b.customer_code))
 }
@@ -484,11 +492,23 @@ export function AccountsReceivableDetailReportPage() {
     placeholderData: (previous) => previous,
   })
 
+  const kpCustomerIdsPresent = useMemo(
+    () => [...new Set((kartuPiutangListQuery.data ?? []).map((row) => row.customer_id))],
+    [kartuPiutangListQuery.data],
+  )
+
+  const unappliedTotalsQuery = useQuery({
+    queryKey: ['ar-unapplied-payment-totals', kpCustomerIdsPresent],
+    queryFn: () => fetchUnappliedPaymentTotals(kpCustomerIdsPresent),
+    enabled: viewMode === 'ledger' && hasLiveData && kpCustomerIdsPresent.length > 0,
+    placeholderData: (previous) => previous,
+  })
+
   const kartuPiutangCustomers = useMemo(() => {
     const rows = kartuPiutangListQuery.data ?? []
     const scoped = kpCustomerIds.length === 0 ? rows : rows.filter((row) => kpCustomerIds.includes(row.customer_id))
-    return groupKartuPiutangCustomers(scoped)
-  }, [kartuPiutangListQuery.data, kpCustomerIds])
+    return groupKartuPiutangCustomers(scoped, unappliedTotalsQuery.data ?? {})
+  }, [kartuPiutangListQuery.data, kpCustomerIds, unappliedTotalsQuery.data])
 
   useEffect(() => {
     setKpPage(1)

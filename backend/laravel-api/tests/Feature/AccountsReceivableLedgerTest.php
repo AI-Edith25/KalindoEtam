@@ -267,6 +267,92 @@ class AccountsReceivableLedgerTest extends TestCase
         $this->assertEquals(0.0, $ledger['closing_balance']);
     }
 
+    /**
+     * Scenario (c) from the Kartu Piutang data-fix ticket: a payment received but never allocated
+     * to any invoice (on-account / advance payment) must still surface as its own credit-only row
+     * and reduce the running balance — it was previously invisible everywhere (ledgerRows() only
+     * ever queried PaymentAllocation, which doesn't exist until a payment is applied).
+     */
+    public function test_unallocated_payment_appears_as_its_own_credit_only_row(): void
+    {
+        $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(10)->toDateString(), dueDate: now()->addDays(20)->toDateString()); // 100000
+
+        $payment = $this->submittedPayment(30000); // received, never allocated
+
+        $ledger = $this->accountsReceivableService->ledgerFull(['customer_id' => $this->customer->id]);
+
+        $this->assertCount(2, $ledger['rows']);
+        $unappliedRow = $ledger['rows'][1];
+        $this->assertEquals('Receipt Entry', $unappliedRow['document_type']);
+        $this->assertEquals($payment->document_number, $unappliedRow['document_number']);
+        $this->assertEquals(30000, $unappliedRow['credit']);
+        $this->assertEquals(0.0, $unappliedRow['debit']);
+        $this->assertEquals(70000, $unappliedRow['running_balance']);
+        $this->assertEquals(70000, $ledger['closing_balance']);
+    }
+
+    /** A partially-allocated payment must show BOTH the allocated credit (tied to its invoice) and the still-unapplied remainder as a second credit row — never double-counted, never dropped. */
+    public function test_partially_allocated_payment_shows_both_the_allocated_and_remaining_unapplied_credit(): void
+    {
+        $invoice = $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(10)->toDateString(), dueDate: now()->addDays(20)->toDateString()); // 100000
+        $accountsReceivable = $invoice->accountsReceivable()->firstOrFail();
+
+        $payment = $this->submittedPayment(50000);
+        $this->paymentAllocationService->allocateBatch($payment, [
+            ['accounts_receivable_id' => $accountsReceivable->id, 'amount' => 20000],
+        ]);
+
+        $ledger = $this->accountsReceivableService->ledgerFull(['customer_id' => $this->customer->id]);
+
+        $this->assertCount(3, $ledger['rows']);
+        $this->assertEquals(20000, $ledger['rows'][1]['credit']);
+        $this->assertEquals(30000, $ledger['rows'][2]['credit']);
+        $this->assertEquals(50000, $ledger['closing_balance']); // 100000 - 20000 - 30000
+    }
+
+    /**
+     * Item 4 of the Kartu Piutang data-fix ticket: the customer-list "Sisa" summary (computed
+     * client-side as sum(outstanding_amount) over AR rows) must be reconcilable with the detail
+     * ledger's closing_balance. outstanding_amount alone never reflects an unapplied payment (it's
+     * not tied to any AccountsReceivable row) — unappliedPaymentTotalsByCustomerIds() is the figure
+     * the frontend subtracts from its sum(outstanding_amount) so both numbers agree.
+     */
+    public function test_unapplied_payment_totals_reconciles_outstanding_total_with_ledger_closing_balance(): void
+    {
+        $invoice = $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(10)->toDateString(), dueDate: now()->addDays(20)->toDateString()); // 100000
+        $accountsReceivable = $invoice->accountsReceivable()->firstOrFail();
+
+        $allocatedPayment = $this->submittedPayment(20000);
+        $this->paymentAllocationService->allocateBatch($allocatedPayment, [
+            ['accounts_receivable_id' => $accountsReceivable->id, 'amount' => 20000],
+        ]);
+        $this->submittedPayment(30000); // never allocated
+
+        $unappliedTotals = $this->accountsReceivableService->unappliedPaymentTotalsByCustomerIds([$this->customer->id]);
+        $outstandingTotal = $this->accountsReceivableService->outstandingTotal(['customer_id' => $this->customer->id]);
+        $ledger = $this->accountsReceivableService->ledgerFull(['customer_id' => $this->customer->id]);
+
+        $this->assertEquals(30000, $unappliedTotals[$this->customer->id]);
+        $this->assertEquals(80000, $outstandingTotal); // 100000 - 20000 allocated
+        $this->assertEquals($outstandingTotal - $unappliedTotals[$this->customer->id], $ledger['closing_balance']); // 80000 - 30000 = 50000
+    }
+
+    public function test_unapplied_payment_totals_endpoint_returns_map_keyed_by_customer_id(): void
+    {
+        $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(10)->toDateString(), dueDate: now()->addDays(20)->toDateString());
+        $this->submittedPayment(30000); // never allocated
+
+        Permission::query()->firstOrCreate(['name' => 'reports.ar_detail.view', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->givePermissionTo('reports.ar_detail.view');
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/accounts-receivables/unapplied-payment-totals?customer_ids[]='.$this->customer->id);
+
+        $response->assertOk();
+        $response->assertJsonPath("data.{$this->customer->id}", 30000);
+    }
+
     public function test_ledger_endpoint_returns_paginated_shape_with_header_and_aging(): void
     {
         $invoice = $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(5)->toDateString(), dueDate: now()->addDays(25)->toDateString());

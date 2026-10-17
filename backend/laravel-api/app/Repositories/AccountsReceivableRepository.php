@@ -7,8 +7,10 @@ use App\Enums\DocumentStatus;
 use App\Models\AccountsReceivable;
 use App\Models\CreditNote;
 use App\Models\DebitNote;
+use App\Enums\ReceiptEntryType;
 use App\Models\Invoice;
 use App\Models\PaymentAllocation;
+use App\Models\ReceiptEntry;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -164,6 +166,28 @@ class AccountsReceivableRepository extends BaseRepository
     }
 
     /**
+     * Kartu Piutang customer list's "Sisa" summary — sum(outstanding_amount) over AR rows never
+     * reflects a payment that's been received but not (fully) applied to any invoice, since that
+     * money isn't tied to an AccountsReceivable row at all. The frontend subtracts this map's
+     * figure from its own sum(outstanding_amount) so "Sisa" always reconciles with the detail
+     * ledger's closing_balance (which does account for unapplied payments — see ledgerRows()).
+     *
+     * @return array<string, float> customer_id => unapplied amount
+     */
+    public function unappliedPaymentTotalsByCustomerIds(array $customerIds): array
+    {
+        return ReceiptEntry::query()
+            ->whereIn('customer_id', array_unique($customerIds))
+            ->where('payment_type', ReceiptEntryType::CUSTOMER)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->get(['customer_id', 'total_amount', 'allocated_amount'])
+            ->groupBy('customer_id')
+            ->map(fn (Collection $receipts) => round($receipts->sum(fn (ReceiptEntry $r) => $r->unallocatedAmount()), 2))
+            ->filter(fn (float $amount) => $amount > 0.005)
+            ->all();
+    }
+
+    /**
      * Per-invoice overdue detail for the Sales Order credit-block check (new
      * Customer Credit feature) — outstandingTotal() gives a sum, this gives
      * the row-level detail ("which invoice, how much, due when") the block
@@ -229,7 +253,31 @@ class AccountsReceivableRepository extends BaseRepository
             ->whereDate('credit_note_date', '<', $beforeDate)
             ->sum('total_amount');
 
-        return (float) $invoiceDebit + (float) $debitNoteDebit - (float) $paymentCredit - (float) $creditNoteCredit;
+        $unappliedPaymentCredit = $this->unappliedReceiptEntries($customerId, null, null)
+            ->filter(fn (ReceiptEntry $receipt) => $receipt->receipt_date->lt($beforeDate))
+            ->sum(fn (ReceiptEntry $receipt) => $receipt->unallocatedAmount());
+
+        return (float) $invoiceDebit + (float) $debitNoteDebit - (float) $paymentCredit - (float) $creditNoteCredit - (float) $unappliedPaymentCredit;
+    }
+
+    /**
+     * Payments received but not (fully) applied to any invoice — "on-account"/advance payments.
+     * Never surfaced before this fix: ledgerRows()/statementRows() only ever queried
+     * PaymentAllocation, which doesn't exist until a payment is actually applied, so money a
+     * customer paid ahead of (or beyond) their invoices was invisible everywhere in Kartu Piutang.
+     * payment_type must be CUSTOMER — 'other_income' receipts never touch AR at all.
+     */
+    private function unappliedReceiptEntries(string $customerId, ?string $dateFrom, ?string $dateTo): SupportCollection
+    {
+        return ReceiptEntry::query()
+            ->where('customer_id', $customerId)
+            ->where('payment_type', ReceiptEntryType::CUSTOMER)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('receipt_date', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('receipt_date', '<=', $date))
+            ->get()
+            ->reject(fn (ReceiptEntry $receipt) => $receipt->unallocatedAmount() <= 0.005)
+            ->values();
     }
 
     /**
@@ -317,7 +365,19 @@ class AccountsReceivableRepository extends BaseRepository
                 'credit' => 0.0,
             ]);
 
-        return $invoiceRows->concat($paymentRows)->concat($creditNoteRows)->concat($debitNoteRows)
+        $unappliedPaymentRows = $this->unappliedReceiptEntries($customerId, $dateFrom, $dateTo)
+            ->map(fn (ReceiptEntry $receipt) => [
+                'date' => $receipt->receipt_date->format('Y-m-d'),
+                'document_type' => 'Receipt Entry',
+                'document_number' => $receipt->document_number,
+                'reference_id' => $receipt->id,
+                'description' => $receipt->remarks,
+                'due_date' => null,
+                'debit' => 0.0,
+                'credit' => $receipt->unallocatedAmount(),
+            ]);
+
+        return $invoiceRows->concat($paymentRows)->concat($creditNoteRows)->concat($debitNoteRows)->concat($unappliedPaymentRows)
             ->sortBy([['date', 'asc'], ['document_number', 'asc']])
             ->values();
     }
@@ -471,7 +531,24 @@ class AccountsReceivableRepository extends BaseRepository
             ])
             ->values();
 
-        return $debitRows->concat($orphanRows)->values();
+        // Scenario (c): payments received but never (fully) applied to any invoice — same
+        // credit-only, blank-debit row shape as $orphanRows above, sourced from ReceiptEntry's own
+        // unallocated remainder rather than an unresolved PaymentAllocation/CreditNote.
+        $unappliedPaymentRows = $this->unappliedReceiptEntries($customerId, $dateFrom, $dateTo)
+            ->map(fn (ReceiptEntry $receipt) => [
+                'date' => $receipt->receipt_date->format('Y-m-d'),
+                'document_number' => null,
+                'debit_amount' => 0.0,
+                'credits' => [[
+                    'invoice_id' => null,
+                    'date' => $receipt->receipt_date->format('Y-m-d'),
+                    'document_number' => $receipt->document_number,
+                    'cheque_number' => $receipt->giro_number,
+                    'amount' => $receipt->unallocatedAmount(),
+                ]],
+            ]);
+
+        return $debitRows->concat($orphanRows)->concat($unappliedPaymentRows)->values();
     }
 
     /**

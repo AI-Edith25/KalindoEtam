@@ -32,6 +32,15 @@ export async function fetchAccountsReceivableStatement(params: AccountsReceivabl
   return data.data
 }
 
+/** Kartu Piutang customer list's "Sisa"-vs-detail-ledger reconciliation figure — see AccountsReceivableRepository::unappliedPaymentTotalsByCustomerIds(). Map omits any customer with no unapplied payment. */
+export async function fetchUnappliedPaymentTotals(customerIds: string[]): Promise<Record<string, number>> {
+  if (customerIds.length === 0) return {}
+  const { data } = await apiClient.get<ApiResponse<Record<string, number>>>('/accounts-receivables/unapplied-payment-totals', {
+    params: { customer_ids: customerIds },
+  })
+  return data.data
+}
+
 /** Kartu Piutang's Export CSV/XLSX — blob response, same auth-header rule as exportAccountsReceivables(). */
 export async function exportAccountsReceivableLedger(params: AccountsReceivableLedgerParams, format: 'xlsx' | 'csv'): Promise<Blob> {
   const { data } = await apiClient.get('/accounts-receivables/ledger/export', { params: { ...params, format }, responseType: 'blob' })

@@ -218,6 +218,30 @@ class AccountsReceivableStatementTest extends TestCase
         $this->assertEquals(300000, $statement['total_balance']);
     }
 
+    /**
+     * Scenario (c) — a payment received but never allocated to any invoice must appear as its own
+     * credit-only row (blank debit side) in the statement too, same gap as the on-screen ledger.
+     */
+    public function test_unallocated_payment_appears_as_its_own_credit_only_row(): void
+    {
+        $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(10)->toDateString(), dueDate: now()->addDays(20)->toDateString()); // 100000
+
+        $payment = $this->submittedPayment(30000, now()->toDateString(), 'GIRO-UNAPPLIED'); // received, never allocated
+
+        $statement = $this->accountsReceivableService->statement(['customer_id' => $this->customer->id]);
+
+        $this->assertCount(2, $statement['rows']);
+        $unappliedRow = $statement['rows'][1];
+        $this->assertNull($unappliedRow['document_number']);
+        $this->assertEquals(0.0, $unappliedRow['debit_amount']);
+        $this->assertCount(1, $unappliedRow['credits']);
+        $this->assertEquals($payment->document_number, $unappliedRow['credits'][0]['document_number']);
+        $this->assertEquals('GIRO-UNAPPLIED', $unappliedRow['credits'][0]['cheque_number']);
+        $this->assertEquals(30000, $unappliedRow['credits'][0]['amount']);
+        $this->assertEquals(70000, $unappliedRow['balance']);
+        $this->assertEquals(70000, $statement['total_balance']);
+    }
+
     public function test_statement_print_endpoint_returns_the_grouped_shape(): void
     {
         $invoice = $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(5)->toDateString(), dueDate: now()->addDays(25)->toDateString());

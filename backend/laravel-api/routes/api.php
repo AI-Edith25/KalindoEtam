@@ -477,6 +477,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('accounts-receivables/ledger/print', [AccountsReceivableController::class, 'ledgerPrint'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/ledger/statement-print', [AccountsReceivableController::class, 'ledgerStatementPrint'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/ledger/export', [AccountsReceivableController::class, 'ledgerExport'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
+    Route::get('accounts-receivables/unapplied-payment-totals', [AccountsReceivableController::class, 'unappliedPaymentTotals'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/{accountsReceivable}', [AccountsReceivableController::class, 'show'])->middleware('permission:finance.accounts_receivable.view');
 
     // "Piutang Customer (Arsip Import)" -- standalone archive of imported legacy AR export

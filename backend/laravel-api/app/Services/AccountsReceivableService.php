@@ -242,6 +242,12 @@ class AccountsReceivableService
         return $this->accountsReceivableRepository->overdueForCustomer($customerId);
     }
 
+    /** Kartu Piutang customer list's "Sisa"-vs-ledger reconciliation figure — thin passthrough. */
+    public function unappliedPaymentTotalsByCustomerIds(array $customerIds): array
+    {
+        return $this->accountsReceivableRepository->unappliedPaymentTotalsByCustomerIds($customerIds);
+    }
+
     /**
      * Called only by InvoiceService::updateBranch() — keeps this row's
      * branch_id in sync when a Transportation Invoice's Branch is

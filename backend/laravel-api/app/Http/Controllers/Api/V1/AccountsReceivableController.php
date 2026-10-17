@@ -212,6 +212,14 @@ class AccountsReceivableController extends Controller
         return $this->success($this->accountsReceivableService->statement($filters));
     }
 
+    /** Kartu Piutang customer list's "Sisa"-vs-detail-ledger reconciliation figure — see AccountsReceivableRepository::unappliedPaymentTotalsByCustomerIds(). */
+    public function unappliedPaymentTotals(Request $request): JsonResponse
+    {
+        $customerIds = (array) $request->query('customer_ids', []);
+
+        return $this->success($this->accountsReceivableService->unappliedPaymentTotalsByCustomerIds($customerIds));
+    }
+
     /** Kartu Piutang's Export CSV/XLSX — same unpaginated core as ledgerPrint(), flattened into one array sheet. */
     public function ledgerExport(LedgerAccountsReceivableRequest $request): BinaryFileResponse
     {
