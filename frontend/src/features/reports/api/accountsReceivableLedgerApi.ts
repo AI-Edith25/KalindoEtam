@@ -32,12 +32,15 @@ export async function fetchAccountsReceivableStatement(params: AccountsReceivabl
   return data.data
 }
 
-/** Kartu Piutang customer list's "Sisa"-vs-detail-ledger reconciliation figure — see AccountsReceivableRepository::unappliedPaymentTotalsByCustomerIds(). Map omits any customer with no unapplied payment. */
-export async function fetchUnappliedPaymentTotals(customerIds: string[]): Promise<Record<string, number>> {
-  if (customerIds.length === 0) return {}
-  const { data } = await apiClient.get<ApiResponse<Record<string, number>>>('/accounts-receivables/unapplied-payment-totals', {
-    params: { customer_ids: customerIds },
-  })
+/**
+ * Kartu Piutang customer list's "Sisa"-vs-detail-ledger reconciliation figure — see
+ * AccountsReceivableRepository::unappliedPaymentTotalsByCustomerIds(). No params: the
+ * receipt_entries table is small enough to return every customer's figure in one call — passing
+ * one id per customer in the query string is what caused a 414 Request-URI-Too-Long on a large
+ * customer list. Map omits any customer with no unapplied payment.
+ */
+export async function fetchUnappliedPaymentTotals(): Promise<Record<string, number>> {
+  const { data } = await apiClient.get<ApiResponse<Record<string, number>>>('/accounts-receivables/unapplied-payment-totals')
   return data.data
 }
 

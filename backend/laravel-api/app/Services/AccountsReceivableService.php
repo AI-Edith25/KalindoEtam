@@ -243,7 +243,7 @@ class AccountsReceivableService
     }
 
     /** Kartu Piutang customer list's "Sisa"-vs-ledger reconciliation figure — thin passthrough. */
-    public function unappliedPaymentTotalsByCustomerIds(array $customerIds): array
+    public function unappliedPaymentTotalsByCustomerIds(array $customerIds = []): array
     {
         return $this->accountsReceivableRepository->unappliedPaymentTotalsByCustomerIds($customerIds);
     }

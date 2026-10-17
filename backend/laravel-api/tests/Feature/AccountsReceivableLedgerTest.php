@@ -353,6 +353,27 @@ class AccountsReceivableLedgerTest extends TestCase
         $response->assertJsonPath("data.{$this->customer->id}", 30000);
     }
 
+    /**
+     * No customer_ids param means "every customer", not "none" — a Kartu Piutang customer list
+     * with many customers would otherwise have to pass one id per customer in the query string,
+     * which is exactly what produced a 414 Request-URI-Too-Long in production.
+     */
+    public function test_unapplied_payment_totals_endpoint_with_no_filter_returns_every_customer(): void
+    {
+        $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(10)->toDateString(), dueDate: now()->addDays(20)->toDateString());
+        $this->submittedPayment(30000); // never allocated
+
+        Permission::query()->firstOrCreate(['name' => 'reports.ar_detail.view', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->givePermissionTo('reports.ar_detail.view');
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/accounts-receivables/unapplied-payment-totals');
+
+        $response->assertOk();
+        $response->assertJsonPath("data.{$this->customer->id}", 30000);
+    }
+
     public function test_ledger_endpoint_returns_paginated_shape_with_header_and_aging(): void
     {
         $invoice = $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(5)->toDateString(), dueDate: now()->addDays(25)->toDateString());

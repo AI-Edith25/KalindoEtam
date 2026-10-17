@@ -172,12 +172,18 @@ class AccountsReceivableRepository extends BaseRepository
      * figure from its own sum(outstanding_amount) so "Sisa" always reconciles with the detail
      * ledger's closing_balance (which does account for unapplied payments — see ledgerRows()).
      *
+     * $customerIds is an optional narrowing filter, not a required one — the Kartu Piutang
+     * customer list calls this with none and gets every customer's figure in one grouped query
+     * (the receipt_entries table is never large enough to need per-customer-id filtering, and
+     * passing potentially hundreds of ids as query params is exactly what caused the 414 Request-
+     * URI-Too-Long this replaced).
+     *
      * @return array<string, float> customer_id => unapplied amount
      */
-    public function unappliedPaymentTotalsByCustomerIds(array $customerIds): array
+    public function unappliedPaymentTotalsByCustomerIds(array $customerIds = []): array
     {
         return ReceiptEntry::query()
-            ->whereIn('customer_id', array_unique($customerIds))
+            ->when($customerIds, fn ($query, $ids) => $query->whereIn('customer_id', array_unique($ids)))
             ->where('payment_type', ReceiptEntryType::CUSTOMER)
             ->where('status', DocumentStatus::SUBMITTED)
             ->get(['customer_id', 'total_amount', 'allocated_amount'])

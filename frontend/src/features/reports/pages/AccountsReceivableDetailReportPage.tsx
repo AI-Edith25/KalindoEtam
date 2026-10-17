@@ -492,15 +492,10 @@ export function AccountsReceivableDetailReportPage() {
     placeholderData: (previous) => previous,
   })
 
-  const kpCustomerIdsPresent = useMemo(
-    () => [...new Set((kartuPiutangListQuery.data ?? []).map((row) => row.customer_id))],
-    [kartuPiutangListQuery.data],
-  )
-
   const unappliedTotalsQuery = useQuery({
-    queryKey: ['ar-unapplied-payment-totals', kpCustomerIdsPresent],
-    queryFn: () => fetchUnappliedPaymentTotals(kpCustomerIdsPresent),
-    enabled: viewMode === 'ledger' && hasLiveData && kpCustomerIdsPresent.length > 0,
+    queryKey: ['ar-unapplied-payment-totals'],
+    queryFn: () => fetchUnappliedPaymentTotals(),
+    enabled: viewMode === 'ledger' && hasLiveData,
     placeholderData: (previous) => previous,
   })
 
