@@ -49,7 +49,7 @@ export function AccountsReceivableStatementPrintPage() {
   const companyMissing = printHeaderQuery.isSuccess && !company?.name && !company?.address
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-white p-6 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[10mm] print:shadow-none">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-white p-6 pr-10 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:py-[10mm] print:pl-[10mm] print:pr-[18mm] print:shadow-none">
       <style>{'@page { size: A4 portrait; margin: 0; } @media print { body { font-size: 9pt; } }'}</style>
 
       <div className="flex items-start justify-between print:hidden">
@@ -75,9 +75,14 @@ export function AccountsReceivableStatementPrintPage() {
       ) : !statement ? (
         <p className="text-muted-foreground">Gagal memuat data.</p>
       ) : (
-        <div className="flex flex-col gap-3 text-black" style={{ fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif', fontSize: '9.5pt' }}>
-          <div className="flex items-start gap-4">
-            <img src={LOGO_URL} alt="" className="h-14 w-auto shrink-0" />
+        <div
+          className="flex flex-col gap-3 text-black"
+          style={{ fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif', fontSize: '9.5pt', minHeight: '277mm' }}
+        >
+          <div className="flex items-start">
+            <div className="w-28 shrink-0">
+              <img src={LOGO_URL} alt="" className="h-14 w-auto" />
+            </div>
             <div className="flex-1 text-center">
               {company?.name && <p className="text-xl font-bold">{company.name}</p>}
               {company?.npwp && (
@@ -87,6 +92,7 @@ export function AccountsReceivableStatementPrintPage() {
               )}
               {company?.address && <p>{company.address}</p>}
             </div>
+            <div className="w-28 shrink-0" aria-hidden="true" />
           </div>
 
           <hr className="border-t-2 border-black" />
@@ -94,13 +100,14 @@ export function AccountsReceivableStatementPrintPage() {
           <p className="text-center text-lg font-bold">STATEMENT OF ACCOUNT</p>
 
           <div className="flex items-start justify-between gap-6">
-            <div>
-              <p>
-                TO : <span className="font-bold">{statement.header.customer_name}</span>
-              </p>
-              <p className="ml-7">{statement.header.customer_address ?? '—'}</p>
-              <p className="ml-7">Contact Person : {statement.header.customer_phone ?? ''}</p>
-              <p className="ml-7">TEL : FAX :</p>
+            <div className="flex gap-2">
+              <span className="shrink-0">TO :</span>
+              <div>
+                <p className="font-bold">{statement.header.customer_name}</p>
+                <p>{statement.header.customer_address ?? '—'}</p>
+                <p>Contact Person : {statement.header.customer_phone ?? ''}</p>
+                <p>TEL : FAX :</p>
+              </div>
             </div>
             <table className="shrink-0">
               <tbody>
@@ -131,14 +138,15 @@ export function AccountsReceivableStatementPrintPage() {
           <table className="w-full border-collapse text-[9pt]">
             <thead>
               <tr>
-                <th className="border border-black p-1" rowSpan={2}></th>
-                <th className="border border-black p-1 text-center" colSpan={3}>
+                <th className="border border-black p-1 text-center" colSpan={4}>
                   DEBIT
                 </th>
                 <th className="border border-black p-1 text-center" colSpan={4}>
                   CREDIT
                 </th>
-                <th className="border border-black p-1" rowSpan={2}></th>
+                <th className="border border-black p-1 text-center" rowSpan={2}>
+                  Balance
+                </th>
               </tr>
               <tr>
                 <th className="border border-black p-1 text-center">No.</th>
@@ -184,56 +192,58 @@ export function AccountsReceivableStatementPrintPage() {
             </tbody>
           </table>
 
-          <table className="w-full border-collapse text-[9pt]">
-            <tbody>
-              <tr>
-                <td className="border-2 border-black p-1.5 font-bold" colSpan={3}>
-                  Total Balance
-                </td>
-                <td className="border-2 border-black p-1.5 text-right font-bold">{formatCurrency(statement.total_balance)}</td>
-              </tr>
-              <tr>
-                <td className="p-1 font-semibold underline" colSpan={2}>
-                  Outstanding Aging Analysis
-                </td>
-                <td className="p-1 text-center font-bold" colSpan={1}>
-                  Total Overdue Amount
-                </td>
-                <td className="p-1 text-right font-bold">{formatCurrency(statement.total_overdue)}</td>
-              </tr>
-              <tr>
-                <td className="p-1" colSpan={4}>
-                  Outstanding 180 Days + : {formatCurrency(statement.overdue_180_plus)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <table className="w-full border-collapse text-center text-[9pt]">
-            <thead>
-              <tr>
-                {AGING_BUCKET_LABELS.map((label) => (
-                  <th key={label} className="border border-black p-1">
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                {AGING_BUCKET_KEYS.map((key) => (
-                  <td key={key} className="border border-black p-1">
-                    {formatCurrency(statement.aging[key])}
+          <div className="flex flex-col gap-3" style={{ marginTop: 'auto' }}>
+            <table className="w-full border-collapse text-[9pt]">
+              <tbody>
+                <tr>
+                  <td className="border-2 border-black p-1.5 font-bold" colSpan={3}>
+                    Total Balance
                   </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
+                  <td className="border-2 border-black p-1.5 text-right font-bold">{formatCurrency(statement.total_balance)}</td>
+                </tr>
+                <tr>
+                  <td className="p-1 font-semibold underline" colSpan={2}>
+                    Outstanding Aging Analysis
+                  </td>
+                  <td className="p-1 text-center font-bold" colSpan={1}>
+                    Total Overdue Amount
+                  </td>
+                  <td className="p-1 text-right font-bold">{formatCurrency(statement.total_overdue)}</td>
+                </tr>
+                <tr>
+                  <td className="p-1" colSpan={4}>
+                    Outstanding 180 Days + : {formatCurrency(statement.overdue_180_plus)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
-          <div className="text-[8.5pt]">
-            <p>1. Please inform us any discrepancies within 10 days from this statement date.</p>
-            <p>2. Payment received after the date of this statement will appear in the next statement.</p>
-            <p>3. Interest of 2% per month will be added to the overdue accounts.</p>
+            <table className="w-full border-collapse text-center text-[9pt]">
+              <thead>
+                <tr>
+                  {AGING_BUCKET_LABELS.map((label) => (
+                    <th key={label} className="border border-black p-1">
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {AGING_BUCKET_KEYS.map((key) => (
+                    <td key={key} className="border border-black p-1">
+                      {formatCurrency(statement.aging[key])}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="text-[8.5pt]">
+              <p>1. Please inform us any discrepancies within 10 days from this statement date.</p>
+              <p>2. Payment received after the date of this statement will appear in the next statement.</p>
+              <p>3. Interest of 2% per month will be added to the overdue accounts.</p>
+            </div>
           </div>
         </div>
       )}
