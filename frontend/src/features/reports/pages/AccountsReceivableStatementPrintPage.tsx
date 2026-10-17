@@ -175,35 +175,39 @@ export function AccountsReceivableStatementPrintPage() {
             <tbody>
               {statement.rows.map((row: ArStatementRow) => (
                 <tr key={row.no} style={{ breakInside: 'avoid' }}>
-                  <td className="border border-black p-1 text-center align-top">{row.no}</td>
-                  <td className="border border-black p-1 align-top">{formatDateSlash(row.date)}</td>
-                  <td className="border border-black p-1 align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                  <td className="border border-black p-1 text-center align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                    {row.no}
+                  </td>
+                  <td className="border border-black p-1 align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                    {formatDateSlash(row.date)}
+                  </td>
+                  <td className="border border-black p-1 align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {row.document_number ?? '—'}
                   </td>
-                  <td className="border border-black p-1 text-right align-top" style={{ whiteSpace: 'nowrap' }}>
+                  <td className="border border-black p-1 text-right align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {row.debit_amount ? formatCurrency(row.debit_amount) : ''}
                   </td>
-                  <td className="border border-black p-1 align-top">
+                  <td className="border border-black p-1 align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {row.credits.map((credit, i) => (
                       <div key={i}>{formatDateSlash(credit.date)}</div>
                     ))}
                   </td>
-                  <td className="border border-black p-1 align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                  <td className="border border-black p-1 align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {row.credits.map((credit, i) => (
                       <div key={i}>{credit.document_number ?? '—'}</div>
                     ))}
                   </td>
-                  <td className="border border-black p-1 align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                  <td className="border border-black p-1 align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {row.credits.map((credit, i) => (
                       <div key={i}>{credit.cheque_number ?? ''}</div>
                     ))}
                   </td>
-                  <td className="border border-black p-1 text-right align-top" style={{ whiteSpace: 'nowrap' }}>
+                  <td className="border border-black p-1 text-right align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {row.credits.map((credit, i) => (
                       <div key={i}>{formatCurrency(credit.amount)}</div>
                     ))}
                   </td>
-                  <td className="border border-black p-1 text-right align-top" style={{ whiteSpace: 'nowrap' }}>
+                  <td className="border border-black p-1 text-right align-top" style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {formatCurrency(row.balance)}
                   </td>
                 </tr>
