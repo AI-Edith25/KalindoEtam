@@ -426,6 +426,56 @@ export interface ArLedger {
   aging: ArLedgerAging
 }
 
+/** Statement print's nested credit line — one payment (Receipt Entry) or Credit Note under a debit row's CREDIT side. */
+export interface ArStatementCreditLine {
+  date: string
+  document_number: string | null
+  cheque_number: string | null
+  amount: number
+}
+
+/** Statement print's debit-row-grouped shape — see AccountsReceivableService::statement()'s docblock for why credits nest under their own debit row regardless of the credit's own date. */
+export interface ArStatementRow {
+  no: number
+  date: string | null
+  document_number: string | null
+  debit_amount: number
+  credits: ArStatementCreditLine[]
+  balance: number
+}
+
+/** 6 overdue-day buckets (30/60/90/120/150/180) — the statement print's own aging scheme, separate from ArLedgerAging's not_due/1-30/31-60/61-90/over_90 used by the on-screen table. */
+export interface ArStatementAging {
+  bucket_30: number
+  bucket_60: number
+  bucket_90: number
+  bucket_120: number
+  bucket_150: number
+  bucket_180: number
+}
+
+export interface ArStatementHeader {
+  customer_id: string
+  account_no: string
+  customer_code: string
+  customer_name: string
+  customer_address: string | null
+  customer_phone: string | null
+  branch_name: string | null
+  sales_person_name: string | null
+  terms_of_payment_name: string | null
+  terms_of_payment_days: number
+}
+
+export interface ArStatement {
+  header: ArStatementHeader
+  rows: ArStatementRow[]
+  total_balance: number
+  aging: ArStatementAging
+  overdue_180_plus: number
+  total_overdue: number
+}
+
 /** AP Detail's "Perincian Hutang" — one flat row per supplier with due-date-anchored aging buckets. Unlike AR's grouped view (Sales Person -> Customer, no bucket columns), AP has no Sales Person concept, so this is a single level, and the buckets themselves come from the ticket's own spec, not AR's legacy export scheme. */
 export interface ApAgingBucketRow {
   supplier_id: string

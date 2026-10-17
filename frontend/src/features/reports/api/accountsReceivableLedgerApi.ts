@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/services/apiClient'
 import type { ApiResponse, PaginationMeta } from '@/shared/types/api'
-import type { ArLedger } from '../types'
+import type { ArLedger, ArStatement } from '../types'
 
 export interface AccountsReceivableLedgerParams {
   customer_id: string
@@ -23,6 +23,12 @@ export async function fetchAccountsReceivableLedger(
 /** Kartu Piutang's print preview — same core as fetchAccountsReceivableLedger(), unpaginated so the statement covers the whole filtered period. */
 export async function fetchAccountsReceivableLedgerFull(params: AccountsReceivableLedgerParams): Promise<ArLedger> {
   const { data } = await apiClient.get<ApiResponse<ArLedger>>('/accounts-receivables/ledger/print', { params })
+  return data.data
+}
+
+/** Kartu Piutang's statement print ("STATEMENT OF ACCOUNT") — separate debit-row-grouped shape from fetchAccountsReceivableLedgerFull(), which the export still uses untouched. */
+export async function fetchAccountsReceivableStatement(params: AccountsReceivableLedgerParams): Promise<ArStatement> {
+  const { data } = await apiClient.get<ApiResponse<ArStatement>>('/accounts-receivables/ledger/statement-print', { params })
   return data.data
 }
 

@@ -203,6 +203,15 @@ class AccountsReceivableController extends Controller
         return $this->success($this->accountsReceivableService->ledgerFull($filters));
     }
 
+    /** Kartu Piutang's statement print ("STATEMENT OF ACCOUNT") — separate payload shape from ledgerPrint(), see AccountsReceivableService::statement(). */
+    public function ledgerStatementPrint(LedgerAccountsReceivableRequest $request): JsonResponse
+    {
+        $filters = $request->validated();
+        unset($filters['page'], $filters['per_page']);
+
+        return $this->success($this->accountsReceivableService->statement($filters));
+    }
+
     /** Kartu Piutang's Export CSV/XLSX — same unpaginated core as ledgerPrint(), flattened into one array sheet. */
     public function ledgerExport(LedgerAccountsReceivableRequest $request): BinaryFileResponse
     {

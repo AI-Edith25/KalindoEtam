@@ -475,6 +475,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // before the {accountsReceivable} show route below, same ordering rule as /export above.
     Route::get('accounts-receivables/ledger', [AccountsReceivableController::class, 'ledger'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/ledger/print', [AccountsReceivableController::class, 'ledgerPrint'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
+    Route::get('accounts-receivables/ledger/statement-print', [AccountsReceivableController::class, 'ledgerStatementPrint'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/ledger/export', [AccountsReceivableController::class, 'ledgerExport'])->middleware('permission:finance.accounts_receivable.view|reports.ar_detail.view');
     Route::get('accounts-receivables/{accountsReceivable}', [AccountsReceivableController::class, 'show'])->middleware('permission:finance.accounts_receivable.view');
 

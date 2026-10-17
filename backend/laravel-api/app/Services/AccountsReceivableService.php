@@ -427,4 +427,71 @@ class AccountsReceivableService
     {
         return $this->buildLedger($filters);
     }
+
+    /**
+     * Kartu Piutang's statement print — replicates the legacy "STATEMENT OF ACCOUNT" report
+     * (rptCustomerStatement.pdf): rows are grouped by debit document (Invoice/DebitNote) with
+     * their linked payments/credit notes nested in the same row regardless of the credit's own
+     * date, and the running balance is walked once per debit row in debit-document order — NOT
+     * real chronological order. Proof from the reference PDF: its row 4 (an invoice dated 23/06)
+     * nests two Official Receipt credits dated 29/09 and 13/10 — both AFTER row 5's invoice dated
+     * 31/07 — yet the printed running balance still accumulates top-to-bottom through row 4 before
+     * row 5, meaning each row's balance is simply (previous balance + this row's debit − this
+     * row's credits), never a true date-sorted walk. Entirely separate from buildLedger()/
+     * ledger()/ledgerFull() — the on-screen table, its pagination and the CSV/XLSX export keep
+     * today's flat chronological shape untouched.
+     */
+    public function statement(array $filters): array
+    {
+        $customerId = $filters['customer_id'];
+        $dateFrom = $filters['invoice_date_from'] ?? null;
+        $dateTo = $filters['invoice_date_to'] ?? null;
+
+        $customer = Customer::query()->with('termsOfPayment')->findOrFail($customerId);
+        $openingBalance = $dateFrom ? $this->accountsReceivableRepository->openingBalance($customerId, $dateFrom) : 0.0;
+
+        $balance = $openingBalance;
+        $rows = $this->accountsReceivableRepository->statementRows($customerId, $dateFrom, $dateTo)
+            ->map(function (array $row) use (&$balance) {
+                $creditTotal = array_sum(array_column($row['credits'], 'amount'));
+                $balance += $row['debit_amount'] - $creditTotal;
+                $row['balance'] = $balance;
+
+                return $row;
+            })
+            ->values()
+            ->map(function (array $row, int $index) {
+                $row['no'] = $index + 1;
+
+                return $row;
+            })
+            ->all();
+
+        $context = $this->accountsReceivableRepository->latestInvoiceContext($customerId, $dateFrom, $dateTo);
+
+        $agingRaw = $this->accountsReceivableRepository->statementAgingSummary($customerId);
+        $overdue180Plus = $agingRaw['over_180'];
+        unset($agingRaw['over_180']);
+        $totalOverdue = round(array_sum($agingRaw) + $overdue180Plus, 2);
+
+        return [
+            'header' => [
+                'customer_id' => $customer->id,
+                'account_no' => $customer->customer_code,
+                'customer_code' => $customer->customer_code,
+                'customer_name' => $customer->customer_name,
+                'customer_address' => $customer->address,
+                'customer_phone' => $customer->phone,
+                'branch_name' => $context?->branch?->name ?? $context?->salesOrder?->branch?->name,
+                'sales_person_name' => $context?->salesPerson?->name ?? $context?->salesOrder?->salesPerson?->name,
+                'terms_of_payment_name' => $customer->termsOfPayment?->name,
+                'terms_of_payment_days' => $customer->termsOfPayment?->days ?? 0,
+            ],
+            'rows' => $rows,
+            'total_balance' => $balance,
+            'aging' => $agingRaw,
+            'overdue_180_plus' => $overdue180Plus,
+            'total_overdue' => $totalOverdue,
+        ];
+    }
 }

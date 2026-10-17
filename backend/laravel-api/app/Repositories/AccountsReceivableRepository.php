@@ -378,4 +378,148 @@ class AccountsReceivableRepository extends BaseRepository
 
         return $invoice ?? $query()->latest('invoice_date')->first();
     }
+
+    /**
+     * Statement print's debit-row-grouped stream — unlike ledgerRows() (one flat row per
+     * transaction, chronological), the legacy "STATEMENT OF ACCOUNT" nests every payment/credit
+     * note under its own invoice's row regardless of the credit's own date (see
+     * AccountsReceivableService::statement()'s docblock for the reverse-engineered proof from the
+     * reference PDF). DebitNote rows carry no nested credits — nothing in this schema links a
+     * credit back to a DebitNote, only to an Invoice (AccountsReceivable.invoice_id) — so they
+     * come through as their own numbered row with an empty credits list, same as today's flat view.
+     * Credits whose invoice falls outside the filtered period (rare — only possible when a date
+     * filter is applied) surface as trailing rows with a blank debit side rather than being
+     * silently dropped.
+     */
+    public function statementRows(string $customerId, ?string $dateFrom, ?string $dateTo): SupportCollection
+    {
+        $invoices = Invoice::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('invoice_date', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('invoice_date', '<=', $date))
+            ->get();
+
+        $debitNotes = DebitNote::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->where('is_reversed', false)
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('debit_note_date', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('debit_note_date', '<=', $date))
+            ->get();
+
+        $invoiceIds = $invoices->pluck('id');
+
+        $paymentsByInvoiceId = PaymentAllocation::query()
+            ->whereHas('accountsReceivable', fn ($query) => $query->where('customer_id', $customerId))
+            ->where('is_reversed', false)
+            ->with(['receiptEntry', 'accountsReceivable'])
+            ->get()
+            ->map(fn (PaymentAllocation $allocation) => [
+                'invoice_id' => $allocation->accountsReceivable->invoice_id,
+                'date' => $allocation->allocation_date->format('Y-m-d'),
+                'document_number' => $allocation->receiptEntry?->document_number,
+                'cheque_number' => $allocation->receiptEntry?->giro_number,
+                'amount' => (float) $allocation->allocated_amount,
+            ])
+            ->groupBy('invoice_id');
+
+        $creditNotesByInvoiceId = CreditNote::query()
+            ->where('customer_id', $customerId)
+            ->where('status', DocumentStatus::SUBMITTED)
+            ->where('is_reversed', false)
+            ->get()
+            ->map(fn (CreditNote $creditNote) => [
+                'invoice_id' => $creditNote->invoice_id,
+                'date' => $creditNote->credit_note_date->format('Y-m-d'),
+                'document_number' => $creditNote->document_number,
+                'cheque_number' => null,
+                'amount' => (float) $creditNote->total_amount,
+            ])
+            ->groupBy('invoice_id');
+
+        $creditsFor = fn (?string $invoiceId) => $invoiceId === null ? collect() : $paymentsByInvoiceId->get($invoiceId, collect())
+            ->concat($creditNotesByInvoiceId->get($invoiceId, collect()))
+            ->sortBy([['date', 'asc'], ['document_number', 'asc']])
+            ->values();
+
+        $debitRows = $invoices
+            ->map(fn (Invoice $invoice) => [
+                'date' => $invoice->invoice_date->format('Y-m-d'),
+                'document_number' => $invoice->document_number,
+                'debit_amount' => (float) $invoice->grand_total,
+                'credits' => $creditsFor($invoice->id)->all(),
+            ])
+            ->concat($debitNotes->map(fn (DebitNote $debitNote) => [
+                'date' => $debitNote->debit_note_date->format('Y-m-d'),
+                'document_number' => $debitNote->document_number,
+                'debit_amount' => (float) $debitNote->total_amount,
+                'credits' => [],
+            ]))
+            ->sortBy([['date', 'asc'], ['document_number', 'asc']])
+            ->values();
+
+        $orphanRows = $paymentsByInvoiceId->keys()
+            ->concat($creditNotesByInvoiceId->keys())
+            ->unique()
+            ->reject(fn ($invoiceId) => $invoiceId === null || $invoiceIds->contains($invoiceId))
+            ->map(fn ($invoiceId) => [
+                'date' => $creditsFor($invoiceId)->first()['date'] ?? null,
+                'document_number' => null,
+                'debit_amount' => 0.0,
+                'credits' => $creditsFor($invoiceId)->all(),
+            ])
+            ->values();
+
+        return $debitRows->concat($orphanRows)->values();
+    }
+
+    /**
+     * Statement print's aging strip — 6 overdue-day buckets (30/60/90/120/150/180) plus a
+     * standalone >180-days figure, replacing the on-screen not_due/1-30/31-60/61-90/over_90 split
+     * from agingSummaryForCustomer() (that one is unchanged, still used by the on-screen Kartu
+     * Piutang table). Not-yet-due AR contributes to neither — see the reference PDF, where a
+     * customer with no overdue AR shows all 6 buckets + the 180+ figure at 0 even though Total
+     * Balance is nonzero.
+     */
+    public function statementAgingSummary(string $customerId): array
+    {
+        $today = now()->startOfDay();
+
+        $buckets = ['bucket_30' => 0.0, 'bucket_60' => 0.0, 'bucket_90' => 0.0, 'bucket_120' => 0.0, 'bucket_150' => 0.0, 'bucket_180' => 0.0];
+        $over180 = 0.0;
+
+        $rows = $this->model->query()
+            ->where('customer_id', $customerId)
+            ->whereRaw('amount - paid_amount > 0.005')
+            ->get(['due_date', 'amount', 'paid_amount']);
+
+        foreach ($rows as $row) {
+            if (! $row->due_date || $row->due_date->greaterThanOrEqualTo($today)) {
+                continue;
+            }
+
+            $outstanding = round((float) $row->amount - (float) $row->paid_amount, 2);
+            $overdueDays = (int) $row->due_date->diffInDays($today);
+            $bucket = (int) ceil($overdueDays / 30);
+
+            $key = match (true) {
+                $bucket <= 1 => 'bucket_30',
+                $bucket === 2 => 'bucket_60',
+                $bucket === 3 => 'bucket_90',
+                $bucket === 4 => 'bucket_120',
+                $bucket === 5 => 'bucket_150',
+                $bucket === 6 => 'bucket_180',
+                default => null,
+            };
+
+            if ($key === null) {
+                $over180 += $outstanding;
+            } else {
+                $buckets[$key] += $outstanding;
+            }
+        }
+
+        return [...$buckets, 'over_180' => $over180];
+    }
 }
