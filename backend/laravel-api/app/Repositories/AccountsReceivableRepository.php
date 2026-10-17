@@ -485,7 +485,7 @@ class AccountsReceivableRepository extends BaseRepository
                 'invoice_id' => $allocation->accountsReceivable->invoice_id,
                 'date' => $allocation->allocation_date->format('Y-m-d'),
                 'document_number' => $allocation->receiptEntry?->document_number,
-                'cheque_number' => $allocation->receiptEntry?->giro_number,
+                'cheque_number' => $allocation->receiptEntry?->reference_number,
                 'amount' => (float) $allocation->allocated_amount,
             ])
             ->groupBy('invoice_id');
@@ -549,7 +549,7 @@ class AccountsReceivableRepository extends BaseRepository
                     'invoice_id' => null,
                     'date' => $receipt->receipt_date->format('Y-m-d'),
                     'document_number' => $receipt->document_number,
-                    'cheque_number' => $receipt->giro_number,
+                    'cheque_number' => $receipt->reference_number,
                     'amount' => $receipt->unallocatedAmount(),
                 ]],
             ]);

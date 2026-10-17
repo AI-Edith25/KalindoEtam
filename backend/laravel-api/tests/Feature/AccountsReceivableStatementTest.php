@@ -125,14 +125,14 @@ class AccountsReceivableStatementTest extends TestCase
         return $this->invoiceService->submit($invoice);
     }
 
-    protected function submittedPayment(float $amount, string $receiptDate, ?string $giroNumber = null): ReceiptEntry
+    protected function submittedPayment(float $amount, string $receiptDate, ?string $reference = null): ReceiptEntry
     {
         $payment = $this->receiptEntryService->create([
             'customer_id' => $this->customer->id,
             'receipt_date' => $receiptDate,
             'cash_account_id' => $this->accountId('1100'),
             'total_amount' => $amount,
-            'giro_number' => $giroNumber,
+            'reference_number' => $reference,
         ]);
 
         return $this->receiptEntryService->submit($payment);
@@ -240,6 +240,25 @@ class AccountsReceivableStatementTest extends TestCase
         $this->assertEquals(30000, $unappliedRow['credits'][0]['amount']);
         $this->assertEquals(70000, $unappliedRow['balance']);
         $this->assertEquals(70000, $statement['total_balance']);
+    }
+
+    /**
+     * CHQ. No must come from ReceiptEntry.reference_number, not giro_number — and a blank
+     * reference (valid, common case) must render blank, not fall back to anything else.
+     */
+    public function test_credit_cheque_number_is_blank_when_receipt_has_no_reference(): void
+    {
+        $invoice = $this->submittedInvoice(qty: 5, rate: 20000, invoiceDate: now()->subDays(10)->toDateString(), dueDate: now()->addDays(20)->toDateString());
+        $ar = $invoice->accountsReceivable()->firstOrFail();
+
+        $payment = $this->submittedPayment(50000, now()->toDateString());
+        $this->paymentAllocationService->allocateBatch($payment, [
+            ['accounts_receivable_id' => $ar->id, 'amount' => 50000],
+        ]);
+
+        $statement = $this->accountsReceivableService->statement(['customer_id' => $this->customer->id]);
+
+        $this->assertNull($statement['rows'][0]['credits'][0]['cheque_number']);
     }
 
     public function test_statement_print_endpoint_returns_the_grouped_shape(): void
