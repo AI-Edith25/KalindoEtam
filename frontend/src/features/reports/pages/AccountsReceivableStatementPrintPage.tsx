@@ -49,8 +49,8 @@ export function AccountsReceivableStatementPrintPage() {
   const companyMissing = printHeaderQuery.isSuccess && !company?.name && !company?.address
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-white p-6 pr-10 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:py-[10mm] print:pl-[10mm] print:pr-[18mm] print:shadow-none">
-      <style>{'@page { size: A4 portrait; margin: 0; } @media print { body { font-size: 9pt; } }'}</style>
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 bg-white p-10 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:px-[15mm] print:py-[10mm] print:shadow-none">
+      <style>{'@page { size: A4 portrait; margin: 0; }'}</style>
 
       <div className="flex items-start justify-between print:hidden">
         <h1 className="text-xl font-semibold">Statement of Account — Print Preview</h1>
@@ -77,14 +77,14 @@ export function AccountsReceivableStatementPrintPage() {
       ) : (
         <div
           className="flex flex-col gap-3 text-black"
-          style={{ fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif', fontSize: '9.5pt', minHeight: '277mm' }}
+          style={{ fontFamily: '"Times New Roman", "Tinos", "Liberation Serif", serif', fontSize: '11pt', minHeight: '277mm' }}
         >
           <div className="flex items-start">
-            <div className="w-28 shrink-0">
-              <img src={LOGO_URL} alt="" className="h-14 w-auto" />
+            <div className="w-40 shrink-0">
+              <img src={LOGO_URL} alt="" className="h-20 w-auto" />
             </div>
             <div className="flex-1 text-center">
-              {company?.name && <p className="text-xl font-bold">{company.name}</p>}
+              {company?.name && <p style={{ fontSize: '16pt' }} className="font-bold">{company.name}</p>}
               {company?.npwp && (
                 <p>
                   <span className="font-semibold">Co. Reg. No.</span> : {company.npwp}
@@ -92,12 +92,14 @@ export function AccountsReceivableStatementPrintPage() {
               )}
               {company?.address && <p>{company.address}</p>}
             </div>
-            <div className="w-28 shrink-0" aria-hidden="true" />
+            <div className="w-40 shrink-0" aria-hidden="true" />
           </div>
 
           <hr className="border-t-2 border-black" />
 
-          <p className="text-center text-lg font-bold">STATEMENT OF ACCOUNT</p>
+          <p style={{ fontSize: '15pt' }} className="text-center font-bold">
+            STATEMENT OF ACCOUNT
+          </p>
 
           <div className="flex items-start justify-between gap-6">
             <div className="flex gap-2">
@@ -109,7 +111,7 @@ export function AccountsReceivableStatementPrintPage() {
                 <p>TEL : FAX :</p>
               </div>
             </div>
-            <table className="shrink-0">
+            <table className="mr-4 shrink-0">
               <tbody>
                 <tr>
                   <td className="pr-2 font-semibold">ACCOUNT NO.</td>
@@ -135,7 +137,7 @@ export function AccountsReceivableStatementPrintPage() {
             </table>
           </div>
 
-          <table className="w-full border-collapse text-[9pt]">
+          <table className="w-full border-collapse text-[11pt]">
             <thead>
               <tr>
                 <th className="border border-black p-1 text-center" colSpan={4}>
@@ -193,7 +195,7 @@ export function AccountsReceivableStatementPrintPage() {
           </table>
 
           <div className="flex flex-col gap-3" style={{ marginTop: 'auto' }}>
-            <table className="w-full border-collapse text-[9pt]">
+            <table className="w-full border-collapse text-[11pt]">
               <tbody>
                 <tr>
                   <td className="border-2 border-black p-1.5 font-bold" colSpan={3}>
@@ -218,7 +220,7 @@ export function AccountsReceivableStatementPrintPage() {
               </tbody>
             </table>
 
-            <table className="w-full border-collapse text-center text-[9pt]">
+            <table className="w-full border-collapse text-center text-[11pt]">
               <thead>
                 <tr>
                   {AGING_BUCKET_LABELS.map((label) => (
@@ -239,7 +241,7 @@ export function AccountsReceivableStatementPrintPage() {
               </tbody>
             </table>
 
-            <div className="text-[8.5pt]">
+            <div className="text-[9.5pt]">
               <p>1. Please inform us any discrepancies within 10 days from this statement date.</p>
               <p>2. Payment received after the date of this statement will appear in the next statement.</p>
               <p>3. Interest of 2% per month will be added to the overdue accounts.</p>
