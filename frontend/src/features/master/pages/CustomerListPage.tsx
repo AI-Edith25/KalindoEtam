@@ -44,6 +44,7 @@ export function CustomerListPage() {
     emptyFilters: emptyCustomerFilters,
     sorters: SORTERS,
     deletedMessage: 'Customer deleted.',
+    serverSearch: true,
   })
 
   const columns: DataTableColumn<Customer>[] = [
@@ -129,6 +130,7 @@ export function CustomerListPage() {
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox value={list.search} onChange={list.setSearch} placeholder="Search code, name, or email…" />
         <CustomerFiltersBar value={list.filters} onChange={list.setFilters} />
+        {list.listQuery.isFetching && !list.listQuery.isLoading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
       </div>
 
       <DataTable

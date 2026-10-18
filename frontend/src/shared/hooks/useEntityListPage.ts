@@ -8,12 +8,20 @@ import type { DataTableSort } from '@/components/shared/DataTable'
 interface UseEntityListPageOptions<T, F> {
   /** TanStack Query key prefix — paired with `page` for the list query, and used to invalidate after mutations. */
   queryKey: string
-  fetchList: (page: number) => Promise<ApiListResponse<T>>
+  fetchList: (page: number, search?: string, filters?: F) => Promise<ApiListResponse<T>>
   deleteOne: (id: string) => Promise<void>
   applyFilters: (items: T[], search: string, filters: F) => T[]
   emptyFilters: F
   sorters?: Record<string, (item: T) => string | number>
   deletedMessage?: string
+  /**
+   * Customer has 2k+ rows across 11 pages of 200 — client-side search/filter only ever sees
+   * the one loaded page, so a match sitting on another page reads as "not found" (the
+   * /master/customers search bug). Set true to send `search`/`filters` to `fetchList` instead
+   * and skip the client-side filter pass; `SearchBox` already debounces, so this just wires that
+   * debounced value into the query key/params. Other entities stay on the old client-side path.
+   */
+  serverSearch?: boolean
 }
 
 /**
@@ -36,6 +44,7 @@ export function useEntityListPage<T extends { id: string }, F>({
   emptyFilters,
   sorters = {},
   deletedMessage = 'Deleted.',
+  serverSearch = false,
 }: UseEntityListPageOptions<T, F>) {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -49,10 +58,17 @@ export function useEntityListPage<T extends { id: string }, F>({
   const queryClient = useQueryClient()
 
   const listQuery = useQuery({
-    queryKey: [queryKey, page],
-    queryFn: () => fetchList(page),
+    queryKey: serverSearch ? [queryKey, page, search, filters] : [queryKey, page],
+    queryFn: () => fetchList(page, serverSearch ? search : undefined, serverSearch ? filters : undefined),
     placeholderData: (previous) => previous,
   })
+
+  // Server-side search/filter results always start from page 1 — otherwise a search typed
+  // while sitting on page 5 would request a page 5 of the new, smaller result set.
+  useEffect(() => {
+    if (serverSearch) setPage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, filters])
 
   // A delete (or any change that shrinks the total) can leave `page` past
   // the new last page — e.g. deleting the only row on page 2 of 2. Without
@@ -76,7 +92,7 @@ export function useEntityListPage<T extends { id: string }, F>({
   })
 
   const rows = useMemo(() => {
-    const filtered = applyFilters(listQuery.data?.data ?? [], search, filters)
+    const filtered = serverSearch ? (listQuery.data?.data ?? []) : applyFilters(listQuery.data?.data ?? [], search, filters)
 
     if (!sort) return filtered
 

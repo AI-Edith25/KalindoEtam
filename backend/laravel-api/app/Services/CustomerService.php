@@ -29,9 +29,9 @@ class CustomerService
      * (searchCustomersLookup in lookupsApi.ts) — callers that omit it get the
      * unfiltered first `perPage` rows, unchanged from before.
      */
-    public function list(int $perPage = 200, ?string $search = null, ?array $categories = null): LengthAwarePaginator
+    public function list(int $perPage = 200, ?string $search = null, ?array $categories = null, ?bool $isActive = null): LengthAwarePaginator
     {
-        return $this->customerRepository->paginate($perPage, $search, $categories);
+        return $this->customerRepository->paginate($perPage, $search, $categories, $isActive);
     }
 
     public function exportCount(?string $search, ?bool $isActive): int

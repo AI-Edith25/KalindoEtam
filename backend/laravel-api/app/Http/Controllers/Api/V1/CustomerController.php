@@ -39,11 +39,15 @@ class CustomerController extends Controller
     {
         $categoriesParam = $request->query('receivable_category');
         $categories = $categoriesParam ? explode(',', $categoriesParam) : null;
+        // Not the `boolean` validation rule: axios serializes JS true/false as the literal
+        // strings "true"/"false", which that rule rejects (422'd the Outstanding view toggle before).
+        $isActive = $request->has('is_active') ? filter_var($request->query('is_active'), FILTER_VALIDATE_BOOLEAN) : null;
 
         return $this->success(CustomerResource::collection($this->customerService->list(
             (int) ($request->query('per_page') ?? 200),
             $request->query('search'),
             $categories,
+            $isActive,
         )));
     }
 

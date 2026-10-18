@@ -13,16 +13,22 @@ class CustomerRepository extends BaseRepository
         parent::__construct($model);
     }
 
-    public function paginate(int $perPage = 15, ?string $search = null, ?array $categories = null): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?string $search = null, ?array $categories = null, ?bool $isActive = null): LengthAwarePaginator
     {
         $query = $this->model->query()->with(['salesPerson', 'location']);
 
         if ($search) {
-            $query->where(fn ($q) => $q->where('customer_code', 'like', "%{$search}%")->orWhere('customer_name', 'like', "%{$search}%"));
+            $query->where(fn ($q) => $q->where('customer_code', 'like', "%{$search}%")
+                ->orWhere('customer_name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%"));
         }
 
         if ($categories) {
             $query->whereIn('receivable_category', $categories);
+        }
+
+        if ($isActive !== null) {
+            $query->where('is_active', $isActive);
         }
 
         // UUID primary key means an unordered scan has no relation to insertion order — without this,
@@ -36,7 +42,9 @@ class CustomerRepository extends BaseRepository
         $query = $this->model->query()->with(['salesPerson', 'termsOfPayment']);
 
         if ($search) {
-            $query->where(fn ($q) => $q->where('customer_code', 'like', "%{$search}%")->orWhere('customer_name', 'like', "%{$search}%"));
+            $query->where(fn ($q) => $q->where('customer_code', 'like', "%{$search}%")
+                ->orWhere('customer_name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%"));
         }
 
         if ($isActive !== null) {

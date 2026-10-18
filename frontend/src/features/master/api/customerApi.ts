@@ -1,11 +1,18 @@
 import { apiClient } from '@/shared/services/apiClient'
 import { createCrudApi } from '@/shared/services/crudApi'
-import type { ApiResponse } from '@/shared/types/api'
+import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
 import type { Customer, CustomerFormValues } from '../types'
+import type { CustomerFilterValues } from '../lib/customerFilters'
 
 const customerCrud = createCrudApi<Customer, CustomerFormValues>('/customers')
 
-export const fetchCustomers = customerCrud.fetchList
+/** Search/status filter go to the server (see useEntityListPage's `serverSearch`) — 2k+ customers span 11 pages of 200, too many to filter client-side. */
+export async function fetchCustomers(page: number, search?: string, filters?: CustomerFilterValues): Promise<ApiListResponse<Customer>> {
+  const { data } = await apiClient.get<ApiListResponse<Customer>>('/customers', {
+    params: { page, search: search || undefined, is_active: filters?.isActive ?? undefined },
+  })
+  return data
+}
 /** Resolves one Customer by id — used by SearchableSelect's async dropdowns to restore a pre-set filter's label. */
 export const fetchCustomer = customerCrud.fetchOne
 export const createCustomer = customerCrud.create
