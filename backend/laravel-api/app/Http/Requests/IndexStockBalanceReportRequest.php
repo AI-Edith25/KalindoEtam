@@ -20,7 +20,7 @@ class IndexStockBalanceReportRequest extends FormRequest
             'item_group_id' => ['sometimes', 'nullable', 'uuid', 'exists:item_groups,id'],
             'item_id' => ['sometimes', 'nullable', 'array'],
             'item_id.*' => ['uuid', 'exists:items,id'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

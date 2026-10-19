@@ -23,7 +23,7 @@ class IndexJournalEntryRequest extends FormRequest
             'account_id' => ['sometimes', 'nullable', 'uuid', 'exists:chart_of_accounts,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

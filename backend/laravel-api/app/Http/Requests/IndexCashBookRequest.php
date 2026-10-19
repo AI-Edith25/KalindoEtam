@@ -22,7 +22,7 @@ class IndexCashBookRequest extends FormRequest
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

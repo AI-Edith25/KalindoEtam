@@ -100,7 +100,7 @@ export function SupplierListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
 
       <SupplierFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} supplier={list.editingItem} />
 

@@ -29,7 +29,7 @@ class IndexPoTrackingRequest extends FormRequest
             'sort' => ['sometimes', 'nullable', Rule::in(['order_date', 'total_amount', 'ordered_qty', 'received_qty', 'remaining_qty', 'fulfillment_pct', 'document_number'])],
             'sort_dir' => ['sometimes', 'nullable', Rule::in(['asc', 'desc'])],
             'page' => ['sometimes', 'nullable', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
             'format' => ['sometimes', 'nullable', Rule::in(['xlsx', 'csv'])],
         ];
     }

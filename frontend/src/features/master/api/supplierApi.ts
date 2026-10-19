@@ -10,10 +10,11 @@ const supplierCrud = createCrudApi<Supplier, SupplierFormValues>('/suppliers')
  * default (200) split the list across pages — and SupplierListPage's search
  * box only filters the current page client-side (see docs/ERP_DESIGN_SYSTEM.md
  * §4), so a supplier past page 1 looked "missing" once the list passed 200
- * rows. One page of 1000 keeps every supplier searchable client-side again.
+ * rows. Defaults to 1000 (not just the page-size selector's own default) so
+ * client-side search still sees every supplier if a caller omits perPage.
  */
-export const fetchSuppliers = async (page: number): Promise<ApiListResponse<Supplier>> => {
-  const { data } = await apiClient.get<ApiListResponse<Supplier>>('/suppliers', { params: { page, per_page: 1000 } })
+export const fetchSuppliers = async (page: number, perPage: number = 1000): Promise<ApiListResponse<Supplier>> => {
+  const { data } = await apiClient.get<ApiListResponse<Supplier>>('/suppliers', { params: { page, per_page: perPage } })
   return data
 }
 /** Resolves one Supplier by id — used by SearchableSelect's async dropdowns to restore a pre-set filter's label. */

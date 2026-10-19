@@ -18,6 +18,7 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
 import { useRowSelection } from '@/shared/hooks/useRowSelection'
+import { usePageSize, resolvePerPage } from '@/shared/hooks/usePageSize'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -61,6 +62,12 @@ export function DeliveryListPage() {
   const canEditComplete = useHasPermission('sales.deliveries.edit')
 
   const [page, setPage] = useState(1)
+  const [pageSizeRaw, setPageSizeRaw] = usePageSize('deliveries')
+  const setPageSize = (next: Parameters<typeof setPageSizeRaw>[0]) => {
+    setPageSizeRaw(next)
+    setPage(1)
+  }
+  const perPage = resolvePerPage(pageSizeRaw)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingDelivery, setDeletingDelivery] = useState<Delivery | null>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -76,6 +83,7 @@ export function DeliveryListPage() {
   const warehouseOptions = (warehousesQuery.data ?? []).map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))
 
   const queryFilters = {
+    per_page: perPage,
     ...(urlFilters.search ? { search: urlFilters.search } : {}),
     ...(urlFilters.status.length > 0 ? { status: urlFilters.status } : {}),
     ...(urlFilters.date_from ? { date_from: urlFilters.date_from } : {}),
@@ -425,7 +433,9 @@ export function DeliveryListPage() {
         onSortChange={handleSortChange}
       />
 
-      {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
+      {listQuery.data?.meta && (
+        <Pagination meta={listQuery.data.meta} onPageChange={setPage} pageSize={pageSizeRaw} onPageSizeChange={setPageSize} />
+      )}
 
       <DeleteDialog
         open={!!deletingDelivery}

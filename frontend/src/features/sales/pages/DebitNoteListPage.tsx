@@ -20,6 +20,7 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
 import { useRowSelection } from '@/shared/hooks/useRowSelection'
+import { usePageSize, resolvePerPage } from '@/shared/hooks/usePageSize'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -76,6 +77,12 @@ export function DebitNoteListPage() {
   const canDelete = useHasPermission('sales.debit_notes.delete')
 
   const [page, setPage] = useState(1)
+  const [pageSizeRaw, setPageSizeRaw] = usePageSize('debit-notes')
+  const setPageSize = (next: Parameters<typeof setPageSizeRaw>[0]) => {
+    setPageSizeRaw(next)
+    setPage(1)
+  }
+  const perPage = resolvePerPage(pageSizeRaw)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingDebitNote, setDeletingDebitNote] = useState<DebitNote | null>(null)
   const [exportPickerOpen, setExportPickerOpen] = useState(false)
@@ -91,6 +98,7 @@ export function DebitNoteListPage() {
   const salesPersonOptions = (salesPersonsQuery.data ?? []).map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name }))
 
   const queryFilters = {
+    per_page: perPage,
     ...(urlFilters.search ? { search: urlFilters.search } : {}),
     ...(urlFilters.status.length > 0 ? { status: urlFilters.status } : {}),
     ...(urlFilters.reason ? { reason: urlFilters.reason } : {}),
@@ -427,7 +435,9 @@ export function DebitNoteListPage() {
         onSortChange={handleSortChange}
       />
 
-      {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
+      {listQuery.data?.meta && (
+        <Pagination meta={listQuery.data.meta} onPageChange={setPage} pageSize={pageSizeRaw} onPageSizeChange={setPageSize} />
+      )}
 
       <DeleteDialog
         open={!!deletingDebitNote}

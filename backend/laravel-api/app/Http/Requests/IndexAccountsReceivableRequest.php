@@ -34,7 +34,7 @@ class IndexAccountsReceivableRequest extends FormRequest
             'sales_person_ids.*' => ['string'],
             'invoice_ids' => ['sometimes', 'nullable', 'array'],
             'invoice_ids.*' => ['uuid', 'exists:invoices,id'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

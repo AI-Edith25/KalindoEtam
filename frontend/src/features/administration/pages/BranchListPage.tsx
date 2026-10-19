@@ -92,7 +92,7 @@ export function BranchListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
 
       <BranchFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} branch={list.editingItem} />
 

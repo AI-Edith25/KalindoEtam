@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { usePageSize, resolvePerPage } from '@/shared/hooks/usePageSize'
 import type { ApiListResponse } from '@/shared/types/api'
 import type { DataTableSort } from '@/components/shared/DataTable'
 
 interface UseEntityListPageOptions<T, F> {
-  /** TanStack Query key prefix — paired with `page` for the list query, and used to invalidate after mutations. */
+  /** TanStack Query key prefix — paired with `page` for the list query, and used to invalidate after mutations. Also the localStorage key for the "Show N entries" page size. */
   queryKey: string
-  fetchList: (page: number, search?: string, filters?: F) => Promise<ApiListResponse<T>>
+  fetchList: (page: number, perPage: number, search?: string, filters?: F) => Promise<ApiListResponse<T>>
   deleteOne: (id: string) => Promise<void>
   applyFilters: (items: T[], search: string, filters: F) => T[]
   emptyFilters: F
@@ -50,6 +51,7 @@ export function useEntityListPage<T extends { id: string }, F>({
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<F>(emptyFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
+  const [pageSize, setPageSizeRaw] = usePageSize(queryKey)
   const [formOpen, setFormOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<T | null>(null)
   const [detailItem, setDetailItem] = useState<T | null>(null)
@@ -57,9 +59,18 @@ export function useEntityListPage<T extends { id: string }, F>({
 
   const queryClient = useQueryClient()
 
+  // Changing page size makes the current `page` number potentially meaningless (e.g. sitting
+  // on page 50 of 50-per-page, then switching to 1000-per-page) — always land back on page 1.
+  const setPageSize = (next: Parameters<typeof setPageSizeRaw>[0]) => {
+    setPageSizeRaw(next)
+    setPage(1)
+  }
+
+  const perPage = resolvePerPage(pageSize)
+
   const listQuery = useQuery({
-    queryKey: serverSearch ? [queryKey, page, search, filters] : [queryKey, page],
-    queryFn: () => fetchList(page, serverSearch ? search : undefined, serverSearch ? filters : undefined),
+    queryKey: serverSearch ? [queryKey, page, perPage, search, filters] : [queryKey, page, perPage],
+    queryFn: () => fetchList(page, perPage, serverSearch ? search : undefined, serverSearch ? filters : undefined),
     placeholderData: (previous) => previous,
   })
 
@@ -130,6 +141,8 @@ export function useEntityListPage<T extends { id: string }, F>({
   return {
     page,
     setPage,
+    pageSize,
+    setPageSize,
     search,
     setSearch,
     filters,

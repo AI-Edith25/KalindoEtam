@@ -23,7 +23,7 @@ class IndexPurchaseJournalRequest extends FormRequest
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
             'page' => ['sometimes', 'nullable', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

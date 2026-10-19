@@ -21,7 +21,7 @@ class IndexIssueStockRequest extends FormRequest
             'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

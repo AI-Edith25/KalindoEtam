@@ -26,7 +26,7 @@ class IndexGrossProfitRequest extends FormRequest
             'sort' => ['sometimes', 'nullable', Rule::in(['amount', 'cost_amount', 'profit', 'margin_pct', 'qty', 'item_name', 'customer_name', 'date', 'document_number'])],
             'sort_dir' => ['sometimes', 'nullable', Rule::in(['asc', 'desc'])],
             'page' => ['sometimes', 'nullable', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
             'format' => ['sometimes', 'nullable', Rule::in(['xlsx', 'csv'])],
         ];
     }

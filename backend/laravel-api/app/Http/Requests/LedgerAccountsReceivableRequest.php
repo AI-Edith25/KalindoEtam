@@ -18,7 +18,7 @@ class LedgerAccountsReceivableRequest extends FormRequest
             'invoice_date_from' => ['sometimes', 'nullable', 'date'],
             'invoice_date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:invoice_date_from'],
             'page' => ['sometimes', 'nullable', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

@@ -7,9 +7,9 @@ import type { CustomerFilterValues } from '../lib/customerFilters'
 const customerCrud = createCrudApi<Customer, CustomerFormValues>('/customers')
 
 /** Search/status filter go to the server (see useEntityListPage's `serverSearch`) — 2k+ customers span 11 pages of 200, too many to filter client-side. */
-export async function fetchCustomers(page: number, search?: string, filters?: CustomerFilterValues): Promise<ApiListResponse<Customer>> {
+export async function fetchCustomers(page: number, perPage?: number, search?: string, filters?: CustomerFilterValues): Promise<ApiListResponse<Customer>> {
   const { data } = await apiClient.get<ApiListResponse<Customer>>('/customers', {
-    params: { page, search: search || undefined, is_active: filters?.isActive ?? undefined },
+    params: { page, per_page: perPage, search: search || undefined, is_active: filters?.isActive ?? undefined },
   })
   return data
 }

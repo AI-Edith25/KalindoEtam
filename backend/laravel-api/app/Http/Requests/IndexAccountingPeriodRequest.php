@@ -18,7 +18,7 @@ class IndexAccountingPeriodRequest extends FormRequest
         return [
             'fiscal_year_id' => ['sometimes', 'nullable', 'uuid', 'exists:fiscal_years,id'],
             'status' => ['sometimes', 'nullable', Rule::enum(PeriodStatus::class)],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

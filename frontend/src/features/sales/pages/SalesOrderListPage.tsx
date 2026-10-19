@@ -19,6 +19,7 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
 import { useUrlFilters } from '@/shared/hooks/useUrlFilters'
 import { useRowSelection } from '@/shared/hooks/useRowSelection'
+import { usePageSize, resolvePerPage } from '@/shared/hooks/usePageSize'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -72,6 +73,12 @@ export function SalesOrderListPage() {
   const canApprove = useHasPermission('sales.orders.approve')
 
   const [page, setPage] = useState(1)
+  const [pageSizeRaw, setPageSizeRaw] = usePageSize('sales-orders')
+  const setPageSize = (next: Parameters<typeof setPageSizeRaw>[0]) => {
+    setPageSizeRaw(next)
+    setPage(1)
+  }
+  const perPage = resolvePerPage(pageSizeRaw)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
   const [deletingOrder, setDeletingOrder] = useState<SalesOrder | null>(null)
   const [exportPickerOpen, setExportPickerOpen] = useState(false)
@@ -87,6 +94,7 @@ export function SalesOrderListPage() {
   const salesPersonOptions = (salesPersonsQuery.data ?? []).map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name }))
 
   const queryFilters = {
+    per_page: perPage,
     ...(urlFilters.search ? { search: urlFilters.search } : {}),
     ...(urlFilters.status.length > 0 ? { status: urlFilters.status } : {}),
     ...(urlFilters.date_from ? { date_from: urlFilters.date_from } : {}),
@@ -324,7 +332,7 @@ export function SalesOrderListPage() {
 
     // No specific rows checked (either "select all filtered" or nothing at all) — bulk print
     // needs actual documents, not just a filter, so resolve up to the print cap worth of ids.
-    const response = await fetchSalesOrders({ page: 1, per_page: BULK_PRINT_MAX_DOCUMENTS, ...queryFilters })
+    const response = await fetchSalesOrders({ ...queryFilters, page: 1, per_page: BULK_PRINT_MAX_DOCUMENTS })
     return response.data.map((row) => row.id)
   }
 
@@ -486,7 +494,9 @@ export function SalesOrderListPage() {
         onSortChange={handleSortChange}
       />
 
-      {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
+      {listQuery.data?.meta && (
+        <Pagination meta={listQuery.data.meta} onPageChange={setPage} pageSize={pageSizeRaw} onPageSizeChange={setPageSize} />
+      )}
 
       <DeleteDialog
         open={!!deletingOrder}

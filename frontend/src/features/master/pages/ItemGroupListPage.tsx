@@ -90,7 +90,7 @@ export function ItemGroupListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
 
       <ItemGroupFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} itemGroup={list.editingItem} />
 

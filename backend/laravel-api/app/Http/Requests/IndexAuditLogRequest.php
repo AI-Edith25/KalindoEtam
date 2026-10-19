@@ -20,7 +20,7 @@ class IndexAuditLogRequest extends FormRequest
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date'],
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

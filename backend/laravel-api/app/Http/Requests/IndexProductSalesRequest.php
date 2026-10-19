@@ -33,7 +33,7 @@ class IndexProductSalesRequest extends FormRequest
             'page' => ['sometimes', 'nullable', 'integer', 'min:1'],
             // UI only ever offers 25/50/100 but the backend doesn't hard-enforce that allow-list,
             // same convention as every other Index*Request's per_page.
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
             'format' => ['sometimes', 'nullable', Rule::in(['xlsx', 'csv'])],
         ];
     }

@@ -10,8 +10,8 @@ import type { ApiListResponse, ApiResponse } from '@/shared/types/api'
  */
 export function createCrudApi<T, TPayload = Partial<T>>(basePath: string) {
   return {
-    fetchList: async (page: number): Promise<ApiListResponse<T>> => {
-      const { data } = await apiClient.get<ApiListResponse<T>>(basePath, { params: { page } })
+    fetchList: async (page: number, perPage?: number): Promise<ApiListResponse<T>> => {
+      const { data } = await apiClient.get<ApiListResponse<T>>(basePath, { params: { page, per_page: perPage } })
       return data
     },
     fetchOne: async (id: string): Promise<T> => {

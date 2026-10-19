@@ -36,7 +36,7 @@ class IndexOpenOrdersRequest extends FormRequest
             'sort' => ['sometimes', 'nullable', Rule::in(['order_date', 'document_number', 'customer_name', 'item_name', 'qty_outstanding', 'outstanding_value'])],
             'sort_dir' => ['sometimes', 'nullable', Rule::in(['asc', 'desc'])],
             'page' => ['sometimes', 'nullable', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
             'format' => ['sometimes', 'nullable', Rule::in(['xlsx', 'csv'])],
         ];
     }

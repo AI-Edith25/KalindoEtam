@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useHasPermission } from '@/shared/hooks/usePermission'
+import { usePageSize, resolvePerPage } from '@/shared/hooks/usePageSize'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { openPrintWindow } from '@/shared/lib/printOptions'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
@@ -45,6 +46,12 @@ export function InvoiceListPage() {
   const [importDetailOpen, setImportDetailOpen] = useState(false)
 
   const [page, setPage] = useState(1)
+  const [pageSizeRaw, setPageSizeRaw] = usePageSize('invoices')
+  const setPageSize = (next: Parameters<typeof setPageSizeRaw>[0]) => {
+    setPageSizeRaw(next)
+    setPage(1)
+  }
+  const perPage = resolvePerPage(pageSizeRaw)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<InvoiceFilterValues>(emptyInvoiceFilters)
   const [sort, setSort] = useState<DataTableSort | undefined>(undefined)
@@ -61,10 +68,11 @@ export function InvoiceListPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const listQuery = useQuery({
-    queryKey: ['invoices', page, search, filters.status, filters.source, filters.locationWarehouseId, filters.dateFrom, filters.dateTo],
+    queryKey: ['invoices', page, perPage, search, filters.status, filters.source, filters.locationWarehouseId, filters.dateFrom, filters.dateTo],
     queryFn: () =>
       fetchInvoices({
         page,
+        per_page: perPage,
         ...(search ? { search } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.source ? { source: filters.source } : {}),
@@ -359,7 +367,9 @@ export function InvoiceListPage() {
         onSortChange={handleSortChange}
       />
 
-      {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} />}
+      {listQuery.data?.meta && (
+        <Pagination meta={listQuery.data.meta} onPageChange={setPage} pageSize={pageSizeRaw} onPageSizeChange={setPageSize} />
+      )}
 
       <DeleteDialog
         open={!!deletingInvoice}

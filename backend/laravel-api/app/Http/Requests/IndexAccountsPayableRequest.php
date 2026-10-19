@@ -26,7 +26,7 @@ class IndexAccountsPayableRequest extends FormRequest
             'aging_bucket' => ['sometimes', 'nullable', Rule::in(['30', '45', '60', '90', 'over_180'])],
             'invoice_ids' => ['sometimes', 'nullable', 'array'],
             'invoice_ids.*' => ['uuid', 'exists:purchase_invoices,id'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

@@ -23,7 +23,7 @@ class IndexFifoValuationRequest extends FormRequest
             // "true"/"false", which Laravel's boolean rule rejects (only 1/0/"1"/"0" pass).
             // FifoLayerRepository treats any non-empty, non-"false"/"0" value as true.
             'hide_exhausted' => ['sometimes', 'nullable', 'string'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

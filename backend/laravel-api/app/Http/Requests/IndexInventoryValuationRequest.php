@@ -21,7 +21,7 @@ class IndexInventoryValuationRequest extends FormRequest
             'item_id' => ['sometimes', 'nullable', 'array'],
             'item_id.*' => ['uuid', 'exists:items,id'],
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

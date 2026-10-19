@@ -22,7 +22,7 @@ class IndexTaxReportRequest extends FormRequest
             'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
             'supplier_id' => ['sometimes', 'nullable', 'uuid', 'exists:suppliers,id'],
             'warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

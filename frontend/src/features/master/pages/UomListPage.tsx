@@ -90,7 +90,7 @@ export function UomListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
 
       <UomFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} uom={list.editingItem} />
 

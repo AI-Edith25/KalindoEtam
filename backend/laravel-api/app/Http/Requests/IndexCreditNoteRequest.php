@@ -36,7 +36,7 @@ class IndexCreditNoteRequest extends FormRequest
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
             'min_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'max_amount' => ['sometimes', 'nullable', 'numeric', 'gte:min_amount'],
-            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000'],
         ];
     }
 }

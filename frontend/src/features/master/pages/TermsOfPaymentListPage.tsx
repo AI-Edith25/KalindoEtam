@@ -95,7 +95,7 @@ export function TermsOfPaymentListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
 
       <TermsOfPaymentFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} termsOfPayment={list.editingItem} />
 
