@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -81,7 +82,9 @@ export function MiscellaneousItemListPage() {
         description="Manage miscellaneous charge items — service-type costs that never affect stock."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} items` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
@@ -89,6 +92,7 @@ export function MiscellaneousItemListPage() {
             ]}
             primary={canCreate ? { label: 'New Miscellaneous', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -107,7 +111,7 @@ export function MiscellaneousItemListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <MiscellaneousItemFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} miscellaneousItem={list.editingItem} />
 

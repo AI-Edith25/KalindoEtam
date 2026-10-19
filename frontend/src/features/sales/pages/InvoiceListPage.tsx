@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Ban, Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -281,6 +282,7 @@ export function InvoiceListPage() {
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} invoices` : undefined}
         actions={
           <>
+            <PageSizeControl meta={listQuery.data?.meta} pageSize={pageSizeRaw} onPageSizeChange={setPageSize} />
             {selectedIds.size > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -367,9 +369,7 @@ export function InvoiceListPage() {
         onSortChange={handleSortChange}
       />
 
-      {listQuery.data?.meta && (
-        <Pagination meta={listQuery.data.meta} onPageChange={setPage} pageSize={pageSizeRaw} onPageSizeChange={setPageSize} />
-      )}
+      {listQuery.data?.meta && <Pagination meta={listQuery.data.meta} onPageChange={setPage} pageSize={pageSizeRaw} />}
 
       <DeleteDialog
         open={!!deletingInvoice}

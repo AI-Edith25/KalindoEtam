@@ -1,6 +1,7 @@
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -64,7 +65,9 @@ export function UomListPage() {
         description="Manage the UOMs used by the item catalog."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} UOMs` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
@@ -72,6 +75,7 @@ export function UomListPage() {
             ]}
             primary={canCreate ? { label: 'New UOM', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -90,7 +94,7 @@ export function UomListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <UomFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} uom={list.editingItem} />
 

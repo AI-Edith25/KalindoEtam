@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -68,7 +69,9 @@ export function WarehouseListPage() {
         description="Manage locations used across purchase receipts and sales deliveries."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} locations` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
@@ -76,6 +79,7 @@ export function WarehouseListPage() {
             ]}
             primary={canCreate ? { label: 'New Location', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -97,7 +101,7 @@ export function WarehouseListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <WarehouseFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} warehouse={list.editingItem} />
 

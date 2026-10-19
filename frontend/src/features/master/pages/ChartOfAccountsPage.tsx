@@ -1,6 +1,7 @@
 import { CornerDownRight, Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -96,7 +97,9 @@ export function ChartOfAccountsPage() {
         description="The accounts business transactions post to — reused by the Accounting Engine's Journal Entries."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} accounts` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
@@ -104,6 +107,7 @@ export function ChartOfAccountsPage() {
             ]}
             primary={canCreate ? { label: 'New Account', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -125,7 +129,7 @@ export function ChartOfAccountsPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <ChartOfAccountFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} chartOfAccount={list.editingItem} />
 

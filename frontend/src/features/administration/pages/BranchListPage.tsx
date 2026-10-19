@@ -1,5 +1,6 @@
 import { Eye, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -67,10 +68,13 @@ export function BranchListPage() {
         description="Manage the branches Sales Orders can be attributed to."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} branches` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching }]}
             primary={canCreate ? { label: 'New Branch', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -92,7 +96,7 @@ export function BranchListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <BranchFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} branch={list.editingItem} />
 

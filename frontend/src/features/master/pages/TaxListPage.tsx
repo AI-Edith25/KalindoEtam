@@ -2,6 +2,7 @@ import { Download, Eye, Pencil, Plus, Power, PowerOff, RotateCw, Upload } from '
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -109,7 +110,9 @@ export function TaxListPage() {
         description="Tax rates reused by Sales and Purchase — the single source of truth every invoice and purchase order's tax calculation goes through."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} taxes` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
@@ -117,6 +120,7 @@ export function TaxListPage() {
             ]}
             primary={canCreate ? { label: 'New Tax', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -135,7 +139,7 @@ export function TaxListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <TaxFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} tax={list.editingItem} />
 

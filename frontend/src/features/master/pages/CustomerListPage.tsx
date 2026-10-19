@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Download, Eye, Loader2, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -111,7 +112,9 @@ export function CustomerListPage() {
         description="Manage customers used across the sales workflow."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} customers` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               {
@@ -124,6 +127,7 @@ export function CustomerListPage() {
             ]}
             primary={canCreate ? { label: 'New Customer', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -146,7 +150,7 @@ export function CustomerListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <CustomerFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} customer={list.editingItem} />
 

@@ -1,20 +1,22 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { PAGE_SIZE_OPTIONS, type PageSize } from '@/shared/hooks/usePageSize'
+import type { PageSize } from '@/shared/hooks/usePageSize'
 import type { PaginationMeta } from '@/shared/types/api'
 
 interface PaginationProps {
   meta: PaginationMeta
   onPageChange: (page: number) => void
-  /** Omit both to keep the old page-size-less pagination bar (pages not yet wired for it). */
+  /**
+   * Pass the page's current PageSize (from the same state driving its header PageSizeControl)
+   * only to hide the page-number buttons in "All" mode — this bar never renders its own size
+   * selector (see PageSizeControl's own docblock for why one control beats two kept in sync).
+   */
   pageSize?: PageSize
-  onPageSizeChange?: (size: PageSize) => void
 }
 
 const JUMP = 2
 
-export function Pagination({ meta, onPageChange, pageSize, onPageSizeChange }: PaginationProps) {
+export function Pagination({ meta, onPageChange, pageSize }: PaginationProps) {
   const { current_page, last_page, total, per_page } = meta
 
   if (total === 0) {
@@ -27,29 +29,9 @@ export function Pagination({ meta, onPageChange, pageSize, onPageSizeChange }: P
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 py-3">
-      <div className="flex items-center gap-3">
-        <p className="text-sm text-muted-foreground">
-          Showing {rangeStart}–{rangeEnd} of {total}
-        </p>
-        {onPageSizeChange && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm text-muted-foreground">Show</span>
-            <Select value={String(pageSize)} onValueChange={(next) => onPageSizeChange(next === 'all' ? 'all' : (Number(next) as PageSize))}>
-              <SelectTrigger className="w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={String(option)}>
-                    {option === 'all' ? 'All' : option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-sm text-muted-foreground">entries</span>
-          </div>
-        )}
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Showing {rangeStart}–{rangeEnd} of {total}
+      </p>
       {!isAll && (
         <div className="flex items-center gap-2">
           <Button

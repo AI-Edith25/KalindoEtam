@@ -1,5 +1,6 @@
 import { Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -78,10 +79,13 @@ export function NamingSeriesListPage() {
         description="The prefix/counter each document type generates its next number from — Goods and Transportation Invoices number independently here."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} series` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[{ label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching }]}
             primary={canCreate ? { label: 'New Series', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -99,7 +103,7 @@ export function NamingSeriesListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <NamingSeriesFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} namingSeries={list.editingItem} />
 

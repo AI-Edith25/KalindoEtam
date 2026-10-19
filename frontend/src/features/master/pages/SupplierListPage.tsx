@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Download, Eye, Pencil, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchBox } from '@/components/shared/SearchBox'
@@ -71,7 +72,9 @@ export function SupplierListPage() {
         description="Manage suppliers used across the purchase workflow."
         count={list.listQuery.data?.meta ? `${formatNumber(list.listQuery.data.meta.total)} suppliers` : undefined}
         actions={
-          <ActionBar
+          <>
+            <PageSizeControl meta={list.listQuery.data?.meta} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />
+            <ActionBar
             actions={[
               { label: 'Refresh', icon: RotateCw, onClick: () => list.listQuery.refetch(), disabled: list.listQuery.isFetching },
               { label: 'Export', icon: Download, disabled: true },
@@ -79,6 +82,7 @@ export function SupplierListPage() {
             ]}
             primary={canCreate ? { label: 'New Supplier', icon: Plus, onClick: list.openCreate } : undefined}
           />
+          </>
         }
       />
 
@@ -100,7 +104,7 @@ export function SupplierListPage() {
         onSortChange={list.handleSortChange}
       />
 
-      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} onPageSizeChange={list.setPageSize} />}
+      {list.listQuery.data?.meta && <Pagination meta={list.listQuery.data.meta} onPageChange={list.setPage} pageSize={list.pageSize} />}
 
       <SupplierFormDrawer open={list.formOpen} onOpenChange={list.setFormOpen} supplier={list.editingItem} />
 

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Download, Eye, Pencil, Plus, Printer, RotateCw, Send, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/shared/DataTable'
 import { RowActionsMenu, type RowAction } from '@/components/shared/RowActionsMenu'
@@ -331,6 +332,7 @@ export function DeliveryListPage() {
         count={listQuery.data?.meta ? `${formatNumber(listQuery.data.meta.total)} deliveries` : undefined}
         actions={
           <>
+            <PageSizeControl meta={listQuery.data?.meta} pageSize={pageSizeRaw} onPageSizeChange={setPageSize} />
             {selection.hasSelection && (
               <Button type="button" variant="outline" onClick={printListSummary}>
                 <Printer className="size-4" />
@@ -434,7 +436,7 @@ export function DeliveryListPage() {
       />
 
       {listQuery.data?.meta && (
-        <Pagination meta={listQuery.data.meta} onPageChange={setPage} pageSize={pageSizeRaw} onPageSizeChange={setPageSize} />
+        <Pagination meta={listQuery.data.meta} onPageChange={setPage} pageSize={pageSizeRaw} />
       )}
 
       <DeleteDialog
