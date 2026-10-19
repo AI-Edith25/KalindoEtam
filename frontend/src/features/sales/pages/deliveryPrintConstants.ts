@@ -34,7 +34,10 @@ export const A4 = {
 
 export const HALF = {
   pageWidthMm: 210,
-  pageHeightMm: 148.5,
+  // 148, not the PDF-measured 148.5 — must equal the named `A5 landscape` @page size exactly
+  // (DeliveryPrintPage.tsx), or the 0.5mm gap spills a spurious blank 2nd page (see
+  // DeliveryHalfLayout's own "zero tolerance" comment on minHeight === this value).
+  pageHeightMm: 148,
   marginMm: '8mm 10mm',
   /** Left meta block's own label|colon|value split (content-edge relative), stored as track
       widths — see A4.metaLabelWidthMm's own comment on why (not raw 21.6mm/24.5mm offsets). */

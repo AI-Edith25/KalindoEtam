@@ -112,11 +112,23 @@ export function DeliveryPrintPage() {
           is registered in a given device's printer driver -- this used to omit `size` entirely for
           one stakeholder's printer whose driver disagreed with any size we asked for, but that
           traded away predictable page count for every other device, which is the worse failure
-          mode. */}
+          mode.
+
+          Half uses the named `A5 landscape` page size (210x148mm) instead of an arbitrary custom
+          `210mm 148.5mm` pair: a physical printer's own driver recognizes standard ISO sizes far
+          more reliably than a custom mm pair, which some drivers silently reject or re-map,
+          triggering exactly the kind of printer-only "shrink to fit" the dot-matrix comment above
+          already hit once (2026-10-19, user-reported — Save as PDF stayed correct size while a
+          real printer Destination shrank the Half layout). HALF.pageHeightMm was adjusted from
+          148.5 to 148 to match this exactly (see deliveryPrintConstants.ts) — a 0.5mm gap between
+          content box and @page is enough to spill a spurious blank 2nd page. A4 is left as its own
+          mm pair since 210x297mm already *is* A4 exactly. */}
       <style>
         {isDotMatrix
           ? `@page { size: ${DOTMATRIX_HALF_PAGE_SIZE_MM.widthMm}mm ${DOTMATRIX_HALF_PAGE_SIZE_MM.heightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`
-          : `@page { size: ${paper.pageWidthMm}mm ${paper.pageHeightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
+          : isHalfFamily
+            ? `@page { size: A5 landscape; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`
+            : `@page { size: ${paper.pageWidthMm}mm ${paper.pageHeightMm}mm; margin: 0; } @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}
       </style>
 
       <div className="flex items-start justify-between print:hidden">
