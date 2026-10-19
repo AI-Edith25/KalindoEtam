@@ -103,8 +103,14 @@ export function LaporanPenagihanHarianPrintPage() {
         </Button>
       </div>
 
-      <div className="flex flex-col text-black text-[13px]" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-        <p className="text-center text-lg font-bold">LAPORAN PENAGIHAN HARIAN</p>
+      {/*
+        Times New Roman (the old report's own font) renders visually smaller than Arial at the
+        same px size, so sizes here are bumped vs. the previous Arial-13px/18px pair (14px/20px)
+        to land back at the same printed proportions — scoped entirely to this div's inline style,
+        never touching the app's own Inter default elsewhere.
+      */}
+      <div className="flex flex-col text-black text-[14px] leading-snug" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+        <p className="text-center text-[20px] font-bold">LAPORAN PENAGIHAN HARIAN</p>
         <p className="text-right">Tanggal : {formatDdMmYyyy(today)}</p>
         <hr className="mt-2 border-black" />
 
@@ -134,13 +140,13 @@ export function LaporanPenagihanHarianPrintPage() {
           </colgroup>
           <thead>
             <tr className="border-b border-black">
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">CUSTOMER</th>
-              <th className="py-1 pr-2 font-bold">CUSTOMER NAME</th>
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">INV DATE</th>
-              <th className="py-1 pr-2 font-bold">DOCUMENT</th>
-              <th className="py-1 pr-2 font-bold">REFERENCE</th>
-              <th className="whitespace-nowrap py-1 pr-2 font-bold">DUE DATE</th>
-              <th className="py-1 text-right font-bold leading-tight">
+              <th className="whitespace-nowrap py-0.5 pr-2 font-bold">CUSTOMER</th>
+              <th className="py-0.5 pr-2 font-bold">CUSTOMER NAME</th>
+              <th className="whitespace-nowrap py-0.5 pr-2 font-bold">INV DATE</th>
+              <th className="py-0.5 pr-2 font-bold">DOCUMENT</th>
+              <th className="py-0.5 pr-2 font-bold">REFERENCE</th>
+              <th className="whitespace-nowrap py-0.5 pr-2 font-bold">DUE DATE</th>
+              <th className="py-0.5 text-right font-bold leading-tight">
                 OUTSTANDING
                 <br />
                 AMOUNT
@@ -154,23 +160,23 @@ export function LaporanPenagihanHarianPrintPage() {
               const sameCustomerAsPrevious = index > 0 && rows[index - 1].customer_id === row.customer_id
               return (
                 <tr key={row.id}>
-                  <td className="whitespace-nowrap py-1 pr-2 align-top">{sameCustomerAsPrevious ? '' : row.customer?.customer_code ?? ''}</td>
-                  <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{sameCustomerAsPrevious ? '' : row.customer?.customer_name ?? ''}</td>
-                  <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
-                  <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{row.invoice?.document_number ?? ''}</td>
-                  <td className="py-1 pr-2 align-top [overflow-wrap:break-word]">{resolveReference(row.invoice)}</td>
-                  <td className="whitespace-nowrap py-1 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
-                  <td className="whitespace-nowrap py-1 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
+                  <td className="whitespace-nowrap py-0.5 pr-2 align-top">{sameCustomerAsPrevious ? '' : row.customer?.customer_code ?? ''}</td>
+                  <td className="py-0.5 pr-2 align-top [overflow-wrap:break-word]">{sameCustomerAsPrevious ? '' : row.customer?.customer_name ?? ''}</td>
+                  <td className="whitespace-nowrap py-0.5 pr-2 align-top">{formatDdMmYyyy(row.invoice?.invoice_date)}</td>
+                  <td className="py-0.5 pr-2 align-top [overflow-wrap:break-word]">{row.invoice?.document_number ?? ''}</td>
+                  <td className="py-0.5 pr-2 align-top [overflow-wrap:break-word]">{resolveReference(row.invoice)}</td>
+                  <td className="whitespace-nowrap py-0.5 pr-2 align-top">{formatDdMmYyyy(row.due_date)}</td>
+                  <td className="whitespace-nowrap py-0.5 text-right align-top">{formatNum(row.invoice?.grand_total ?? 0, 2)}</td>
                 </tr>
               )
             })}
             {/* A <tfoot> row repeats on every printed page (browser default for table-footer-group) —
                 TOTAL must only ever print once, at the very end, so it's a normal last <tbody> row. */}
             <tr className="border-t border-black font-bold">
-              <td colSpan={6} className="py-1 pr-2 text-right">
+              <td colSpan={6} className="py-0.5 pr-2 text-right">
                 TOTAL
               </td>
-              <td className="py-1 text-right">{formatNum(total, 2)}</td>
+              <td className="py-0.5 text-right font-bold">{formatNum(total, 2)}</td>
             </tr>
           </tbody>
         </table>
