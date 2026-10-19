@@ -61,9 +61,9 @@ class SalesReportService
             $this->formatMoney((float) $invoice->grand_total),
             $invoice->reference_1,
             $invoice->reference_2,
+            $invoice->salesPerson?->name ?? '—',
             $invoice->creator?->name,
             $invoice->updater?->name,
-            $invoice->source,
         ])->all();
 
         $rows[] = [
@@ -89,7 +89,7 @@ class SalesReportService
      * filtering/sorting. Column order:
      *   DATE(A) DOCUMENT(B) CUSTOMER(C) CUSTOMER NAME(D) ITEM(E) DESCRIPTION(F) UOM(G) QUANTITY(H)
      *   UNIT PRICE(I) LINE AMOUNT(J) DISC(K) TAX(L) T.CODE(M) AMOUNT(N) DELIVERY TO(O)
-     *   REFERENCE 1(P) REFERENCE 2(Q)
+     *   REFERENCE 1(P) REFERENCE 2(Q) SALESMAN(R)
      * DATE is a real Excel date serial (see excelDate()) so it still sorts/filters as a date.
      * UNIT PRICE/LINE AMOUNT/DISC/TAX/AMOUNT are pre-formatted Indonesian-style text ("5.000,00"),
      * same rule and same reason as summaryRows() — formatMoney(0) already yields "0,00", so a
@@ -128,7 +128,7 @@ class SalesReportService
                     $deliveryTo,
                     $invoice->reference_1,
                     $invoice->reference_2,
-                    $invoice->source,
+                    $invoice->salesPerson?->name ?? '—',
                 ];
             }
         }
@@ -156,7 +156,7 @@ class SalesReportService
      */
     public function summaryHeadings(): array
     {
-        return ['DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'REFERENCE 1', 'REFERENCE 2', 'ADD BY', 'UPDATE BY', 'SOURCE'];
+        return ['DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'EXCL.TAX', 'DISC', 'TAX', 'INCL.TAX', 'REFERENCE 1', 'REFERENCE 2', 'SALESMAN', 'ADD BY', 'UPDATE BY'];
     }
 
     /** @return array<int, mixed> single flat heading row matching detailRows()' column order */
@@ -164,7 +164,7 @@ class SalesReportService
     {
         return [
             'DATE', 'DOCUMENT', 'CUSTOMER', 'CUSTOMER NAME', 'ITEM', 'DESCRIPTION', 'UOM', 'QUANTITY', 'UNIT PRICE',
-            'LINE AMOUNT', 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'DELIVERY TO', 'REFERENCE 1', 'REFERENCE 2', 'SOURCE',
+            'LINE AMOUNT', 'DISC', 'TAX', 'T.CODE', 'AMOUNT', 'DELIVERY TO', 'REFERENCE 1', 'REFERENCE 2', 'SALESMAN',
         ];
     }
 
