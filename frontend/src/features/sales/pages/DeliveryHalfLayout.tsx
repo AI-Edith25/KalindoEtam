@@ -7,7 +7,7 @@ const SIGNATURE_COLUMNS = ['Tanda Terima,', 'Dikeluarkan Oleh,', 'Diantar Oleh,'
 
 function LeftMetaRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${HALF.leftLabelWidthMm}mm ${HALF.leftColonWidthMm}mm 1fr`, fontSize: '9pt' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${HALF.leftLabelWidthMm}mm ${HALF.leftColonWidthMm}mm 1fr`, fontSize: '10pt' }}>
       <span>{label}</span>
       <span>:</span>
       {/* minWidth:0 overrides a grid item's default min-width:auto (its content's own intrinsic
@@ -20,7 +20,7 @@ function LeftMetaRow({ label, value }: { label: string; value: ReactNode }) {
 
 function RightMetaRow({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${HALF.rightLabelWidthMm}mm ${HALF.rightColonWidthMm}mm 1fr`, fontSize: '9pt' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${HALF.rightLabelWidthMm}mm ${HALF.rightColonWidthMm}mm 1fr`, fontSize: '10pt' }}>
       <span>{label}</span>
       <span>:</span>
       <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{value}</span>
@@ -53,6 +53,11 @@ export interface DeliveryHalfLayoutProps {
  * Two structural corrections confirmed against the PDF itself (not the ticket's own guess): a thin
  * rule DOES exist below the item-table header (the ticket said there shouldn't be one), and TOTAL
  * QTY here (unlike A4's) follows the "Tampilkan Desimal" toggle same as the item rows.
+ *
+ * Meta/label/footer text bumped from the PDF's own measured 9pt/8pt to 10pt/9pt (2026-10-19,
+ * user-reported illegible physical print) — a deliberate departure from the exact-replica sizes
+ * everywhere else in this file. @page/width/mm geometry were already correct (confirmed against
+ * production); 9pt in a condensed font was just genuinely small for a driver reading this on paper.
  */
 export function DeliveryHalfLayout({ delivery, companyName, companyAddress, fontFamily, decimalsOn, heightMm, clipOverflow }: DeliveryHalfLayoutProps) {
   const totalQty = delivery.items.reduce((sum, item) => sum + Number(item.qty), 0)
@@ -89,7 +94,7 @@ export function DeliveryHalfLayout({ delivery, companyName, companyAddress, font
 
       {/* ---------- Baris atas: "1 of 1" kiri, "DELIVERY ORDER" tengah terhadap konten ---------- */}
       <div style={{ display: 'flex', alignItems: 'baseline' }}>
-        <span style={{ width: '12mm', fontSize: '9pt' }}>1 of 1</span>
+        <span style={{ width: '12mm', fontSize: '10pt' }}>1 of 1</span>
         <p style={{ flex: 1, margin: 0, textAlign: 'center', fontSize: '16pt', fontWeight: 700 }}>DELIVERY ORDER</p>
         <span style={{ width: '12mm' }} />
       </div>
@@ -97,7 +102,7 @@ export function DeliveryHalfLayout({ delivery, companyName, companyAddress, font
       {/* ---------- Nama perusahaan + alamat, rata kiri ---------- */}
       <p style={{ margin: 0, marginTop: '2mm', fontSize: '14pt', fontWeight: 700 }}>{companyName}</p>
       {companyAddress && (
-        <p style={{ margin: 0, fontSize: '9pt' }}>{companyAddress}</p>
+        <p style={{ margin: 0, fontSize: '10pt' }}>{companyAddress}</p>
       )}
 
       {/* ---------- Dua kolom meta ---------- */}
@@ -111,7 +116,7 @@ export function DeliveryHalfLayout({ delivery, companyName, companyAddress, font
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span>{delivery.customer?.customer_name ?? ''}</span>
                 {delivery.customer?.phone && <span>{delivery.customer.phone}</span>}
-                {delivery.customer?.address && <span style={{ fontSize: '8pt' }}>{delivery.customer.address}</span>}
+                {delivery.customer?.address && <span style={{ fontSize: '9pt' }}>{delivery.customer.address}</span>}
               </div>
             }
           />
@@ -163,19 +168,19 @@ export function DeliveryHalfLayout({ delivery, companyName, companyAddress, font
       </div>
 
       {notes && (
-        <div style={{ marginBottom: '1mm', fontSize: '9pt' }}>
+        <div style={{ marginBottom: '1mm', fontSize: '10pt' }}>
           <span>Notes : {notes}</span>
         </div>
       )}
 
       {/* ---------- Garis tebal penutup + total qty ---------- */}
       <div style={{ breakInside: 'avoid' }}>
-        <div style={{ borderTop: '1mm solid #000', paddingTop: '1mm', textAlign: 'right', fontSize: '9pt' }}>
+        <div style={{ borderTop: '1mm solid #000', paddingTop: '1mm', textAlign: 'right', fontSize: '10pt' }}>
           {formatQty(totalQty, decimalsOn)} {uniformUom}
         </div>
 
         {/* ---------- Baris 6 label tanda tangan, satu baris, rata kiri per kolom ---------- */}
-        <div style={{ marginTop: '3mm', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', fontSize: '9pt' }}>
+        <div style={{ marginTop: '3mm', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', fontSize: '10pt' }}>
           {SIGNATURE_COLUMNS.map((caption) => (
             <span key={caption} style={{ whiteSpace: 'nowrap' }}>
               {caption}
