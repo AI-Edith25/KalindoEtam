@@ -6,7 +6,7 @@ use App\Enums\DocumentStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/** Same filter shape as IndexInvoiceRequest (search/status/date_from/date_to) plus the export-only mode/format/ids. */
+/** Same filter shape as IndexInvoiceRequest (search/status/source/location_warehouse_id/date_from/date_to) plus the export-only mode/format/ids. */
 class ExportSalesReportRequest extends FormRequest
 {
     public function authorize(): bool
@@ -24,6 +24,8 @@ class ExportSalesReportRequest extends FormRequest
             'ids.*' => ['uuid', 'exists:invoices,id'],
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
             'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
+            'source' => ['sometimes', 'nullable', Rule::in(['manual', 'import'])],
+            'location_warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
         ];

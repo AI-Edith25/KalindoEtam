@@ -33,6 +33,7 @@ class IndexInvoiceRequest extends FormRequest
             'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
             'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
             'delivery_id' => ['sometimes', 'nullable', 'uuid', 'exists:deliveries,id'],
+            'location_warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
             'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],

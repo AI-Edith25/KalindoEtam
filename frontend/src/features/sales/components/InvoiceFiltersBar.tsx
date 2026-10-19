@@ -1,6 +1,7 @@
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { useWarehousesLookup } from '@/features/master/hooks/useLookups'
 import { emptyInvoiceFilters, hasActiveInvoiceFilters } from '../lib/invoiceFilters'
 import type { DocumentStatus, InvoiceFilterValues } from '../types'
 
@@ -13,6 +14,8 @@ interface InvoiceFiltersBarProps {
 
 /** Invoice's own status field (draft/submitted/cancelled) is unchanged by the SO/DO status rework — was previously (mis)borrowing SalesOrderFiltersBar, which now has its own diverged Submitted/Approved/Cancelled vocabulary. */
 export function InvoiceFiltersBar({ value, onChange }: InvoiceFiltersBarProps) {
+  const warehouses = useWarehousesLookup()
+
   return (
     <FilterPanel onClear={() => onChange(emptyInvoiceFilters)} hasActiveFilters={hasActiveInvoiceFilters(value)}>
       <div className="flex flex-col gap-1.5">
@@ -45,6 +48,25 @@ export function InvoiceFiltersBar({ value, onChange }: InvoiceFiltersBarProps) {
             <SelectItem value={ALL}>All sources</SelectItem>
             <SelectItem value="manual">Manual</SelectItem>
             <SelectItem value="import">Import</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Location</span>
+        <Select
+          value={value.locationWarehouseId ?? ALL}
+          onValueChange={(next) => onChange({ ...value, locationWarehouseId: next === ALL ? null : next })}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="All locations" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All locations</SelectItem>
+            {warehouses.data?.map((warehouse) => (
+              <SelectItem key={warehouse.id} value={warehouse.id}>
+                {warehouse.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

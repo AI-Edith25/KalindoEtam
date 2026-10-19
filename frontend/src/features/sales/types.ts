@@ -413,6 +413,7 @@ export interface InvoiceFormValues {
 export interface InvoiceFilterValues {
   status: DocumentStatus | null
   source: 'manual' | 'import' | null
+  locationWarehouseId: string | null
   dateFrom: string
   dateTo: string
 }

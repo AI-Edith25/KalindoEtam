@@ -6,6 +6,8 @@ export interface InvoiceListParams {
   page: number
   search?: string
   status?: string
+  source?: string
+  location_warehouse_id?: string
   customer_id?: string
   delivery_id?: string
   date_from?: string

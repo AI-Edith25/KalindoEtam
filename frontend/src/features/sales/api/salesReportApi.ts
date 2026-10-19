@@ -3,9 +3,11 @@ import { apiClient } from '@/shared/services/apiClient'
 export interface SalesReportParams {
   search?: string
   status?: string
+  source?: string
+  location_warehouse_id?: string
   date_from?: string
   date_to?: string
-  /** Checked rows on the Invoices list — when present, overrides search/status/date_from/date_to entirely (see InvoiceRepository::searchAll()). */
+  /** Checked rows on the Invoices list — when present, overrides search/status/source/location_warehouse_id/date_from/date_to entirely (see InvoiceRepository::searchAll()). */
   ids?: string[]
 }
 

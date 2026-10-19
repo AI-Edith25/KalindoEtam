@@ -61,12 +61,14 @@ export function InvoiceListPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const listQuery = useQuery({
-    queryKey: ['invoices', page, search, filters.status, filters.dateFrom, filters.dateTo],
+    queryKey: ['invoices', page, search, filters.status, filters.source, filters.locationWarehouseId, filters.dateFrom, filters.dateTo],
     queryFn: () =>
       fetchInvoices({
         page,
         ...(search ? { search } : {}),
         ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.source ? { source: filters.source } : {}),
+        ...(filters.locationWarehouseId ? { location_warehouse_id: filters.locationWarehouseId } : {}),
         ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
         ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
       }),
@@ -117,6 +119,8 @@ export function InvoiceListPage() {
             : {
                 ...(search ? { search } : {}),
                 ...(filters.status ? { status: filters.status } : {}),
+                ...(filters.source ? { source: filters.source } : {}),
+                ...(filters.locationWarehouseId ? { location_warehouse_id: filters.locationWarehouseId } : {}),
                 ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                 ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
               }),
