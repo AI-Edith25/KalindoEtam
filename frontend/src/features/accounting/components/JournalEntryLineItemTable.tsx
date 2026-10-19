@@ -44,7 +44,13 @@ export function JournalEntryLineItemTable({ form, disabled, entry }: JournalEntr
   const { control, setValue, getValues } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const accounts = useChartOfAccountsLookup()
-  const accountOptions = accounts.data?.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` })) ?? []
+  // A Group/header account (has children) carries no postings of its own — Chart of Accounts
+  // enforces the same thing structurally, this just surfaces it before the user picks one.
+  const accountOptions =
+    accounts.data?.map((account) => {
+      const isGroup = (account.children_count ?? 0) > 0
+      return { value: account.id, label: `${account.code} — ${account.name}${isGroup ? ' (Group)' : ''}`, disabled: isGroup }
+    }) ?? []
   const accountsById = useMemo(() => new Map((accounts.data ?? []).map((account) => [account.id, account])), [accounts.data])
 
   const watchedLines = useWatch({ control, name: 'lines' })
@@ -123,6 +129,8 @@ export function JournalEntryLineItemTable({ form, disabled, entry }: JournalEntr
             ) : (
               fields.map((field, index) => {
                 const requiredSubledger = watchedLines?.[index]?.required_subledger ?? null
+                const selectedAccount = accountsById.get(watchedLines?.[index]?.chart_of_account_id ?? '')
+                const lineErrors = form.formState.errors.lines?.[index]
 
                 return (
                   <TableRow key={field.id}>
@@ -160,13 +168,17 @@ export function JournalEntryLineItemTable({ form, disabled, entry }: JournalEntr
                                   customerField.onChange(value ?? '')
                                   setSelectedCustomerOptions((prev) => ({ ...prev, [field.id]: option! }))
                                   if (option && !getValues(`lines.${index}.description`)) {
-                                    setValue(`lines.${index}.description`, option.data?.name ?? option.label)
+                                    const customerName = option.data?.name ?? option.label
+                                    setValue(`lines.${index}.description`, selectedAccount ? `${selectedAccount.name}, ${customerName}` : customerName)
                                   }
                                 }}
                                 placeholder="Select customer"
                                 disabled={disabled}
                                 aria-label="Customer"
                               />
+                              {!customerField.value && !lineErrors?.customer_id && (
+                                <p className="text-xs text-muted-foreground">Pilih customer agar baris ini bisa dikaitkan ke piutang customer yang tepat.</p>
+                              )}
                               <FormMessage />
                             </FormItem>
                           )}
@@ -186,13 +198,17 @@ export function JournalEntryLineItemTable({ form, disabled, entry }: JournalEntr
                                   supplierField.onChange(value ?? '')
                                   setSelectedSupplierOptions((prev) => ({ ...prev, [field.id]: option! }))
                                   if (option && !getValues(`lines.${index}.description`)) {
-                                    setValue(`lines.${index}.description`, option.data?.name ?? option.label)
+                                    const supplierName = option.data?.name ?? option.label
+                                    setValue(`lines.${index}.description`, selectedAccount ? `${selectedAccount.name}, ${supplierName}` : supplierName)
                                   }
                                 }}
                                 placeholder="Select vendor"
                                 disabled={disabled}
                                 aria-label="Vendor"
                               />
+                              {!supplierField.value && !lineErrors?.supplier_id && (
+                                <p className="text-xs text-muted-foreground">Pilih vendor agar baris ini bisa dikaitkan ke hutang vendor yang tepat.</p>
+                              )}
                               <FormMessage />
                             </FormItem>
                           )}

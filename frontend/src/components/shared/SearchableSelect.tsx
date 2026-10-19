@@ -10,6 +10,8 @@ export interface SearchableSelectOption<T = unknown> {
   label: string
   /** Async mode: the full source record, so callers can read fields beyond value/label (e.g. an Item's standard_rate) without a second lookup. */
   data?: T
+  /** Greyed out and unselectable — e.g. a Chart of Account group/header row that can't take a posting. */
+  disabled?: boolean
 }
 
 interface SearchableSelectProps<T = unknown> {
@@ -107,7 +109,7 @@ export function SearchableSelect<T = unknown>({
     } else if (event.key === 'Enter') {
       event.preventDefault()
       const option = filtered[highlighted]
-      if (option) selectOption(option)
+      if (option && !option.disabled) selectOption(option)
     } else if (event.key === 'Escape') {
       event.preventDefault()
       setOpen(false)
@@ -180,9 +182,15 @@ export function SearchableSelect<T = unknown>({
               type="button"
               role="option"
               aria-selected={option.value === value}
-              className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent', index === highlighted && 'bg-accent')}
+              aria-disabled={option.disabled}
+              disabled={option.disabled}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent',
+                index === highlighted && 'bg-accent',
+                option.disabled && 'cursor-not-allowed text-muted-foreground opacity-60 hover:bg-transparent',
+              )}
               onMouseEnter={() => setHighlighted(index)}
-              onClick={() => selectOption(option)}
+              onClick={() => !option.disabled && selectOption(option)}
             >
               <Check className={cn('size-4 shrink-0', option.value === value ? 'opacity-100' : 'opacity-0')} />
               <span className="truncate">{option.label}</span>
