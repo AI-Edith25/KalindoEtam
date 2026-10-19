@@ -37,7 +37,7 @@ export const fetchSuppliersLookup = () => fetchLookupList<Supplier>('/suppliers'
 export const searchSuppliersLookup = (search: string) => fetchLookupList<Supplier>('/suppliers', { per_page: '30', search })
 export const fetchWarehousesLookup = () => fetchLookupList<Warehouse>('/warehouses', { per_page: '200' })
 export const fetchCustomersLookup = () => fetchLookupList<Customer>('/customers')
-/** Payment Voucher's "Terhadap Customer (PK/PL)" payee picker — only customers whose receivable_category isn't the normal trade one (112.01 Piutang Usaha). */
+/** Payment Voucher's "Kasbon / Pinjaman (Piutang)" payee picker — only customers whose receivable_category isn't the normal trade one (112.01 Piutang Usaha). */
 export const fetchAdvanceCustomersLookup = () => fetchLookupList<Customer>('/customers', { per_page: '200', receivable_category: 'PK,PL' })
 export const searchCustomersLookup = (search: string) => fetchLookupList<Customer>('/customers', { per_page: '30', search })
 export const fetchChartOfAccountsLookup = () => fetchLookupList<ChartOfAccount>('/chart-of-accounts', { per_page: '300' })

@@ -385,7 +385,7 @@ export function OutgoingPaymentEditorPage() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="supplier">Against Supplier (Purchase)</SelectItem>
-                        <SelectItem value="customer_advance">Terhadap Customer (PK/PL)</SelectItem>
+                        <SelectItem value="customer_advance">Kasbon / Pinjaman (Piutang)</SelectItem>
                         <SelectItem value="general_expense">General Expense / Office Cash</SelectItem>
                         <SelectItem value="mixed">Mixed / Multiple Purposes</SelectItem>
                       </SelectContent>
@@ -426,7 +426,7 @@ export function OutgoingPaymentEditorPage() {
                   name="customer_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Customer (PK/PL)</FormLabel>
+                      <FormLabel>Penerima Kasbon/Pinjaman</FormLabel>
                       <SearchableSelect
                         options={advanceCustomerOptions}
                         value={field.value}
