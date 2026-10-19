@@ -17,6 +17,7 @@ class ChartOfAccountResource extends JsonResource
             'is_active' => $this->is_active,
             'is_cash_bank' => $this->is_cash_bank,
             'cash_bank_category' => $this->cash_bank_category,
+            'subledger_type' => $this->subledger_type,
             'parent_id' => $this->parent_id,
             'parent' => $this->whenLoaded('parent', fn () => $this->parent ? [
                 'id' => $this->parent->id,

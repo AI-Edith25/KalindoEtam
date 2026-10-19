@@ -55,6 +55,10 @@ export function JournalEntryEditorPage() {
       description: entry.description ?? '',
       lines: entry.lines.map((line) => ({
         chart_of_account_id: line.chart_of_account_id,
+        // Backfilled once the accounts lookup loads — see JournalEntryLineItemTable's sync effect.
+        required_subledger: null,
+        customer_id: line.customer_id ?? '',
+        supplier_id: line.supplier_id ?? '',
         debit: Number(line.debit) > 0 ? String(line.debit) : '',
         credit: Number(line.credit) > 0 ? String(line.credit) : '',
         description: line.description ?? '',
@@ -68,6 +72,8 @@ export function JournalEntryEditorPage() {
     description: values.description || null,
     lines: values.lines.map((line) => ({
       chart_of_account_id: line.chart_of_account_id,
+      customer_id: line.customer_id || null,
+      supplier_id: line.supplier_id || null,
       debit: Number(line.debit || 0),
       credit: Number(line.credit || 0),
       description: line.description || null,
@@ -166,7 +172,7 @@ export function JournalEntryEditorPage() {
               <CardTitle>Lines</CardTitle>
             </CardHeader>
             <CardContent>
-              <JournalEntryLineItemTable form={form} />
+              <JournalEntryLineItemTable form={form} entry={entryQuery.data} />
               {form.formState.errors.lines?.root && (
                 <p className="mt-2 text-sm text-destructive">{form.formState.errors.lines.root.message}</p>
               )}

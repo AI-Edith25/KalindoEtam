@@ -137,8 +137,8 @@ class CashFlowTest extends TestCase
             'posting_date' => $postingDate ?? now()->toDateString(),
             'description' => 'Manual posting',
             'lines' => [
-                ['chart_of_account_id' => $debitAccount->id, 'debit' => $amount, 'credit' => 0],
-                ['chart_of_account_id' => $creditAccount->id, 'debit' => 0, 'credit' => $amount],
+                ['chart_of_account_id' => $debitAccount->id, 'debit' => $amount, 'credit' => 0, 'customer_id' => $debitAccount->is($this->arAccount) ? $this->customer->id : null],
+                ['chart_of_account_id' => $creditAccount->id, 'debit' => 0, 'credit' => $amount, 'customer_id' => $creditAccount->is($this->arAccount) ? $this->customer->id : null],
             ],
         ]);
 

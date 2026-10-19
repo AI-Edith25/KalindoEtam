@@ -8,6 +8,10 @@ export interface JournalEntryLine {
   chart_of_account: { id: string; code: string; name: string } | null
   branch_id: string | null
   branch: { id: string; name: string } | null
+  customer_id: string | null
+  customer: { id: string; name: string } | null
+  supplier_id: string | null
+  supplier: { id: string; name: string } | null
   debit: string | number
   credit: string | number
   description: string | null
@@ -43,7 +47,14 @@ export interface JournalEntry {
 export interface JournalEntryFormValues {
   posting_date: string
   description: string | null
-  lines: { chart_of_account_id: string; debit: number; credit: number; description: string | null }[]
+  lines: {
+    chart_of_account_id: string
+    customer_id: string | null
+    supplier_id: string | null
+    debit: number
+    credit: number
+    description: string | null
+  }[]
 }
 
 export interface JournalEntryFilterValues {

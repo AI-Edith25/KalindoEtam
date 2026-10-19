@@ -132,7 +132,7 @@ class GeneralLedgerTest extends TestCase
             'posting_date' => $postingDate,
             'description' => 'Manual entry',
             'lines' => [
-                ['chart_of_account_id' => $this->arAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['chart_of_account_id' => $this->arAccount->id, 'debit' => $amount, 'credit' => 0, 'customer_id' => $this->customer->id],
                 ['chart_of_account_id' => $this->revenueAccount->id, 'debit' => 0, 'credit' => $amount],
             ],
         ]);
@@ -206,7 +206,7 @@ class GeneralLedgerTest extends TestCase
             'posting_date' => now()->toDateString(),
             'description' => 'Unposted draft',
             'lines' => [
-                ['chart_of_account_id' => $this->arAccount->id, 'debit' => 999999, 'credit' => 0],
+                ['chart_of_account_id' => $this->arAccount->id, 'debit' => 999999, 'credit' => 0, 'customer_id' => $this->customer->id],
                 ['chart_of_account_id' => $this->revenueAccount->id, 'debit' => 0, 'credit' => 999999],
             ],
         ]);

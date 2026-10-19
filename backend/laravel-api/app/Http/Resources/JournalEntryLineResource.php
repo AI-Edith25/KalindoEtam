@@ -22,6 +22,16 @@ class JournalEntryLineResource extends JsonResource
                 'id' => $this->branch->id,
                 'name' => $this->branch->name,
             ] : null),
+            'customer_id' => $this->customer_id,
+            'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
+                'id' => $this->customer->id,
+                'name' => $this->customer->customer_name,
+            ] : null),
+            'supplier_id' => $this->supplier_id,
+            'supplier' => $this->whenLoaded('supplier', fn () => $this->supplier ? [
+                'id' => $this->supplier->id,
+                'name' => $this->supplier->supplier_name,
+            ] : null),
             'debit' => $this->debit,
             'credit' => $this->credit,
             'description' => $this->description,

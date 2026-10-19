@@ -21,6 +21,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { exportJournalEntries, fetchJournalEntries, postJournalEntry } from '../api/journalEntryApi'
 import { JournalEntryFiltersBar } from '../components/JournalEntryFiltersBar'
 import { emptyJournalEntryFilters } from '../lib/journalEntryFilters'
+import { subledgerNames } from '../lib/journalEntrySubledgerNames'
 import type { JournalEntry, JournalEntryFilterValues } from '../types'
 
 /** Journal Search + Journal Filters (the ticket's terms) are this page's search box + filter bar, not separate routes — matching every other module's convention. */
@@ -135,6 +136,7 @@ export function JournalEntryListPage() {
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status === 'submitted' ? 'posted' : row.status} /> },
     { header: 'Total Debit', accessor: (row) => formatCurrency(row.total_debit), className: 'text-right' },
     { header: 'Total Credit', accessor: (row) => formatCurrency(row.total_credit), className: 'text-right' },
+    { header: 'Customer / Vendor', accessor: subledgerNames },
     { header: 'Created By', accessor: (row) => row.created_by_name ?? '—' },
     {
       header: '',

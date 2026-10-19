@@ -225,6 +225,85 @@ class AccountingEngineTest extends TestCase
         $this->assertDatabaseCount('journal_entries', 0);
     }
 
+    public function test_a_journal_line_against_the_ar_control_account_without_a_customer_sub_ledger_is_rejected(): void
+    {
+        $this->expectException(BusinessException::class);
+
+        $this->journalEntryService->create([
+            'posting_date' => now()->toDateString(),
+            'description' => 'Diskon belakangan',
+            'lines' => [
+                ['chart_of_account_id' => $this->accountId('4900'), 'debit' => 100],
+                ['chart_of_account_id' => $this->accountId('112.01'), 'credit' => 100],
+            ],
+        ]);
+
+        $this->assertDatabaseCount('journal_entries', 0);
+    }
+
+    public function test_a_journal_line_against_the_ar_control_account_with_a_customer_sub_ledger_is_saved(): void
+    {
+        $journalEntry = $this->journalEntryService->create([
+            'posting_date' => now()->toDateString(),
+            'description' => 'Diskon belakangan',
+            'lines' => [
+                ['chart_of_account_id' => $this->accountId('4900'), 'debit' => 100],
+                ['chart_of_account_id' => $this->accountId('112.01'), 'credit' => 100, 'customer_id' => $this->customer->id],
+            ],
+        ]);
+
+        $line = $journalEntry->lines->firstWhere('chart_of_account_id', $this->accountId('112.01'));
+        $this->assertSame($this->customer->id, $line->customer_id);
+    }
+
+    public function test_a_customer_id_sent_for_a_non_control_account_is_ignored(): void
+    {
+        $journalEntry = $this->journalEntryService->create([
+            'posting_date' => now()->toDateString(),
+            'description' => 'Manual entry',
+            'lines' => [
+                ['chart_of_account_id' => $this->accountId('1100'), 'debit' => 100, 'customer_id' => $this->customer->id],
+                ['chart_of_account_id' => $this->accountId('112.01'), 'credit' => 100, 'customer_id' => $this->customer->id],
+            ],
+        ]);
+
+        $line = $journalEntry->lines->firstWhere('chart_of_account_id', $this->accountId('1100'));
+        $this->assertNull($line->customer_id);
+    }
+
+    public function test_a_journal_line_against_the_ap_control_account_requires_a_supplier_sub_ledger(): void
+    {
+        $this->expectException(BusinessException::class);
+
+        $this->journalEntryService->create([
+            'posting_date' => now()->toDateString(),
+            'description' => 'Manual AP adjustment',
+            'lines' => [
+                ['chart_of_account_id' => $this->accountId('210.01'), 'debit' => 100],
+                ['chart_of_account_id' => $this->accountId('1100'), 'credit' => 100],
+            ],
+        ]);
+    }
+
+    public function test_reversing_a_journal_entry_carries_the_sub_ledger_link(): void
+    {
+        $journalEntry = $this->journalEntryService->create([
+            'posting_date' => now()->toDateString(),
+            'description' => 'Diskon belakangan',
+            'lines' => [
+                ['chart_of_account_id' => $this->accountId('4900'), 'debit' => 100],
+                ['chart_of_account_id' => $this->accountId('112.01'), 'credit' => 100, 'customer_id' => $this->customer->id],
+            ],
+        ]);
+        $this->approveDocument($journalEntry);
+        $journalEntry = $this->journalEntryService->post($journalEntry);
+
+        $reversal = $this->journalEntryService->reverse($journalEntry);
+
+        $line = $reversal->lines->firstWhere('chart_of_account_id', $this->accountId('112.01'));
+        $this->assertSame($this->customer->id, $line->customer_id);
+    }
+
     public function test_reversing_a_posted_journal_entry_creates_a_swapped_posted_entry(): void
     {
         $journalEntry = $this->journalEntryService->create([

@@ -338,6 +338,9 @@ final class TrialBalanceImportService
                 'reference_type' => $batch->getMorphClass(),
                 'reference_id' => $batch->id,
                 'source_document_number' => $reference,
+                // Opening-balance import, aggregated per account — no per-customer/supplier
+                // breakdown exists in this data at all. Same exemption SalesPurchaseJournalImportService uses.
+                'skip_subledger_check' => true,
                 'lines' => $lines,
             ]);
             $this->journalEntryService->post($entry);

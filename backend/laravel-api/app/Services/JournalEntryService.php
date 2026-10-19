@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Enums\DocumentStatus;
+use App\Enums\SubledgerType;
 use App\Exceptions\BusinessException;
+use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
 use App\Repositories\JournalEntryLineRepository;
 use App\Repositories\JournalEntryRepository;
@@ -22,7 +24,7 @@ use Illuminate\Support\Facades\DB;
  */
 class JournalEntryService
 {
-    protected const EAGER = ['lines.chartOfAccount', 'lines.branch', 'referenceDocument', 'reverses', 'reversedBy', 'creator'];
+    protected const EAGER = ['lines.chartOfAccount', 'lines.branch', 'lines.customer', 'lines.supplier', 'referenceDocument', 'reverses', 'reversedBy', 'creator'];
 
     public function __construct(
         protected JournalEntryRepository $journalEntryRepository,
@@ -50,6 +52,7 @@ class JournalEntryService
             $lines = $data['lines'];
             $this->assertHasEnoughLines($lines);
             $this->assertEachLineIsSingleSided($lines);
+            $lines = $this->assertSubledgerRequirement($lines, (bool) ($data['skip_subledger_check'] ?? false));
             [$totalDebit, $totalCredit] = $this->sumLines($lines);
             $this->assertBalanced($totalDebit, $totalCredit);
 
@@ -91,6 +94,7 @@ class JournalEntryService
                 $lines = $data['lines'];
                 $this->assertHasEnoughLines($lines);
                 $this->assertEachLineIsSingleSided($lines);
+                $lines = $this->assertSubledgerRequirement($lines, (bool) ($data['skip_subledger_check'] ?? false));
                 [$totalDebit, $totalCredit] = $this->sumLines($lines);
                 $this->assertBalanced($totalDebit, $totalCredit);
 
@@ -165,6 +169,8 @@ class JournalEntryService
                 'lines' => $journalEntry->lines->map(fn ($line) => [
                     'chart_of_account_id' => $line->chart_of_account_id,
                     'branch_id' => $line->branch_id,
+                    'customer_id' => $line->customer_id,
+                    'supplier_id' => $line->supplier_id,
                     'debit' => (float) $line->credit,
                     'credit' => (float) $line->debit,
                     'description' => $line->description,
@@ -188,11 +194,63 @@ class JournalEntryService
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $line['chart_of_account_id'],
                 'branch_id' => $line['branch_id'] ?? null,
+                'customer_id' => $line['customer_id'] ?? null,
+                'supplier_id' => $line['supplier_id'] ?? null,
                 'debit' => $line['debit'] ?? 0,
                 'credit' => $line['credit'] ?? 0,
                 'description' => $line['description'] ?? null,
             ]);
         }
+    }
+
+    /**
+     * A control account (ChartOfAccount::subledger_type set) must carry the
+     * matching Sub Ledger link on every line posted to it — mirrors SkyBiz's
+     * own AR/AP behavior. Also strips customer_id/supplier_id off any line
+     * whose account doesn't require that type, so a value sent for a
+     * non-control account is silently ignored rather than persisted.
+     * Batch-loaded to avoid an N+1 across lines.
+     *
+     * $skip is for the legacy ledger/journal importers only (see e.g.
+     * SalesPurchaseJournalImportService) — a service-only flag the public
+     * Store/UpdateJournalEntryRequest never accepts, same convention as
+     * reference_type/reference_id. Historical rows reconstruct an already-
+     * posted ledger with no per-customer/supplier breakdown in the source
+     * data at all, unlike a newly entered manual Journal Posting.
+     */
+    protected function assertSubledgerRequirement(array $lines, bool $skip = false): array
+    {
+        if ($skip) {
+            return $lines;
+        }
+
+        $accounts = ChartOfAccount::query()
+            ->whereIn('id', array_column($lines, 'chart_of_account_id'))
+            ->get()
+            ->keyBy('id');
+
+        foreach ($lines as &$line) {
+            $account = $accounts->get($line['chart_of_account_id']);
+            $requiredType = $account?->subledger_type;
+
+            if ($requiredType !== SubledgerType::CUSTOMER) {
+                $line['customer_id'] = null;
+            }
+
+            if ($requiredType !== SubledgerType::VENDOR) {
+                $line['supplier_id'] = null;
+            }
+
+            if ($requiredType === SubledgerType::CUSTOMER && ! ($line['customer_id'] ?? null)) {
+                throw new BusinessException("A Customer Sub Ledger is required for a line posted to \"{$account->name}\".");
+            }
+
+            if ($requiredType === SubledgerType::VENDOR && ! ($line['supplier_id'] ?? null)) {
+                throw new BusinessException("A Vendor Sub Ledger is required for a line posted to \"{$account->name}\".");
+            }
+        }
+
+        return $lines;
     }
 
     protected function assertHasEnoughLines(array $lines): void

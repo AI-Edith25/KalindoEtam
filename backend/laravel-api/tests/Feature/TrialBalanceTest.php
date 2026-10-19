@@ -118,7 +118,7 @@ class TrialBalanceTest extends TestCase
             'posting_date' => $postingDate,
             'description' => 'Manual entry',
             'lines' => [
-                ['chart_of_account_id' => $this->arAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['chart_of_account_id' => $this->arAccount->id, 'debit' => $amount, 'credit' => 0, 'customer_id' => $this->customer->id],
                 ['chart_of_account_id' => $this->revenueAccount->id, 'debit' => 0, 'credit' => $amount],
             ],
         ]);
@@ -136,7 +136,7 @@ class TrialBalanceTest extends TestCase
             'description' => 'Overpayment',
             'lines' => [
                 ['chart_of_account_id' => $this->cashAccount->id, 'debit' => $amount, 'credit' => 0],
-                ['chart_of_account_id' => $this->arAccount->id, 'debit' => 0, 'credit' => $amount],
+                ['chart_of_account_id' => $this->arAccount->id, 'debit' => 0, 'credit' => $amount, 'customer_id' => $this->customer->id],
             ],
         ]);
 

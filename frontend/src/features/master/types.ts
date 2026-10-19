@@ -10,6 +10,8 @@ export interface ChartOfAccount {
   is_active: boolean
   is_cash_bank: boolean
   cash_bank_category: CashBankCategory | null
+  /** Control account (AR/AP) — when set, every journal line posted to this account needs a matching Sub Ledger. */
+  subledger_type: 'customer' | 'vendor' | null
   parent_id: string | null
   parent: { id: string; code: string; name: string } | null
   /** Two levels only — a non-zero count means this account cannot itself become a child (see UpdateChartOfAccountRequest). */

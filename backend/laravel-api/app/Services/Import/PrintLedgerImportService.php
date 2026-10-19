@@ -187,6 +187,9 @@ final class PrintLedgerImportService
                 'description' => "Print Ledger Opening Balance import ({$batch->original_filename})",
                 'reference_type' => $batch->getMorphClass(),
                 'reference_id' => $batch->id,
+                // Opening-balance import, aggregated per account — no per-customer/supplier
+                // breakdown exists in this data at all. Same exemption SalesPurchaseJournalImportService uses.
+                'skip_subledger_check' => true,
                 'lines' => $lines,
             ]);
             $this->journalEntryService->post($journalEntry);

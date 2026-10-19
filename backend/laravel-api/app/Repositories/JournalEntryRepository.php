@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class JournalEntryRepository extends BaseRepository
 {
-    protected const EAGER = ['lines.chartOfAccount', 'lines.branch', 'referenceDocument', 'reverses', 'reversedBy', 'creator'];
+    protected const EAGER = ['lines.chartOfAccount', 'lines.branch', 'lines.customer', 'lines.supplier', 'referenceDocument', 'reverses', 'reversedBy', 'creator'];
 
     public function __construct(JournalEntry $model)
     {

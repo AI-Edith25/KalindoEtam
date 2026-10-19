@@ -59,7 +59,7 @@ class JournalEntryController extends Controller
     public function show(JournalEntry $journalEntry): JsonResponse
     {
         return $this->success(new JournalEntryResource($journalEntry->load([
-            'lines.chartOfAccount', 'lines.branch', 'referenceDocument', 'reverses', 'reversedBy', 'creator', 'approvalFlows.approver',
+            'lines.chartOfAccount', 'lines.branch', 'lines.customer', 'lines.supplier', 'referenceDocument', 'reverses', 'reversedBy', 'creator', 'approvalFlows.approver',
         ])));
     }
 

@@ -24,6 +24,8 @@ class StoreJournalEntryRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'lines' => ['required', 'array', 'min:2'],
             'lines.*.chart_of_account_id' => ['required', 'uuid', 'exists:chart_of_accounts,id'],
+            'lines.*.customer_id' => ['nullable', 'uuid', 'exists:customers,id'],
+            'lines.*.supplier_id' => ['nullable', 'uuid', 'exists:suppliers,id'],
             'lines.*.debit' => ['nullable', 'numeric', 'min:0'],
             'lines.*.credit' => ['nullable', 'numeric', 'min:0'],
             'lines.*.description' => ['nullable', 'string'],

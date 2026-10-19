@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AccountType;
 use App\Enums\CashBankCategory;
+use App\Enums\SubledgerType;
 use App\Models\Concerns\HasAuditTrail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +24,7 @@ class ChartOfAccount extends Model
         'is_cash_bank',
         'cash_bank_category',
         'parent_id',
+        'subledger_type',
     ];
 
     protected $casts = [
@@ -30,6 +32,7 @@ class ChartOfAccount extends Model
         'is_active' => 'boolean',
         'is_cash_bank' => 'boolean',
         'cash_bank_category' => CashBankCategory::class,
+        'subledger_type' => SubledgerType::class,
     ];
 
     /**

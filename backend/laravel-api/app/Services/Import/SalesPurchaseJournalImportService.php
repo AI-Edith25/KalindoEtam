@@ -478,6 +478,11 @@ final class SalesPurchaseJournalImportService
                     'reference_type' => $batch->getMorphClass(),
                     'reference_id' => $batch->id,
                     'source_document_number' => $documentNumber,
+                    // Legacy journal-line rows carry no customer/supplier at all — exempt from
+                    // JournalEntryService's Sub Ledger requirement, same as reference_type/
+                    // reference_id above is a service-only field the public Form Request never
+                    // accepts. A historical reconstruction, not a new structured transaction.
+                    'skip_subledger_check' => true,
                     'lines' => $lines,
                 ]);
                 $this->journalEntryService->post($entry);

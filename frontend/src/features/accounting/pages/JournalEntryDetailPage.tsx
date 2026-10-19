@@ -23,6 +23,7 @@ const APPROVABLE_TYPE = 'App\\Models\\JournalEntry'
 
 const lineColumns: DataTableColumn<JournalEntryLine>[] = [
   { header: 'Account', accessor: (row) => (row.chart_of_account ? `${row.chart_of_account.code} — ${row.chart_of_account.name}` : '—') },
+  { header: 'Sub Ledger', accessor: (row) => row.customer?.name || row.supplier?.name || '—' },
   { header: 'Description', accessor: (row) => row.description || '—' },
   { header: 'Debit', accessor: (row) => (Number(row.debit) > 0 ? formatCurrency(row.debit) : '—'), className: 'text-right' },
   { header: 'Credit', accessor: (row) => (Number(row.credit) > 0 ? formatCurrency(row.credit) : '—'), className: 'text-right' },

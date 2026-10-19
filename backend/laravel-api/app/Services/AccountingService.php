@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SubledgerType;
 use App\Exceptions\BusinessException;
 use App\Models\JournalEntry;
 use App\Repositories\ChartOfAccountRepository;
@@ -37,7 +38,7 @@ class AccountingService
             'description' => $description,
             'reference_type' => $referenceDocument->getMorphClass(),
             'reference_id' => $referenceDocument->getKey(),
-            'lines' => $this->resolveLines($lines, $description),
+            'lines' => $this->resolveLines($lines, $referenceDocument, $description),
         ]);
 
         return $this->journalEntryService->post($journalEntry);
@@ -102,9 +103,9 @@ class AccountingService
     ];
 
     /** Maps journalLines()' {account: code, type: debit|credit, amount} shape onto {chart_of_account_id, debit, credit}. */
-    protected function resolveLines(array $lines, ?string $defaultDescription = null): array
+    protected function resolveLines(array $lines, Model $referenceDocument, ?string $defaultDescription = null): array
     {
-        return array_map(function (array $line) use ($defaultDescription) {
+        return array_map(function (array $line) use ($referenceDocument, $defaultDescription) {
             $account = $this->chartOfAccountRepository->findActiveByCode($line['account']);
 
             if ($account === null) {
@@ -119,10 +120,47 @@ class AccountingService
 
             return [
                 'chart_of_account_id' => $account->id,
+                'customer_id' => $account->subledger_type === SubledgerType::CUSTOMER ? $this->resolveSubledgerId($referenceDocument, SubledgerType::CUSTOMER) : null,
+                'supplier_id' => $account->subledger_type === SubledgerType::VENDOR ? $this->resolveSubledgerId($referenceDocument, SubledgerType::VENDOR) : null,
                 'debit' => $line['type'] === 'debit' ? $line['amount'] : 0,
                 'credit' => $line['type'] === 'credit' ? $line['amount'] : 0,
                 'description' => $line['description'] ?? $defaultDescription,
             ];
         }, $lines);
+    }
+
+    /**
+     * Every business document that can post to the AR/AP control account
+     * carries its customer/supplier either directly (Invoice, PurchaseInvoice,
+     * CreditNote, DebitNote, PurchaseReturn, ReceiptEntry, PaymentEntry) or
+     * one hop away through its own accountsReceivable()/accountsPayable()
+     * relation (PaymentAllocation, PaymentEntryAllocation) — duck-typed the
+     * same way counterpartyName() already resolves a display name, so every
+     * postForDocument() caller gets the Sub Ledger link automatically with
+     * no per-document opt-in.
+     */
+    protected function resolveSubledgerId(Model $referenceDocument, SubledgerType $type): ?string
+    {
+        if ($type === SubledgerType::CUSTOMER) {
+            if (method_exists($referenceDocument, 'customer')) {
+                return $referenceDocument->customer_id ?? $referenceDocument->customer?->id;
+            }
+
+            if (method_exists($referenceDocument, 'accountsReceivable')) {
+                return $referenceDocument->accountsReceivable?->customer_id;
+            }
+
+            return null;
+        }
+
+        if (method_exists($referenceDocument, 'supplier')) {
+            return $referenceDocument->supplier_id ?? $referenceDocument->supplier?->id;
+        }
+
+        if (method_exists($referenceDocument, 'accountsPayable')) {
+            return $referenceDocument->accountsPayable?->supplier_id;
+        }
+
+        return null;
     }
 }

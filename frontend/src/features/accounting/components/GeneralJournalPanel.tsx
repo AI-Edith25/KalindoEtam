@@ -12,6 +12,7 @@ import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { exportJournalEntries, fetchJournalEntries } from '../api/journalEntryApi'
 import { JournalEntryFiltersBar } from './JournalEntryFiltersBar'
+import { subledgerNames } from '../lib/journalEntrySubledgerNames'
 import type { JournalEntry, JournalEntryFilterValues } from '../types'
 
 interface GeneralJournalPanelProps {
@@ -69,6 +70,7 @@ export function GeneralJournalPanel({ search, onSearchChange, filters, onFilters
     { header: 'Status', accessor: (row) => <StatusBadge status={row.status === 'submitted' ? 'posted' : row.status} /> },
     { header: 'Total Debit', accessor: (row) => formatCurrency(row.total_debit), className: 'text-right' },
     { header: 'Total Credit', accessor: (row) => formatCurrency(row.total_credit), className: 'text-right' },
+    { header: 'Customer / Vendor', accessor: subledgerNames },
     { header: 'Created By', accessor: (row) => row.created_by_name ?? '—' },
   ]
 

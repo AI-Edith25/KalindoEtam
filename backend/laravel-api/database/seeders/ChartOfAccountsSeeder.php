@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\AccountType;
+use App\Enums\SubledgerType;
 use App\Models\ChartOfAccount;
 use Illuminate\Database\Seeder;
 
@@ -76,7 +77,7 @@ class ChartOfAccountsSeeder extends Seeder
         );
 
         $children = [
-            ['code' => '112.01', 'name' => 'Piutang Usaha'],
+            ['code' => '112.01', 'name' => 'Piutang Usaha', 'subledger_type' => SubledgerType::CUSTOMER],
             ['code' => '112.02', 'name' => 'Piutang Karyawan'],
             ['code' => '112.03', 'name' => 'Piutang Lain-lain'],
             ['code' => '112.04', 'name' => 'Cadangan Piutang'],
@@ -85,7 +86,7 @@ class ChartOfAccountsSeeder extends Seeder
         foreach ($children as $child) {
             ChartOfAccount::query()->firstOrCreate(
                 ['code' => $child['code']],
-                ['name' => $child['name'], 'account_type' => AccountType::ASSET, 'is_active' => true, 'parent_id' => $parent->id],
+                ['name' => $child['name'], 'account_type' => AccountType::ASSET, 'is_active' => true, 'parent_id' => $parent->id, 'subledger_type' => $child['subledger_type'] ?? null],
             );
         }
     }
@@ -114,7 +115,7 @@ class ChartOfAccountsSeeder extends Seeder
         );
 
         $children = [
-            ['code' => '210.01', 'name' => 'Hutang Supplier'],
+            ['code' => '210.01', 'name' => 'Hutang Supplier', 'subledger_type' => SubledgerType::VENDOR],
             ['code' => '210.02', 'name' => 'Hutang Leasing'],
             ['code' => '210.03', 'name' => 'Hutang Lain-lain'],
             ['code' => '210.04', 'name' => 'Hutang BBM'],
@@ -124,7 +125,7 @@ class ChartOfAccountsSeeder extends Seeder
         foreach ($children as $child) {
             ChartOfAccount::query()->firstOrCreate(
                 ['code' => $child['code']],
-                ['name' => $child['name'], 'account_type' => AccountType::LIABILITY, 'is_active' => true, 'parent_id' => $parent->id],
+                ['name' => $child['name'], 'account_type' => AccountType::LIABILITY, 'is_active' => true, 'parent_id' => $parent->id, 'subledger_type' => $child['subledger_type'] ?? null],
             );
         }
     }
