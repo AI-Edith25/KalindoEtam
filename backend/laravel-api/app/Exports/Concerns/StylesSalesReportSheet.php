@@ -87,6 +87,14 @@ trait StylesSalesReportSheet
                 for ($i = 1; $i <= Coordinate::columnIndexFromString($lastColumn); $i++) {
                     $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
                 }
+
+                // Keeps the column-header row visible while scrolling through a long body — unused
+                // by every other consumer of this trait (Sales/PO reports never set this key), so
+                // it's a no-op for them. Ignored by the CSV writer (no concept of frozen panes).
+                $freezeRow = $this->meta['freezeRow'] ?? null;
+                if ($freezeRow !== null) {
+                    $sheet->freezePane("A{$freezeRow}");
+                }
             },
         ];
     }

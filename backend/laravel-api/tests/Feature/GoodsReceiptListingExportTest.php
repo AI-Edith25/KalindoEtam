@@ -186,6 +186,61 @@ class GoodsReceiptListingExportTest extends TestCase
         $listing->assertOk();
     }
 
+    /** Reports > Goods Receipt Report export — flat one-row-per-item layout, with a metadata block above the column headers. */
+    public function test_plain_export_flattens_items_and_carries_the_metadata_block(): void
+    {
+        $tax = $this->makeTax();
+        $itemGroup = ItemGroup::query()->first();
+        $uom = UnitOfMeasurement::query()->first();
+        $secondItem = Item::query()->create([
+            'item_code' => 'CEM-2', 'item_name' => 'Semen Sak', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 50000,
+        ]);
+
+        $this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [
+                ['item_id' => $this->item->id, 'qty' => 4, 'rate' => 100000, 'tax_id' => $tax->id],
+                ['item_id' => $secondItem->id, 'qty' => 2, 'rate' => 50000, 'tax_id' => $tax->id],
+            ],
+        ]);
+
+        Permission::query()->firstOrCreate(['name' => 'purchase.goods_receipts.view', 'guard_name' => 'web']);
+        $viewer = User::factory()->create();
+        $viewer->givePermissionTo('purchase.goods_receipts.view');
+        Sanctum::actingAs($viewer);
+
+        $response = $this->get('/api/v1/goods-receipts/export?format=xlsx&warehouse_id=' . $this->warehouse->id);
+        $response->assertOk();
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'gr-plain') . '.xlsx';
+        file_put_contents($tmpPath, $response->streamedContent());
+        $sheet = IOFactory::load($tmpPath)->getActiveSheet();
+
+        $this->assertStringStartsWith('Data ditarik pada:', $sheet->getCell('A1')->getValue());
+        $this->assertStringStartsWith('Periode:', $sheet->getCell('A2')->getValue());
+        $this->assertStringContainsString('Lokasi: Main WH', $sheet->getCell('A2')->getValue());
+
+        $this->assertEquals('Date', $sheet->getCell('A4')->getValue());
+        $this->assertEquals('Item Code', $sheet->getCell('H4')->getValue());
+        $this->assertTrue($sheet->getStyle('A4')->getFont()->getBold());
+
+        // One GR, two items — flattened into two rows, document columns repeated on both.
+        $this->assertEquals('CEM-1', $sheet->getCell('H5')->getValue());
+        $this->assertEquals('CEM-2', $sheet->getCell('H6')->getValue());
+        $this->assertEquals($sheet->getCell('B5')->getValue(), $sheet->getCell('B6')->getValue());
+        $this->assertEquals(400000.0, $sheet->getCell('M5')->getValue());
+        $this->assertEquals(100000.0, $sheet->getCell('M6')->getValue());
+        $this->assertEquals('#,##0.00', $sheet->getStyle('M5')->getNumberFormat()->getFormatCode());
+
+        $this->assertEquals('A5', $sheet->getFreezePane());
+
+        unlink($tmpPath);
+    }
+
     public function test_export_route_downloads_a_real_xlsx_matching_the_reference_template_layout(): void
     {
         $tax = $this->makeTax();

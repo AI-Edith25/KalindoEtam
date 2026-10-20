@@ -84,7 +84,7 @@ class GoodsReceiptController extends Controller
 
         $rows = $this->goodsReceiptService->listAll($filters);
 
-        return Excel::download(new GoodsReceiptExport($rows), "goods-receipts.{$format}");
+        return Excel::download(new GoodsReceiptExport($rows, $filters), "goods-receipts.{$format}");
     }
 
     /**
