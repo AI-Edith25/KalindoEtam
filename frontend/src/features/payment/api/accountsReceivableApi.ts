@@ -43,7 +43,11 @@ export async function exportAccountsReceivables(
   params: Omit<AccountsReceivableListParams, 'page' | 'per_page'>,
   type: 'detail' | 'summary',
   format: 'xlsx' | 'csv',
+  groupBy?: 'customer' | 'sales_person',
 ): Promise<Blob> {
-  const { data } = await apiClient.get('/accounts-receivables/export', { params: { ...params, type, format }, responseType: 'blob' })
+  const { data } = await apiClient.get('/accounts-receivables/export', {
+    params: { ...params, type, format, ...(groupBy ? { group_by: groupBy } : {}) },
+    responseType: 'blob',
+  })
   return data as Blob
 }

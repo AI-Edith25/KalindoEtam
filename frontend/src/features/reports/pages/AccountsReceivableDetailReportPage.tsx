@@ -558,13 +558,14 @@ export function AccountsReceivableDetailReportPage() {
     : undefined
 
   const [isExporting, setIsExporting] = useState(false)
-  const exportReport = async (type: 'detail' | 'summary', format: 'xlsx' | 'csv') => {
+  const exportReport = async (type: 'detail' | 'summary', format: 'xlsx' | 'csv', groupBy?: 'customer' | 'sales_person') => {
     setIsExporting(true)
     try {
       const blob = await exportAccountsReceivables(
         selectedInvoiceIds.size > 0 ? { invoice_ids: [...selectedInvoiceIds] } : activeFilterParams,
         type,
         format,
+        groupBy,
       )
       downloadBlob(`Customer${type === 'detail' ? 'Detail' : 'Summary'}Aging.${format}`, blob)
     } catch (error) {
@@ -778,7 +779,8 @@ export function AccountsReceivableDetailReportPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => exportReport('detail', 'csv')}>Detail</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('detail', 'csv', 'customer')}>Detail — By Customer</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('detail', 'csv', 'sales_person')}>Detail — By Sales Person, Customer</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => exportReport('summary', 'csv')}>Summary</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -790,7 +792,8 @@ export function AccountsReceivableDetailReportPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => exportReport('detail', 'xlsx')}>Detail</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('detail', 'xlsx', 'customer')}>Detail — By Customer</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('detail', 'xlsx', 'sales_person')}>Detail — By Sales Person, Customer</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => exportReport('summary', 'xlsx')}>Summary</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

@@ -50,7 +50,8 @@ class AccountsReceivableAgingReportService
         return $this->accountsReceivableRepository->searchAll($filters);
     }
 
-    public function detailReport(Collection $rows, string $format): array
+    /** @param 'customer'|'sales_person' $groupBy */
+    public function detailReport(Collection $rows, string $format, string $groupBy = 'customer'): array
     {
         $asAt = now();
         $shaped = $rows->map(fn (AccountsReceivable $row) => $this->shapeRow($row, $asAt));
@@ -60,7 +61,8 @@ class AccountsReceivableAgingReportService
         $mergeRanges = [];
         $numberFormats = [];
 
-        $this->appendTitleBlock($out, 'Customers Detail Aging - By Customer', $asAt);
+        $title = $groupBy === 'sales_person' ? 'Customers Detail Aging - By Sales Person, Customer' : 'Customers Detail Aging - By Customer';
+        $this->appendTitleBlock($out, $title, $asAt);
 
         $headerRowNum = count($out) + 1;
         $out[] = ['Document No.', 'Date', ...self::BUCKET_LABELS, 'Total Outstanding', 'Due Date', 'Overdue Days', 'Overdue Amount'];
@@ -68,71 +70,33 @@ class AccountsReceivableAgingReportService
         $styleRanges[] = ['range' => "J{$headerRowNum}:L{$headerRowNum}", 'fontName' => 'Arial', 'fontSize' => 9, 'bold' => true];
         $out[] = [''];
 
-        $groups = $shaped->groupBy('customer_id')->sortBy(fn ($group) => $group->first()['customer_code']);
-
         $bucketTotals = array_fill(0, 6, 0.0);
         $grandOverdueAmount = 0.0;
 
-        foreach ($groups as $customerRows) {
-            $first = $customerRows->first();
-            $salesPersonName = $first['sales_person_name'] ?? '';
+        $customerGroupsByCode = fn (Collection $customerRows) => $customerRows->groupBy('customer_id')->sortBy(fn ($group) => $group->first()['customer_code']);
 
-            $headerRow = count($out) + 1;
-            $out[] = [
-                "Customer : {$first['customer_code']} - {$first['customer_name']}, Sales Person : {$salesPersonName}",
-                '', '', '',
-                'Ctn: , '.$first['phone'].', Tel : , Fax : , Terms : '.$first['term_days'].' days, Credit Limit : '.number_format($first['credit_limit'], 2).', Currency Code : RP',
-            ];
-            $mergeRanges[] = "A{$headerRow}:D{$headerRow}";
-            $mergeRanges[] = "E{$headerRow}:L{$headerRow}";
-            $styleRanges[] = ['range' => "A{$headerRow}:D{$headerRow}", 'bold' => true, 'borderTop' => true, 'borderBottom' => true, 'borderLeft' => true];
-            $styleRanges[] = ['range' => "E{$headerRow}:L{$headerRow}", 'bold' => true, 'borderTop' => true, 'borderBottom' => true, 'borderRight' => true];
+        if ($groupBy === 'sales_person') {
+            // Blank last (sortBy puts '' before real names otherwise) — an unassigned customer is
+            // "Belum Ditentukan", never silently merged into whichever named group happens to sort
+            // next to it alphabetically.
+            $salesPersonGroups = $shaped->groupBy(fn ($r) => $r['sales_person_name'] ?? '')
+                ->sortBy(fn ($group, $name) => $name === '' ? "\u{FFFF}" : $name);
 
-            $subtotal = array_fill(0, 6, 0.0);
-            $subtotalOutstanding = 0.0;
-            $subtotalOverdue = 0.0;
+            foreach ($salesPersonGroups as $salesPersonName => $personRows) {
+                $code = $personRows->first()['sales_person_code'] ?? '';
+                $label = $salesPersonName === '' ? 'Belum Ditentukan' : $salesPersonName;
+                $groupHeaderRow = count($out) + 1;
+                $out[] = ["Sales Person : {$code} - [{$label}]"];
+                $styleRanges[] = ['range' => "A{$groupHeaderRow}", 'bold' => true];
 
-            foreach ($customerRows as $r) {
-                $bucketAmounts = array_fill(0, 6, 0.0);
-                $bucketAmounts[$r['bucket']] = $r['outstanding'];
-                foreach ($bucketAmounts as $i => $v) {
-                    $subtotal[$i] += $v;
-                    $bucketTotals[$i] += $v;
-                }
-                $subtotalOutstanding += $r['outstanding'];
-                $subtotalOverdue += $r['overdue_amount'];
-                $grandOverdueAmount += $r['overdue_amount'];
-
-                $rowNum = count($out) + 1;
-                $out[] = [
-                    $r['document_no'], $r['invoice_date']->format('d/m/Y'),
-                    ...$bucketAmounts,
-                    $r['outstanding'],
-                    $r['due_date']?->format('d/m/Y'),
-                    $r['overdue_days'] > 0 ? $r['overdue_days'] : '-',
-                    $r['overdue_amount'],
-                ];
-                $numberFormats[] = ['range' => "B{$rowNum}", 'format' => 'dd/mm/yyyy'];
-                if ($r['due_date']) {
-                    $numberFormats[] = ['range' => "J{$rowNum}", 'format' => 'dd/mm/yyyy'];
-                }
-                if ($format === 'xlsx') {
-                    $numberFormats[] = ['range' => "C{$rowNum}:I{$rowNum}", 'format' => '#,##0.00'];
-                    $numberFormats[] = ['range' => "L{$rowNum}", 'format' => '#,##0.00'];
+                foreach ($customerGroupsByCode($personRows) as $customerRows) {
+                    $this->appendCustomerBlock($out, $styleRanges, $mergeRanges, $numberFormats, $customerRows, $bucketTotals, $grandOverdueAmount, $format);
                 }
             }
-
-            $subtotalRow = count($out) + 1;
-            $out[] = ['', '', ...$subtotal, $subtotalOutstanding, '', '', $subtotalOverdue];
-            $styleRanges[] = ['range' => "C{$subtotalRow}", 'bold' => true, 'borderTop' => true, 'borderBottom' => true, 'borderLeft' => true];
-            $styleRanges[] = ['range' => "D{$subtotalRow}:I{$subtotalRow}", 'bold' => true, 'hAlign' => 'right', 'borderTop' => true, 'borderBottom' => true];
-            $styleRanges[] = ['range' => "L{$subtotalRow}", 'bold' => true, 'fontName' => 'Arial', 'fontSize' => 9, 'borderTop' => true, 'borderBottom' => true, 'borderRight' => true];
-            if ($format === 'xlsx') {
-                $numberFormats[] = ['range' => "C{$subtotalRow}:I{$subtotalRow}", 'format' => '#,##0.00'];
-                $numberFormats[] = ['range' => "L{$subtotalRow}", 'format' => '#,##0.00'];
+        } else {
+            foreach ($customerGroupsByCode($shaped) as $customerRows) {
+                $this->appendCustomerBlock($out, $styleRanges, $mergeRanges, $numberFormats, $customerRows, $bucketTotals, $grandOverdueAmount, $format);
             }
-
-            $out[] = [''];
         }
 
         $grandRow = count($out) + 1;
@@ -238,6 +202,70 @@ class AccountsReceivableAgingReportService
         ];
     }
 
+    /** One customer's header line + its invoice rows + its subtotal row + a trailing blank line — shared by both the By Customer and By Sales Person, Customer layouts. Mutates every array/accumulator argument in place. */
+    private function appendCustomerBlock(array &$out, array &$styleRanges, array &$mergeRanges, array &$numberFormats, Collection $customerRows, array &$bucketTotals, float &$grandOverdueAmount, string $format): void
+    {
+        $first = $customerRows->first();
+        $salesPersonName = $first['sales_person_name'] ?? '';
+
+        $headerRow = count($out) + 1;
+        $out[] = [
+            "Customer : {$first['customer_code']} - {$first['customer_name']}, Sales Person : {$salesPersonName}",
+            '', '', '',
+            'Ctn: , '.$first['phone'].', Tel : , Fax : , Terms : '.$first['term_days'].' days, Credit Limit : '.number_format($first['credit_limit'], 2).', Currency Code : RP',
+        ];
+        $mergeRanges[] = "A{$headerRow}:D{$headerRow}";
+        $mergeRanges[] = "E{$headerRow}:L{$headerRow}";
+        $styleRanges[] = ['range' => "A{$headerRow}:D{$headerRow}", 'bold' => true, 'borderTop' => true, 'borderBottom' => true, 'borderLeft' => true];
+        $styleRanges[] = ['range' => "E{$headerRow}:L{$headerRow}", 'bold' => true, 'borderTop' => true, 'borderBottom' => true, 'borderRight' => true];
+
+        $subtotal = array_fill(0, 6, 0.0);
+        $subtotalOutstanding = 0.0;
+        $subtotalOverdue = 0.0;
+
+        foreach ($customerRows as $r) {
+            $bucketAmounts = array_fill(0, 6, 0.0);
+            $bucketAmounts[$r['bucket']] = $r['outstanding'];
+            foreach ($bucketAmounts as $i => $v) {
+                $subtotal[$i] += $v;
+                $bucketTotals[$i] += $v;
+            }
+            $subtotalOutstanding += $r['outstanding'];
+            $subtotalOverdue += $r['overdue_amount'];
+            $grandOverdueAmount += $r['overdue_amount'];
+
+            $rowNum = count($out) + 1;
+            $out[] = [
+                $r['document_no'], $r['invoice_date']->format('d/m/Y'),
+                ...$bucketAmounts,
+                $r['outstanding'],
+                $r['due_date']?->format('d/m/Y'),
+                $r['overdue_days'] > 0 ? $r['overdue_days'] : '-',
+                $r['overdue_amount'],
+            ];
+            $numberFormats[] = ['range' => "B{$rowNum}", 'format' => 'dd/mm/yyyy'];
+            if ($r['due_date']) {
+                $numberFormats[] = ['range' => "J{$rowNum}", 'format' => 'dd/mm/yyyy'];
+            }
+            if ($format === 'xlsx') {
+                $numberFormats[] = ['range' => "C{$rowNum}:I{$rowNum}", 'format' => '#,##0.00'];
+                $numberFormats[] = ['range' => "L{$rowNum}", 'format' => '#,##0.00'];
+            }
+        }
+
+        $subtotalRow = count($out) + 1;
+        $out[] = ['', '', ...$subtotal, $subtotalOutstanding, '', '', $subtotalOverdue];
+        $styleRanges[] = ['range' => "C{$subtotalRow}", 'bold' => true, 'borderTop' => true, 'borderBottom' => true, 'borderLeft' => true];
+        $styleRanges[] = ['range' => "D{$subtotalRow}:I{$subtotalRow}", 'bold' => true, 'hAlign' => 'right', 'borderTop' => true, 'borderBottom' => true];
+        $styleRanges[] = ['range' => "L{$subtotalRow}", 'bold' => true, 'fontName' => 'Arial', 'fontSize' => 9, 'borderTop' => true, 'borderBottom' => true, 'borderRight' => true];
+        if ($format === 'xlsx') {
+            $numberFormats[] = ['range' => "C{$subtotalRow}:I{$subtotalRow}", 'format' => '#,##0.00'];
+            $numberFormats[] = ['range' => "L{$subtotalRow}", 'format' => '#,##0.00'];
+        }
+
+        $out[] = [''];
+    }
+
     private function appendTitleBlock(array &$out, string $title, Carbon $asAt): void
     {
         $company = $this->companyRepository->defaultOrById(null);
@@ -321,6 +349,7 @@ class AccountsReceivableAgingReportService
         $outstanding = round((float) $row->amount - (float) $row->paid_amount, 2);
         $invoiceDate = $row->invoice?->invoice_date ?? $asAt;
         $overdue = $this->accountsReceivableService->overdueFigures($row->due_date, $outstanding, $asAt);
+        $salesPerson = $row->salesOrder?->salesPerson ?? $row->invoice?->salesPerson ?? $row->customer?->salesPerson;
 
         return [
             'customer_id' => $row->customer_id,
@@ -333,9 +362,8 @@ class AccountsReceivableAgingReportService
             // assigned Sales Person (the only one a no-SO Transport invoice has), then the
             // customer's default assigned Sales Person — matches the legacy report, which never
             // leaves this blank unless the customer truly has no salesman assigned anywhere.
-            'sales_person_name' => $row->salesOrder?->salesPerson?->name
-                ?? $row->invoice?->salesPerson?->name
-                ?? $row->customer?->salesPerson?->name,
+            'sales_person_name' => $salesPerson?->name,
+            'sales_person_code' => $salesPerson?->code,
             'invoice_id' => $row->invoice_id,
             'document_no' => $row->invoice?->document_number,
             'invoice_date' => $invoiceDate,

@@ -156,9 +156,11 @@ class AccountsReceivableController extends Controller
         $validated = $request->validate([
             'format' => ['sometimes', Rule::in(['xlsx', 'csv'])],
             'type' => ['sometimes', Rule::in(['detail', 'summary'])],
+            'group_by' => ['sometimes', Rule::in(['customer', 'sales_person'])],
         ]);
         $format = $validated['format'] ?? 'xlsx';
         $type = $validated['type'] ?? 'detail';
+        $groupBy = $validated['group_by'] ?? 'customer';
         $filters = $request->validated();
         unset($filters['per_page']);
 
@@ -169,7 +171,7 @@ class AccountsReceivableController extends Controller
             $export = new AccountsReceivableAgingSummaryExport($built['rows'], $built['meta']);
             $filename = "CustomerSummaryAging.{$format}";
         } else {
-            $built = $this->accountsReceivableAgingReportService->detailReport($rows, $format);
+            $built = $this->accountsReceivableAgingReportService->detailReport($rows, $format, $groupBy);
             $export = new AccountsReceivableAgingDetailExport($built['rows'], $built['meta']);
             $filename = "CustomerDetailAging.{$format}";
         }

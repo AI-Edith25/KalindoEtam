@@ -165,6 +165,28 @@ class AccountsReceivableExportTest extends TestCase
         $this->assertTrue($sheet->getStyle('C20')->getFont()->getBold());
     }
 
+    /** group_by=sales_person nests Customer blocks under a "Sales Person : <code> - [<name>]" group header, one group per salesman, a customer with none under "Belum Ditentukan" last. */
+    public function test_detail_group_by_sales_person_nests_customers_under_a_sales_person_header(): void
+    {
+        $this->actingUserWithArDetailView();
+        $budi = SalesPerson::query()->create(['code' => 'SP1', 'name' => 'Budi']);
+        $other = Customer::query()->create(['customer_code' => 'C002', 'customer_name' => 'Beta']);
+
+        $this->makeReceivable($this->customer, 100000, 0, now(), now()->addDays(30), $budi); // C001, Budi
+        $this->makeReceivable($other, 50000, 0, now(), now()->addDays(30)); // C002, no Sales Person
+
+        $sheet = $this->downloadXlsx('type=detail&format=xlsx&group_by=sales_person');
+
+        $this->assertEquals('Customers Detail Aging - By Sales Person, Customer', $sheet->getCell('A1')->getValue());
+        $this->assertEquals('Sales Person : SP1 - [Budi]', $sheet->getCell('A7')->getValue());
+        $this->assertTrue($sheet->getStyle('A7')->getFont()->getBold());
+        $this->assertEquals('Customer : C001 - Acme, Sales Person : Budi', $sheet->getCell('A8')->getValue());
+
+        // Unassigned group sits after the named one and is labeled, never silently dropped.
+        $this->assertEquals('Sales Person :  - [Belum Ditentukan]', $sheet->getCell('A12')->getValue());
+        $this->assertEquals('Customer : C002 - Beta, Sales Person : ', $sheet->getCell('A13')->getValue());
+    }
+
     public function test_summary_xlsx_headers_and_grand_total_bold_columns(): void
     {
         $this->actingUserWithArDetailView();
