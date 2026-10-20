@@ -75,10 +75,11 @@ class AccountsReceivableAgingReportService
 
         foreach ($groups as $customerRows) {
             $first = $customerRows->first();
+            $salesPersonName = $first['sales_person_name'] ?? '';
 
             $headerRow = count($out) + 1;
             $out[] = [
-                "Customer : {$first['customer_code']} - {$first['customer_name']}, Sales Person : ",
+                "Customer : {$first['customer_code']} - {$first['customer_name']}, Sales Person : {$salesPersonName}",
                 '', '', '',
                 'Ctn: , '.$first['phone'].', Tel : , Fax : , Terms : '.$first['term_days'].' days, Credit Limit : '.number_format($first['credit_limit'], 2).', Currency Code : RP',
             ];
@@ -328,7 +329,13 @@ class AccountsReceivableAgingReportService
             'phone' => $row->customer?->phone ?? '',
             'credit_limit' => (float) ($row->customer?->credit_limit ?? 0),
             'term_days' => $row->customer?->termsOfPayment?->days ?? 0,
-            'sales_person_name' => $row->salesOrder?->salesPerson?->name,
+            // Falls back down the chain: AR's own Sales Order link, then the invoice's directly
+            // assigned Sales Person (the only one a no-SO Transport invoice has), then the
+            // customer's default assigned Sales Person — matches the legacy report, which never
+            // leaves this blank unless the customer truly has no salesman assigned anywhere.
+            'sales_person_name' => $row->salesOrder?->salesPerson?->name
+                ?? $row->invoice?->salesPerson?->name
+                ?? $row->customer?->salesPerson?->name,
             'invoice_id' => $row->invoice_id,
             'document_no' => $row->invoice?->document_number,
             'invoice_date' => $invoiceDate,

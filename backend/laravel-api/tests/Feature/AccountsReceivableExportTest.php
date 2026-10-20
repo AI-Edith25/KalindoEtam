@@ -135,8 +135,9 @@ class AccountsReceivableExportTest extends TestCase
         $this->assertEquals(9, $sheet->getStyle('K5')->getFont()->getSize());
         $this->assertEquals('Calibri', $sheet->getStyle('A5')->getFont()->getName());
 
-        // Customer header block — always-blank Sales Person/Ctn/Tel/Fax, merged A:D and E:L.
-        $this->assertEquals('Customer : C001 - Acme, Sales Person : ', $sheet->getCell('A7')->getValue());
+        // Customer header block — Sales Person filled from the AR row's own Sales Order link;
+        // Ctn/Tel/Fax stay always-blank. Merged A:D and E:L.
+        $this->assertEquals('Customer : C001 - Acme, Sales Person : Budi', $sheet->getCell('A7')->getValue());
         $this->assertEquals('Ctn: , 0812, Tel : , Fax : , Terms : 0 days, Credit Limit : 20,000,000.00, Currency Code : RP', $sheet->getCell('E7')->getValue());
 
         // Data row — invoiced this month (bucket = Current), not yet due.
@@ -236,6 +237,58 @@ class AccountsReceivableExportTest extends TestCase
         $sheet = $this->downloadXlsx('type=summary&format=xlsx');
 
         $this->assertNull($sheet->getCell('D6')->getValue());
+    }
+
+    /**
+     * A no-SO invoice (e.g. Transportation) has no AR.salesOrder link at all, so Sales Person must
+     * fall back to the invoice's own directly-assigned Sales Person — the only one such a document
+     * has — rather than render blank.
+     */
+    public function test_detail_falls_back_to_invoice_level_sales_person_when_no_sales_order_exists(): void
+    {
+        $this->actingUserWithArDetailView();
+        $salesPerson = SalesPerson::query()->create(['code' => 'SP2', 'name' => 'Citra']);
+
+        $invoice = Invoice::query()->create([
+            'invoice_type' => 'goods',
+            'status' => 'submitted',
+            'sales_person_id' => $salesPerson->id,
+            'customer_id' => $this->customer->id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'subtotal' => 50000,
+            'discount_amount' => 0,
+            'discount_type' => 'amount',
+            'tax_amount' => 0,
+            'grand_total' => 50000,
+        ]);
+        AccountsReceivable::query()->create([
+            'customer_id' => $this->customer->id,
+            'invoice_id' => $invoice->id,
+            'reference_number' => $invoice->document_number,
+            'amount' => 50000,
+            'paid_amount' => 0,
+            'due_date' => now()->addDays(30)->toDateString(),
+            'status' => 'unpaid',
+        ]);
+
+        $sheet = $this->downloadXlsx('type=detail&format=xlsx');
+
+        $this->assertEquals('Customer : C001 - Acme, Sales Person : Citra', $sheet->getCell('A7')->getValue());
+    }
+
+    /** Falls back one step further still, to the customer's own default assigned Sales Person, when neither the AR row's Sales Order nor its invoice has one. */
+    public function test_detail_falls_back_to_customer_default_sales_person_as_a_last_resort(): void
+    {
+        $this->actingUserWithArDetailView();
+        $salesPerson = SalesPerson::query()->create(['code' => 'SP3', 'name' => 'Dedi']);
+        $this->customer->update(['sales_person_id' => $salesPerson->id]);
+
+        $this->makeReceivable($this->customer, 50000, 0, now(), now()->addDays(30)); // no SalesPerson passed -> no SO, no invoice-level salesperson either
+
+        $sheet = $this->downloadXlsx('type=detail&format=xlsx');
+
+        $this->assertEquals('Customer : C001 - Acme, Sales Person : Dedi', $sheet->getCell('A7')->getValue());
     }
 
     public function test_negative_outstanding_from_an_overpaid_receivable_lands_in_the_correct_bucket(): void

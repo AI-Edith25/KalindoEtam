@@ -133,7 +133,7 @@ class AccountsReceivableRepository extends BaseRepository
     public function searchAll(array $filters): Collection
     {
         return $this->filteredQuery($filters)
-            ->with(['customer.termsOfPayment', 'invoice.termsOfPayment', 'invoice.deliveries', 'salesOrder.salesPerson', 'salesOrder.branch', 'branch', 'delivery'])
+            ->with(['customer.termsOfPayment', 'customer.salesPerson', 'invoice.termsOfPayment', 'invoice.deliveries', 'invoice.salesPerson', 'salesOrder.salesPerson', 'salesOrder.branch', 'branch', 'delivery'])
             ->latest('due_date')
             ->get();
     }
