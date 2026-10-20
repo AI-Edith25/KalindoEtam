@@ -182,9 +182,18 @@ class AccountsReceivableExportTest extends TestCase
         $this->assertTrue($sheet->getStyle('A7')->getFont()->getBold());
         $this->assertEquals('Customer : C001 - Acme, Sales Person : Budi', $sheet->getCell('A8')->getValue());
 
+        // TOTAL row closes the group — sums every customer under this salesman, same shape as the
+        // per-customer subtotal row, one level up.
+        $this->assertEquals('TOTAL - SP1', $sheet->getCell('A12')->getValue());
+        $this->assertTrue($sheet->getStyle('A12')->getFont()->getBold());
+        $this->assertEquals(100000, $sheet->getCell('C12')->getValue());
+        $this->assertEquals(100000, $sheet->getCell('I12')->getValue());
+
         // Unassigned group sits after the named one and is labeled, never silently dropped.
-        $this->assertEquals('Sales Person :  - [Belum Ditentukan]', $sheet->getCell('A12')->getValue());
-        $this->assertEquals('Customer : C002 - Beta, Sales Person : ', $sheet->getCell('A13')->getValue());
+        $this->assertEquals('Sales Person :  - [Belum Ditentukan]', $sheet->getCell('A14')->getValue());
+        $this->assertEquals('Customer : C002 - Beta, Sales Person : ', $sheet->getCell('A15')->getValue());
+        $this->assertEquals('TOTAL - ', $sheet->getCell('A19')->getValue());
+        $this->assertEquals(50000, $sheet->getCell('C19')->getValue());
     }
 
     public function test_summary_xlsx_headers_and_grand_total_bold_columns(): void

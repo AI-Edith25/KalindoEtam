@@ -89,9 +89,29 @@ class AccountsReceivableAgingReportService
                 $out[] = ["Sales Person : {$code} - [{$label}]"];
                 $styleRanges[] = ['range' => "A{$groupHeaderRow}", 'bold' => true];
 
+                $groupBucketTotals = array_fill(0, 6, 0.0);
+                $groupOverdueAmount = 0.0;
+
                 foreach ($customerGroupsByCode($personRows) as $customerRows) {
                     $this->appendCustomerBlock($out, $styleRanges, $mergeRanges, $numberFormats, $customerRows, $bucketTotals, $grandOverdueAmount, $format);
                 }
+
+                foreach ($personRows as $r) {
+                    $groupBucketTotals[$r['bucket']] += $r['outstanding'];
+                    $groupOverdueAmount += $r['overdue_amount'];
+                }
+
+                $totalRow = count($out) + 1;
+                $out[] = ["TOTAL - {$code}", '', ...$groupBucketTotals, array_sum($groupBucketTotals), '', '', $groupOverdueAmount];
+                $styleRanges[] = ['range' => "A{$totalRow}", 'bold' => true, 'borderTop' => true, 'borderBottom' => true, 'borderLeft' => true];
+                $styleRanges[] = ['range' => "C{$totalRow}:I{$totalRow}", 'bold' => true, 'hAlign' => 'right', 'borderTop' => true, 'borderBottom' => true];
+                $styleRanges[] = ['range' => "L{$totalRow}", 'bold' => true, 'fontName' => 'Arial', 'fontSize' => 9, 'borderTop' => true, 'borderBottom' => true, 'borderRight' => true];
+                if ($format === 'xlsx') {
+                    $numberFormats[] = ['range' => "C{$totalRow}:I{$totalRow}", 'format' => '#,##0.00'];
+                    $numberFormats[] = ['range' => "L{$totalRow}", 'format' => '#,##0.00'];
+                }
+
+                $out[] = [''];
             }
         } else {
             foreach ($customerGroupsByCode($shaped) as $customerRows) {
