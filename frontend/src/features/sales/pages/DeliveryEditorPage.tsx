@@ -281,15 +281,15 @@ function DeliveryForm({
   const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
   const fleets = useQuery({ queryKey: ['fleets-lookup-active'], queryFn: fetchActiveFleetsLookup })
 
-  // Gates the Fleet/Driver/commission-recap fields on the customer's own opt-in — but an
-  // already-saved fleet_id (set back when the customer was eligible) stays visible even if the
-  // flag was switched off afterward, so existing data is never hidden out from under the user.
-  const showCommissionFields = !!salesOrders[0]?.customer?.driver_commission_eligible || !!delivery?.fleet_id
-
   // Every Sales Order line across every selected/linked order, flattened into one combined
   // table — the multi-source analog of a single Sales Order's own .items list. sales_order_item_id
   // is already globally unique, so no per-source tagging is needed to tell rows apart.
   const allSoItems = useMemo(() => salesOrders.flatMap((so) => so.items), [salesOrders])
+
+  // Gates the Fleet/Driver/commission-recap fields on whether any line is for a commissionable
+  // item — but an already-saved fleet_id (set back when that was true) stays visible even if the
+  // item's flag is switched off afterward, so existing data is never hidden out from under the user.
+  const showCommissionFields = allSoItems.some((soItem) => soItem.driver_commission_eligible) || !!delivery?.fleet_id
 
   const existingQtyBySoItemId = useMemo(
     () => new Map((delivery?.items ?? []).map((line) => [line.sales_order_item_id, line.qty])),
@@ -314,6 +314,7 @@ function DeliveryForm({
         item_id: soItem.item_id,
         item_code: soItem.item_code ?? '',
         item_name: soItem.item_name ?? '',
+        driver_commission_eligible: soItem.driver_commission_eligible,
         rate: Number(soItem.rate),
         ordered: soItem.qty,
         alreadyDelivered: soItem.delivered_qty,
@@ -713,9 +714,6 @@ function DirectDeliveryForm({
     ? { value: delivery.customer.id, label: delivery.customer.customer_name, data: delivery.customer as Customer }
     : selectedCustomerOption
 
-  // Same opt-in gate as the Sales-Order-sourced form above — see its own comment.
-  const showCommissionFields = !!customerSelectedOption?.data?.driver_commission_eligible || !!delivery?.fleet_id
-
   const form = useForm<DirectDeliveryEditorValues>({
     resolver: zodResolver(directDeliveryFormSchema),
     defaultValues: {
@@ -733,6 +731,7 @@ function DirectDeliveryForm({
         item_id: line.item_id,
         item_code: line.item_code,
         item_name: line.item_name,
+        driver_commission_eligible: line.driver_commission_eligible,
         item_uom: line.uom,
         qtyCategory: 'unit',
         qty: String(line.qty),
@@ -804,6 +803,11 @@ function DirectDeliveryForm({
   })
 
   const watchedItems = form.watch('items')
+
+  // Same opt-in gate as the Sales-Order-sourced form above — see its own comment. Re-evaluates
+  // live as items are added/removed/swapped, since a Direct Delivery's item set isn't fixed.
+  const showCommissionFields = (watchedItems ?? []).some((line) => line.driver_commission_eligible) || !!delivery?.fleet_id
+
   const subtotal = computeSubtotal(watchedItems ?? [])
   const discount = computeTotalDiscount(watchedItems ?? [])
   const tax = (watchedItems ?? []).reduce((sum, line) => {

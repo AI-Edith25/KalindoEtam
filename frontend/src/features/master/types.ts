@@ -119,6 +119,8 @@ export interface Item {
   effective_rate: string | number
   /** "Samakan dengan Main WH" — when true, every non-Main-warehouse price for this item resolves live from the Main warehouse's own price. */
   sync_to_main_wh: boolean
+  /** Gates the Delivery form's Fleet/Driver/commission-recap fields — shown when the DO has at least one line for an item flagged here. */
+  driver_commission_eligible: boolean
   /** Physical stock minus other active Sales Orders' committed qty, for the requested warehouse — set only when the /items request carried a warehouse_id (Sales Order's item lookup); null everywhere else (Item Master, Purchase Order's lookup), never a fabricated number with no warehouse context. */
   available_qty: number | null
   created_at: string
@@ -245,8 +247,6 @@ export interface Customer {
   credit_limit: string | number | null
   terms_of_payment_id: string | null
   is_active: boolean
-  /** Gates whether the Delivery form shows the Fleet/Driver/commission-recap fields for this customer. */
-  driver_commission_eligible: boolean
   created_at: string
   updated_at: string
 }
@@ -266,7 +266,6 @@ export interface CustomerFormValues {
   credit_limit: number | null
   terms_of_payment_id: string | null
   is_active: boolean
-  driver_commission_eligible: boolean
 }
 
 export interface Branch {

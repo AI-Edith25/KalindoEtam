@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class DeliveryRepository extends BaseRepository
 {
-    protected const EAGER = ['customer', 'warehouse', 'salesOrder.salesPerson', 'salesOrder.tax', 'salesOrders', 'items.tax', 'invoices', 'termsOfPayment'];
+    protected const EAGER = ['customer', 'warehouse', 'salesOrder.salesPerson', 'salesOrder.tax', 'salesOrders', 'items.tax', 'items.item', 'invoices', 'termsOfPayment'];
 
     public function __construct(Delivery $model)
     {

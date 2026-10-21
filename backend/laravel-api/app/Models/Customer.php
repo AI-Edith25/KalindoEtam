@@ -29,12 +29,10 @@ class Customer extends Model
         'credit_limit',
         'terms_of_payment_id',
         'is_active',
-        'driver_commission_eligible',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'driver_commission_eligible' => 'boolean',
         'credit_limit' => 'decimal:2',
         'receivable_category' => ReceivableCategory::class,
     ];

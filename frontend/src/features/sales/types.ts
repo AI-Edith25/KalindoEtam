@@ -19,6 +19,8 @@ export interface SalesOrderItem {
   item_id: string
   item_code: string | null
   item_name: string | null
+  /** From the Item master, not a line snapshot — see DeliveryEditorPage's commission-field gate. */
+  driver_commission_eligible: boolean
   uom: string | null
   /** null = the item's base UOM. qty/rate/delivered_qty are in this UOM; uom_factor = base units per 1 of it. */
   uom_id?: string | null
@@ -55,7 +57,6 @@ export interface SalesOrder {
     terms_of_payment_id: string | null
     phone: string | null
     address: string | null
-    driver_commission_eligible: boolean
   } | null
   sales_person_id: string | null
   sales_person: { id: string; code: string; name: string } | null
@@ -143,6 +144,8 @@ export interface DeliveryItem {
   item_id: string
   item_code: string
   item_name: string
+  /** From the Item master, not a line snapshot — see DeliveryEditorPage's commission-field gate. */
+  driver_commission_eligible: boolean
   uom: string
   qty: number
   rate: string | number
@@ -191,7 +194,6 @@ export interface Delivery {
     terms_of_payment_id: string | null
     phone: string | null
     address: string | null
-    driver_commission_eligible: boolean
   } | null
   warehouse_id: string
   warehouse: { id: string; name: string; code: string } | null
@@ -535,6 +537,8 @@ export interface DebitNoteItem {
   item_id: string | null
   item_code: string | null
   item_name: string | null
+  /** From the Item master, not a line snapshot — see DeliveryEditorPage's commission-field gate. */
+  driver_commission_eligible: boolean
   uom: string | null
   description: string
   qty_adjusted: number

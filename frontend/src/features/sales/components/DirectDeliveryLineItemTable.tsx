@@ -53,6 +53,7 @@ export function DirectDeliveryLineItemTable({ form, taxes, disabled }: DirectDel
     setValue(`items.${index}.item_code`, selected?.item_code ?? '')
     setValue(`items.${index}.item_name`, selected?.item_name ?? '')
     setValue(`items.${index}.item_uom`, selected?.uom ? `${selected.uom.name}${selected.uom.symbol ? ` (${selected.uom.symbol})` : ''}` : '')
+    setValue(`items.${index}.driver_commission_eligible`, selected?.driver_commission_eligible ?? false)
     if (selected) {
       setValue(`items.${index}.rate`, String(selected.standard_rate), { shouldValidate: true })
       setValue(`items.${index}.qtyCategory`, selected.qty_category, { shouldValidate: true })

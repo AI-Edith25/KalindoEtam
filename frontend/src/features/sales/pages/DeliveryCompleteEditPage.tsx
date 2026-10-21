@@ -37,6 +37,8 @@ interface EditableLine {
   item_id: string
   item_code: string
   item_name: string
+  /** Gates the header's Fleet/Driver/commission-recap fields — see showCommissionFields below. */
+  driver_commission_eligible: boolean
   uom: string
   qty: string
   rate: string
@@ -59,6 +61,7 @@ function toEditableLine(line: DeliveryItem): EditableLine {
     item_id: line.item_id,
     item_code: line.item_code,
     item_name: line.item_name,
+    driver_commission_eligible: line.driver_commission_eligible,
     uom: line.uom,
     qty: String(line.qty),
     rate: String(line.rate),
@@ -149,8 +152,7 @@ export function DeliveryCompleteEditPage() {
   }
 
   // Same opt-in gate as the other two Delivery forms — see DeliveryEditorPage's own comment.
-  const showCommissionFields =
-    !!customerOption?.data?.driver_commission_eligible || !!delivery?.customer?.driver_commission_eligible || !!fleetId
+  const showCommissionFields = (lines ?? []).some((line) => line.driver_commission_eligible) || !!fleetId
 
   const usedSoItemIds = new Set((lines ?? []).map((line) => line.sales_order_item_id))
   const addableSoItems = allSoItems.filter((soItem) => !usedSoItemIds.has(soItem.id))
@@ -167,6 +169,7 @@ export function DeliveryCompleteEditPage() {
         item_id: soItem.item_id,
         item_code: soItem.item_code ?? '',
         item_name: soItem.item_name ?? '',
+        driver_commission_eligible: soItem.driver_commission_eligible,
         uom: soItem.uom ?? '',
         qty: '1',
         rate: String(soItem.rate),
@@ -194,6 +197,7 @@ export function DeliveryCompleteEditPage() {
         item_id: item.id,
         item_code: item.item_code,
         item_name: item.item_name,
+        driver_commission_eligible: item.driver_commission_eligible,
         uom: item.uom ? `${item.uom.name}${item.uom.symbol ? ` (${item.uom.symbol})` : ''}` : '',
         qty: '1',
         rate: String(item.standard_rate),

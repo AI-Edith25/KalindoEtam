@@ -17,6 +17,8 @@ export const deliveryLineRowSchema = z
     item_id: z.string(),
     item_code: z.string(),
     item_name: z.string(),
+    /** Gates the header's Fleet/Driver/commission-recap fields — see DeliveryEditorPage's showCommissionFields. */
+    driver_commission_eligible: z.boolean().optional(),
     rate: z.number(),
     ordered: z.number(),
     alreadyDelivered: z.number(),
@@ -86,6 +88,8 @@ export const directDeliveryLineRowSchema = z
     item_id: z.string().min(1, 'Item is required'),
     item_code: z.string().optional().or(z.literal('')),
     item_name: z.string().optional().or(z.literal('')),
+    /** Gates the header's Fleet/Driver/commission-recap fields — see DeliveryEditorPage's showCommissionFields. */
+    driver_commission_eligible: z.boolean().optional(),
     item_uom: z.string().optional().or(z.literal('')),
     qtyCategory: z.enum(['unit', 'weight']),
     qty: z.string().min(1, 'Qty is required'),
