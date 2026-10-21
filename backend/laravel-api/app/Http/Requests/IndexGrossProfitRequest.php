@@ -16,10 +16,20 @@ class IndexGrossProfitRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
-            'item_id' => ['sometimes', 'nullable', 'uuid', 'exists:items,id'],
-            'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
-            'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
+            // Deliberately no 'exists:' on these -- an invalid id must be silently ignored (it
+            // simply matches no row via whereIn), not fail the whole request with a 422. See
+            // AccountsReceivableRepository's own normalizedSalesPersonIds(). Sales Report's own
+            // IndexProductSalesRequest etc. switched from single-id to these multi-select arrays
+            // first -- Gross Profit reuses the same SalesReportFiltersBar/MultiSelectFilter, so it
+            // follows suit to keep sending the same shape.
+            'customer_ids' => ['sometimes', 'nullable', 'array'],
+            'customer_ids.*' => ['string'],
+            'item_ids' => ['sometimes', 'nullable', 'array'],
+            'item_ids.*' => ['string'],
+            'sales_person_ids' => ['sometimes', 'nullable', 'array'],
+            'sales_person_ids.*' => ['string'],
+            'branch_ids' => ['sometimes', 'nullable', 'array'],
+            'branch_ids.*' => ['string'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
             'group' => ['sometimes', 'nullable', Rule::in(['item', 'customer', 'invoice'])],

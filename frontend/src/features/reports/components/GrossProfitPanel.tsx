@@ -64,10 +64,10 @@ export function GrossProfitPanel({ filters, onFiltersChange, page, onPageChange 
     group,
     sort: sort.key as GrossProfitParams['sort'],
     sort_dir: sort.direction,
-    ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
-    ...(filters.item_id ? { item_id: filters.item_id } : {}),
-    ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
-    ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+    ...(filters.customer_ids.length > 0 ? { customer_ids: filters.customer_ids } : {}),
+    ...(filters.item_ids.length > 0 ? { item_ids: filters.item_ids } : {}),
+    ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
+    ...(filters.branch_ids.length > 0 ? { branch_ids: filters.branch_ids } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
   }
@@ -220,16 +220,24 @@ export function GrossProfitPanel({ filters, onFiltersChange, page, onPageChange 
               label: 'Print',
               icon: Printer,
               onClick: () => {
-                const params = new URLSearchParams({
+                const printFilterParams = {
                   group,
-                  ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
-                  ...(filters.item_id ? { item_id: filters.item_id } : {}),
-                  ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
-                  ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+                  ...(filters.customer_ids.length > 0 ? { customer_ids: filters.customer_ids } : {}),
+                  ...(filters.item_ids.length > 0 ? { item_ids: filters.item_ids } : {}),
+                  ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
+                  ...(filters.branch_ids.length > 0 ? { branch_ids: filters.branch_ids } : {}),
                   ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                   ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-                })
-                openPrintWindow(`/reports/gross-profit/print?${params.toString()}`)
+                }
+                // Not `new URLSearchParams(printFilterParams)` — that constructor coerces every
+                // value with String(), which turns an array into a comma-joined single param
+                // instead of the repeated `key=a&key=b` pairs the print page/backend expect.
+                const printSearchParams = new URLSearchParams()
+                for (const [key, val] of Object.entries(printFilterParams)) {
+                  if (Array.isArray(val)) val.forEach((v) => printSearchParams.append(key, v))
+                  else printSearchParams.append(key, String(val))
+                }
+                openPrintWindow(`/reports/gross-profit/print?${printSearchParams.toString()}`)
               },
             },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },

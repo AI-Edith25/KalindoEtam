@@ -46,11 +46,11 @@ export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange
     sort: sort.key as ProductSalesParams['sort'],
     sort_dir: sort.direction,
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
-    ...(filters.item_id ? { item_id: filters.item_id } : {}),
+    ...(filters.customer_ids.length > 0 ? { customer_ids: filters.customer_ids } : {}),
+    ...(filters.item_ids.length > 0 ? { item_ids: filters.item_ids } : {}),
     ...(filters.item_group_id ? { item_group_id: filters.item_group_id } : {}),
-    ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
-    ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+    ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
+    ...(filters.branch_ids.length > 0 ? { branch_ids: filters.branch_ids } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
   }
@@ -134,11 +134,11 @@ export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange
       ]
 
   const hasFilters = !!(
-    filters.customer_id ||
-    filters.item_id ||
+    filters.customer_ids.length > 0 ||
+    filters.item_ids.length > 0 ||
     filters.item_group_id ||
-    filters.sales_person_id ||
-    filters.branch_id ||
+    filters.sales_person_ids.length > 0 ||
+    filters.branch_ids.length > 0 ||
     filters.status
   )
 
@@ -194,18 +194,26 @@ export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange
               label: 'Print',
               icon: Printer,
               onClick: () => {
-                const params = new URLSearchParams({
+                const printFilterParams = {
                   tab: 'products',
-                  ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
-                  ...(filters.item_id ? { item_id: filters.item_id } : {}),
+                  ...(filters.customer_ids.length > 0 ? { customer_ids: filters.customer_ids } : {}),
+                  ...(filters.item_ids.length > 0 ? { item_ids: filters.item_ids } : {}),
                   ...(filters.item_group_id ? { item_group_id: filters.item_group_id } : {}),
-                  ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
-                  ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+                  ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
+                  ...(filters.branch_ids.length > 0 ? { branch_ids: filters.branch_ids } : {}),
                   ...(filters.status ? { status: filters.status } : {}),
                   ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                   ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-                })
-                openPrintWindow(`/reports/sales/print?${params.toString()}`)
+                }
+                // Not `new URLSearchParams(printFilterParams)` — that constructor coerces every
+                // value with String(), which turns an array into a comma-joined single param
+                // instead of the repeated `key=a&key=b` pairs the print page/backend expect.
+                const printSearchParams = new URLSearchParams()
+                for (const [key, val] of Object.entries(printFilterParams)) {
+                  if (Array.isArray(val)) val.forEach((v) => printSearchParams.append(key, v))
+                  else printSearchParams.append(key, String(val))
+                }
+                openPrintWindow(`/reports/sales/print?${printSearchParams.toString()}`)
               },
             },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },

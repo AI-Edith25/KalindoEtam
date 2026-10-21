@@ -6,9 +6,9 @@ export interface SalesListingParams {
   page: number
   per_page?: number
   search?: string
-  customer_id?: string
-  sales_person_id?: string
-  branch_id?: string
+  customer_ids?: string[]
+  sales_person_ids?: string[]
+  branch_ids?: string[]
   type?: SalesListingType
   payment_status?: PaymentStatus
   date_from?: string

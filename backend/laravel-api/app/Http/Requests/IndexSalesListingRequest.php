@@ -20,9 +20,15 @@ class IndexSalesListingRequest extends FormRequest
     {
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
-            'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
-            'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
+            // Deliberately no 'exists:' here -- an invalid id must be silently ignored (it simply
+            // matches no row via whereIn), not fail the whole request with a 422. See
+            // AccountsReceivableRepository's own normalizedSalesPersonIds().
+            'customer_ids' => ['sometimes', 'nullable', 'array'],
+            'customer_ids.*' => ['string'],
+            'sales_person_ids' => ['sometimes', 'nullable', 'array'],
+            'sales_person_ids.*' => ['string'],
+            'branch_ids' => ['sometimes', 'nullable', 'array'],
+            'branch_ids.*' => ['string'],
             'type' => ['sometimes', 'nullable', Rule::in(['invoice', 'credit_note'])],
             'payment_status' => ['sometimes', 'nullable', Rule::in(['unpaid', 'partially_paid', 'paid'])],
             'date_from' => ['sometimes', 'nullable', 'date'],

@@ -49,21 +49,23 @@ export function SalesReportPage() {
 
   const defaults = emptySalesReportFilters()
   const filters: SalesReportFilterValues = {
-    customer_id: searchParams.get('customer_id') ?? '',
-    item_id: searchParams.get('item_id') ?? '',
+    customer_ids: searchParams.getAll('customer_ids'),
+    item_ids: searchParams.getAll('item_ids'),
     item_group_id: searchParams.get('item_group_id') ?? '',
-    sales_person_id: searchParams.get('sales_person_id') ?? '',
-    branch_id: searchParams.get('branch_id') ?? '',
+    sales_person_ids: searchParams.getAll('sales_person_ids'),
+    branch_ids: searchParams.getAll('branch_ids'),
     status: searchParams.get('status'),
     dateFrom: searchParams.get('date_from') ?? defaults.dateFrom,
     dateTo: searchParams.get('date_to') ?? defaults.dateTo,
   }
 
-  const update = (patch: Record<string, string | null>) => {
+  const update = (patch: Record<string, string | string[] | null>) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       for (const [key, value] of Object.entries(patch)) {
-        if (value === null || value === '') next.delete(key)
+        next.delete(key)
+        if (value === null || value === '' || (Array.isArray(value) && value.length === 0)) continue
+        if (Array.isArray(value)) value.forEach((v) => next.append(key, v))
         else next.set(key, value)
       }
       return next
@@ -77,11 +79,11 @@ export function SalesReportPage() {
   const setPage = (next: number) => update({ page: next > 1 ? String(next) : null })
   const setFilters = (next: SalesReportFilterValues) =>
     update({
-      customer_id: next.customer_id,
-      item_id: next.item_id,
+      customer_ids: next.customer_ids,
+      item_ids: next.item_ids,
       item_group_id: next.item_group_id,
-      sales_person_id: next.sales_person_id,
-      branch_id: next.branch_id,
+      sales_person_ids: next.sales_person_ids,
+      branch_ids: next.branch_ids,
       status: next.status,
       date_from: next.dateFrom,
       date_to: next.dateTo,

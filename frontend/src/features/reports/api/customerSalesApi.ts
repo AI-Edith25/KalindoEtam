@@ -7,11 +7,11 @@ export interface CustomerSalesParams {
   per_page?: number
   search?: string
   status?: string
-  customer_id?: string
-  item_id?: string
+  customer_ids?: string[]
+  item_ids?: string[]
   item_group_id?: string
-  sales_person_id?: string
-  branch_id?: string
+  sales_person_ids?: string[]
+  branch_ids?: string[]
   date_from?: string
   date_to?: string
   sort?: 'amount' | 'qty' | 'customer_name' | 'transaction_count'

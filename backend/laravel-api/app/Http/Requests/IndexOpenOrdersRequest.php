@@ -24,11 +24,18 @@ class IndexOpenOrdersRequest extends FormRequest
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
             // Cancelled is never a valid choice here — Open Orders excludes it unconditionally.
             'status' => ['sometimes', 'nullable', Rule::in([SalesOrderStatus::SUBMITTED->value, SalesOrderStatus::APPROVED->value])],
-            'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
-            'item_id' => ['sometimes', 'nullable', 'uuid', 'exists:items,id'],
+            // Deliberately no 'exists:' on these (unlike item_group_id below) -- an invalid id
+            // must be silently ignored (it simply matches no row via whereIn), not fail the whole
+            // request with a 422. See AccountsReceivableRepository's own normalizedSalesPersonIds().
+            'customer_ids' => ['sometimes', 'nullable', 'array'],
+            'customer_ids.*' => ['string'],
+            'item_ids' => ['sometimes', 'nullable', 'array'],
+            'item_ids.*' => ['string'],
             'item_group_id' => ['sometimes', 'nullable', 'uuid', 'exists:item_groups,id'],
-            'sales_person_id' => ['sometimes', 'nullable', 'uuid', 'exists:sales_persons,id'],
-            'branch_id' => ['sometimes', 'nullable', 'uuid', 'exists:branches,id'],
+            'sales_person_ids' => ['sometimes', 'nullable', 'array'],
+            'sales_person_ids.*' => ['string'],
+            'branch_ids' => ['sometimes', 'nullable', 'array'],
+            'branch_ids.*' => ['string'],
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
             'aging' => ['sometimes', 'nullable', Rule::in(['0-7', '8-30', '31-60', 'over_60'])],

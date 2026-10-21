@@ -49,9 +49,9 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
   const activeParams: Omit<SalesListingParams, 'page'> = {
     sort: sort.key as SalesListingParams['sort'],
     sort_dir: sort.direction,
-    ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
-    ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
-    ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+    ...(filters.customer_ids.length > 0 ? { customer_ids: filters.customer_ids } : {}),
+    ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
+    ...(filters.branch_ids.length > 0 ? { branch_ids: filters.branch_ids } : {}),
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
     ...(type ? { type } : {}),
@@ -98,7 +98,9 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
     { header: 'Outstanding AR', accessor: (row) => (row.outstanding_ar !== null ? formatCurrency(row.outstanding_ar) : '—'), className: 'text-right' },
   ]
 
-  const hasFilters = !!(filters.customer_id || filters.sales_person_id || filters.branch_id || type || paymentStatus)
+  const hasFilters = !!(
+    filters.customer_ids.length > 0 || filters.sales_person_ids.length > 0 || filters.branch_ids.length > 0 || type || paymentStatus
+  )
 
   const emptyMessage = hasFilters
     ? 'Tidak ada data untuk filter ini.'
@@ -158,15 +160,23 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
               label: 'Print',
               icon: Printer,
               onClick: () => {
-                const params = new URLSearchParams({
+                const printFilterParams = {
                   tab: 'listing',
-                  ...(filters.customer_id ? { customer_id: filters.customer_id } : {}),
-                  ...(filters.sales_person_id ? { sales_person_id: filters.sales_person_id } : {}),
-                  ...(filters.branch_id ? { branch_id: filters.branch_id } : {}),
+                  ...(filters.customer_ids.length > 0 ? { customer_ids: filters.customer_ids } : {}),
+                  ...(filters.sales_person_ids.length > 0 ? { sales_person_ids: filters.sales_person_ids } : {}),
+                  ...(filters.branch_ids.length > 0 ? { branch_ids: filters.branch_ids } : {}),
                   ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
                   ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-                })
-                openPrintWindow(`/reports/sales/print?${params.toString()}`)
+                }
+                // Not `new URLSearchParams(printFilterParams)` — that constructor coerces every
+                // value with String(), which turns an array into a comma-joined single param
+                // instead of the repeated `key=a&key=b` pairs the print page/backend expect.
+                const printSearchParams = new URLSearchParams()
+                for (const [key, val] of Object.entries(printFilterParams)) {
+                  if (Array.isArray(val)) val.forEach((v) => printSearchParams.append(key, v))
+                  else printSearchParams.append(key, String(val))
+                }
+                openPrintWindow(`/reports/sales/print?${printSearchParams.toString()}`)
               },
             },
             { label: 'Export XLSX', icon: Download, onClick: () => exportReport('xlsx'), disabled: isExporting },

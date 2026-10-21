@@ -121,11 +121,13 @@ export interface GoodsReceiptReportFilterValues {
  * options to SalesReportFiltersBar rather than the shared type picking one.
  */
 export interface SalesReportFilterValues {
-  customer_id: string
-  item_id: string
+  /** Multi-select — empty array means every customer/item/salesman/branch, matching how every
+      other array/optional filter in this app already treats "empty = no filter". */
+  customer_ids: string[]
+  item_ids: string[]
   item_group_id: string
-  sales_person_id: string
-  branch_id: string
+  sales_person_ids: string[]
+  branch_ids: string[]
   status: string | null
   dateFrom: string
   dateTo: string
