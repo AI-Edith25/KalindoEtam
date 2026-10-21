@@ -216,12 +216,14 @@ export function MultiSelectFilter({
               return (
                 <Tooltip key={option.value}>
                   <TooltipTrigger asChild>
-                    <button
-                      type="button"
+                    {/* A div, not a button — Checkbox below renders as a native <button
+                        role="checkbox">, and a button can't contain another button (the browser
+                        silently closes the outer one at parse time, breaking this row's onClick). */}
+                    <div
                       role="option"
                       aria-selected={checked}
                       className={cn(
-                        'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent',
+                        'flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent',
                         index === highlighted && 'bg-accent',
                       )}
                       onMouseEnter={() => setHighlighted(index)}
@@ -229,7 +231,7 @@ export function MultiSelectFilter({
                     >
                       <Checkbox checked={checked} className="pointer-events-none" />
                       <span className="truncate">{option.label}</span>
-                    </button>
+                    </div>
                   </TooltipTrigger>
                   <TooltipContent side="right">{option.label}</TooltipContent>
                 </Tooltip>

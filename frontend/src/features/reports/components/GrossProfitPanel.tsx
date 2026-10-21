@@ -246,7 +246,7 @@ export function GrossProfitPanel({ filters, onFiltersChange, page, onPageChange 
         />
       </div>
 
-      <SalesReportFiltersBar value={filters} onChange={(next) => { onFiltersChange(next); onPageChange(1) }} hide={['itemGroup', 'status']} />
+      <SalesReportFiltersBar value={filters} onChange={onFiltersChange} hide={['itemGroup', 'status']} />
 
       <DataTable
         columns={columns}

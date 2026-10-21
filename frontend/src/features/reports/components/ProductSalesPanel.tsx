@@ -222,7 +222,7 @@ export function ProductSalesPanel({ filters, onFiltersChange, page, onPageChange
         />
       </div>
 
-      <SalesReportFiltersBar value={filters} onChange={(next) => { onFiltersChange(next); onPageChange(1) }} hide={['itemGroup']} />
+      <SalesReportFiltersBar value={filters} onChange={onFiltersChange} hide={['itemGroup']} />
 
       <DataTable
         columns={columns}
