@@ -78,7 +78,7 @@ export function DriverCommissionReportPage() {
       <SectionNav group="reports" />
 
       <PageHeader
-        title="Komisi Sopir"
+        title="Driver's Commission"
         description="Commission earned per driver delivery — see the Status filter to include/exclude deliveries already paid in the field."
         count={reportQuery.data ? `${formatNumber(rows.length)} rows` : undefined}
         actions={
