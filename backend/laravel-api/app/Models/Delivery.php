@@ -32,6 +32,8 @@ class Delivery extends Model
         'remarks',
         'fleet',
         'driver',
+        'fleet_id',
+        'include_in_commission_recap',
         'attention',
         'tel',
         'fax',
@@ -44,6 +46,7 @@ class Delivery extends Model
         'due_date' => 'date',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'include_in_commission_recap' => 'boolean',
     ];
 
     public function documentType(): string
@@ -94,6 +97,11 @@ class Delivery extends Model
     public function termsOfPayment(): BelongsTo
     {
         return $this->belongsTo(TermsOfPayment::class);
+    }
+
+    public function fleetRecord(): BelongsTo
+    {
+        return $this->belongsTo(Fleet::class, 'fleet_id');
     }
 
     public function items(): HasMany

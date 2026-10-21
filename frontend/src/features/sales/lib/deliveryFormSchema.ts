@@ -63,7 +63,9 @@ export const deliveryFormSchema = z.object({
   terms_of_payment_id: z.string().optional().or(z.literal('')),
   remarks: z.string().optional().or(z.literal('')),
   fleet: z.string().optional().or(z.literal('')),
+  fleet_id: z.string().optional().or(z.literal('')),
   driver: z.string().optional().or(z.literal('')),
+  include_in_commission_recap: z.boolean(),
   items: z.array(deliveryLineRowSchema).superRefine((items, ctx) => {
     const hasAny = items.some((line) => Number(line.deliverNow || 0) > 0)
     if (!hasAny) {
@@ -111,7 +113,9 @@ export const directDeliveryFormSchema = z.object({
   terms_of_payment_id: z.string().optional().or(z.literal('')),
   remarks: z.string().optional().or(z.literal('')),
   fleet: z.string().optional().or(z.literal('')),
+  fleet_id: z.string().optional().or(z.literal('')),
   driver: z.string().optional().or(z.literal('')),
+  include_in_commission_recap: z.boolean(),
   items: z.array(directDeliveryLineRowSchema).min(1, 'Add at least one line item.'),
 })
 

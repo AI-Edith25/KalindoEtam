@@ -14,6 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
@@ -23,6 +24,7 @@ import { formatCurrency } from '@/lib/utils'
 import { computeSubtotal, computeTotalDiscount, lineDiscountAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { allocateSoLineDiscount } from '../lib/deliveryDiscount'
 import { fetchWarehousesLookup, fetchTermsOfPaymentLookup, fetchTaxesLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
+import { fetchActiveFleetsLookup } from '@/features/master/api/fleetApi'
 import { fetchStockBalances } from '@/features/inventory/api/stockApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { fetchDelivery, createDelivery, updateDelivery, completeDelivery } from '../api/deliveryApi'
@@ -277,6 +279,7 @@ function DeliveryForm({
   const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
   const termsOfPayment = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
+  const fleets = useQuery({ queryKey: ['fleets-lookup-active'], queryFn: fetchActiveFleetsLookup })
 
   // Every Sales Order line across every selected/linked order, flattened into one combined
   // table — the multi-source analog of a single Sales Order's own .items list. sales_order_item_id
@@ -298,7 +301,9 @@ function DeliveryForm({
       terms_of_payment_id: isEdit ? (delivery?.terms_of_payment_id ?? '') : (salesOrders[0]?.customer?.terms_of_payment_id ?? ''),
       remarks: isEdit ? (delivery?.remarks ?? '') : (salesOrders[0]?.remarks ?? ''),
       fleet: delivery?.fleet ?? '',
+      fleet_id: delivery?.fleet_id ?? '',
       driver: delivery?.driver ?? '',
+      include_in_commission_recap: delivery?.include_in_commission_recap ?? true,
       items: allSoItems.map((soItem) => ({
         sales_order_item_id: soItem.id,
         item_id: soItem.item_id,
@@ -378,7 +383,9 @@ function DeliveryForm({
           terms_of_payment_id: values.terms_of_payment_id || null,
           remarks: values.remarks || null,
           fleet: values.fleet || null,
+          fleet_id: values.fleet_id || null,
           driver: values.driver || null,
+          include_in_commission_recap: values.include_in_commission_recap,
           items,
         })
       }
@@ -391,7 +398,9 @@ function DeliveryForm({
         terms_of_payment_id: values.terms_of_payment_id || null,
         remarks: values.remarks || null,
         fleet: values.fleet || null,
+        fleet_id: values.fleet_id || null,
         driver: values.driver || null,
+        include_in_commission_recap: values.include_in_commission_recap,
         items,
       })
     },
@@ -525,13 +534,22 @@ function DeliveryForm({
               />
               <FormField
                 control={form.control}
-                name="fleet"
+                name="fleet_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Fleet</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional" {...field} />
-                    </FormControl>
+                    <SearchableSelect
+                      options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
+                      value={field.value || undefined}
+                      onChange={(value, option) => {
+                        field.onChange(value ?? '')
+                        form.setValue('fleet', option?.label ?? '')
+                        form.setValue('driver', option?.data?.default_driver_name ?? '')
+                      }}
+                      loading={fleets.isLoading}
+                      placeholder="Optional"
+                      aria-label="Fleet"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -546,6 +564,18 @@ function DeliveryForm({
                       <Input placeholder="Optional" {...field} />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="include_in_commission_recap"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
+                    <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
                   </FormItem>
                 )}
               />
@@ -663,6 +693,7 @@ function DirectDeliveryForm({
   const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
   const activeSalesTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'sales')
+  const fleets = useQuery({ queryKey: ['fleets-lookup-active'], queryFn: fetchActiveFleetsLookup })
 
   const [selectedCustomerOption, setSelectedCustomerOption] = useState<SearchableSelectOption<Customer> | undefined>(undefined)
   const loadCustomerOptions = async (query: string) => {
@@ -683,7 +714,9 @@ function DirectDeliveryForm({
       terms_of_payment_id: delivery?.terms_of_payment_id ?? '',
       remarks: delivery?.remarks ?? '',
       fleet: delivery?.fleet ?? '',
+      fleet_id: delivery?.fleet_id ?? '',
       driver: delivery?.driver ?? '',
+      include_in_commission_recap: delivery?.include_in_commission_recap ?? true,
       items: (delivery?.items ?? []).map((line) => ({
         item_id: line.item_id,
         item_code: line.item_code,
@@ -719,7 +752,9 @@ function DirectDeliveryForm({
           terms_of_payment_id: values.terms_of_payment_id || null,
           remarks: values.remarks || null,
           fleet: values.fleet || null,
+          fleet_id: values.fleet_id || null,
           driver: values.driver || null,
+          include_in_commission_recap: values.include_in_commission_recap,
           items,
         })
       }
@@ -732,7 +767,9 @@ function DirectDeliveryForm({
         terms_of_payment_id: values.terms_of_payment_id || null,
         remarks: values.remarks || null,
         fleet: values.fleet || null,
+        fleet_id: values.fleet_id || null,
         driver: values.driver || null,
+        include_in_commission_recap: values.include_in_commission_recap,
         items,
       })
     },
@@ -867,13 +904,22 @@ function DirectDeliveryForm({
               />
               <FormField
                 control={form.control}
-                name="fleet"
+                name="fleet_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Fleet</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional" {...field} />
-                    </FormControl>
+                    <SearchableSelect
+                      options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
+                      value={field.value || undefined}
+                      onChange={(value, option) => {
+                        field.onChange(value ?? '')
+                        form.setValue('fleet', option?.label ?? '')
+                        form.setValue('driver', option?.data?.default_driver_name ?? '')
+                      }}
+                      loading={fleets.isLoading}
+                      placeholder="Optional"
+                      aria-label="Fleet"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -888,6 +934,18 @@ function DirectDeliveryForm({
                       <Input placeholder="Optional" {...field} />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="include_in_commission_recap"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
+                    <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
                   </FormItem>
                 )}
               />

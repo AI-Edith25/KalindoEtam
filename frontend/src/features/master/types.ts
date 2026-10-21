@@ -309,6 +309,39 @@ export interface SalesPersonFormValues {
   is_active: boolean
 }
 
+export interface Fleet {
+  id: string
+  plat_number: string
+  default_driver_name: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface FleetFormValues {
+  plat_number: string
+  default_driver_name: string | null
+  is_active: boolean
+}
+
+/** Append-only tariff history row — see DriverCommissionRateService::resolveRate(). No update endpoint, only store/destroy. */
+export interface DriverCommissionRate {
+  id: string
+  fleet_id: string
+  item_id: string
+  item_name: string | null
+  rate_per_zak: string | number
+  effective_date: string
+  created_at: string
+}
+
+export interface DriverCommissionRateFormValues {
+  fleet_id: string
+  item_id: string
+  rate_per_zak: number
+  effective_date: string
+}
+
 export interface SalesTarget {
   id: string
   sales_person_id: string

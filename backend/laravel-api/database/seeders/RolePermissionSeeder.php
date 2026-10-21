@@ -54,6 +54,9 @@ class RolePermissionSeeder extends Seeder
         'master.item_standard_rates' => ['import'],
         'master.chart_of_accounts' => ['view', 'create', 'update', 'delete', 'import'],
         'master.miscellaneous' => ['view', 'create', 'update', 'delete', 'import'],
+        'master.fleets' => ['view', 'create', 'update', 'delete'],
+        // No `update` action — rates are append-only history (store always inserts a new row).
+        'master.driver_commission_rates' => ['view', 'create', 'delete'],
         'inventory.stock_balance' => ['view'],
         'inventory.fifo_layers' => ['view'],
         'inventory.stock_ledger' => ['view', 'create'],
@@ -112,6 +115,7 @@ class RolePermissionSeeder extends Seeder
         // Standalone archive of imported legacy Supplier Outstanding Bills snapshots -- mirror of reports.ar_archive.
         'reports.ap_archive' => ['view', 'import'],
         'reports.tax' => ['view'],
+        'reports.driver_commission' => ['view'],
         'reports.tanda_terima_invoice' => ['view'],
         'reports.penagihan_harian' => ['view'],
         'system.document_attachment' => ['view', 'create', 'delete'],

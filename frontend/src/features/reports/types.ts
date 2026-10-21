@@ -338,6 +338,43 @@ export interface DeliveryReportFilterValues {
   dateTo: string
 }
 
+export type DriverCommissionStatusFilter = 'included' | 'excluded' | 'all'
+
+export interface DriverCommissionReportFilterValues {
+  driver: string
+  fleet_id: string
+  item_id: string
+  status: DriverCommissionStatusFilter
+  dateFrom: string
+  dateTo: string
+}
+
+/** One row per commissioned Delivery line — see DriverCommissionReportService::rows(). */
+export interface DriverCommissionReportRow {
+  date: string
+  so_number: string | null
+  do_number: string | null
+  customer: string | null
+  item_name: string | null
+  qty: number
+  plat_number: string | null
+  driver: string | null
+  rate_per_zak: number
+  total_commission: number
+}
+
+export interface DriverCommissionReportDriverSummary {
+  driver: string | null
+  total_qty: number
+  total_commission: number
+}
+
+export interface DriverCommissionReportSummary {
+  total_qty: number
+  total_commission: number
+  by_driver: DriverCommissionReportDriverSummary[]
+}
+
 /** Ceiling filter ("overdue up to N days"), deliberately overlapping — 60 is a superset of 30, not a discrete bucket. over_180 is the one floor (unbounded above). */
 export type AgingBucketValue = '30' | '45' | '60' | '90' | 'over_180'
 

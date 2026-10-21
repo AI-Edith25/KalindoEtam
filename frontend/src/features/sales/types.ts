@@ -207,6 +207,8 @@ export interface Delivery {
   remarks: string | null
   fleet: string | null
   driver: string | null
+  fleet_id: string | null
+  include_in_commission_recap: boolean
   items: DeliveryItem[]
   amount: string | number
   // Computed live from items — a Delivery has no header total columns (never has).
@@ -242,6 +244,8 @@ export interface DeliveryFormValues {
   remarks: string | null
   fleet: string | null
   driver: string | null
+  fleet_id?: string | null
+  include_in_commission_recap?: boolean
   // Required once editing a Complete Delivery (DeliveryService::updateComplete()'s optimistic-lock check).
   lock_version?: number
   // discount_type/discount_value are only meaningful for a Direct Delivery line (no sales_order_id)
