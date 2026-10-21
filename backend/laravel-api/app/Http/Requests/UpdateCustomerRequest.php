@@ -29,6 +29,7 @@ class UpdateCustomerRequest extends FormRequest
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'terms_of_payment_id' => ['nullable', 'uuid', 'exists:terms_of_payments,id'],
             'is_active' => ['sometimes', 'boolean'],
+            'driver_commission_eligible' => ['sometimes', 'boolean'],
         ];
     }
 }

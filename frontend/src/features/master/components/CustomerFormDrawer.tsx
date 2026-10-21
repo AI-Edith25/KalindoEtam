@@ -37,6 +37,7 @@ const customerFormSchema = z.object({
     .refine((value) => !value || (!Number.isNaN(Number(value)) && Number(value) >= 0), 'Must be zero or greater'),
   terms_of_payment_id: z.string().optional().or(z.literal('')),
   is_active: z.boolean(),
+  driver_commission_eligible: z.boolean(),
 })
 
 type CustomerFormValues = z.infer<typeof customerFormSchema>
@@ -56,6 +57,7 @@ const emptyValues: CustomerFormValues = {
   credit_limit: '',
   terms_of_payment_id: '',
   is_active: true,
+  driver_commission_eligible: false,
 }
 
 interface CustomerFormDrawerProps {
@@ -108,6 +110,7 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
             credit_limit: customer.credit_limit != null ? String(customer.credit_limit) : '',
             terms_of_payment_id: customer.terms_of_payment_id ?? '',
             is_active: customer.is_active,
+            driver_commission_eligible: customer.driver_commission_eligible,
           }
         : emptyValues,
     )
@@ -369,6 +372,18 @@ export function CustomerFormDrawer({ open, onOpenChange, customer }: CustomerFor
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
                     <FormLabel className="cursor-pointer">Active</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="driver_commission_eligible"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
+                    <FormLabel className="cursor-pointer">Driver Commission</FormLabel>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>

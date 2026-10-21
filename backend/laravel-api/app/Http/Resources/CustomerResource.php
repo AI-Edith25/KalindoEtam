@@ -37,6 +37,7 @@ class CustomerResource extends JsonResource
             'credit_limit' => $this->credit_limit,
             'terms_of_payment_id' => $this->terms_of_payment_id,
             'is_active' => $this->is_active,
+            'driver_commission_eligible' => $this->driver_commission_eligible,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

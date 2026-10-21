@@ -281,6 +281,11 @@ function DeliveryForm({
   const termsOfPaymentOptions = termsOfPayment.data?.map((top) => ({ value: top.id, label: `${top.name} (${top.code})` })) ?? []
   const fleets = useQuery({ queryKey: ['fleets-lookup-active'], queryFn: fetchActiveFleetsLookup })
 
+  // Gates the Fleet/Driver/commission-recap fields on the customer's own opt-in — but an
+  // already-saved fleet_id (set back when the customer was eligible) stays visible even if the
+  // flag was switched off afterward, so existing data is never hidden out from under the user.
+  const showCommissionFields = !!salesOrders[0]?.customer?.driver_commission_eligible || !!delivery?.fleet_id
+
   // Every Sales Order line across every selected/linked order, flattened into one combined
   // table — the multi-source analog of a single Sales Order's own .items list. sales_order_item_id
   // is already globally unique, so no per-source tagging is needed to tell rows apart.
@@ -532,53 +537,57 @@ function DeliveryForm({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="fleet_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Fleet</FormLabel>
-                    <SearchableSelect
-                      options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
-                      value={field.value || undefined}
-                      onChange={(value, option) => {
-                        field.onChange(value ?? '')
-                        form.setValue('fleet', option?.label ?? '')
-                        form.setValue('driver', option?.data?.default_driver_name ?? '')
-                      }}
-                      loading={fleets.isLoading}
-                      placeholder="Optional"
-                      aria-label="Fleet"
-                    />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="driver"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Driver</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="include_in_commission_recap"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-                    <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+              {showCommissionFields && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="fleet_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fleet</FormLabel>
+                        <SearchableSelect
+                          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
+                          value={field.value || undefined}
+                          onChange={(value, option) => {
+                            field.onChange(value ?? '')
+                            form.setValue('fleet', option?.label ?? '')
+                            form.setValue('driver', option?.data?.default_driver_name ?? '')
+                          }}
+                          loading={fleets.isLoading}
+                          placeholder="Optional"
+                          aria-label="Fleet"
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="driver"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Driver</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Optional" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="include_in_commission_recap"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
+                        <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
               <FormField
                 control={form.control}
                 name="remarks"
@@ -703,6 +712,9 @@ function DirectDeliveryForm({
   const customerSelectedOption: SearchableSelectOption<Customer> | undefined = delivery?.customer
     ? { value: delivery.customer.id, label: delivery.customer.customer_name, data: delivery.customer as Customer }
     : selectedCustomerOption
+
+  // Same opt-in gate as the Sales-Order-sourced form above — see its own comment.
+  const showCommissionFields = !!customerSelectedOption?.data?.driver_commission_eligible || !!delivery?.fleet_id
 
   const form = useForm<DirectDeliveryEditorValues>({
     resolver: zodResolver(directDeliveryFormSchema),
@@ -902,53 +914,57 @@ function DirectDeliveryForm({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="fleet_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Fleet</FormLabel>
-                    <SearchableSelect
-                      options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
-                      value={field.value || undefined}
-                      onChange={(value, option) => {
-                        field.onChange(value ?? '')
-                        form.setValue('fleet', option?.label ?? '')
-                        form.setValue('driver', option?.data?.default_driver_name ?? '')
-                      }}
-                      loading={fleets.isLoading}
-                      placeholder="Optional"
-                      aria-label="Fleet"
-                    />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="driver"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Driver</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="include_in_commission_recap"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-                    <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+              {showCommissionFields && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="fleet_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fleet</FormLabel>
+                        <SearchableSelect
+                          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
+                          value={field.value || undefined}
+                          onChange={(value, option) => {
+                            field.onChange(value ?? '')
+                            form.setValue('fleet', option?.label ?? '')
+                            form.setValue('driver', option?.data?.default_driver_name ?? '')
+                          }}
+                          loading={fleets.isLoading}
+                          placeholder="Optional"
+                          aria-label="Fleet"
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="driver"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Driver</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Optional" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="include_in_commission_recap"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
+                        <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
               <FormField
                 control={form.control}
                 name="remarks"

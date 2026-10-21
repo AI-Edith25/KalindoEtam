@@ -245,6 +245,8 @@ export interface Customer {
   credit_limit: string | number | null
   terms_of_payment_id: string | null
   is_active: boolean
+  /** Gates whether the Delivery form shows the Fleet/Driver/commission-recap fields for this customer. */
+  driver_commission_eligible: boolean
   created_at: string
   updated_at: string
 }
@@ -264,6 +266,7 @@ export interface CustomerFormValues {
   credit_limit: number | null
   terms_of_payment_id: string | null
   is_active: boolean
+  driver_commission_eligible: boolean
 }
 
 export interface Branch {

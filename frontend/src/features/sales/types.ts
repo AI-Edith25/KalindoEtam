@@ -55,6 +55,7 @@ export interface SalesOrder {
     terms_of_payment_id: string | null
     phone: string | null
     address: string | null
+    driver_commission_eligible: boolean
   } | null
   sales_person_id: string | null
   sales_person: { id: string; code: string; name: string } | null
@@ -190,6 +191,7 @@ export interface Delivery {
     terms_of_payment_id: string | null
     phone: string | null
     address: string | null
+    driver_commission_eligible: boolean
   } | null
   warehouse_id: string
   warehouse: { id: string; name: string; code: string } | null
