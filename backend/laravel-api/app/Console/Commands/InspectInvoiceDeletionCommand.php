@@ -52,9 +52,22 @@ class InspectInvoiceDeletionCommand extends Command
             $this->line('  movesStock() -> stock WILL be reversed if deleted: '.($invoice->movesStock() ? 'YES' : 'no'));
             $this->line('  item lines: '.$invoice->items->count().' (with item_id / stock-affecting: '.$invoice->items->whereNotNull('item_id')->count().')');
             $this->line('  AR row: '.($ar ? "paid_amount={$ar->paid_amount}, outstanding={$ar->outstanding_amount}" : '— none'));
-            $this->line('  Credit Note against it: '.(CreditNote::query()->where('invoice_id', $invoice->id)->exists() ? 'YES — blocks delete' : 'no'));
+            $creditNotes = CreditNote::query()->where('invoice_id', $invoice->id)->get();
+            $this->line('  Credit Note against it: '.($creditNotes->isNotEmpty() ? 'YES — blocks delete' : 'no'));
+            foreach ($creditNotes as $cn) {
+                $this->line("    - {$cn->document_number}: status={$cn->status->value}, total_amount={$cn->total_amount}, is_reversed=".($cn->is_reversed ? 'true' : 'false'));
+            }
+
             $this->line('  Debit Note against it: '.(DebitNote::query()->where('invoice_id', $invoice->id)->exists() ? 'YES — blocks delete' : 'no'));
-            $this->line('  Real posted Journal Entry: '.(JournalEntry::query()->where('reference_type', 'invoice')->where('reference_id', $invoice->id)->exists() ? 'YES — blocks delete' : 'no'));
+
+            $journalEntries = JournalEntry::query()->where('reference_type', 'invoice')->where('reference_id', $invoice->id)->with('lines.chartOfAccount')->get();
+            $this->line('  Real posted Journal Entry: '.($journalEntries->isNotEmpty() ? 'YES — blocks delete' : 'no'));
+            foreach ($journalEntries as $je) {
+                $this->line("    - {$je->document_number}: status={$je->status->value}, posting_date={$je->posting_date}, reversed_by_id=".($je->reversed_by_id ?? '—'));
+                foreach ($je->lines as $line) {
+                    $this->line('        '.($line->chartOfAccount?->code ?? $line->chart_of_account_id)." debit={$line->debit} credit={$line->credit}");
+                }
+            }
             $this->line('');
         }
 
