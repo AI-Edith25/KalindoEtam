@@ -37,8 +37,9 @@ class DriverCommissionReportController extends Controller
     public function export(IndexDriverCommissionReportRequest $request): BinaryFileResponse
     {
         $validated = $request->validate(['format' => ['sometimes', Rule::in(['xlsx', 'csv'])]]);
+        $format = $validated['format'] ?? 'xlsx';
         $rows = $this->driverCommissionReportService->rows($request->validated());
 
-        return Excel::download(new DriverCommissionReportExport($rows), 'KomisiSopir.'.($validated['format'] ?? 'xlsx'));
+        return Excel::download(new DriverCommissionReportExport($rows, $format), 'KomisiSopir.'.$format);
     }
 }
