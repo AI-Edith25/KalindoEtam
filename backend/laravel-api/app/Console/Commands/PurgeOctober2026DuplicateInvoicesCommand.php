@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\DocumentStatus;
+use App\Enums\SubledgerType;
 use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
@@ -28,6 +29,13 @@ use Throwable;
  *   CreditNoteService::delete(), then the AR row and the invoice itself. No stock to reverse —
  *   this invoice is delivery-based (Invoice::movesStock() is false; the Delivery already moved
  *   stock independently and is not touched here).
+ *
+ * GJ-36770's own 112.01 (PIUTANG USAHA) line has a null customer_id — that control account only
+ * started requiring a Customer Sub Ledger after this entry was posted on 2026-10-06 (see
+ * JournalEntryService::assertSubledgerRequirement()), so JournalEntryService::reverse()'s line-
+ * for-line copy fails that check on the reversal. Backfilled from the Invoice's own customer_id
+ * right before reversing — the correct value was always known, just never written to this one
+ * legacy line.
  *
  * Dry-run by default; --commit executes. Each document in its own savepoint so one failure
  * doesn't abort the rest.
@@ -119,7 +127,7 @@ class PurgeOctober2026DuplicateInvoicesCommand extends Command
         if (! $commit) {
             $steps = [];
             if ($journalEntry !== null) {
-                $steps[] = "reverse {$journalEntry->document_number}";
+                $steps[] = "backfill Customer Sub Ledger on {$journalEntry->document_number}, then reverse it";
             }
             if ($creditNote !== null) {
                 $steps[] = "delete draft Credit Note {$creditNote->document_number}";
@@ -132,6 +140,7 @@ class PurgeOctober2026DuplicateInvoicesCommand extends Command
         try {
             DB::transaction(function () use ($invoice, $journalEntry, $creditNote) {
                 if ($journalEntry !== null) {
+                    $this->backfillCustomerSubledger($journalEntry, $invoice);
                     $this->journalEntryService->reverse($journalEntry);
                 }
 
@@ -147,6 +156,24 @@ class PurgeOctober2026DuplicateInvoicesCommand extends Command
             return "{$docNumber}: deleted (Journal Entry reversed, draft Credit Note removed).";
         } catch (Throwable $e) {
             return "{$docNumber}: FAILED — {$e->getMessage()}";
+        }
+    }
+
+    /**
+     * GJ-36770 predates the Customer Sub Ledger guard on control accounts (see this class's own
+     * docblock) — its PIUTANG USAHA line never got a customer_id written. Fills it from the
+     * Invoice's own customer (the correct value, just never persisted) on every CUSTOMER-subledger
+     * line that's still null, so JournalEntryService::reverse()'s line-copy passes that check.
+     * Scoped to this one legacy entry only, not a general backfill.
+     */
+    private function backfillCustomerSubledger(JournalEntry $journalEntry, Invoice $invoice): void
+    {
+        $journalEntry->load('lines.chartOfAccount');
+
+        foreach ($journalEntry->lines as $line) {
+            if ($line->chartOfAccount?->subledger_type === SubledgerType::CUSTOMER && $line->customer_id === null) {
+                $line->update(['customer_id' => $invoice->customer_id]);
+            }
         }
     }
 }
