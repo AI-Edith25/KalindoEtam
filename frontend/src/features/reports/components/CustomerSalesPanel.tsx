@@ -189,7 +189,7 @@ export function CustomerSalesPanel({ filters, onFiltersChange, page, onPageChang
 
       <SalesReportFiltersBar
         value={filters}
-        onChange={(next) => { onFiltersChange(next); onPageChange(1) }}
+        onChange={onFiltersChange}
         hide={snapshotMode ? ['branch', 'salesPerson'] : []}
       />
 

@@ -187,7 +187,7 @@ export function SalesListingPanel({ filters, onFiltersChange, page, onPageChange
 
       <SalesReportFiltersBar
         value={filters}
-        onChange={(next) => { onFiltersChange(next); onPageChange(1) }}
+        onChange={onFiltersChange}
         hide={['item', 'itemGroup', 'status']}
       />
 

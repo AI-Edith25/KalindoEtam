@@ -206,7 +206,7 @@ export function OpenOrdersPanel({ filters, onFiltersChange, page, onPageChange }
 
       <SalesReportFiltersBar
         value={filters}
-        onChange={(next) => { onFiltersChange(next); onPageChange(1) }}
+        onChange={onFiltersChange}
         statusOptions={OPEN_ORDER_STATUS_OPTIONS}
       />
 

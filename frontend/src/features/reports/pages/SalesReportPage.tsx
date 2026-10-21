@@ -77,6 +77,10 @@ export function SalesReportPage() {
   // only); carrying a value across would 422 against whichever tab doesn't recognize it.
   const setTab = (next: SalesReportTab) => update({ tab: next === 'products' ? null : next, page: null, status: null })
   const setPage = (next: number) => update({ page: next > 1 ? String(next) : null })
+  // page reset folded into this same update() call, not a separate setPage(1) — two
+  // setSearchParams() calls in the same handler race each other (react-router's setter reads
+  // location.search fresh each call rather than chaining off the first call's pending result),
+  // so the second call was silently clobbering the first's filter change back to empty.
   const setFilters = (next: SalesReportFilterValues) =>
     update({
       customer_ids: next.customer_ids,
@@ -87,6 +91,7 @@ export function SalesReportPage() {
       status: next.status,
       date_from: next.dateFrom,
       date_to: next.dateTo,
+      page: null,
     })
 
   return (
