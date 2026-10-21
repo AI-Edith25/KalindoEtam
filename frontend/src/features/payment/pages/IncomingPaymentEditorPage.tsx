@@ -20,6 +20,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { formatCurrency } from '@/lib/utils'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchBranches, fetchChartOfAccountsLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
+import { isHeaderAccount } from '@/features/master/lib/chartOfAccountOptions'
 import type { Customer } from '@/features/master/types'
 import { createReceiptEntry, fetchReceiptEntry, submitReceiptEntry, updateReceiptEntry } from '../api/receiptEntryApi'
 import { PAYMENT_METHOD_OPTIONS } from '../lib/paymentMethodLabels'
@@ -60,9 +61,14 @@ export function IncomingPaymentEditorPage() {
   })
 
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
-  const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
+  const cashAccountOptions =
+    chartOfAccounts.data
+      ?.filter((account) => account.is_cash_bank)
+      .map((account) => ({ value: account.id, label: account.name, disabled: isHeaderAccount(account) })) ?? []
   const incomeAccountOptions =
-    chartOfAccounts.data?.filter((account) => account.account_type === 'revenue').map((account) => ({ value: account.id, label: account.name })) ?? []
+    chartOfAccounts.data
+      ?.filter((account) => account.account_type === 'revenue')
+      .map((account) => ({ value: account.id, label: account.name, disabled: isHeaderAccount(account) })) ?? []
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
   const branchOptions = branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []
 

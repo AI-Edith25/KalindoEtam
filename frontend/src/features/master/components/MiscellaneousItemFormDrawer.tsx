@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
+import { toChartOfAccountOptions } from '@/features/master/lib/chartOfAccountOptions'
 import { createMiscellaneousItem, updateMiscellaneousItem } from '../api/miscellaneousItemApi'
 import { fetchUoms } from '../api/lookupsApi'
 import { CHARGE_TYPE_LABELS } from '../pages/MiscellaneousItemListPage'
@@ -77,6 +78,7 @@ export function MiscellaneousItemFormDrawer({ open, onOpenChange, miscellaneousI
 
   const uoms = useQuery({ queryKey: ['uoms'], queryFn: fetchUoms })
   const accounts = useChartOfAccountsLookup()
+  const accountOptions = toChartOfAccountOptions(accounts.data)
 
   const mutation = useMutation({
     mutationFn: (values: MiscellaneousItemFormSchemaValues) => {
@@ -212,7 +214,7 @@ export function MiscellaneousItemFormDrawer({ open, onOpenChange, miscellaneousI
                   <FormItem>
                     <FormLabel>Sales Account</FormLabel>
                     <SearchableSelect
-                      options={accounts.data?.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` })) ?? []}
+                      options={accountOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={accounts.isLoading}
@@ -231,7 +233,7 @@ export function MiscellaneousItemFormDrawer({ open, onOpenChange, miscellaneousI
                   <FormItem>
                     <FormLabel>Purchase Account</FormLabel>
                     <SearchableSelect
-                      options={accounts.data?.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` })) ?? []}
+                      options={accountOptions}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? '')}
                       loading={accounts.isLoading}

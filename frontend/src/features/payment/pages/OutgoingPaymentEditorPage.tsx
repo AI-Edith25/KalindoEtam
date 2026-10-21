@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { fetchBranches, fetchSuppliersLookup, fetchChartOfAccountsLookup, fetchAdvanceCustomersLookup } from '@/features/master/api/lookupsApi'
+import { isHeaderAccount } from '@/features/master/lib/chartOfAccountOptions'
 import { createPaymentEntry, fetchPaymentEntry, submitPaymentEntry, updatePaymentEntry, type PaymentEntryPayload } from '../api/paymentEntryApi'
 import { fetchAccountsPayables } from '../api/accountsPayableApi'
 import { allocatePaymentEntry } from '../api/paymentEntryAllocationApi'
@@ -58,8 +59,13 @@ export function OutgoingPaymentEditorPage() {
   const advanceCustomerOptions = advanceCustomers.data?.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}` })) ?? []
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
   const expenseAccountOptions =
-    chartOfAccounts.data?.filter((account) => account.account_type === 'expense').map((account) => ({ value: account.id, label: account.name })) ?? []
-  const cashAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
+    chartOfAccounts.data
+      ?.filter((account) => account.account_type === 'expense')
+      .map((account) => ({ value: account.id, label: account.name, disabled: isHeaderAccount(account) })) ?? []
+  const cashAccountOptions =
+    chartOfAccounts.data
+      ?.filter((account) => account.is_cash_bank)
+      .map((account) => ({ value: account.id, label: account.name, disabled: isHeaderAccount(account) })) ?? []
   const branches = useQuery({ queryKey: ['branches-lookup'], queryFn: fetchBranches })
   const branchOptions = branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []
 

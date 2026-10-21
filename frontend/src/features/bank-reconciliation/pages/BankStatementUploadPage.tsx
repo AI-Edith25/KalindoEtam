@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { fetchChartOfAccountsLookup } from '@/features/master/api/lookupsApi'
+import { isHeaderAccount } from '@/features/master/lib/chartOfAccountOptions'
 import { confirmBankStatement, uploadBankStatement, type UploadBankStatementResult } from '../api/bankReconciliationApi'
 
 /**
@@ -30,7 +31,10 @@ export function BankStatementUploadPage() {
   const [result, setResult] = useState<UploadBankStatementResult | null>(null)
 
   const chartOfAccounts = useQuery({ queryKey: ['chart-of-accounts-lookup'], queryFn: fetchChartOfAccountsLookup })
-  const bankAccountOptions = chartOfAccounts.data?.filter((account) => account.is_cash_bank).map((account) => ({ value: account.id, label: account.name })) ?? []
+  const bankAccountOptions =
+    chartOfAccounts.data
+      ?.filter((account) => account.is_cash_bank)
+      .map((account) => ({ value: account.id, label: account.name, disabled: isHeaderAccount(account) })) ?? []
 
   const uploadMutation = useMutation({
     mutationFn: () => uploadBankStatement(file!, bankAccountId),
@@ -67,7 +71,7 @@ export function BankStatementUploadPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {bankAccountOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
                       {option.label}
                     </SelectItem>
                   ))}

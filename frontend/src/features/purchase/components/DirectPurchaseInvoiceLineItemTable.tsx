@@ -11,6 +11,7 @@ import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { formatCurrency } from '@/lib/utils'
 import { directLineAmount, isLiabilityLine } from '../lib/directLineAmount'
+import { isHeaderAccount } from '@/features/master/lib/chartOfAccountOptions'
 import type { DirectPurchaseInvoiceEditorValues } from '../lib/purchaseInvoiceFormSchema'
 import type { ChartOfAccount, Tax } from '@/features/master/types'
 
@@ -39,6 +40,7 @@ export function DirectPurchaseInvoiceLineItemTable({ form, accounts, accountsLoa
   const accountOptions = accounts.map((account) => ({
     value: account.id,
     label: account.account_type === 'liability' ? `${account.code} — ${account.name} (Liability)` : `${account.code} — ${account.name}`,
+    disabled: isHeaderAccount(account),
   }))
 
   return (

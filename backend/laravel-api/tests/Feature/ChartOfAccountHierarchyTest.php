@@ -85,6 +85,121 @@ class ChartOfAccountHierarchyTest extends TestCase
         $response->assertJsonValidationErrors('parent_id');
     }
 
+    public function test_create_rejects_a_child_whose_account_type_does_not_match_its_parent(): void
+    {
+        $parent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'ASSET GROUP', 'account_type' => 'asset']);
+
+        $response = $this->postJson('/api/v1/chart-of-accounts', [
+            'code' => '900.01',
+            'name' => 'Liability Child',
+            'account_type' => 'liability',
+            'parent_id' => $parent->id,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_update_rejects_assigning_a_parent_of_a_different_account_type(): void
+    {
+        $assetParent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'ASSET GROUP', 'account_type' => 'asset']);
+        $liabilityChild = ChartOfAccount::query()->create(['code' => '2900', 'name' => 'Liability Account', 'account_type' => 'liability']);
+
+        $response = $this->putJson("/api/v1/chart-of-accounts/{$liabilityChild->id}", ['parent_id' => $assetParent->id]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_update_rejects_assigning_a_parent_to_an_account_that_already_has_posted_journal_lines(): void
+    {
+        $account = ChartOfAccount::query()->create(['code' => '900', 'name' => 'Detail Account', 'account_type' => 'asset']);
+        $otherAccount = ChartOfAccount::query()->create(['code' => '901', 'name' => 'Other Account', 'account_type' => 'asset']);
+        $newParent = ChartOfAccount::query()->create(['code' => '950', 'name' => 'GROUP', 'account_type' => 'asset']);
+
+        $this->seed(\Database\Seeders\DocumentEngineSeeder::class);
+        $journalEntryService = app(\App\Services\JournalEntryService::class);
+        $journalEntryService->create([
+            'posting_date' => now()->toDateString(),
+            'lines' => [
+                ['chart_of_account_id' => $account->id, 'debit' => 10000, 'credit' => 0],
+                ['chart_of_account_id' => $otherAccount->id, 'debit' => 0, 'credit' => 10000],
+            ],
+        ]);
+
+        $response = $this->putJson("/api/v1/chart-of-accounts/{$account->id}", ['parent_id' => $newParent->id]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_create_rejects_a_parent_that_already_has_posted_journal_lines(): void
+    {
+        $futureParent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'Detail Account', 'account_type' => 'asset']);
+        $otherAccount = ChartOfAccount::query()->create(['code' => '901', 'name' => 'Other Account', 'account_type' => 'asset']);
+
+        $this->seed(\Database\Seeders\DocumentEngineSeeder::class);
+        app(\App\Services\JournalEntryService::class)->create([
+            'posting_date' => now()->toDateString(),
+            'lines' => [
+                ['chart_of_account_id' => $futureParent->id, 'debit' => 10000, 'credit' => 0],
+                ['chart_of_account_id' => $otherAccount->id, 'debit' => 0, 'credit' => 10000],
+            ],
+        ]);
+
+        $response = $this->postJson('/api/v1/chart-of-accounts', [
+            'code' => '900.01',
+            'name' => 'Child',
+            'account_type' => 'asset',
+            'parent_id' => $futureParent->id,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_update_rejects_assigning_a_parent_that_already_has_posted_journal_lines(): void
+    {
+        $child = ChartOfAccount::query()->create(['code' => '902', 'name' => 'Future Child', 'account_type' => 'asset']);
+        $futureParent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'Detail Account', 'account_type' => 'asset']);
+        $otherAccount = ChartOfAccount::query()->create(['code' => '901', 'name' => 'Other Account', 'account_type' => 'asset']);
+
+        $this->seed(\Database\Seeders\DocumentEngineSeeder::class);
+        app(\App\Services\JournalEntryService::class)->create([
+            'posting_date' => now()->toDateString(),
+            'lines' => [
+                ['chart_of_account_id' => $futureParent->id, 'debit' => 10000, 'credit' => 0],
+                ['chart_of_account_id' => $otherAccount->id, 'debit' => 0, 'credit' => 10000],
+            ],
+        ]);
+
+        $response = $this->putJson("/api/v1/chart-of-accounts/{$child->id}", ['parent_id' => $futureParent->id]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_update_allows_an_unrelated_field_change_without_touching_parent_id_even_with_posted_lines(): void
+    {
+        $account = ChartOfAccount::query()->create(['code' => '900', 'name' => 'Detail Account', 'account_type' => 'asset']);
+        $otherAccount = ChartOfAccount::query()->create(['code' => '901', 'name' => 'Other Account', 'account_type' => 'asset']);
+
+        $this->seed(\Database\Seeders\DocumentEngineSeeder::class);
+        $journalEntryService = app(\App\Services\JournalEntryService::class);
+        $journalEntryService->create([
+            'posting_date' => now()->toDateString(),
+            'lines' => [
+                ['chart_of_account_id' => $account->id, 'debit' => 10000, 'credit' => 0],
+                ['chart_of_account_id' => $otherAccount->id, 'debit' => 0, 'credit' => 10000],
+            ],
+        ]);
+
+        $response = $this->putJson("/api/v1/chart-of-accounts/{$account->id}", ['name' => 'Renamed Detail Account']);
+
+        $response->assertOk();
+        $this->assertSame('Renamed Detail Account', $account->fresh()->name);
+    }
+
     public function test_seeded_piutang_hierarchy_has_one_parent_and_four_children(): void
     {
         $this->seed(ChartOfAccountsSeeder::class);

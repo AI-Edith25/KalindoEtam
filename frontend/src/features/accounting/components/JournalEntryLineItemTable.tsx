@@ -11,6 +11,7 @@ import { RupiahInput } from '@/components/shared/RupiahInput'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import { searchCustomersLookup, searchSuppliersLookup } from '@/features/master/api/lookupsApi'
+import { toChartOfAccountOptions } from '@/features/master/lib/chartOfAccountOptions'
 import type { JournalEntry } from '../types'
 import type { JournalEntryEditorValues } from '../lib/journalEntryFormSchema'
 
@@ -44,13 +45,7 @@ export function JournalEntryLineItemTable({ form, disabled, entry }: JournalEntr
   const { control, setValue, getValues } = form
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const accounts = useChartOfAccountsLookup()
-  // A Group/header account (has children) carries no postings of its own — Chart of Accounts
-  // enforces the same thing structurally, this just surfaces it before the user picks one.
-  const accountOptions =
-    accounts.data?.map((account) => {
-      const isGroup = (account.children_count ?? 0) > 0
-      return { value: account.id, label: `${account.code} — ${account.name}${isGroup ? ' (Group)' : ''}`, disabled: isGroup }
-    }) ?? []
+  const accountOptions = toChartOfAccountOptions(accounts.data)
   const accountsById = useMemo(() => new Map((accounts.data ?? []).map((account) => [account.id, account])), [accounts.data])
 
   const watchedLines = useWatch({ control, name: 'lines' })

@@ -204,19 +204,24 @@ class JournalEntryService
     }
 
     /**
-     * A control account (ChartOfAccount::subledger_type set) must carry the
-     * matching Sub Ledger link on every line posted to it — mirrors SkyBiz's
-     * own AR/AP behavior. Also strips customer_id/supplier_id off any line
-     * whose account doesn't require that type, so a value sent for a
-     * non-control account is silently ignored rather than persisted.
-     * Batch-loaded to avoid an N+1 across lines.
+     * Two account-level checks on every line, both batch-loaded in one query to avoid an N+1:
      *
-     * $skip is for the legacy ledger/journal importers only (see e.g.
-     * SalesPurchaseJournalImportService) — a service-only flag the public
-     * Store/UpdateJournalEntryRequest never accepts, same convention as
-     * reference_type/reference_id. Historical rows reconstruct an already-
-     * posted ledger with no per-customer/supplier breakdown in the source
-     * data at all, unlike a newly entered manual Journal Posting.
+     * 1. A header/parent account (ChartOfAccount::children()->exists()) can never be posted to
+     *    directly — only its detail children carry real balances. Business decision 2026-10-20:
+     *    enforced here, the single choke point every posting path (General Journal, and every
+     *    business module via AccountingService::postForDocument()) already funnels through, so
+     *    nothing else needs its own copy of this check.
+     * 2. A control account (ChartOfAccount::subledger_type set) must carry the matching Sub
+     *    Ledger link on every line posted to it — mirrors SkyBiz's own AR/AP behavior. Also
+     *    strips customer_id/supplier_id off any line whose account doesn't require that type, so
+     *    a value sent for a non-control account is silently ignored rather than persisted.
+     *
+     * $skip covers both checks together and is for the legacy ledger/journal importers only (see
+     * e.g. SalesPurchaseJournalImportService) — a service-only flag the public
+     * Store/UpdateJournalEntryRequest never accepts, same convention as reference_type/
+     * reference_id. Historical rows reconstruct an already-posted ledger from pre-aggregated
+     * balances with no per-customer/supplier breakdown and sometimes targeting a summary account
+     * that only became a header later — unlike a newly entered manual Journal Posting.
      */
     protected function assertSubledgerRequirement(array $lines, bool $skip = false): array
     {
@@ -225,12 +230,18 @@ class JournalEntryService
         }
 
         $accounts = ChartOfAccount::query()
+            ->withCount('children')
             ->whereIn('id', array_column($lines, 'chart_of_account_id'))
             ->get()
             ->keyBy('id');
 
         foreach ($lines as &$line) {
             $account = $accounts->get($line['chart_of_account_id']);
+
+            if (($account?->children_count ?? 0) > 0) {
+                throw new BusinessException("Akun \"{$account->code} - {$account->name}\" adalah akun header/parent dan tidak bisa diposting langsung. Pilih akun detail di bawahnya.");
+            }
+
             $requiredType = $account?->subledger_type;
 
             if ($requiredType !== SubledgerType::CUSTOMER) {

@@ -43,12 +43,46 @@ class UpdateChartOfAccountRequest extends FormRequest
                         return;
                     }
 
-                    if (ChartOfAccount::query()->whereKey($value)->whereNotNull('parent_id')->exists()) {
+                    $account = $this->route('chart_of_account');
+                    $parent = ChartOfAccount::query()->find($value);
+
+                    if ($parent?->parent_id !== null) {
                         $fail('The selected parent account is itself a child account — only two levels are supported.');
+
+                        return;
                     }
 
-                    if ($this->route('chart_of_account')?->children()->exists()) {
+                    if ($account?->children()->exists()) {
                         $fail('This account already has child accounts of its own and cannot also become a child account.');
+
+                        return;
+                    }
+
+                    $newAccountType = $this->input('account_type') ?? $account?->account_type->value;
+                    if ($parent !== null && $newAccountType !== null && $parent->account_type->value !== $newAccountType) {
+                        $fail("The selected parent account is a {$parent->account_type->value} account and cannot have a child of a different account type.");
+
+                        return;
+                    }
+
+                    // Same ambiguous-balance concern as the check below, from the other side: the
+                    // PARENT being assigned here would become a header for the first time if it
+                    // already carries its own posted Journal Entry lines. A parent that already has
+                    // other children can never hit this (point 1's backend guard means it can never
+                    // have posted lines of its own once it's a header), so this only ever fires on a
+                    // genuine first-time promotion.
+                    if ($parent !== null && $parent->journalEntryLines()->exists()) {
+                        $fail("The selected parent account (\"{$parent->code} - {$parent->name}\") already has posted Journal Entry lines and cannot become a header/parent account.");
+
+                        return;
+                    }
+
+                    // Only a genuine re-parent (the account didn't already sit under this exact
+                    // parent) is blocked — an unchanged parent_id on an untouched save is a no-op,
+                    // not a "naik status" that could orphan already-posted transactions into an
+                    // ambiguous direct-vs-rollup balance.
+                    if ($account !== null && $value !== $account->parent_id && $account->journalEntryLines()->exists()) {
+                        $fail('This account already has posted Journal Entry lines and cannot be assigned a parent — move or reverse those transactions first.');
                     }
                 },
             ],
