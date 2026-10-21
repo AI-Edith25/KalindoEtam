@@ -32,6 +32,7 @@ class ItemResource extends JsonResource
             'current_stock' => $this->current_stock,
             'allow_over_receipt' => $this->allow_over_receipt,
             'qty_category' => $this->qty_category,
+            'driver_commission_eligible' => $this->driver_commission_eligible,
             'purchase_tax_id' => $this->purchase_tax_id,
             'purchase_tax' => new TaxResource($this->whenLoaded('purchaseTax')),
             'sales_tax_id' => $this->sales_tax_id,

@@ -27,6 +27,7 @@ class Item extends Model
         'allow_over_receipt',
         'qty_category',
         'sync_to_main_wh',
+        'driver_commission_eligible',
     ];
 
     protected $casts = [
@@ -35,6 +36,7 @@ class Item extends Model
         'allow_over_receipt' => 'boolean',
         'qty_category' => QtyCategory::class,
         'sync_to_main_wh' => 'boolean',
+        'driver_commission_eligible' => 'boolean',
     ];
 
     public function itemGroup(): BelongsTo

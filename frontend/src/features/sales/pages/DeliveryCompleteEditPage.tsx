@@ -37,6 +37,8 @@ interface EditableLine {
   item_id: string
   item_code: string
   item_name: string
+  /** Gates the header's Fleet/Driver/commission-recap fields — see showCommissionFields below. */
+  driver_commission_eligible: boolean
   uom: string
   qty: string
   rate: string
@@ -59,6 +61,7 @@ function toEditableLine(line: DeliveryItem): EditableLine {
     item_id: line.item_id,
     item_code: line.item_code,
     item_name: line.item_name,
+    driver_commission_eligible: line.driver_commission_eligible,
     uom: line.uom,
     qty: String(line.qty),
     rate: String(line.rate),
@@ -148,6 +151,9 @@ export function DeliveryCompleteEditPage() {
     return customers.map((customer) => ({ value: customer.id, label: `${customer.customer_code} — ${customer.customer_name}`, data: customer }))
   }
 
+  // Same opt-in gate as the other two Delivery forms — see DeliveryEditorPage's own comment.
+  const showCommissionFields = (lines ?? []).some((line) => line.driver_commission_eligible) || !!fleetId
+
   const usedSoItemIds = new Set((lines ?? []).map((line) => line.sales_order_item_id))
   const addableSoItems = allSoItems.filter((soItem) => !usedSoItemIds.has(soItem.id))
 
@@ -163,6 +169,7 @@ export function DeliveryCompleteEditPage() {
         item_id: soItem.item_id,
         item_code: soItem.item_code ?? '',
         item_name: soItem.item_name ?? '',
+        driver_commission_eligible: soItem.driver_commission_eligible,
         uom: soItem.uom ?? '',
         qty: '1',
         rate: String(soItem.rate),
@@ -190,6 +197,7 @@ export function DeliveryCompleteEditPage() {
         item_id: item.id,
         item_code: item.item_code,
         item_name: item.item_name,
+        driver_commission_eligible: item.driver_commission_eligible,
         uom: item.uom ? `${item.uom.name}${item.uom.symbol ? ` (${item.uom.symbol})` : ''}` : '',
         qty: '1',
         rate: String(item.standard_rate),
@@ -375,29 +383,33 @@ export function DeliveryCompleteEditPage() {
             <label className="text-sm font-medium">Fax</label>
             <Input value={fax} onChange={(e) => setFax(e.target.value)} placeholder={delivery.sales_order?.fax || 'Optional'} />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Fleet</label>
-            <SearchableSelect
-              options={(fleetsQuery.data ?? []).map((f) => ({ value: f.id, label: f.plat_number, data: f }))}
-              value={fleetId || undefined}
-              onChange={(value, option) => {
-                setFleetId(value ?? '')
-                setFleet(option?.label ?? '')
-                setDriver(option?.data?.default_driver_name ?? '')
-              }}
-              loading={fleetsQuery.isLoading}
-              placeholder="Optional"
-              aria-label="Fleet"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Driver</label>
-            <Input value={driver} onChange={(e) => setDriver(e.target.value)} placeholder="Optional" />
-          </div>
-          <div className="flex flex-row items-center justify-between rounded-md border p-3">
-            <label className="cursor-pointer text-sm font-medium">Masuk Perhitungan Komisi Akhir Bulan</label>
-            <Switch checked={includeInCommissionRecap} onCheckedChange={setIncludeInCommissionRecap} />
-          </div>
+          {showCommissionFields && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Fleet</label>
+                <SearchableSelect
+                  options={(fleetsQuery.data ?? []).map((f) => ({ value: f.id, label: f.plat_number, data: f }))}
+                  value={fleetId || undefined}
+                  onChange={(value, option) => {
+                    setFleetId(value ?? '')
+                    setFleet(option?.label ?? '')
+                    setDriver(option?.data?.default_driver_name ?? '')
+                  }}
+                  loading={fleetsQuery.isLoading}
+                  placeholder="Optional"
+                  aria-label="Fleet"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Driver</label>
+                <Input value={driver} onChange={(e) => setDriver(e.target.value)} placeholder="Optional" />
+              </div>
+              <div className="flex flex-row items-center justify-between rounded-md border p-3">
+                <label className="cursor-pointer text-sm font-medium">Masuk Perhitungan Komisi Akhir Bulan</label>
+                <Switch checked={includeInCommissionRecap} onCheckedChange={setIncludeInCommissionRecap} />
+              </div>
+            </>
+          )}
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <label className="text-sm font-medium">Notes</label>
             <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Optional" />

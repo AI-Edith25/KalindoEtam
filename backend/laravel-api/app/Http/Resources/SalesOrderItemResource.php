@@ -14,6 +14,7 @@ class SalesOrderItemResource extends JsonResource
             'item_id' => $this->item_id,
             'item_code' => $this->whenLoaded('item', fn () => $this->item->item_code),
             'item_name' => $this->whenLoaded('item', fn () => $this->item->item_name),
+            'driver_commission_eligible' => $this->whenLoaded('item', fn () => (bool) $this->item->driver_commission_eligible, false),
             // The line's own UOM (falls back to the item's base UOM name) — what qty/rate are in.
             'uom' => $this->whenLoaded('item', fn () => $this->uom?->name ?? $this->item->uom?->name),
             'uom_id' => $this->uom_id,

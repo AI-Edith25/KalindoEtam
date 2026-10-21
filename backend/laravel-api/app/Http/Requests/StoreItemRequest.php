@@ -36,6 +36,7 @@ class StoreItemRequest extends FormRequest
             'sales_tax_id' => ['nullable', 'uuid', Rule::exists('taxes', 'id')->where('transaction_type', 'sales')],
             'allow_over_receipt' => ['sometimes', 'boolean'],
             'qty_category' => ['sometimes', Rule::enum(QtyCategory::class)],
+            'driver_commission_eligible' => ['sometimes', 'boolean'],
         ];
     }
 }

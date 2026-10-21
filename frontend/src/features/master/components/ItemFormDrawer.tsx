@@ -39,6 +39,7 @@ const itemFormSchema = z.object({
   sales_tax_id: z.string(),
   allow_over_receipt: z.boolean(),
   qty_category: z.enum(['unit', 'weight']),
+  driver_commission_eligible: z.boolean(),
   // Extra UOMs (the base is uom_id) — factor = how many base units one of this UOM holds.
   uoms: z.array(
     z.object({
@@ -63,6 +64,7 @@ const emptyValues: ItemFormSchemaValues = {
   sales_tax_id: '',
   allow_over_receipt: false,
   qty_category: 'unit',
+  driver_commission_eligible: false,
   uoms: [],
 }
 
@@ -101,6 +103,7 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
             sales_tax_id: item.sales_tax_id ?? '',
             allow_over_receipt: item.allow_over_receipt,
             qty_category: item.qty_category,
+            driver_commission_eligible: item.driver_commission_eligible,
             uoms: (item.uoms ?? [])
               .filter((choice) => !choice.is_base)
               .map((choice) => ({ uom_id: choice.uom_id, conversion_factor: String(Number(choice.conversion_factor)) })),
@@ -348,6 +351,20 @@ export function ItemFormDrawer({ open, onOpenChange, item, priceVaries = false, 
                     </FormControl>
                     <FormLabel className="font-normal">
                       Allow Over-Receipt (Goods Receipt qty may exceed the Purchase Order)
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="driver_commission_eligible"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Driver Commission (Delivery lines for this item can trigger the Fleet/Driver commission fields)
                     </FormLabel>
                   </FormItem>
                 )}

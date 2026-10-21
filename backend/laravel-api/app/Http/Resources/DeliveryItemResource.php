@@ -15,6 +15,9 @@ class DeliveryItemResource extends JsonResource
             'item_id' => $this->item_id,
             'item_code' => $this->item_code,
             'item_name' => $this->item_name,
+            // Live from the Item master (not a line snapshot) — reflects the item's current
+            // flag even for an old Delivery, since this only gates the edit screen's own UI.
+            'driver_commission_eligible' => $this->whenLoaded('item', fn () => (bool) $this->item->driver_commission_eligible, false),
             'uom' => $this->uom,
             'rate' => $this->rate,
             'qty' => $this->qty,

@@ -204,7 +204,7 @@ class DeliveryService
 
             $delivery->salesOrders()->sync($salesOrderIds);
 
-            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'salesOrders', 'items', 'termsOfPayment']);
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'salesOrders', 'items.item', 'termsOfPayment']);
             $this->auditLogService->record('created', 'delivery', "Created Delivery \"{$delivery->document_number}\".");
 
             return $delivery;
@@ -302,7 +302,7 @@ class DeliveryService
 
             $this->deliveryRepository->update($delivery, $headerData);
 
-            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items', 'termsOfPayment']);
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items.item', 'termsOfPayment']);
             $this->auditLogService->record('updated', 'delivery', "Updated Delivery \"{$delivery->document_number}\".");
 
             return $delivery;
@@ -384,7 +384,7 @@ class DeliveryService
             $headerData['lock_version'] = $delivery->lock_version + 1;
             $this->deliveryRepository->update($delivery, $headerData);
 
-            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items.invoiceItem', 'termsOfPayment', 'salesPerson', 'updater']);
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items.invoiceItem', 'items.item', 'termsOfPayment', 'salesPerson', 'updater']);
             $this->auditLogService->recordChanges('updated', 'delivery', $delivery, $before, $headerData, "Updated Complete Delivery \"{$delivery->document_number}\".");
             $this->documentTimelineService->record($delivery, 'updated');
 
@@ -494,7 +494,7 @@ class DeliveryService
 
             $delivery->submit();
 
-            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items', 'termsOfPayment']);
+            $delivery = $delivery->fresh(['customer', 'warehouse', 'salesOrder', 'items.item', 'termsOfPayment']);
             $this->auditLogService->record('completed', 'delivery', "Completed Delivery \"{$delivery->document_number}\".");
 
             return $delivery;
