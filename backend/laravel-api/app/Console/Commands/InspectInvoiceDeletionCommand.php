@@ -65,7 +65,7 @@ class InspectInvoiceDeletionCommand extends Command
             foreach ($journalEntries as $je) {
                 $this->line("    - {$je->document_number}: status={$je->status->value}, posting_date={$je->posting_date}, reversed_by_id=".($je->reversed_by_id ?? '—'));
                 foreach ($je->lines as $line) {
-                    $this->line('        '.($line->chartOfAccount?->code ?? $line->chart_of_account_id)." debit={$line->debit} credit={$line->credit}");
+                    $this->line('        '.($line->chartOfAccount?->code ?? $line->chart_of_account_id)." debit={$line->debit} credit={$line->credit} customer_id=".($line->customer_id ?? '— NULL').' subledger_type='.($line->chartOfAccount?->subledger_type?->value ?? '—'));
                 }
             }
             $this->line('');
