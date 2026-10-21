@@ -47,11 +47,11 @@ export function emptySalesReportFilters(): SalesReportFilterValues {
   const iso = (d: Date) => d.toISOString().slice(0, 10)
 
   return {
-    customer_id: '',
-    item_id: '',
+    customer_ids: [],
+    item_ids: [],
     item_group_id: '',
-    sales_person_id: '',
-    branch_id: '',
+    sales_person_ids: [],
+    branch_ids: [],
     status: null,
     dateFrom: iso(from),
     dateTo: iso(to),
@@ -67,11 +67,11 @@ export function currentMonthGrossProfitFilters(): SalesReportFilterValues {
 
 export function hasActiveSalesReportFilters(filters: SalesReportFilterValues): boolean {
   return (
-    filters.customer_id !== '' ||
-    filters.item_id !== '' ||
+    filters.customer_ids.length > 0 ||
+    filters.item_ids.length > 0 ||
     filters.item_group_id !== '' ||
-    filters.sales_person_id !== '' ||
-    filters.branch_id !== '' ||
+    filters.sales_person_ids.length > 0 ||
+    filters.branch_ids.length > 0 ||
     filters.status !== null
   )
 }

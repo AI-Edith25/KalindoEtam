@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { FilterPanel } from '@/components/shared/FilterPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { MultiSelectFilter } from '@/components/shared/MultiSelectFilter'
 import { Input } from '@/components/ui/input'
 import { fetchCustomer } from '@/features/master/api/customerApi'
 import { fetchItem } from '@/features/master/api/itemApi'
@@ -39,39 +40,39 @@ export function SalesReportFiltersBar({ value, onChange, hide = [], statusOption
     const customers = await searchCustomersLookup(query)
     return customers.map((customer) => ({ value: customer.id, label: customer.customer_name }))
   }
+  // Resolves the label for the one customer_id arriving pre-set (URL restore) -- the async
+  // multi-select has no other way to know its label without this, same reasoning as AR Detail's
+  // own customerMultiSelect wiring.
+  const singleCustomerId = value.customer_ids.length === 1 ? value.customer_ids[0] : undefined
   const selectedCustomerQuery = useQuery({
-    queryKey: ['customer', value.customer_id],
-    queryFn: () => fetchCustomer(value.customer_id),
-    enabled: shown('customer') && !!value.customer_id,
+    queryKey: ['customer', singleCustomerId],
+    queryFn: () => fetchCustomer(singleCustomerId!),
+    enabled: shown('customer') && !!singleCustomerId,
   })
-  const selectedCustomerOption = selectedCustomerQuery.data
-    ? { value: selectedCustomerQuery.data.id, label: selectedCustomerQuery.data.customer_name }
-    : undefined
 
   const loadItemOptions = async (query: string) => {
     const items = await searchItemsLookup(query)
     return items.map((item) => ({ value: item.id, label: item.item_name }))
   }
+  const singleItemId = value.item_ids.length === 1 ? value.item_ids[0] : undefined
   const selectedItemQuery = useQuery({
-    queryKey: ['item', value.item_id],
-    queryFn: () => fetchItem(value.item_id),
-    enabled: shown('item') && !!value.item_id,
+    queryKey: ['item', singleItemId],
+    queryFn: () => fetchItem(singleItemId!),
+    enabled: shown('item') && !!singleItemId,
   })
-  const selectedItemOption = selectedItemQuery.data
-    ? { value: selectedItemQuery.data.id, label: selectedItemQuery.data.item_name }
-    : undefined
 
   return (
     <FilterPanel onClear={() => onChange(emptySalesReportFilters())} hasActiveFilters={hasActiveSalesReportFilters(value)}>
       {shown('customer') && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Customer</span>
-          <SearchableSelect
+          <MultiSelectFilter
             loadOptions={loadCustomerOptions}
-            selectedOption={selectedCustomerOption}
-            value={value.customer_id || undefined}
-            onChange={(next) => onChange({ ...value, customer_id: next ?? '' })}
+            resolvedSingleLabel={selectedCustomerQuery.data?.customer_name}
+            value={value.customer_ids}
+            onChange={(next) => onChange({ ...value, customer_ids: next })}
             placeholder="All customers"
+            itemLabel="customer"
             aria-label="Customer"
             className="w-44"
           />
@@ -80,12 +81,13 @@ export function SalesReportFiltersBar({ value, onChange, hide = [], statusOption
       {shown('item') && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Item</span>
-          <SearchableSelect
+          <MultiSelectFilter
             loadOptions={loadItemOptions}
-            selectedOption={selectedItemOption}
-            value={value.item_id || undefined}
-            onChange={(next) => onChange({ ...value, item_id: next ?? '' })}
+            resolvedSingleLabel={selectedItemQuery.data?.item_name}
+            value={value.item_ids}
+            onChange={(next) => onChange({ ...value, item_ids: next })}
             placeholder="All items"
+            itemLabel="item"
             aria-label="Item"
             className="w-44"
           />
@@ -108,12 +110,13 @@ export function SalesReportFiltersBar({ value, onChange, hide = [], statusOption
       {shown('salesPerson') && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Sales Person</span>
-          <SearchableSelect
+          <MultiSelectFilter
             options={salesPersons.data?.map((salesPerson) => ({ value: salesPerson.id, label: salesPerson.name })) ?? []}
-            value={value.sales_person_id || undefined}
-            onChange={(next) => onChange({ ...value, sales_person_id: next ?? '' })}
+            value={value.sales_person_ids}
+            onChange={(next) => onChange({ ...value, sales_person_ids: next })}
             loading={salesPersons.isLoading}
             placeholder="All sales persons"
+            itemLabel="salesman"
             aria-label="Sales Person"
             className="w-44"
           />
@@ -122,12 +125,13 @@ export function SalesReportFiltersBar({ value, onChange, hide = [], statusOption
       {shown('branch') && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Branch</span>
-          <SearchableSelect
+          <MultiSelectFilter
             options={branches.data?.map((branch) => ({ value: branch.id, label: branch.name })) ?? []}
-            value={value.branch_id || undefined}
-            onChange={(next) => onChange({ ...value, branch_id: next ?? '' })}
+            value={value.branch_ids}
+            onChange={(next) => onChange({ ...value, branch_ids: next })}
             loading={branches.isLoading}
             placeholder="All branches"
+            itemLabel="branch"
             aria-label="Branch"
             className="w-44"
           />

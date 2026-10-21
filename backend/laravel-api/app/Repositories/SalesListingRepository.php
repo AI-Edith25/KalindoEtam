@@ -91,10 +91,10 @@ class SalesListingRepository
             ->where('invoices.status', DocumentStatus::SUBMITTED->value)
             ->when($filters['date_from'] ?? null, fn ($q, $d) => $q->whereDate('invoices.invoice_date', '>=', $d))
             ->when($filters['date_to'] ?? null, fn ($q, $d) => $q->whereDate('invoices.invoice_date', '<=', $d))
-            ->when($filters['customer_id'] ?? null, fn ($q, $v) => $q->where('invoices.customer_id', $v))
-            ->when($filters['sales_person_id'] ?? null, fn ($q, $v) => $q->where('invoices.sales_person_id', $v))
-            ->when($filters['branch_id'] ?? null, fn ($q, $v) => $q->where(
-                fn ($q2) => $q2->where('invoices.branch_id', $v)->orWhere('sales_orders.branch_id', $v)
+            ->when($filters['customer_ids'] ?? [], fn ($q, $ids) => $q->whereIn('invoices.customer_id', $ids))
+            ->when($filters['sales_person_ids'] ?? [], fn ($q, $ids) => $q->whereIn('invoices.sales_person_id', $ids))
+            ->when($filters['branch_ids'] ?? [], fn ($q, $ids) => $q->where(
+                fn ($q2) => $q2->whereIn('invoices.branch_id', $ids)->orWhereIn('sales_orders.branch_id', $ids)
             ))
             ->select([
                 'invoices.id',
@@ -135,10 +135,10 @@ class SalesListingRepository
             ->where('credit_notes.is_reversed', false)
             ->when($filters['date_from'] ?? null, fn ($q, $d) => $q->whereDate('credit_notes.credit_note_date', '>=', $d))
             ->when($filters['date_to'] ?? null, fn ($q, $d) => $q->whereDate('credit_notes.credit_note_date', '<=', $d))
-            ->when($filters['customer_id'] ?? null, fn ($q, $v) => $q->where('credit_notes.customer_id', $v))
-            ->when($filters['sales_person_id'] ?? null, fn ($q, $v) => $q->where('cn_invoices.sales_person_id', $v))
-            ->when($filters['branch_id'] ?? null, fn ($q, $v) => $q->where(
-                fn ($q2) => $q2->where('cn_invoices.branch_id', $v)->orWhere('sales_orders.branch_id', $v)
+            ->when($filters['customer_ids'] ?? [], fn ($q, $ids) => $q->whereIn('credit_notes.customer_id', $ids))
+            ->when($filters['sales_person_ids'] ?? [], fn ($q, $ids) => $q->whereIn('cn_invoices.sales_person_id', $ids))
+            ->when($filters['branch_ids'] ?? [], fn ($q, $ids) => $q->where(
+                fn ($q2) => $q2->whereIn('cn_invoices.branch_id', $ids)->orWhereIn('sales_orders.branch_id', $ids)
             ))
             ->select([
                 'credit_notes.id',

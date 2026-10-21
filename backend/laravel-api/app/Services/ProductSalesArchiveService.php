@@ -35,7 +35,7 @@ class ProductSalesArchiveService
     /** @return array{data: array, total: int, kpis: array} */
     public function productSales(array $filters, string $group, int $page, int $perPage): array
     {
-        if (! empty($filters['sales_person_id']) || ! empty($filters['branch_id']) || ! empty($filters['status'])) {
+        if (! empty($filters['sales_person_ids']) || ! empty($filters['branch_ids']) || ! empty($filters['status'])) {
             return ['data' => [], 'total' => 0, 'kpis' => $this->emptyKpis()];
         }
 
@@ -93,9 +93,11 @@ class ProductSalesArchiveService
 
     private function baseLines(array $filters, ?string $itemCodeOverride = null): ?Collection
     {
+        // Archive snapshot lines carry no relational item/customer id to whereIn() against -- only
+        // the first selected id (if any) is honored here, unlike the live tabs' true multi-select.
         $itemCode = $itemCodeOverride;
-        if ($itemCode === null && ! empty($filters['item_id'])) {
-            $itemCode = Item::query()->find($filters['item_id'])?->item_code;
+        if ($itemCode === null && ! empty($filters['item_ids'])) {
+            $itemCode = Item::query()->find($filters['item_ids'][0])?->item_code;
             if ($itemCode === null) {
                 return null;
             }
@@ -110,8 +112,8 @@ class ProductSalesArchiveService
         }
 
         $customerCode = null;
-        if (! empty($filters['customer_id'])) {
-            $customerCode = Customer::query()->find($filters['customer_id'])?->customer_code;
+        if (! empty($filters['customer_ids'])) {
+            $customerCode = Customer::query()->find($filters['customer_ids'][0])?->customer_code;
             if ($customerCode === null) {
                 return null;
             }

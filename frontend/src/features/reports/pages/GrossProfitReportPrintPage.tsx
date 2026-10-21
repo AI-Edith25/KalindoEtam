@@ -23,10 +23,10 @@ export function GrossProfitReportPrintPage() {
   const dateTo = searchParams.get('date_to') ?? undefined
   const group = (searchParams.get('group') as GrossProfitGroupBy | null) ?? 'item'
   const params = {
-    customer_id: searchParams.get('customer_id') ?? undefined,
-    item_id: searchParams.get('item_id') ?? undefined,
-    sales_person_id: searchParams.get('sales_person_id') ?? undefined,
-    branch_id: searchParams.get('branch_id') ?? undefined,
+    customer_ids: searchParams.getAll('customer_ids'),
+    item_ids: searchParams.getAll('item_ids'),
+    sales_person_ids: searchParams.getAll('sales_person_ids'),
+    branch_ids: searchParams.getAll('branch_ids'),
     date_from: dateFrom,
     date_to: dateTo,
   }

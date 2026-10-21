@@ -5,10 +5,10 @@ import type { GrossProfitGroupBy, GrossProfitKpis, GrossProfitRow } from '../typ
 export interface GrossProfitParams {
   page: number
   per_page?: number
-  customer_id?: string
-  item_id?: string
-  sales_person_id?: string
-  branch_id?: string
+  customer_ids?: string[]
+  item_ids?: string[]
+  sales_person_ids?: string[]
+  branch_ids?: string[]
   date_from?: string
   date_to?: string
   group?: GrossProfitGroupBy

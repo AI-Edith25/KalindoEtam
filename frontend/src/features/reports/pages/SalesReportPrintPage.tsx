@@ -31,11 +31,11 @@ export function SalesReportPrintPage() {
   const dateFrom = searchParams.get('date_from') ?? undefined
   const dateTo = searchParams.get('date_to') ?? undefined
   const params = {
-    customer_id: searchParams.get('customer_id') ?? undefined,
-    item_id: searchParams.get('item_id') ?? undefined,
+    customer_ids: searchParams.getAll('customer_ids'),
+    item_ids: searchParams.getAll('item_ids'),
     item_group_id: searchParams.get('item_group_id') ?? undefined,
-    sales_person_id: searchParams.get('sales_person_id') ?? undefined,
-    branch_id: searchParams.get('branch_id') ?? undefined,
+    sales_person_ids: searchParams.getAll('sales_person_ids'),
+    branch_ids: searchParams.getAll('branch_ids'),
     status: searchParams.get('status') ?? undefined,
     date_from: dateFrom,
     date_to: dateTo,

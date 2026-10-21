@@ -17,11 +17,19 @@ class IndexSalesArchiveRequest extends FormRequest
     {
         return [
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'customer_id' => ['sometimes', 'nullable', 'uuid', 'exists:customers,id'],
-            'item_id' => ['sometimes', 'nullable', 'uuid', 'exists:items,id'],
+            // Arrays, matching the live Sales Report endpoints' own multi-select filters -- but
+            // this snapshot data has no relational columns to whereIn() against, so the service
+            // only ever resolves the first selected id (see ProductSalesArchiveService/
+            // SalesListingArchiveService's own baseLines()).
+            'customer_ids' => ['sometimes', 'nullable', 'array'],
+            'customer_ids.*' => ['string'],
+            'item_ids' => ['sometimes', 'nullable', 'array'],
+            'item_ids.*' => ['string'],
             'item_group_id' => ['sometimes', 'nullable', 'uuid', 'exists:item_groups,id'],
-            'sales_person_id' => ['sometimes', 'nullable', 'uuid'],
-            'branch_id' => ['sometimes', 'nullable', 'uuid'],
+            'sales_person_ids' => ['sometimes', 'nullable', 'array'],
+            'sales_person_ids.*' => ['string'],
+            'branch_ids' => ['sometimes', 'nullable', 'array'],
+            'branch_ids.*' => ['string'],
             'status' => ['sometimes', 'nullable', 'string'],
             'type' => ['sometimes', 'nullable', Rule::in(['invoice', 'credit_note'])],
             'payment_status' => ['sometimes', 'nullable', Rule::in(['unpaid', 'partially_paid', 'paid'])],

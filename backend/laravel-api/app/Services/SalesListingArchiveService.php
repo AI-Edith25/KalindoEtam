@@ -34,7 +34,7 @@ class SalesListingArchiveService
     /** @return array{data: array, total: int, kpis: array} */
     public function salesListing(array $filters, int $page, int $perPage): array
     {
-        if (! empty($filters['sales_person_id']) || ! empty($filters['branch_id'])) {
+        if (! empty($filters['sales_person_ids']) || ! empty($filters['branch_ids'])) {
             return ['data' => [], 'total' => 0, 'kpis' => $this->emptyListingKpis()];
         }
 
@@ -79,8 +79,8 @@ class SalesListingArchiveService
     /** @return array{data: array, total: int, kpis: array} */
     public function customerSales(array $filters, int $page, int $perPage): array
     {
-        if (! empty($filters['item_id']) || ! empty($filters['item_group_id']) || ! empty($filters['sales_person_id'])
-            || ! empty($filters['branch_id']) || ! empty($filters['status'])) {
+        if (! empty($filters['item_ids']) || ! empty($filters['item_group_id']) || ! empty($filters['sales_person_ids'])
+            || ! empty($filters['branch_ids']) || ! empty($filters['status'])) {
             return ['data' => [], 'total' => 0, 'kpis' => $this->emptyCustomerKpis()];
         }
 
@@ -128,9 +128,11 @@ class SalesListingArchiveService
     /** Every filtered line (unfiltered by type/payment_status/search -- those apply after), or null if a customer filter was given but doesn't exist in the archive at all. */
     private function baseLines(array $filters): ?Collection
     {
+        // Only the first selected customer (if any) is honored -- see ProductSalesArchiveService's
+        // own baseLines() comment on why snapshot rows can't whereIn() like the live tabs do.
         $customerCode = null;
-        if (! empty($filters['customer_id'])) {
-            $customerCode = Customer::query()->find($filters['customer_id'])?->customer_code;
+        if (! empty($filters['customer_ids'])) {
+            $customerCode = Customer::query()->find($filters['customer_ids'][0])?->customer_code;
             if ($customerCode === null) {
                 return null;
             }

@@ -94,7 +94,7 @@ class ProductSalesRepository
     /** Expand-a-row drill-down: which customers bought this item, within the same filter context. @return \Illuminate\Support\Collection */
     public function customersForItem(string $itemId, array $filters)
     {
-        return $this->baseQuery(array_merge($filters, ['item_id' => $itemId]))
+        return $this->baseQuery(array_merge($filters, ['item_ids' => [$itemId]]))
             ->join('customers', 'customers.id', '=', 'invoices.customer_id')
             ->select(['customers.id as customer_id', 'customers.customer_code', 'customers.customer_name'])
             ->selectRaw('SUM(invoice_items.qty * invoice_items.uom_factor) as qty')
@@ -116,12 +116,12 @@ class ProductSalesRepository
             ->where('invoices.status', $filters['status'] ?? DocumentStatus::SUBMITTED->value)
             ->when($filters['date_from'] ?? null, fn ($q, $d) => $q->whereDate('invoices.invoice_date', '>=', $d))
             ->when($filters['date_to'] ?? null, fn ($q, $d) => $q->whereDate('invoices.invoice_date', '<=', $d))
-            ->when($filters['customer_id'] ?? null, fn ($q, $v) => $q->where('invoices.customer_id', $v))
-            ->when($filters['item_id'] ?? null, fn ($q, $v) => $q->where('invoice_items.item_id', $v))
+            ->when($filters['customer_ids'] ?? [], fn ($q, $ids) => $q->whereIn('invoices.customer_id', $ids))
+            ->when($filters['item_ids'] ?? [], fn ($q, $ids) => $q->whereIn('invoice_items.item_id', $ids))
             ->when($filters['item_group_id'] ?? null, fn ($q, $v) => $q->where('items.item_group_id', $v))
-            ->when($filters['sales_person_id'] ?? null, fn ($q, $v) => $q->where('invoices.sales_person_id', $v))
-            ->when($filters['branch_id'] ?? null, fn ($q, $v) => $q->where(
-                fn ($q2) => $q2->where('invoices.branch_id', $v)->orWhere('sales_orders.branch_id', $v)
+            ->when($filters['sales_person_ids'] ?? [], fn ($q, $ids) => $q->whereIn('invoices.sales_person_id', $ids))
+            ->when($filters['branch_ids'] ?? [], fn ($q, $ids) => $q->where(
+                fn ($q2) => $q2->whereIn('invoices.branch_id', $ids)->orWhereIn('sales_orders.branch_id', $ids)
             ))
             ->when($filters['search'] ?? null, fn ($q, $s) => $q->where(
                 fn ($q2) => $q2->where('items.item_code', 'like', "%{$s}%")->orWhere('items.item_name', 'like', "%{$s}%")
