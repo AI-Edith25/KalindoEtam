@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -21,6 +22,7 @@ import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeSubtotal, lineDiscountAmount, lineNetAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { searchCustomersLookup, searchItemsLookup, fetchSalesPersonsLookup, fetchTaxesLookup, fetchTermsOfPaymentLookup, fetchWarehousesLookup } from '@/features/master/api/lookupsApi'
+import { fetchActiveFleetsLookup } from '@/features/master/api/fleetApi'
 import type { Customer, Item } from '@/features/master/types'
 import { fetchDelivery, updateDelivery } from '../api/deliveryApi'
 import { fetchSalesOrder } from '../api/salesOrderApi'
@@ -100,6 +102,7 @@ export function DeliveryCompleteEditPage() {
   const salesPersonsQuery = useQuery({ queryKey: ['sales-persons-lookup'], queryFn: fetchSalesPersonsLookup })
   const termsOfPaymentQuery = useQuery({ queryKey: ['terms-of-payment-lookup'], queryFn: fetchTermsOfPaymentLookup })
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
+  const fleetsQuery = useQuery({ queryKey: ['fleets-lookup-active'], queryFn: fetchActiveFleetsLookup })
 
   const [customerId, setCustomerId] = useState('')
   const [customerOption, setCustomerOption] = useState<SearchableSelectOption<Customer> | undefined>(undefined)
@@ -112,7 +115,9 @@ export function DeliveryCompleteEditPage() {
   const [tel, setTel] = useState('')
   const [fax, setFax] = useState('')
   const [fleet, setFleet] = useState('')
+  const [fleetId, setFleetId] = useState('')
   const [driver, setDriver] = useState('')
+  const [includeInCommissionRecap, setIncludeInCommissionRecap] = useState(true)
   const [remarks, setRemarks] = useState('')
   const [lines, setLines] = useState<EditableLine[] | null>(null)
   const [confirmingInvoiced, setConfirmingInvoiced] = useState(false)
@@ -131,7 +136,9 @@ export function DeliveryCompleteEditPage() {
     setTel(delivery.tel ?? '')
     setFax(delivery.fax ?? '')
     setFleet(delivery.fleet ?? '')
+    setFleetId(delivery.fleet_id ?? '')
     setDriver(delivery.driver ?? '')
+    setIncludeInCommissionRecap(delivery.include_in_commission_recap ?? true)
     setRemarks(delivery.remarks ?? '')
     setLines(delivery.items.map(toEditableLine))
   }
@@ -209,7 +216,9 @@ export function DeliveryCompleteEditPage() {
     tel: tel || null,
     fax: fax || null,
     fleet: fleet || null,
+    fleet_id: fleetId || null,
     driver: driver || null,
+    include_in_commission_recap: includeInCommissionRecap,
     remarks: remarks || null,
     lock_version: delivery!.lock_version,
     items: (lines ?? []).map((line) => ({
@@ -368,11 +377,26 @@ export function DeliveryCompleteEditPage() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Fleet</label>
-            <Input value={fleet} onChange={(e) => setFleet(e.target.value)} placeholder="Optional" />
+            <SearchableSelect
+              options={(fleetsQuery.data ?? []).map((f) => ({ value: f.id, label: f.plat_number, data: f }))}
+              value={fleetId || undefined}
+              onChange={(value, option) => {
+                setFleetId(value ?? '')
+                setFleet(option?.label ?? '')
+                setDriver(option?.data?.default_driver_name ?? '')
+              }}
+              loading={fleetsQuery.isLoading}
+              placeholder="Optional"
+              aria-label="Fleet"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Driver</label>
             <Input value={driver} onChange={(e) => setDriver(e.target.value)} placeholder="Optional" />
+          </div>
+          <div className="flex flex-row items-center justify-between rounded-md border p-3">
+            <label className="cursor-pointer text-sm font-medium">Masuk Perhitungan Komisi Akhir Bulan</label>
+            <Switch checked={includeInCommissionRecap} onCheckedChange={setIncludeInCommissionRecap} />
           </div>
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <label className="text-sm font-medium">Notes</label>

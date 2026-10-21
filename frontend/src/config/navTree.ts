@@ -69,6 +69,8 @@ export const navTree: NavGroup[] = [
       { key: 'uoms', label: 'UOMs', path: '/master/uoms', actions: ['view', 'create', 'update', 'delete', 'import'] },
       { key: 'taxes', label: 'Taxes', path: '/master/taxes', actions: ['view', 'create', 'update', 'delete'] },
       { key: 'item_prices', label: 'Item Prices', path: '/master/item-prices', actions: ['view', 'create', 'update', 'delete', 'import'] },
+      { key: 'fleets', label: 'Fleets', path: '/master/fleets', actions: ['view', 'create', 'update', 'delete'] },
+      { key: 'driver_commission_rates', label: 'Driver Commission Rates', path: '/master/driver-commission-rates', actions: ['view', 'create', 'delete'] },
     ],
   },
   {
@@ -146,6 +148,7 @@ export const navTree: NavGroup[] = [
       // RolePermissionSeeder's backfill block for how existing roles keep access.
       { key: 'gross_profit', label: 'Gross Profit', path: '/reports/gross-profit', actions: ['view'] },
       { key: 'deliveries', label: 'Delivery', path: '/reports/deliveries', actions: ['view'] },
+      { key: 'driver_commission', label: 'Komisi Sopir', path: '/reports/driver-commission', actions: ['view'] },
       { key: 'inventory_stock', label: 'Inventory Stock', path: '/reports/inventory-stock', actions: ['view'] },
       // "Customer Outstanding Bills" (imported legacy AR export archive, not connected to live
       // data) lives as a view-mode tab INSIDE this page, not its own navTree entry -- see

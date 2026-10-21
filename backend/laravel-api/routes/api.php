@@ -39,6 +39,9 @@ use App\Http\Controllers\Api\V1\InvoiceChangeRequestController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\IssueStockController;
 use App\Http\Controllers\Api\V1\ItemController;
+use App\Http\Controllers\Api\V1\DriverCommissionRateController;
+use App\Http\Controllers\Api\V1\DriverCommissionReportController;
+use App\Http\Controllers\Api\V1\FleetController;
 use App\Http\Controllers\Api\V1\ItemGroupController;
 use App\Http\Controllers\Api\V1\ItemWarehousePriceController;
 use App\Http\Controllers\Api\V1\JournalEntryController;
@@ -199,6 +202,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('audit-logs', [AuditLogController::class, 'index'])->middleware('permission:administration.audit_log.view');
 
     $withPagePermissions(Route::apiResource('item-groups', ItemGroupController::class), 'master.item_groups');
+    $withPagePermissions(Route::apiResource('fleets', FleetController::class), 'master.fleets');
+    // No `update` route — a new rate is always a fresh row, never an edit, see DriverCommissionRateService.
+    $withPagePermissions(Route::apiResource('driver-commission-rates', DriverCommissionRateController::class)->only(['index', 'store', 'destroy']), 'master.driver_commission_rates');
     $withPagePermissions(Route::apiResource('uoms', UomController::class), 'master.uoms');
     $withPagePermissions(Route::apiResource('currencies', CurrencyController::class), 'master.currencies');
     $withPagePermissions(Route::apiResource('taxes', TaxController::class), 'master.taxes');
@@ -365,6 +371,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     Route::get('tax-report/input', [TaxReportController::class, 'inputTax'])->middleware('permission:reports.tax.view');
     Route::get('tax-report/input/export', [TaxReportController::class, 'inputTaxExport'])->middleware('permission:reports.tax.view');
     Route::get('tax-report/summary', [TaxReportController::class, 'summary'])->middleware('permission:reports.tax.view');
+
+    // Driver Commission report — read-only, computed at read time from Delivery/DeliveryItem +
+    // DriverCommissionRate history, never a separate stored document.
+    Route::get('reports/driver-commission', [DriverCommissionReportController::class, 'index'])->middleware('permission:reports.driver_commission.view');
+    Route::get('reports/driver-commission/drivers', [DriverCommissionReportController::class, 'drivers'])->middleware('permission:reports.driver_commission.view');
+    Route::get('reports/driver-commission/export', [DriverCommissionReportController::class, 'export'])->middleware('permission:reports.driver_commission.view');
 
     // Sales Workflow (Sprint 5): Customer -> SO -> Delivery -> Stock Ledger(-).
     // Delivery Report additionally reads Sales Orders client-side (to resolve each delivery's

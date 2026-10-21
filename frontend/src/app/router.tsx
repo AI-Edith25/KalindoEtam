@@ -12,6 +12,8 @@ import { AutoImportPage } from '@/features/master/components/import/AutoImportPa
 import { SupplierListPage } from '@/features/master/pages/SupplierListPage'
 import { CustomerListPage } from '@/features/master/pages/CustomerListPage'
 import { SalesPersonListPage } from '@/features/master/pages/SalesPersonListPage'
+import { FleetListPage } from '@/features/master/pages/FleetListPage'
+import { DriverCommissionRateListPage } from '@/features/master/pages/DriverCommissionRateListPage'
 // Sales Targets route retired — see navTree.ts. Import commented out with the route below.
 // import { SalesTargetListPage } from '@/features/master/pages/SalesTargetListPage'
 import { TermsOfPaymentListPage } from '@/features/master/pages/TermsOfPaymentListPage'
@@ -82,6 +84,7 @@ import { SalesReportPrintPage } from '@/features/reports/pages/SalesReportPrintP
 import { GrossProfitReportPage } from '@/features/reports/pages/GrossProfitReportPage'
 import { GrossProfitReportPrintPage } from '@/features/reports/pages/GrossProfitReportPrintPage'
 import { DeliveryReportPage } from '@/features/reports/pages/DeliveryReportPage'
+import { DriverCommissionReportPage } from '@/features/reports/pages/DriverCommissionReportPage'
 import { DeliveryReportPrintPage } from '@/features/reports/pages/DeliveryReportPrintPage'
 import { InventoryStockReportPage } from '@/features/reports/pages/InventoryStockReportPage'
 import { AccountsReceivableDetailReportPage } from '@/features/reports/pages/AccountsReceivableDetailReportPage'
@@ -206,6 +209,8 @@ export function AppRouter() {
           }
         />
         <Route path="/master/sales-persons" element={<ProtectedRoute permission="master.sales_persons.view"><SalesPersonListPage /></ProtectedRoute>} />
+        <Route path="/master/fleets" element={<ProtectedRoute permission="master.fleets.view"><FleetListPage /></ProtectedRoute>} />
+        <Route path="/master/driver-commission-rates" element={<ProtectedRoute permission="master.driver_commission_rates.view"><DriverCommissionRateListPage /></ProtectedRoute>} />
         <Route
           path="/master/sales-persons/import"
           element={
@@ -400,6 +405,7 @@ export function AppRouter() {
         <Route path="/reports/sales" element={<ProtectedRoute permission="reports.sales.view"><SalesReportPage /></ProtectedRoute>} />
         <Route path="/reports/gross-profit" element={<ProtectedRoute permission="reports.gross_profit.view"><GrossProfitReportPage /></ProtectedRoute>} />
         <Route path="/reports/deliveries" element={<ProtectedRoute permission="reports.deliveries.view"><DeliveryReportPage /></ProtectedRoute>} />
+        <Route path="/reports/driver-commission" element={<ProtectedRoute permission="reports.driver_commission.view"><DriverCommissionReportPage /></ProtectedRoute>} />
         <Route path="/reports/inventory-stock" element={<ProtectedRoute permission="reports.inventory_stock.view"><InventoryStockReportPage /></ProtectedRoute>} />
         {/* Inventory Movement (duplicate of Stock Ledger) and Inventory Balance (duplicate of the Balance tab) were both deleted in favor of this one page. */}
         <Route path="/reports/inventory-movement" element={<RedirectPreservingQuery to="/reports/inventory-stock?tab=ledger" />} />

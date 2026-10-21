@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreDeliveryRequest extends FormRequest
 {
@@ -36,6 +37,8 @@ class StoreDeliveryRequest extends FormRequest
             'remarks' => ['nullable', 'string'],
             'fleet' => ['nullable', 'string', 'max:255'],
             'driver' => ['nullable', 'string', 'max:255'],
+            'fleet_id' => ['nullable', 'uuid', Rule::exists('fleets', 'id')->whereNull('deleted_at')],
+            'include_in_commission_recap' => ['sometimes', 'boolean'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.sales_order_item_id' => ['required', 'uuid', 'exists:sales_order_items,id'],
             'items.*.qty' => ['required', 'numeric', 'min:0.01'],
