@@ -56,9 +56,9 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
   return (
     <div
       className="mx-auto flex w-full max-w-[210mm] flex-col bg-white p-6 text-black shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none"
-      style={{ fontFamily: "'Arial Narrow', 'Liberation Sans Narrow', Arial, sans-serif", pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
+      style={{ fontFamily: 'Arial, Helvetica, sans-serif', pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
     >
-      <div className="grid grid-cols-3 items-center">
+      <div className="grid grid-cols-3 items-start">
         <p className="text-[13.5pt] font-bold">{companyName}</p>
         <p className="text-center font-bold text-[14.25pt]" style={{ letterSpacing: '0.3em' }}>
           GENERAL JOURNAL
@@ -80,10 +80,10 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
         <thead>
           <tr className="border-b border-black text-[10.5pt]">
             <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Account Code</th>
-            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Account Name</th>
-            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Description</th>
-            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Prj /Dept</th>
-            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Debit</th>
+            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Account Name</th>
+            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Description</th>
+            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Prj /Dept</th>
+            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Debit</th>
             <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Credit</th>
           </tr>
         </thead>
@@ -91,10 +91,10 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
           {entry.lines.map((line) => (
             <tr key={line.id}>
               <td className="border-r border-black py-1.5 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
-              <td className="py-1.5 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
-              <td className="py-1.5 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
-              <td className="py-1.5 px-2 text-center align-top">{line.branch?.name || '/'}</td>
-              <td className="py-1.5 px-2 text-right align-top">{formatNum(line.debit)}</td>
+              <td className="border-r border-black py-1.5 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
+              <td className="border-r border-black py-1.5 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
+              <td className="border-r border-black py-1.5 px-2 text-center align-top">{line.branch?.name || '/'}</td>
+              <td className="border-r border-black py-1.5 px-2 text-right align-top">{formatNum(line.debit)}</td>
               <td className="py-1.5 px-2 text-right align-top">{formatNum(line.credit)}</td>
             </tr>
           ))}
