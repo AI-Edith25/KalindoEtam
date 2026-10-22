@@ -56,16 +56,16 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
     >
       <div className="grid grid-cols-3 items-start">
         <p className="text-[14pt] font-bold">{companyName}</p>
-        <p className="text-center font-bold" style={{ letterSpacing: '0.3em' }}>
+        <p className="text-center font-bold text-[16pt]" style={{ letterSpacing: '0.12em' }}>
           GENERAL JOURNAL
         </p>
-        <div className="text-right font-bold">
+        <div className="text-right font-bold text-[10pt]">
           <p>NO. : {entry.document_number ?? '—'}</p>
           <p>Date : {formatDdMmYyyy(entry.posting_date)}</p>
         </div>
       </div>
 
-      <div className="mt-3 flex border border-black px-2 py-1">
+      <div className="mt-3 flex border border-black px-2 py-1 text-[10pt]">
         <span className="w-28 shrink-0">Description</span>
         <span className="shrink-0">:</span>
         <span className="pl-2">{entry.description ?? ''}</span>
@@ -73,7 +73,7 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
 
       <table className="mt-2 flex w-full flex-1 flex-col border-collapse">
         <thead style={TABLE_SEGMENT_STYLE}>
-          <tr className="border-b border-black">
+          <tr className="border-b border-black text-[10pt]">
             <th style={{ width: COLUMN_WIDTHS[0] }} className="border-r border-black py-1 px-2 text-center font-bold">Account Code</th>
             <th style={{ width: COLUMN_WIDTHS[1] }} className="py-1 px-2 text-center font-bold">Account Name</th>
             <th style={{ width: COLUMN_WIDTHS[2] }} className="py-1 px-2 text-center font-bold">Description</th>
@@ -82,7 +82,7 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
             <th style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-center font-bold">Credit</th>
           </tr>
         </thead>
-        <tbody style={TABLE_SEGMENT_STYLE}>
+        <tbody style={TABLE_SEGMENT_STYLE} className="text-[9pt]">
           {entry.lines.map((line) => (
             <tr key={line.id}>
               <td style={{ width: COLUMN_WIDTHS[0] }} className="border-r border-black py-1 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
@@ -100,11 +100,11 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
           </tr>
         </tbody>
         <tfoot style={TABLE_SEGMENT_STYLE}>
-          {/* A double rule (not a single solid line) above the grand total is the template's own
-              convention — CSS `border-style: double` draws exactly that: two thin lines with a gap,
-              not a single thicker one. No line below TOTAL, and no box around the Debit/Credit cells
-              (the only vertical rule on this page is Account Code|Account Name, see thead/tbody above). */}
-          <tr className="font-bold" style={{ borderTop: '3px double black' }}>
+          {/* Single 1px rule above the grand total, matching every other line on this page — no
+              line thicker than 1px appears anywhere in the legacy template. No line below TOTAL,
+              and no box around the Debit/Credit cells (the only vertical rule on this page is
+              Account Code|Account Name, see thead/tbody above). */}
+          <tr className="font-bold text-[9pt]" style={{ borderTop: '1px solid black' }}>
             <td colSpan={4} style={{ width: '73%' }} className="py-1 px-2 text-right">
               TOTAL
             </td>
