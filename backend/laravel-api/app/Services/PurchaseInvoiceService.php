@@ -7,10 +7,10 @@ use App\Enums\DocumentStatus;
 use App\Enums\PurchaseInvoiceSource;
 use App\Exceptions\BusinessException;
 use App\Models\ChartOfAccount;
+use App\Models\GoodsReceipt;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Repositories\ChartOfAccountRepository;
-use App\Repositories\GoodsReceiptRepository;
 use App\Repositories\PurchaseInvoiceItemRepository;
 use App\Repositories\PurchaseInvoiceRepository;
 use App\Repositories\SupplierRepository;
@@ -26,7 +26,6 @@ class PurchaseInvoiceService
     public function __construct(
         protected PurchaseInvoiceRepository $purchaseInvoiceRepository,
         protected PurchaseInvoiceItemRepository $purchaseInvoiceItemRepository,
-        protected GoodsReceiptRepository $goodsReceiptRepository,
         protected SupplierRepository $supplierRepository,
         protected ChartOfAccountRepository $chartOfAccountRepository,
         protected TaxService $taxService,
@@ -71,8 +70,14 @@ class PurchaseInvoiceService
 
     protected function createFromGoodsReceipts(array $data): PurchaseInvoice
     {
+        // Row-locks each Goods Receipt for the rest of this transaction, then reloads its
+        // relations fresh (not from any pre-lock snapshot) — closes a race where two concurrent
+        // requests invoicing the same Goods Receipt could otherwise both pass the "not yet
+        // invoiced" check below before either's purchase_invoice_goods_receipts row actually
+        // commits, crashing the second one on that pivot's unique constraint instead of getting
+        // a clean "already invoiced" message.
         $goodsReceipts = collect($data['goods_receipt_ids'])
-            ->map(fn (string $id) => $this->goodsReceiptRepository->findOrFail($id))
+            ->map(fn (string $id) => GoodsReceipt::query()->lockForUpdate()->findOrFail($id)->load(['supplier', 'purchaseOrder', 'items', 'purchaseInvoices']))
             ->sortBy(fn ($goodsReceipt) => [$goodsReceipt->receipt_date, $goodsReceipt->id])
             ->values();
 
