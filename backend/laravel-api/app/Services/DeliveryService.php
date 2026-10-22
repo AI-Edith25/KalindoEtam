@@ -195,7 +195,7 @@ class DeliveryService
                 'fleet' => $data['fleet'] ?? null,
                 'driver' => $data['driver'] ?? null,
                 'fleet_id' => $data['fleet_id'] ?? null,
-                'include_in_commission_recap' => $data['include_in_commission_recap'] ?? true,
+                'delivery_status' => $data['delivery_status'] ?? null,
             ]);
 
             foreach ($data['items'] as $line) {
@@ -337,7 +337,7 @@ class DeliveryService
                 throw new BusinessException('Dokumen ini sudah diubah oleh pengguna lain. Muat ulang halaman dan coba lagi.', 409);
             }
 
-            $editableFields = ['customer_id', 'warehouse_id', 'sales_person_id', 'delivery_date', 'due_date', 'terms_of_payment_id', 'attention', 'tel', 'fax', 'fleet', 'driver', 'fleet_id', 'include_in_commission_recap', 'remarks'];
+            $editableFields = ['customer_id', 'warehouse_id', 'sales_person_id', 'delivery_date', 'due_date', 'terms_of_payment_id', 'attention', 'tel', 'fax', 'fleet', 'driver', 'fleet_id', 'delivery_status', 'remarks'];
             $before = $delivery->only($editableFields);
             $headerData = collect($data)->only($editableFields)->all();
 

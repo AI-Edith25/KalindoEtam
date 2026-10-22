@@ -3,18 +3,13 @@ import { FilterPanel } from '@/components/shared/FilterPanel'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchActiveFleetsLookup } from '@/features/master/api/fleetApi'
-import { searchItemsLookup } from '@/features/master/api/lookupsApi'
-import { fetchItem } from '@/features/master/api/itemApi'
-import { fetchDriverCommissionDrivers } from '../api/driverCommissionReportApi'
+import { fetchActiveFleetsLookup, formatFleetLabel } from '@/features/master/api/fleetApi'
+import { DELIVERY_METHOD_OPTIONS } from '@/features/sales/lib/deliveryMethod'
+import { fetchDriverCommissionCommissionableItems } from '../api/driverCommissionReportApi'
 import { emptyDriverCommissionReportFilters, hasActiveDriverCommissionReportFilters } from '../lib/reportFilters'
 import type { DriverCommissionReportFilterValues, DriverCommissionStatusFilter } from '../types'
 
-const STATUS_OPTIONS: { value: DriverCommissionStatusFilter; label: string }[] = [
-  { value: 'included', label: 'Masuk Perhitungan' },
-  { value: 'excluded', label: 'Tidak' },
-  { value: 'all', label: 'Semua' },
-]
+const STATUS_OPTIONS: { value: DriverCommissionStatusFilter; label: string }[] = [{ value: 'all', label: 'Semua' }, ...DELIVERY_METHOD_OPTIONS]
 
 interface DriverCommissionReportFiltersBarProps {
   value: DriverCommissionReportFilterValues
@@ -23,20 +18,7 @@ interface DriverCommissionReportFiltersBarProps {
 
 export function DriverCommissionReportFiltersBar({ value, onChange }: DriverCommissionReportFiltersBarProps) {
   const fleets = useQuery({ queryKey: ['fleets-lookup-active'], queryFn: fetchActiveFleetsLookup })
-  const drivers = useQuery({ queryKey: ['driver-commission-drivers'], queryFn: fetchDriverCommissionDrivers })
-
-  const loadItemOptions = async (query: string) => {
-    const items = await searchItemsLookup(query)
-    return items.map((item) => ({ value: item.id, label: item.item_name }))
-  }
-  const selectedItemQuery = useQuery({
-    queryKey: ['item', value.item_id],
-    queryFn: () => fetchItem(value.item_id),
-    enabled: !!value.item_id,
-  })
-  const selectedItemOption = selectedItemQuery.data
-    ? { value: selectedItemQuery.data.id, label: selectedItemQuery.data.item_name }
-    : undefined
+  const commissionableItems = useQuery({ queryKey: ['driver-commission-items'], queryFn: fetchDriverCommissionCommissionableItems })
 
   return (
     <FilterPanel onClear={() => onChange(emptyDriverCommissionReportFilters)} hasActiveFilters={hasActiveDriverCommissionReportFilters(value)}>
@@ -49,36 +31,24 @@ export function DriverCommissionReportFiltersBar({ value, onChange }: DriverComm
         <Input type="date" className="w-40" value={value.dateTo} onChange={(event) => onChange({ ...value, dateTo: event.target.value })} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Sopir</span>
+        <span className="text-xs text-muted-foreground">Driver</span>
         <SearchableSelect
-          options={(drivers.data ?? []).map((driver) => ({ value: driver, label: driver }))}
-          value={value.driver || undefined}
-          onChange={(next) => onChange({ ...value, driver: next ?? '' })}
-          loading={drivers.isLoading}
-          placeholder="All drivers"
-          aria-label="Sopir"
-          className="w-44"
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Armada</span>
-        <SearchableSelect
-          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number }))}
+          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: formatFleetLabel(fleet) }))}
           value={value.fleet_id || undefined}
           onChange={(next) => onChange({ ...value, fleet_id: next ?? '' })}
           loading={fleets.isLoading}
-          placeholder="All fleets"
-          aria-label="Armada"
+          placeholder="All drivers"
+          aria-label="Driver"
           className="w-44"
         />
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">Jenis Barang</span>
         <SearchableSelect
-          loadOptions={loadItemOptions}
-          selectedOption={selectedItemOption}
+          options={(commissionableItems.data ?? []).map((item) => ({ value: item.id, label: item.item_name }))}
           value={value.item_id || undefined}
           onChange={(next) => onChange({ ...value, item_id: next ?? '' })}
+          loading={commissionableItems.isLoading}
           placeholder="All items"
           aria-label="Jenis Barang"
           className="w-44"

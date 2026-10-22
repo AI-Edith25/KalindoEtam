@@ -19,6 +19,7 @@ class DriverCommissionReportRowResource extends JsonResource
             'qty' => $this->qty,
             'plat_number' => $this->plat_number,
             'driver' => $this->driver,
+            'delivery_status' => $this->delivery_status,
             'rate_per_zak' => $this->rate_per_zak,
             'total_commission' => $this->total_commission,
         ];

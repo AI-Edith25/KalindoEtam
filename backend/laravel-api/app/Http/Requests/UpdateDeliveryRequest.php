@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\DeliveryMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -46,7 +47,7 @@ class UpdateDeliveryRequest extends FormRequest
             'fleet' => ['nullable', 'string', 'max:255'],
             'driver' => ['nullable', 'string', 'max:255'],
             'fleet_id' => ['nullable', 'uuid', Rule::exists('fleets', 'id')->whereNull('deleted_at')],
-            'include_in_commission_recap' => ['sometimes', 'boolean'],
+            'delivery_status' => ['nullable', Rule::enum(DeliveryMethod::class)],
             // Required only once this Delivery is Complete (DeliveryService::updateComplete()'s
             // optimistic-lock check) — a Pending-Delivery edit ignores it (that path has no
             // concurrent-edit story of its own yet, unchanged from before this ticket).

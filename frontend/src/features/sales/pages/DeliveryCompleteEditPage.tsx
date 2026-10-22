@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -27,6 +27,7 @@ import type { Customer, Item } from '@/features/master/types'
 import { fetchDelivery, updateDelivery } from '../api/deliveryApi'
 import { fetchSalesOrder } from '../api/salesOrderApi'
 import { allocateSoLineDiscount } from '../lib/deliveryDiscount'
+import { DELIVERY_METHOD_OPTIONS, type DeliveryMethod } from '../lib/deliveryMethod'
 import type { DeliveryItem } from '../types'
 
 interface EditableLine {
@@ -120,7 +121,7 @@ export function DeliveryCompleteEditPage() {
   const [fleet, setFleet] = useState('')
   const [fleetId, setFleetId] = useState('')
   const [driver, setDriver] = useState('')
-  const [includeInCommissionRecap, setIncludeInCommissionRecap] = useState(true)
+  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryMethod | ''>('')
   const [remarks, setRemarks] = useState('')
   const [lines, setLines] = useState<EditableLine[] | null>(null)
   const [confirmingInvoiced, setConfirmingInvoiced] = useState(false)
@@ -141,7 +142,7 @@ export function DeliveryCompleteEditPage() {
     setFleet(delivery.fleet ?? '')
     setFleetId(delivery.fleet_id ?? '')
     setDriver(delivery.driver ?? '')
-    setIncludeInCommissionRecap(delivery.include_in_commission_recap ?? true)
+    setDeliveryStatus(delivery.delivery_status ?? '')
     setRemarks(delivery.remarks ?? '')
     setLines(delivery.items.map(toEditableLine))
   }
@@ -226,7 +227,7 @@ export function DeliveryCompleteEditPage() {
     fleet: fleet || null,
     fleet_id: fleetId || null,
     driver: driver || null,
-    include_in_commission_recap: includeInCommissionRecap,
+    delivery_status: deliveryStatus || null,
     remarks: remarks || null,
     lock_version: delivery!.lock_version,
     items: (lines ?? []).map((line) => ({
@@ -254,6 +255,10 @@ export function DeliveryCompleteEditPage() {
   })
 
   const handleSaveClick = () => {
+    if (showCommissionFields && !deliveryStatus) {
+      toast.error('Status Pengantaran is required.')
+      return
+    }
     if (delivery?.is_invoiced) {
       setConfirmingInvoiced(true)
       return
@@ -404,9 +409,20 @@ export function DeliveryCompleteEditPage() {
                 <label className="text-sm font-medium">Driver</label>
                 <Input value={driver} onChange={(e) => setDriver(e.target.value)} placeholder="Optional" />
               </div>
-              <div className="flex flex-row items-center justify-between rounded-md border p-3">
-                <label className="cursor-pointer text-sm font-medium">Masuk Perhitungan Komisi Akhir Bulan</label>
-                <Switch checked={includeInCommissionRecap} onCheckedChange={setIncludeInCommissionRecap} />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Status Pengantaran</label>
+                <Select value={deliveryStatus} onValueChange={(value) => setDeliveryStatus(value as DeliveryMethod)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DELIVERY_METHOD_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </>
           )}

@@ -31,19 +31,19 @@ class FleetController extends Controller
     {
         $fleet = $this->fleetService->create($request->validated());
 
-        return $this->success(new FleetResource($fleet), 'Fleet created.', 201);
+        return $this->success(new FleetResource($fleet->load('location')), 'Fleet created.', 201);
     }
 
     public function show(Fleet $fleet): JsonResponse
     {
-        return $this->success(new FleetResource($fleet));
+        return $this->success(new FleetResource($fleet->load('location')));
     }
 
     public function update(UpdateFleetRequest $request, Fleet $fleet): JsonResponse
     {
         $fleet = $this->fleetService->update($fleet, $request->validated());
 
-        return $this->success(new FleetResource($fleet), 'Fleet updated.');
+        return $this->success(new FleetResource($fleet->load('location')), 'Fleet updated.');
     }
 
     public function destroy(Fleet $fleet): JsonResponse

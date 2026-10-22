@@ -5,10 +5,9 @@ import type { DriverCommissionReportRow, DriverCommissionReportSummary, DriverCo
 export interface DriverCommissionReportParams {
   date_from?: string
   date_to?: string
-  driver?: string
   fleet_id?: string
   item_id?: string
-  status?: DriverCommissionStatusFilter
+  delivery_status?: DriverCommissionStatusFilter
 }
 
 interface DriverCommissionReportResponse {
@@ -22,8 +21,9 @@ export async function fetchDriverCommissionReport(params: DriverCommissionReport
   return data.data
 }
 
-export async function fetchDriverCommissionDrivers(): Promise<string[]> {
-  const { data } = await apiClient.get<ApiResponse<string[]>>('/reports/driver-commission/drivers')
+/** Jenis Barang filter's options — only items actually commissioned (master Driver Commission Rates), never the whole Item catalog. */
+export async function fetchDriverCommissionCommissionableItems(): Promise<{ id: string; item_code: string; item_name: string }[]> {
+  const { data } = await apiClient.get<ApiResponse<{ id: string; item_code: string; item_name: string }[]>>('/reports/driver-commission/items')
   return data.data
 }
 

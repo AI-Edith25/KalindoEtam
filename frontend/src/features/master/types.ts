@@ -315,6 +315,8 @@ export interface Fleet {
   id: string
   plat_number: string
   default_driver_name: string | null
+  location_id: string | null
+  location: { id: string; name: string; code: string } | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -323,6 +325,7 @@ export interface Fleet {
 export interface FleetFormValues {
   plat_number: string
   default_driver_name: string | null
+  location_id: string | null
   is_active: boolean
 }
 

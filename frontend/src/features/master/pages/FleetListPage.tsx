@@ -1,4 +1,4 @@
-import { Download, Eye, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { Download, Eye, Pencil, Plus, RotateCw, Trash2, TriangleAlert } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { PageSizeControl } from '@/components/shared/PageSizeControl'
 import { ActionBar } from '@/components/shared/ActionBar'
@@ -39,6 +39,15 @@ export function FleetListPage() {
   const columns: DataTableColumn<Fleet>[] = [
     { header: 'Plat Number', accessor: (row) => row.plat_number, sortKey: 'plat_number' },
     { header: 'Default Driver', accessor: (row) => row.default_driver_name ?? '—' },
+    {
+      header: 'Location',
+      accessor: (row) =>
+        row.location?.name ?? (
+          <span className="inline-flex items-center gap-1 text-amber-600" title="This fleet won't appear in any Location-filtered dropdown until its Location is set.">
+            <TriangleAlert className="size-3.5" /> Not set
+          </span>
+        ),
+    },
     { header: 'Status', accessor: (row) => <StatusBadge status={row.is_active ? 'active' : 'inactive'} /> },
     {
       header: '',

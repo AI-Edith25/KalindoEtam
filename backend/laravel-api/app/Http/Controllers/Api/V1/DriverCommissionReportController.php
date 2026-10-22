@@ -29,9 +29,9 @@ class DriverCommissionReportController extends Controller
         ]);
     }
 
-    public function drivers(): JsonResponse
+    public function commissionableItems(): JsonResponse
     {
-        return $this->success($this->driverCommissionReportService->distinctDrivers());
+        return $this->success($this->driverCommissionReportService->commissionableItems());
     }
 
     public function export(IndexDriverCommissionReportRequest $request): BinaryFileResponse

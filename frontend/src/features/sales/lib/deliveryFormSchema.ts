@@ -1,5 +1,16 @@
 import { z } from 'zod'
 import { isValidQtyForCategory, parseLocaleQty, qtyErrorMessage } from '@/shared/lib/qty'
+import { DELIVERY_METHOD_OPTIONS } from './deliveryMethod'
+
+const deliveryMethodValues = DELIVERY_METHOD_OPTIONS.map((option) => option.value) as [string, ...string[]]
+
+/** Only commissionable items need a Status Pengantaran — see DeliveryEditorPage's own showCommissionFields. Any other Delivery leaves it blank and is never asked for one. */
+function requireDeliveryStatusWhenCommissionable<T extends { delivery_status?: string; items: { driver_commission_eligible?: boolean }[] }>(values: T, ctx: z.RefinementCtx) {
+  const needsDeliveryStatus = values.items.some((line) => line.driver_commission_eligible)
+  if (needsDeliveryStatus && !values.delivery_status) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Status Pengantaran is required', path: ['delivery_status'] })
+  }
+}
 
 /**
  * One row per Sales Order line — never added or removed by the user
@@ -58,23 +69,25 @@ export const deliveryLineRowSchema = z
     }
   })
 
-export const deliveryFormSchema = z.object({
-  warehouse_id: z.string().min(1, 'Location is required'),
-  delivery_date: z.string().min(1, 'Delivery date is required'),
-  due_date: z.string().min(1, 'Due date is required'),
-  terms_of_payment_id: z.string().optional().or(z.literal('')),
-  remarks: z.string().optional().or(z.literal('')),
-  fleet: z.string().optional().or(z.literal('')),
-  fleet_id: z.string().optional().or(z.literal('')),
-  driver: z.string().optional().or(z.literal('')),
-  include_in_commission_recap: z.boolean(),
-  items: z.array(deliveryLineRowSchema).superRefine((items, ctx) => {
-    const hasAny = items.some((line) => Number(line.deliverNow || 0) > 0)
-    if (!hasAny) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Deliver at least one line item.' })
-    }
-  }),
-})
+export const deliveryFormSchema = z
+  .object({
+    warehouse_id: z.string().min(1, 'Location is required'),
+    delivery_date: z.string().min(1, 'Delivery date is required'),
+    due_date: z.string().min(1, 'Due date is required'),
+    terms_of_payment_id: z.string().optional().or(z.literal('')),
+    remarks: z.string().optional().or(z.literal('')),
+    fleet: z.string().optional().or(z.literal('')),
+    fleet_id: z.string().optional().or(z.literal('')),
+    driver: z.string().optional().or(z.literal('')),
+    delivery_status: z.enum(deliveryMethodValues).optional().or(z.literal('')),
+    items: z.array(deliveryLineRowSchema).superRefine((items, ctx) => {
+      const hasAny = items.some((line) => Number(line.deliverNow || 0) > 0)
+      if (!hasAny) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Deliver at least one line item.' })
+      }
+    }),
+  })
+  .superRefine(requireDeliveryStatusWhenCommissionable)
 
 /**
  * One row of a standalone/direct delivery (no source Sales Order) — user
@@ -109,19 +122,21 @@ export const directDeliveryLineRowSchema = z
     }
   })
 
-export const directDeliveryFormSchema = z.object({
-  customer_id: z.string().min(1, 'Customer is required'),
-  warehouse_id: z.string().min(1, 'Location is required'),
-  delivery_date: z.string().min(1, 'Delivery date is required'),
-  due_date: z.string().min(1, 'Due date is required'),
-  terms_of_payment_id: z.string().optional().or(z.literal('')),
-  remarks: z.string().optional().or(z.literal('')),
-  fleet: z.string().optional().or(z.literal('')),
-  fleet_id: z.string().optional().or(z.literal('')),
-  driver: z.string().optional().or(z.literal('')),
-  include_in_commission_recap: z.boolean(),
-  items: z.array(directDeliveryLineRowSchema).min(1, 'Add at least one line item.'),
-})
+export const directDeliveryFormSchema = z
+  .object({
+    customer_id: z.string().min(1, 'Customer is required'),
+    warehouse_id: z.string().min(1, 'Location is required'),
+    delivery_date: z.string().min(1, 'Delivery date is required'),
+    due_date: z.string().min(1, 'Due date is required'),
+    terms_of_payment_id: z.string().optional().or(z.literal('')),
+    remarks: z.string().optional().or(z.literal('')),
+    fleet: z.string().optional().or(z.literal('')),
+    fleet_id: z.string().optional().or(z.literal('')),
+    driver: z.string().optional().or(z.literal('')),
+    delivery_status: z.enum(deliveryMethodValues).optional().or(z.literal('')),
+    items: z.array(directDeliveryLineRowSchema).min(1, 'Add at least one line item.'),
+  })
+  .superRefine(requireDeliveryStatusWhenCommissionable)
 
 export type DeliveryEditorValues = z.infer<typeof deliveryFormSchema>
 export type DeliveryLineRow = z.infer<typeof deliveryLineRowSchema>

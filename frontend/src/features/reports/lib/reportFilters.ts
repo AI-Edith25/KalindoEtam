@@ -94,22 +94,20 @@ export function hasActiveDeliveryReportFilters(filters: DeliveryReportFilterValu
   )
 }
 
-/** Status defaults to "included" — mirrors IndexDriverCommissionReportRequest's own default. */
+/** Status defaults to "antar_dengan_buruh" — mirrors IndexDriverCommissionReportRequest's own default. */
 export const emptyDriverCommissionReportFilters: DriverCommissionReportFilterValues = {
-  driver: '',
   fleet_id: '',
   item_id: '',
-  status: 'included',
+  status: 'antar_dengan_buruh',
   dateFrom: '',
   dateTo: '',
 }
 
 export function hasActiveDriverCommissionReportFilters(filters: DriverCommissionReportFilterValues): boolean {
   return (
-    filters.driver !== '' ||
     filters.fleet_id !== '' ||
     filters.item_id !== '' ||
-    filters.status !== 'included' ||
+    filters.status !== 'antar_dengan_buruh' ||
     filters.dateFrom !== '' ||
     filters.dateTo !== ''
   )

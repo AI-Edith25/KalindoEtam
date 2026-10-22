@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
@@ -24,7 +24,7 @@ import { formatCurrency } from '@/lib/utils'
 import { computeSubtotal, computeTotalDiscount, lineDiscountAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { allocateSoLineDiscount } from '../lib/deliveryDiscount'
 import { fetchWarehousesLookup, fetchTermsOfPaymentLookup, fetchTaxesLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
-import { fetchActiveFleetsLookup } from '@/features/master/api/fleetApi'
+import { fetchActiveFleetsLookup, formatFleetLabel } from '@/features/master/api/fleetApi'
 import { fetchStockBalances } from '@/features/inventory/api/stockApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { fetchDelivery, createDelivery, updateDelivery, completeDelivery } from '../api/deliveryApi'
@@ -34,6 +34,7 @@ import type { Delivery, SalesOrder } from '../types'
 import { DeliveryLineItemTable } from '../components/DeliveryLineItemTable'
 import { DirectDeliveryLineItemTable } from '../components/DirectDeliveryLineItemTable'
 import { deliveryFormSchema, directDeliveryFormSchema, type DeliveryEditorValues, type DirectDeliveryEditorValues } from '../lib/deliveryFormSchema'
+import { DELIVERY_METHOD_OPTIONS, type DeliveryMethod } from '../lib/deliveryMethod'
 import { DeliveryCompleteEditPage } from './DeliveryCompleteEditPage'
 import type { SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { parseLocaleQty } from '@/shared/lib/qty'
@@ -308,7 +309,7 @@ function DeliveryForm({
       fleet: delivery?.fleet ?? '',
       fleet_id: delivery?.fleet_id ?? '',
       driver: delivery?.driver ?? '',
-      include_in_commission_recap: delivery?.include_in_commission_recap ?? true,
+      delivery_status: delivery?.delivery_status ?? '',
       items: allSoItems.map((soItem) => ({
         sales_order_item_id: soItem.id,
         item_id: soItem.item_id,
@@ -328,6 +329,27 @@ function DeliveryForm({
   })
 
   const warehouseId = form.watch('warehouse_id')
+
+  // Fleet options are scoped to the Delivery's own Location — Location is always required, so an
+  // empty warehouseId simply means "nothing to offer yet" rather than falling back to Customer's Location.
+  const fleetOptions = useMemo(
+    () =>
+      (fleets.data ?? [])
+        .filter((fleet) => fleet.location_id === warehouseId)
+        .map((fleet) => ({ value: fleet.id, label: formatFleetLabel(fleet), data: fleet })),
+    [fleets.data, warehouseId],
+  )
+
+  // If the Location changes after a Fleet was already picked and that Fleet isn't in the new Location, drop the stale Fleet/Driver so nothing from the wrong location sticks around.
+  useEffect(() => {
+    if (fleets.isLoading) return
+    const currentFleetId = form.getValues('fleet_id')
+    if (!currentFleetId || fleetOptions.some((option) => option.value === currentFleetId)) return
+    form.setValue('fleet_id', '')
+    form.setValue('fleet', '')
+    form.setValue('driver', '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fleetOptions, fleets.isLoading])
 
   const itemIds = useMemo(() => allSoItems.map((line) => line.item_id), [allSoItems])
 
@@ -391,7 +413,7 @@ function DeliveryForm({
           fleet: values.fleet || null,
           fleet_id: values.fleet_id || null,
           driver: values.driver || null,
-          include_in_commission_recap: values.include_in_commission_recap,
+          delivery_status: (values.delivery_status || null) as DeliveryMethod | null,
           items,
         })
       }
@@ -406,7 +428,7 @@ function DeliveryForm({
         fleet: values.fleet || null,
         fleet_id: values.fleet_id || null,
         driver: values.driver || null,
-        include_in_commission_recap: values.include_in_commission_recap,
+        delivery_status: (values.delivery_status || null) as DeliveryMethod | null,
         items,
       })
     },
@@ -547,15 +569,16 @@ function DeliveryForm({
                       <FormItem>
                         <FormLabel>Fleet</FormLabel>
                         <SearchableSelect
-                          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
+                          options={fleetOptions}
                           value={field.value || undefined}
                           onChange={(value, option) => {
                             field.onChange(value ?? '')
-                            form.setValue('fleet', option?.label ?? '')
+                            form.setValue('fleet', option?.data?.plat_number ?? '')
                             form.setValue('driver', option?.data?.default_driver_name ?? '')
                           }}
                           loading={fleets.isLoading}
-                          placeholder="Optional"
+                          disabled={!warehouseId}
+                          placeholder={warehouseId ? 'Optional' : 'Pilih Location dulu'}
                           aria-label="Fleet"
                         />
                         <FormMessage />
@@ -577,13 +600,25 @@ function DeliveryForm({
                   />
                   <FormField
                     control={form.control}
-                    name="include_in_commission_recap"
+                    name="delivery_status"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-                        <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
+                      <FormItem>
+                        <FormLabel>Status Pengantaran</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {DELIVERY_METHOD_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -726,7 +761,7 @@ function DirectDeliveryForm({
       fleet: delivery?.fleet ?? '',
       fleet_id: delivery?.fleet_id ?? '',
       driver: delivery?.driver ?? '',
-      include_in_commission_recap: delivery?.include_in_commission_recap ?? true,
+      delivery_status: delivery?.delivery_status ?? '',
       items: (delivery?.items ?? []).map((line) => ({
         item_id: line.item_id,
         item_code: line.item_code,
@@ -742,6 +777,29 @@ function DirectDeliveryForm({
       })),
     },
   })
+
+  const warehouseId = form.watch('warehouse_id')
+
+  // Fleet options are scoped to the Delivery's own Location — Location is always required, so an
+  // empty warehouseId simply means "nothing to offer yet" rather than falling back to Customer's Location.
+  const fleetOptions = useMemo(
+    () =>
+      (fleets.data ?? [])
+        .filter((fleet) => fleet.location_id === warehouseId)
+        .map((fleet) => ({ value: fleet.id, label: formatFleetLabel(fleet), data: fleet })),
+    [fleets.data, warehouseId],
+  )
+
+  // If the Location changes after a Fleet was already picked and that Fleet isn't in the new Location, drop the stale Fleet/Driver so nothing from the wrong location sticks around.
+  useEffect(() => {
+    if (fleets.isLoading) return
+    const currentFleetId = form.getValues('fleet_id')
+    if (!currentFleetId || fleetOptions.some((option) => option.value === currentFleetId)) return
+    form.setValue('fleet_id', '')
+    form.setValue('fleet', '')
+    form.setValue('driver', '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fleetOptions, fleets.isLoading])
 
   const saveMutation = useMutation({
     mutationFn: (values: DirectDeliveryEditorValues) => {
@@ -765,7 +823,7 @@ function DirectDeliveryForm({
           fleet: values.fleet || null,
           fleet_id: values.fleet_id || null,
           driver: values.driver || null,
-          include_in_commission_recap: values.include_in_commission_recap,
+          delivery_status: (values.delivery_status || null) as DeliveryMethod | null,
           items,
         })
       }
@@ -780,7 +838,7 @@ function DirectDeliveryForm({
         fleet: values.fleet || null,
         fleet_id: values.fleet_id || null,
         driver: values.driver || null,
-        include_in_commission_recap: values.include_in_commission_recap,
+        delivery_status: (values.delivery_status || null) as DeliveryMethod | null,
         items,
       })
     },
@@ -927,15 +985,16 @@ function DirectDeliveryForm({
                       <FormItem>
                         <FormLabel>Fleet</FormLabel>
                         <SearchableSelect
-                          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
+                          options={fleetOptions}
                           value={field.value || undefined}
                           onChange={(value, option) => {
                             field.onChange(value ?? '')
-                            form.setValue('fleet', option?.label ?? '')
+                            form.setValue('fleet', option?.data?.plat_number ?? '')
                             form.setValue('driver', option?.data?.default_driver_name ?? '')
                           }}
                           loading={fleets.isLoading}
-                          placeholder="Optional"
+                          disabled={!warehouseId}
+                          placeholder={warehouseId ? 'Optional' : 'Pilih Location dulu'}
                           aria-label="Fleet"
                         />
                         <FormMessage />
@@ -957,13 +1016,25 @@ function DirectDeliveryForm({
                   />
                   <FormField
                     control={form.control}
-                    name="include_in_commission_recap"
+                    name="delivery_status"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-                        <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
+                      <FormItem>
+                        <FormLabel>Status Pengantaran</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {DELIVERY_METHOD_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
