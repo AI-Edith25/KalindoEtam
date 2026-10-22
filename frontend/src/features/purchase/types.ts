@@ -236,6 +236,8 @@ export interface PurchaseInvoiceFormValues {
   department?: string | null
   remarks: string | null
   items?: DirectPurchaseInvoiceLineInput[]
+  /** Goods Receipt-sourced invoice only — Rate overrides keyed by the source Goods Receipt line, see PurchaseInvoiceService::createFromGoodsReceipts(). */
+  item_rates?: { goods_receipt_item_id: string; rate: number }[]
 }
 
 export interface PurchaseInvoiceFilterValues {

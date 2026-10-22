@@ -17,11 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { DataTable, type DataTableColumn } from '@/components/shared/DataTable'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
-import { formatQty } from '@/shared/lib/qty'
 import { computeLineTaxTotal } from '@/shared/lib/documentTotals'
 import { directLineAmount } from '../lib/directLineAmount'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
@@ -29,34 +27,17 @@ import { fetchTaxesLookup, searchSuppliersLookup } from '@/features/master/api/l
 import { fetchGoodsReceipts } from '../api/goodsReceiptApi'
 import { createPurchaseInvoice, fetchPurchaseInvoice, submitPurchaseInvoice, updatePurchaseInvoice } from '../api/purchaseInvoiceApi'
 import { DirectPurchaseInvoiceLineItemTable } from '../components/DirectPurchaseInvoiceLineItemTable'
+import { GoodsReceiptSourcedLineItemTable } from '../components/GoodsReceiptSourcedLineItemTable'
 import {
   emptyPurchaseInvoiceEditorValues,
   purchaseInvoiceFormSchema,
   type PurchaseInvoiceEditorValues,
+  type GoodsReceiptSourcedLineRow,
   emptyDirectPurchaseInvoiceEditorValues,
   directPurchaseInvoiceFormSchema,
   type DirectPurchaseInvoiceEditorValues,
 } from '../lib/purchaseInvoiceFormSchema'
 import type { GoodsReceipt, PurchaseInvoice, PurchaseInvoiceFormValues, PurchaseInvoiceItem } from '../types'
-
-interface PreviewLine {
-  id: string
-  item_code: string | null
-  item_name: string
-  uom: string | null
-  qty: string | number
-  qty_category?: 'unit' | 'weight'
-  rate: string | number
-  amount: string | number
-}
-
-const lineColumns: DataTableColumn<PreviewLine>[] = [
-  { header: 'Item Code', accessor: (row) => row.item_code },
-  { header: 'Item Name', accessor: (row) => row.item_name },
-  { header: 'Qty', accessor: (row) => formatQty(row.qty, row.qty_category ?? 'unit'), className: 'text-right' },
-  { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
-  { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
-]
 
 type InvoiceMode = 'from_gr' | 'direct'
 
@@ -269,6 +250,33 @@ function PurchaseInvoiceForm({
   navigate: NavigateFunction
   queryClient: QueryClient
 }) {
+  // Item/Qty are a locked copy of the source Goods Receipt line; `goods_receipt_item_id` is what
+  // ties each row back to it for the Rate-override payload (`id` is just the row key — a
+  // PurchaseInvoiceItem's own id when editing, a GoodsReceiptItem's id when creating fresh).
+  const itemRows: GoodsReceiptSourcedLineRow[] = isEdit
+    ? ((invoice?.items ?? []) as PurchaseInvoiceItem[]).map((line) => ({
+        id: line.id,
+        goods_receipt_item_id: line.goods_receipt_item_id ?? line.id,
+        item_code: line.item_code,
+        item_name: line.item_name,
+        uom: line.uom,
+        qty: line.qty,
+        qty_category: line.item_qty_category,
+        rate: String(line.rate),
+      }))
+    : selectedGoodsReceipts.flatMap((gr) =>
+        gr.items.map((line) => ({
+          id: line.id,
+          goods_receipt_item_id: line.id,
+          item_code: line.item_code,
+          item_name: line.item_name,
+          uom: line.uom,
+          qty: line.qty,
+          qty_category: line.qty_category,
+          rate: String(line.rate),
+        })),
+      )
+
   const form = useForm<PurchaseInvoiceEditorValues>({
     resolver: zodResolver(purchaseInvoiceFormSchema),
     defaultValues: invoice
@@ -278,8 +286,9 @@ function PurchaseInvoiceForm({
           tax_amount: String(invoice.tax_amount),
           reference_number: invoice.reference_number ?? '',
           remarks: invoice.remarks ?? '',
+          items: itemRows,
         }
-      : emptyPurchaseInvoiceEditorValues,
+      : { ...emptyPurchaseInvoiceEditorValues, items: itemRows },
   })
 
   const toPayload = (values: PurchaseInvoiceEditorValues): PurchaseInvoiceFormValues => ({
@@ -290,6 +299,7 @@ function PurchaseInvoiceForm({
     tax_amount: values.tax_amount === '' ? 0 : Number(values.tax_amount),
     reference_number: values.reference_number || null,
     remarks: values.remarks || null,
+    item_rates: values.items.map((line) => ({ goods_receipt_item_id: line.goods_receipt_item_id, rate: Number(line.rate) })),
   })
 
   const saveMutation = useMutation({
@@ -317,11 +327,8 @@ function PurchaseInvoiceForm({
   })
 
   const watchedTaxAmount = Number(form.watch('tax_amount') || 0)
-
-  const previewLines: PreviewLine[] = isEdit
-    ? ((invoice?.items ?? []) as PurchaseInvoiceItem[]).map((line) => ({ ...line, qty_category: line.item_qty_category }))
-    : selectedGoodsReceipts.flatMap((gr) => gr.items.map((line) => ({ ...line })))
-  const subtotal = previewLines.reduce((sum, line) => sum + Number(line.amount), 0)
+  const watchedItems = form.watch('items')
+  const subtotal = watchedItems.reduce((sum, line) => sum + Number(line.qty) * Number(line.rate || 0), 0)
   const grandTotal = subtotal + watchedTaxAmount
 
   const onSubmit = form.handleSubmit((values) => saveMutation.mutate(values))
@@ -429,9 +436,10 @@ function PurchaseInvoiceForm({
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <DataTable columns={lineColumns} data={previewLines} rowKey={(row) => row.id} emptyMessage="No line items." />
+              <GoodsReceiptSourcedLineItemTable form={form} />
               <p className="mt-2 text-sm text-muted-foreground">
-                Items are copied from the Goods Receipt and cannot be changed here — cancel and re-invoice if the Goods Receipt was wrong.
+                Qty & item follow the Goods Receipt and cannot be changed here; Rate can be adjusted if the supplier's invoice amount differs from
+                the Goods Receipt.
               </p>
             </CardContent>
           </Card>

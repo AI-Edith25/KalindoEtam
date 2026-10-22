@@ -35,6 +35,12 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
             'items.*.qty' => ['required_with:items', 'numeric', 'min:0.01'],
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
+
+            // Rate overrides for a Goods Receipt-sourced invoice — see StorePurchaseInvoiceRequest's
+            // own comment. Separate key from `items` above, which is Direct's own full line shape.
+            'item_rates' => ['sometimes', 'array'],
+            'item_rates.*.goods_receipt_item_id' => ['required', 'uuid', 'exists:goods_receipt_items,id'],
+            'item_rates.*.rate' => ['required', 'numeric', 'min:0'],
         ];
     }
 }
