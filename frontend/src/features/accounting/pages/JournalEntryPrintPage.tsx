@@ -78,23 +78,25 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
       <table className="mt-3 w-full table-fixed border-collapse">
         <JournalColGroup />
         <thead>
-          <tr className="border-b border-black text-[10.5pt]">
-            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Account Code</th>
-            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Account Name</th>
-            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Description</th>
-            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Prj /Dept</th>
-            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Debit</th>
-            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Credit</th>
+          <tr className="text-[10.5pt]">
+            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Account Code</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Account Name</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Description</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Prj /Dept</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Debit</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Credit</th>
           </tr>
         </thead>
         <tbody className="text-[9pt]">
           {entry.lines.map((line) => (
             <tr key={line.id}>
+              {/* Only Account Code|Account Name keeps a vertical rule running down through the data
+                  rows — every other column boundary here is spacing/alignment only, no border. */}
               <td className="border-r border-black py-1.5 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
-              <td className="border-r border-black py-1.5 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
-              <td className="border-r border-black py-1.5 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
-              <td className="border-r border-black py-1.5 px-2 text-center align-top">{line.branch?.name || '/'}</td>
-              <td className="border-r border-black py-1.5 px-2 text-right align-top">{formatNum(line.debit)}</td>
+              <td className="py-1.5 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
+              <td className="py-1.5 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
+              <td className="py-1.5 px-2 text-center align-top">{line.branch?.name || '/'}</td>
+              <td className="py-1.5 px-2 text-right align-top">{formatNum(line.debit)}</td>
               <td className="py-1.5 px-2 text-right align-top">{formatNum(line.credit)}</td>
             </tr>
           ))}
