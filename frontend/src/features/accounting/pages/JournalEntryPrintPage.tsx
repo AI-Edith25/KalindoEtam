@@ -21,13 +21,11 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
   return `${day}/${month}/${year}`
 }
 
-// Account Code / Account Name / Description / Prj-Dept / Debit / Credit — measured directly off the
-// legacy template's own vector grid lines (generaljournal_jtpq2k2v5rr81rnq5dgrd65gkr.pdf, extracted
-// via PyMuPDF: column edges at x=28.7/108.8/189.5/351.1/426.5/496.5/566.6pt on a 537.9pt-wide A4 body
-// → 80.1/80.0/160.8/74.6/69.2/69.3pt ≈ 15/15/30/14/13/13%), not eyeballed. Shared by both the lines
-// table and the standalone TOTAL table below it via <colgroup>, so the two stay column-aligned
-// without needing a single <table> to span both (see GeneralJournalPage's docblock).
-const COLUMN_WIDTHS = ['15%', '15%', '30%', '14%', '13%', '13%']
+// Account Code / Account Name / Description / Prj-Dept / Debit / Credit. Started from the legacy
+// template's own vector grid lines (15/15/30/14/13/13%), then nudged: at actual rendered print width
+// 15% left Account Code/Account Name's header text touching their border while Description sat far
+// wider than its content needed, so +2.5pt each was taken from Description's excess.
+const COLUMN_WIDTHS = ['17.5%', '17.5%', '25%', '14%', '13%', '13%']
 
 function JournalColGroup() {
   return (
@@ -78,26 +76,31 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
       <table className="mt-3 w-full table-fixed border-collapse">
         <JournalColGroup />
         <thead>
+          {/* Top/bottom border on every cell (continuous header rule), but border-r only between
+              columns — never on the leftmost cell's left edge or the rightmost cell's right edge,
+              and never on both sides of a shared boundary, so there's no outer-edge line and no
+              doubled divider. Description|Prj-Dept gets no divider at all, per the template. */}
           <tr className="text-[10.5pt]">
-            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Account Code</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Account Name</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Description</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Prj /Dept</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Debit</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Credit</th>
+            <th className="whitespace-nowrap border-y border-r border-black py-1.5 px-2.5 text-center font-bold">Account Code</th>
+            <th className="whitespace-nowrap border-y border-r border-black py-1.5 px-2.5 text-center font-bold">Account Name</th>
+            <th className="whitespace-nowrap border-y border-black py-1.5 px-2.5 text-center font-bold">Description</th>
+            <th className="whitespace-nowrap border-y border-r border-black py-1.5 px-2.5 text-center font-bold">Prj /Dept</th>
+            <th className="whitespace-nowrap border-y border-r border-black py-1.5 px-2.5 text-center font-bold">Debit</th>
+            <th className="whitespace-nowrap border-y border-black py-1.5 px-2.5 text-center font-bold">Credit</th>
           </tr>
         </thead>
         <tbody className="text-[9pt]">
-          {entry.lines.map((line) => (
+          {entry.lines.map((line, index) => (
             <tr key={line.id}>
               {/* No vertical rules anywhere in the data rows — column separation is padding/
-                  alignment only, per spec. */}
-              <td className="py-1.5 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
-              <td className="py-1.5 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
-              <td className="py-1.5 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
-              <td className="py-1.5 px-2 text-center align-top">{line.branch?.name || '/'}</td>
-              <td className="py-1.5 px-2 text-right align-top">{formatNum(line.debit)}</td>
-              <td className="py-1.5 px-2 text-right align-top">{formatNum(line.credit)}</td>
+                  alignment only, per spec. First row gets extra top padding so data doesn't hug
+                  the header's bottom rule. */}
+              <td className={`px-2 pb-1.5 text-left align-top ${index === 0 ? 'pt-3' : 'pt-1.5'}`}>{line.chart_of_account?.code ?? ''}</td>
+              <td className={`px-2 pb-1.5 text-left align-top ${index === 0 ? 'pt-3' : 'pt-1.5'}`}>{line.chart_of_account?.name ?? ''}</td>
+              <td className={`px-2 pb-1.5 text-left align-top whitespace-pre-wrap ${index === 0 ? 'pt-3' : 'pt-1.5'}`}>{line.description ?? ''}</td>
+              <td className={`px-2 pb-1.5 text-center align-top ${index === 0 ? 'pt-3' : 'pt-1.5'}`}>{line.branch?.name || '/'}</td>
+              <td className={`px-2 pb-1.5 text-right align-top ${index === 0 ? 'pt-3' : 'pt-1.5'}`}>{formatNum(line.debit)}</td>
+              <td className={`px-2 pb-1.5 text-right align-top ${index === 0 ? 'pt-3' : 'pt-1.5'}`}>{formatNum(line.credit)}</td>
             </tr>
           ))}
         </tbody>
