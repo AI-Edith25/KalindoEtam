@@ -122,6 +122,52 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         $this->assertEquals(110000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->credit);
     }
 
+    public function test_rate_can_be_edited_at_create_while_qty_stays_locked_to_the_goods_receipt(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 5, rate: 20000); // GR rate 20000, GR amount 100000
+        $grItem = $goodsReceipt->items->first();
+
+        $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'item_rates' => [['goods_receipt_item_id' => $grItem->id, 'rate' => 21000]],
+        ]);
+
+        $invoiceItem = $purchaseInvoice->items->first();
+        $this->assertEquals(21000, (float) $invoiceItem->rate);
+        $this->assertEquals(5, (float) $invoiceItem->qty); // unchanged — still the received qty
+        $this->assertEquals(105000, (float) $invoiceItem->amount);
+        $this->assertEquals(105000, (float) $purchaseInvoice->subtotal);
+        $this->assertEquals(105000, (float) $purchaseInvoice->grand_total);
+
+        // The Goods Receipt's own rate/amount are untouched.
+        $this->assertEquals(20000, (float) $grItem->fresh()->rate);
+    }
+
+    public function test_rate_can_be_edited_when_updating_a_draft_goods_receipt_sourced_invoice(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 5, rate: 20000);
+        $grItem = $goodsReceipt->items->first();
+
+        $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $purchaseInvoice = $this->purchaseInvoiceService->update($purchaseInvoice, [
+            'item_rates' => [['goods_receipt_item_id' => $grItem->id, 'rate' => 19500]],
+        ]);
+
+        $invoiceItem = $purchaseInvoice->items->first();
+        $this->assertEquals(19500, (float) $invoiceItem->rate);
+        $this->assertEquals(5, (float) $invoiceItem->qty);
+        $this->assertEquals(97500, (float) $invoiceItem->amount);
+        $this->assertEquals(97500, (float) $purchaseInvoice->subtotal);
+        $this->assertEquals(97500, (float) $purchaseInvoice->grand_total);
+    }
+
     public function test_multiple_goods_receipts_from_same_supplier_can_be_combined_into_one_invoice(): void
     {
         $first = $this->submittedGoodsReceipt(qty: 2, rate: 20000); // 40000

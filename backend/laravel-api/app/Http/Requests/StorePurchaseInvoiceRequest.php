@@ -23,6 +23,13 @@ class StorePurchaseInvoiceRequest extends FormRequest
             'goods_receipt_ids.*' => ['uuid', 'distinct', 'exists:goods_receipts,id'],
             // Manual entry — Goods Receipt items carry no tax snapshot to resolve this from.
             'tax_amount' => ['nullable', 'numeric', 'min:0'],
+            // Rate overrides for a Goods Receipt-sourced invoice — Qty/Item still come from the
+            // Goods Receipt untouched, only Rate is user-editable (see PurchaseInvoiceService::
+            // createFromGoodsReceipts()). A separate key from `items` below, which is Direct's own
+            // full line shape — the two never overlap.
+            'item_rates' => ['sometimes', 'array'],
+            'item_rates.*.goods_receipt_item_id' => ['required', 'uuid', 'exists:goods_receipt_items,id'],
+            'item_rates.*.rate' => ['required', 'numeric', 'min:0'],
 
             // Direct/Non-Stock invoice — no Goods Receipt/PO, lines post straight to an expense
             // account. Account type/active-ness is validated in PurchaseInvoiceService (needs

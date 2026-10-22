@@ -47,15 +47,16 @@ class PurchaseInvoiceService
     }
 
     /**
-     * Purchase Invoice items are never entered by the user — they are
-     * copied from the selected Goods Receipts' own items, so Invoice
-     * content can never drift from what was actually received. One or more
-     * Goods Receipts may be combined into a single Invoice as long as they
-     * share the same Supplier. purchase_invoices.goods_receipt_id/
-     * purchase_order_id keep pointing at the anchor Goods Receipt/Purchase
-     * Order (earliest receipt_date, tie-broken by id); goodsReceipts()/
-     * purchaseOrders() are the authoritative full source history. Mirrors
-     * InvoiceService::createGoods().
+     * Purchase Invoice items are Qty/Item-locked copies of the selected Goods Receipts' own items
+     * — Qty always reflects what was actually received into stock — but Rate is user-editable via
+     * `item_rates` (keyed by goods_receipt_item_id), since the supplier's physical invoice amount
+     * can differ from what was recorded at receipt time. No price-variance posting of any kind:
+     * the edited Rate simply becomes this Invoice's own Rate (mirrors the legacy SkyBiz ERP's
+     * free-edit PRICE field on its own Invoice-from-GRN form). One or more Goods Receipts may be
+     * combined into a single Invoice as long as they share the same Supplier.
+     * purchase_invoices.goods_receipt_id/purchase_order_id keep pointing at the anchor Goods
+     * Receipt/Purchase Order (earliest receipt_date, tie-broken by id); goodsReceipts()/
+     * purchaseOrders() are the authoritative full source history. Mirrors InvoiceService::createGoods().
      */
     public function create(array $data): PurchaseInvoice
     {
@@ -91,7 +92,27 @@ class PurchaseInvoiceService
 
         $anchor = $goodsReceipts->first();
 
-        $subtotal = $goodsReceipts->sum(fn ($goodsReceipt) => (float) $goodsReceipt->items->sum('amount'));
+        // Rate overrides keyed by the source Goods Receipt item — see StorePurchaseInvoiceRequest's
+        // own comment. Qty/item identity always come from the Goods Receipt line untouched.
+        $rateOverrides = collect($data['item_rates'] ?? [])->pluck('rate', 'goods_receipt_item_id');
+
+        $lines = $goodsReceipts->flatMap(fn ($goodsReceipt) => $goodsReceipt->items)->map(function ($line) use ($rateOverrides) {
+            $rate = $rateOverrides->has($line->id) ? (float) $rateOverrides->get($line->id) : (float) $line->rate;
+
+            return [
+                'goods_receipt_item_id' => $line->id,
+                'item_id' => $line->item_id,
+                'item_code' => $line->item_code,
+                'item_name' => $line->item_name,
+                'uom' => $line->uom,
+                'uom_factor' => $line->uom_factor,
+                'rate' => $rate,
+                'qty' => $line->qty,
+                'amount' => round((float) $line->qty * $rate, 2),
+            ];
+        });
+
+        $subtotal = round((float) $lines->sum('amount'), 2);
         $taxAmount = (float) ($data['tax_amount'] ?? 0);
         $grandTotal = $subtotal + $taxAmount;
 
@@ -113,21 +134,8 @@ class PurchaseInvoiceService
             'remarks' => $data['remarks'] ?? null,
         ]);
 
-        foreach ($goodsReceipts as $goodsReceipt) {
-            foreach ($goodsReceipt->items as $line) {
-                $this->purchaseInvoiceItemRepository->create([
-                    'purchase_invoice_id' => $purchaseInvoice->id,
-                    'goods_receipt_item_id' => $line->id,
-                    'item_id' => $line->item_id,
-                    'item_code' => $line->item_code,
-                    'item_name' => $line->item_name,
-                    'uom' => $line->uom,
-                    'uom_factor' => $line->uom_factor,
-                    'rate' => $line->rate,
-                    'qty' => $line->qty,
-                    'amount' => $line->amount,
-                ]);
-            }
+        foreach ($lines as $line) {
+            $this->purchaseInvoiceItemRepository->create(['purchase_invoice_id' => $purchaseInvoice->id, ...$line]);
         }
 
         $purchaseInvoice->goodsReceipts()->sync($goodsReceipts->pluck('id')->all());
@@ -274,10 +282,35 @@ class PurchaseInvoiceService
         });
     }
 
+    /**
+     * Header fields plus, as of the Rate-editing ticket, Rate-only overrides on existing items
+     * (updated in place by goods_receipt_item_id — Qty/item identity never change, so this is
+     * never a delete+recreate like updateDirect()'s items replace). subtotal is recomputed from
+     * the (possibly just-edited) items rather than trusted from the stored column.
+     */
     protected function updateFromGoodsReceipts(PurchaseInvoice $purchaseInvoice, array $data): PurchaseInvoice
     {
+        if (isset($data['item_rates'])) {
+            $rateOverrides = collect($data['item_rates'])->pluck('rate', 'goods_receipt_item_id');
+
+            foreach ($purchaseInvoice->items as $item) {
+                if (! $rateOverrides->has($item->goods_receipt_item_id)) {
+                    continue;
+                }
+
+                $rate = (float) $rateOverrides->get($item->goods_receipt_item_id);
+                $this->purchaseInvoiceItemRepository->update($item, [
+                    'rate' => $rate,
+                    'amount' => round((float) $item->qty * $rate, 2),
+                ]);
+            }
+
+            $purchaseInvoice->unsetRelation('items');
+        }
+
+        $subtotal = round((float) $purchaseInvoice->items->sum('amount'), 2);
         $taxAmount = array_key_exists('tax_amount', $data) ? (float) $data['tax_amount'] : (float) $purchaseInvoice->tax_amount;
-        $grandTotal = (float) $purchaseInvoice->subtotal + $taxAmount;
+        $grandTotal = $subtotal + $taxAmount;
 
         if ($grandTotal < 0) {
             throw new BusinessException('Grand total cannot be negative.');
@@ -286,6 +319,7 @@ class PurchaseInvoiceService
         $this->purchaseInvoiceRepository->update($purchaseInvoice, [
             'invoice_date' => $data['invoice_date'] ?? $purchaseInvoice->invoice_date,
             'due_date' => $data['due_date'] ?? $purchaseInvoice->due_date,
+            'subtotal' => $subtotal,
             'tax_amount' => $taxAmount,
             'grand_total' => $grandTotal,
             'reference_number' => array_key_exists('reference_number', $data) ? $data['reference_number'] : $purchaseInvoice->reference_number,
