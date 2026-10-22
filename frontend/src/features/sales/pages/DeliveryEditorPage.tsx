@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
@@ -34,6 +34,7 @@ import type { Delivery, SalesOrder } from '../types'
 import { DeliveryLineItemTable } from '../components/DeliveryLineItemTable'
 import { DirectDeliveryLineItemTable } from '../components/DirectDeliveryLineItemTable'
 import { deliveryFormSchema, directDeliveryFormSchema, type DeliveryEditorValues, type DirectDeliveryEditorValues } from '../lib/deliveryFormSchema'
+import { DELIVERY_METHOD_OPTIONS, type DeliveryMethod } from '../lib/deliveryMethod'
 import { DeliveryCompleteEditPage } from './DeliveryCompleteEditPage'
 import type { SearchableSelectOption } from '@/components/shared/SearchableSelect'
 import { parseLocaleQty } from '@/shared/lib/qty'
@@ -308,7 +309,7 @@ function DeliveryForm({
       fleet: delivery?.fleet ?? '',
       fleet_id: delivery?.fleet_id ?? '',
       driver: delivery?.driver ?? '',
-      include_in_commission_recap: delivery?.include_in_commission_recap ?? true,
+      delivery_status: delivery?.delivery_status ?? '',
       items: allSoItems.map((soItem) => ({
         sales_order_item_id: soItem.id,
         item_id: soItem.item_id,
@@ -412,7 +413,7 @@ function DeliveryForm({
           fleet: values.fleet || null,
           fleet_id: values.fleet_id || null,
           driver: values.driver || null,
-          include_in_commission_recap: values.include_in_commission_recap,
+          delivery_status: (values.delivery_status || null) as DeliveryMethod | null,
           items,
         })
       }
@@ -427,7 +428,7 @@ function DeliveryForm({
         fleet: values.fleet || null,
         fleet_id: values.fleet_id || null,
         driver: values.driver || null,
-        include_in_commission_recap: values.include_in_commission_recap,
+        delivery_status: (values.delivery_status || null) as DeliveryMethod | null,
         items,
       })
     },
@@ -599,13 +600,25 @@ function DeliveryForm({
                   />
                   <FormField
                     control={form.control}
-                    name="include_in_commission_recap"
+                    name="delivery_status"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-                        <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
+                      <FormItem>
+                        <FormLabel>Status Pengantaran</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {DELIVERY_METHOD_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -748,7 +761,7 @@ function DirectDeliveryForm({
       fleet: delivery?.fleet ?? '',
       fleet_id: delivery?.fleet_id ?? '',
       driver: delivery?.driver ?? '',
-      include_in_commission_recap: delivery?.include_in_commission_recap ?? true,
+      delivery_status: delivery?.delivery_status ?? '',
       items: (delivery?.items ?? []).map((line) => ({
         item_id: line.item_id,
         item_code: line.item_code,
@@ -810,7 +823,7 @@ function DirectDeliveryForm({
           fleet: values.fleet || null,
           fleet_id: values.fleet_id || null,
           driver: values.driver || null,
-          include_in_commission_recap: values.include_in_commission_recap,
+          delivery_status: (values.delivery_status || null) as DeliveryMethod | null,
           items,
         })
       }
@@ -825,7 +838,7 @@ function DirectDeliveryForm({
         fleet: values.fleet || null,
         fleet_id: values.fleet_id || null,
         driver: values.driver || null,
-        include_in_commission_recap: values.include_in_commission_recap,
+        delivery_status: (values.delivery_status || null) as DeliveryMethod | null,
         items,
       })
     },
@@ -1003,13 +1016,25 @@ function DirectDeliveryForm({
                   />
                   <FormField
                     control={form.control}
-                    name="include_in_commission_recap"
+                    name="delivery_status"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-                        <FormLabel className="cursor-pointer">Masuk Perhitungan Komisi Akhir Bulan</FormLabel>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
+                      <FormItem>
+                        <FormLabel>Status Pengantaran</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {DELIVERY_METHOD_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />

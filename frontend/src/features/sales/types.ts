@@ -1,4 +1,5 @@
 import type { ApprovalFlow } from '../approval/types'
+import type { DeliveryMethod } from './lib/deliveryMethod'
 
 export type DocumentStatus = 'draft' | 'submitted' | 'cancelled'
 
@@ -212,7 +213,7 @@ export interface Delivery {
   fleet: string | null
   driver: string | null
   fleet_id: string | null
-  include_in_commission_recap: boolean
+  delivery_status: DeliveryMethod | null
   items: DeliveryItem[]
   amount: string | number
   // Computed live from items — a Delivery has no header total columns (never has).
@@ -249,7 +250,7 @@ export interface DeliveryFormValues {
   fleet: string | null
   driver: string | null
   fleet_id?: string | null
-  include_in_commission_recap?: boolean
+  delivery_status?: DeliveryMethod | null
   // Required once editing a Complete Delivery (DeliveryService::updateComplete()'s optimistic-lock check).
   lock_version?: number
   // discount_type/discount_value are only meaningful for a Direct Delivery line (no sales_order_id)

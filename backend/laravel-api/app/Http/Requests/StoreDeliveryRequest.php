@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\DeliveryMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -38,7 +39,7 @@ class StoreDeliveryRequest extends FormRequest
             'fleet' => ['nullable', 'string', 'max:255'],
             'driver' => ['nullable', 'string', 'max:255'],
             'fleet_id' => ['nullable', 'uuid', Rule::exists('fleets', 'id')->whereNull('deleted_at')],
-            'include_in_commission_recap' => ['sometimes', 'boolean'],
+            'delivery_status' => ['nullable', Rule::enum(DeliveryMethod::class)],
             'items' => ['required', 'array', 'min:1'],
             'items.*.sales_order_item_id' => ['required', 'uuid', 'exists:sales_order_items,id'],
             'items.*.qty' => ['required', 'numeric', 'min:0.01'],

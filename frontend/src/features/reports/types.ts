@@ -1,5 +1,6 @@
 import type { DocumentStatus as PurchaseDocumentStatus } from '@/features/purchase/types'
 import type { SettlementStatus } from '@/features/payment/types'
+import type { DeliveryMethod } from '@/features/sales/lib/deliveryMethod'
 
 /**
  * Reports is read-only and consumes Purchase/Sales/Inventory data directly
@@ -340,7 +341,7 @@ export interface DeliveryReportFilterValues {
   dateTo: string
 }
 
-export type DriverCommissionStatusFilter = 'included' | 'excluded' | 'all'
+export type DriverCommissionStatusFilter = DeliveryMethod | 'all'
 
 export interface DriverCommissionReportFilterValues {
   fleet_id: string
@@ -350,7 +351,10 @@ export interface DriverCommissionReportFilterValues {
   dateTo: string
 }
 
-/** One row per commissioned Delivery line — see DriverCommissionReportService::rows(). */
+/**
+ * One row per Delivery line with a Status Pengantaran set — see DriverCommissionReportService::rows().
+ * rate_per_zak/total_commission are null for Muat Gudang/Antar Proyek rows (no commission computed at all, by design).
+ */
 export interface DriverCommissionReportRow {
   date: string
   so_number: string | null
@@ -360,8 +364,9 @@ export interface DriverCommissionReportRow {
   qty: number
   plat_number: string | null
   driver: string | null
-  rate_per_zak: number
-  total_commission: number
+  delivery_status: DeliveryMethod | null
+  rate_per_zak: number | null
+  total_commission: number | null
 }
 
 export interface DriverCommissionReportDriverSummary {

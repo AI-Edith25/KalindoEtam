@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryStatus;
 use App\Models\Concerns\Documentable;
 use App\Models\Concerns\HasAuditTrail;
@@ -33,7 +34,7 @@ class Delivery extends Model
         'fleet',
         'driver',
         'fleet_id',
-        'include_in_commission_recap',
+        'delivery_status',
         'attention',
         'tel',
         'fax',
@@ -46,7 +47,7 @@ class Delivery extends Model
         'due_date' => 'date',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
-        'include_in_commission_recap' => 'boolean',
+        'delivery_status' => DeliveryMethod::class,
     ];
 
     public function documentType(): string

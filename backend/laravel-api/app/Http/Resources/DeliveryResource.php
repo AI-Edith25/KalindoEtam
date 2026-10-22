@@ -44,7 +44,7 @@ class DeliveryResource extends JsonResource
             'fleet' => $this->fleet,
             'driver' => $this->driver,
             'fleet_id' => $this->fleet_id,
-            'include_in_commission_recap' => $this->include_in_commission_recap,
+            'delivery_status' => $this->delivery_status,
             'lock_version' => $this->lock_version,
             'items' => DeliveryItemResource::collection($this->whenLoaded('items')),
             'amount' => $this->whenLoaded('items', fn () => $this->items->sum('amount')),

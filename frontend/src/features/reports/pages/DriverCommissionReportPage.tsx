@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { downloadBlob } from '@/shared/lib/downloadBlob'
 import { toastApiError } from '@/shared/services/errorHandler'
 import { SummaryCard } from '@/features/dashboard/components/SummaryCard'
+import { deliveryMethodLabel } from '@/features/sales/lib/deliveryMethod'
 import { exportDriverCommissionReport, fetchDriverCommissionReport } from '../api/driverCommissionReportApi'
 import { DriverCommissionReportFiltersBar } from '../components/DriverCommissionReportFiltersBar'
 import { emptyDriverCommissionReportFilters } from '../lib/reportFilters'
@@ -24,7 +25,7 @@ export function DriverCommissionReportPage() {
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
     ...(filters.fleet_id ? { fleet_id: filters.fleet_id } : {}),
     ...(filters.item_id ? { item_id: filters.item_id } : {}),
-    status: filters.status,
+    delivery_status: filters.status,
   }
 
   const reportQuery = useQuery({
@@ -59,8 +60,9 @@ export function DriverCommissionReportPage() {
     { header: 'Qty (Zak)', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
     { header: 'No. Plat', accessor: (row) => row.plat_number ?? '—' },
     { header: 'Driver', accessor: (row) => row.driver ?? '—' },
-    { header: 'Tarif/Zak', accessor: (row) => formatCurrency(row.rate_per_zak), className: 'text-right' },
-    { header: 'Total Komisi', accessor: (row) => formatCurrency(row.total_commission), className: 'text-right' },
+    { header: 'Status Pengantaran', accessor: (row) => deliveryMethodLabel(row.delivery_status) },
+    { header: 'Tarif/Zak', accessor: (row) => (row.rate_per_zak === null ? '—' : formatCurrency(row.rate_per_zak)), className: 'text-right' },
+    { header: 'Total Komisi', accessor: (row) => (row.total_commission === null ? '—' : formatCurrency(row.total_commission)), className: 'text-right' },
   ]
 
   const driverSummaryColumns: DataTableColumn<DriverCommissionReportDriverSummary>[] = useMemo(

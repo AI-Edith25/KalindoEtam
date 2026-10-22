@@ -69,7 +69,7 @@ class DriverCommissionReportServiceTest extends TestCase
         $this->driverCommissionRateService->create(['fleet_id' => $this->fleet->id, 'item_id' => $this->item->id, 'rate_per_zak' => 1100, 'effective_date' => '2026-01-01']);
     }
 
-    protected function completedDelivery(string $deliveryDate, int $qty = 100, bool $includeInRecap = true, ?string $fleetId = 'use-default'): Delivery
+    protected function completedDelivery(string $deliveryDate, int $qty = 100, string $deliveryStatus = 'antar_dengan_buruh', ?string $fleetId = 'use-default'): Delivery
     {
         $salesOrder = $this->salesOrderService->create([
             'customer_id' => $this->customer->id,
@@ -86,7 +86,7 @@ class DriverCommissionReportServiceTest extends TestCase
             'due_date' => now()->addDays(30)->toDateString(),
             'driver' => 'Dani',
             'fleet_id' => $fleetId === 'use-default' ? $this->fleet->id : $fleetId,
-            'include_in_commission_recap' => $includeInRecap,
+            'delivery_status' => $deliveryStatus,
             'items' => [['sales_order_item_id' => $salesOrder->items->first()->id, 'qty' => $qty]],
         ]);
 
@@ -107,7 +107,7 @@ class DriverCommissionReportServiceTest extends TestCase
 
     public function test_a_delivery_with_no_fleet_is_excluded(): void
     {
-        $this->completedDelivery('2026-09-10', 100, true, null);
+        $this->completedDelivery('2026-09-10', 100, 'antar_dengan_buruh', null);
 
         $rows = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30']);
 
@@ -123,20 +123,58 @@ class DriverCommissionReportServiceTest extends TestCase
         $this->assertCount(0, $rows);
     }
 
-    public function test_status_filter_defaults_to_included_only(): void
+    public function test_delivery_status_filter_defaults_to_delivered_with_labor(): void
     {
-        $this->completedDelivery('2026-09-10', 100, true);
-        $this->completedDelivery('2026-09-11', 50, false);
+        $this->completedDelivery('2026-09-10', 100, 'antar_dengan_buruh');
+        $this->completedDelivery('2026-09-11', 50, 'antar_tanpa_buruh');
 
-        $includedOnly = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30']);
-        $excludedOnly = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'status' => 'excluded']);
-        $all = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'status' => 'all']);
+        $defaultOnly = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30']);
+        $withoutLaborOnly = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'delivery_status' => 'antar_tanpa_buruh']);
+        $all = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'delivery_status' => 'all']);
 
-        $this->assertCount(1, $includedOnly);
-        $this->assertEquals(100, $includedOnly->first()->qty);
-        $this->assertCount(1, $excludedOnly);
-        $this->assertEquals(50, $excludedOnly->first()->qty);
+        $this->assertCount(1, $defaultOnly);
+        $this->assertEquals(100, $defaultOnly->first()->qty);
+        $this->assertCount(1, $withoutLaborOnly);
+        $this->assertEquals(50, $withoutLaborOnly->first()->qty);
         $this->assertCount(2, $all);
+    }
+
+    public function test_antar_tanpa_buruh_computes_commission_the_same_way_as_antar_dengan_buruh(): void
+    {
+        $this->completedDelivery('2026-09-10', 100, 'antar_tanpa_buruh');
+
+        $rows = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'delivery_status' => 'antar_tanpa_buruh']);
+
+        $this->assertCount(1, $rows);
+        $this->assertEquals(1100, $rows->first()->rate_per_zak);
+        $this->assertEquals(110000, $rows->first()->total_commission);
+    }
+
+    public function test_muat_gudang_appears_with_no_commission_and_is_excluded_from_totals(): void
+    {
+        $this->completedDelivery('2026-09-10', 100, 'muat_gudang', null);
+
+        $rows = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'delivery_status' => 'all']);
+        $summary = $this->driverCommissionReportService->summary($rows);
+
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows->first()->rate_per_zak);
+        $this->assertNull($rows->first()->total_commission);
+        $this->assertEquals(0, $summary['total_commission']);
+        $this->assertEquals(100, $summary['total_qty']);
+    }
+
+    public function test_antar_proyek_never_looks_up_a_rate_even_when_one_matches(): void
+    {
+        // Same fleet+item pair the setUp rate was configured for — proves the rate lookup is
+        // skipped entirely for this status, not just "not found".
+        $this->completedDelivery('2026-09-10', 100, 'antar_proyek');
+
+        $rows = $this->driverCommissionReportService->rows(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'delivery_status' => 'all']);
+
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows->first()->rate_per_zak);
+        $this->assertNull($rows->first()->total_commission);
     }
 
     public function test_summary_totals_and_per_driver_subtotal(): void
@@ -161,5 +199,17 @@ class DriverCommissionReportServiceTest extends TestCase
         $rows = $this->driverCommissionReportService->rows(['date_from' => '2026-10-01', 'date_to' => '2026-10-31']);
 
         $this->assertCount(0, $rows);
+    }
+
+    public function test_commissionable_items_lists_only_items_with_a_driver_commission_rate(): void
+    {
+        $itemGroup = ItemGroup::query()->first();
+        $uom = UnitOfMeasurement::query()->first();
+        Item::query()->create(['item_code' => 'NAIL-1', 'item_name' => 'Paku Tokka', 'item_group_id' => $itemGroup->id, 'uom_id' => $uom->id, 'standard_rate' => 10000]);
+
+        $items = $this->driverCommissionReportService->commissionableItems();
+
+        $this->assertCount(1, $items);
+        $this->assertEquals($this->item->id, $items->first()->id);
     }
 }

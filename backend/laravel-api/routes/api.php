@@ -375,6 +375,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () use ($withPag
     // Driver Commission report — read-only, computed at read time from Delivery/DeliveryItem +
     // DriverCommissionRate history, never a separate stored document.
     Route::get('reports/driver-commission', [DriverCommissionReportController::class, 'index'])->middleware('permission:reports.driver_commission.view');
+    Route::get('reports/driver-commission/items', [DriverCommissionReportController::class, 'commissionableItems'])->middleware('permission:reports.driver_commission.view');
     Route::get('reports/driver-commission/export', [DriverCommissionReportController::class, 'export'])->middleware('permission:reports.driver_commission.view');
 
     // Sales Workflow (Sprint 5): Customer -> SO -> Delivery -> Stock Ledger(-).
