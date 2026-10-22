@@ -21,102 +21,107 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
   return `${day}/${month}/${year}`
 }
 
-// Account Code / Account Name / Description / Prj-Dept / Debit / Credit — must match across thead/tbody/tfoot
-// below since each is forced to its own independent `display: table` (see GeneralJournalPage's docblock),
-// so column widths can no longer come from a single shared <colgroup>. Account Code/Account Name are
-// widened from an earlier 12%/14% (which wrapped the header text onto 2 lines against the template,
-// where both headers sit on one line) — Description gives up the matching 6pts, Prj/Dept/Debit/Credit unchanged.
-const COLUMN_WIDTHS = ['15%', '17%', '31%', '10%', '13.5%', '13.5%']
+// Account Code / Account Name / Description / Prj-Dept / Debit / Credit. Shared by both the lines
+// table and the standalone TOTAL table below it via <colgroup>, so the two stay column-aligned
+// without needing a single <table> to span both (see GeneralJournalPage's docblock).
+const COLUMN_WIDTHS = ['12%', '15%', '39%', '8%', '13%', '13%']
 
-// Each thead/tbody/tfoot segment is its own independent table formatting context (see docblock below),
-// so border-collapse — which only takes effect on the element that is itself display:table — has to be
-// set per segment rather than once on the outer <table>, or adjacent cell borders double up instead of
-// collapsing into the single lines the legacy template shows.
-const TABLE_SEGMENT_STYLE = { display: 'table' as const, width: '100%', tableLayout: 'fixed' as const, borderCollapse: 'collapse' as const }
+function JournalColGroup() {
+  return (
+    <colgroup>
+      {COLUMN_WIDTHS.map((width, i) => (
+        <col key={i} style={{ width }} />
+      ))}
+    </colgroup>
+  )
+}
 
 /**
  * One GJ, one A4 page — shared verbatim between the single-print and multi-select-print entry points
  * (single is just a list of one).
  *
- * TOTAL/terbilang/signature must sit at the bottom of the sheet regardless of how many lines are
- * above them, while TOTAL itself stays a real <tfoot> row of the same <table> as the lines (for
- * border/column consistency). Plain flex-grow on the page div can't reach inside the table, and
- * flex-growing the lines' own <tbody> stretches gaps *between* every row (verified against a plain
- * `<tbody style="flex:1">` — Chrome's table row-height algorithm spreads extra space across all rows,
- * not just after the last one). The fix: split the table into independently-`display:table` sections
- * stacked in a flex column (thead/tbody/tbody/tfoot), with a second, empty <tbody> as a dedicated
- * spacer between the lines and TOTAL — as the *only* row in its own row-stretch context, it alone
- * absorbs 100% of the leftover height instead of sharing it with the data rows.
+ * The lines table is a genuine `<table>` (table-fixed + <colgroup>) so Account Code/Prj-Dept headers
+ * never wrap under print width — no flex on <table> this time, that's what broke column alignment at
+ * actual A4 width before. TOTAL can't be a <tfoot> of that same table and still sit pinned to the
+ * bottom of the page when there are only 1-2 lines: a table's own row-stretch algorithm spreads any
+ * extra height across every row, not just after the last one (verified earlier). Instead TOTAL is its
+ * own small `<table>` with the identical <colgroup>, and a plain `<div style={{flex:1}}>` spacer
+ * between the two tables absorbs 100% of the leftover vertical space — same visual result (TOTAL +
+ * terbilang + signatures pushed to the bottom), without ever needing non-table display on a <table>.
  */
 function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntry; companyName: string; isLast: boolean }) {
   return (
     <div
       className="mx-auto flex w-full max-w-[210mm] flex-col bg-white p-6 text-black shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none"
-      style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '13px', pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
+      style={{ fontFamily: 'Arial, Helvetica, sans-serif', pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
     >
       <div className="grid grid-cols-3 items-start">
-        <p className="text-[14pt] font-bold">{companyName}</p>
-        <p className="text-center font-bold text-[16pt]" style={{ letterSpacing: '0.12em' }}>
+        <p className="text-[12pt] font-bold">{companyName}</p>
+        <p className="text-center font-bold text-[13pt]" style={{ letterSpacing: '0.13em' }}>
           GENERAL JOURNAL
         </p>
-        <div className="text-right font-bold text-[10pt]">
+        <div className="text-right font-bold text-[9pt]">
           <p>NO. : {entry.document_number ?? '—'}</p>
           <p>Date : {formatDdMmYyyy(entry.posting_date)}</p>
         </div>
       </div>
 
-      <div className="mt-3 flex border border-black px-2 py-1 text-[10pt]">
+      <div className="mt-4 flex border border-black px-2 py-1.5 text-[9pt]">
         <span className="w-28 shrink-0">Description</span>
         <span className="shrink-0">:</span>
         <span className="pl-2">{entry.description ?? ''}</span>
       </div>
 
-      <table className="mt-2 flex w-full flex-1 flex-col border-collapse">
-        <thead style={TABLE_SEGMENT_STYLE}>
-          <tr className="border-b border-black text-[10pt]">
-            <th style={{ width: COLUMN_WIDTHS[0] }} className="border-r border-black py-1 px-2 text-center font-bold">Account Code</th>
-            <th style={{ width: COLUMN_WIDTHS[1] }} className="py-1 px-2 text-center font-bold">Account Name</th>
-            <th style={{ width: COLUMN_WIDTHS[2] }} className="py-1 px-2 text-center font-bold">Description</th>
-            <th style={{ width: COLUMN_WIDTHS[3] }} className="py-1 px-2 text-center font-bold">Prj /Dept</th>
-            <th style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-center font-bold">Debit</th>
-            <th style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-center font-bold">Credit</th>
+      <table className="mt-3 w-full table-fixed border-collapse">
+        <JournalColGroup />
+        <thead>
+          <tr className="border-b border-black text-[9.5pt]">
+            <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Account Code</th>
+            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Account Name</th>
+            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Description</th>
+            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Prj /Dept</th>
+            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Debit</th>
+            <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Credit</th>
           </tr>
         </thead>
-        <tbody style={TABLE_SEGMENT_STYLE} className="text-[9pt]">
+        <tbody className="text-[9pt]">
           {entry.lines.map((line) => (
             <tr key={line.id}>
-              <td style={{ width: COLUMN_WIDTHS[0] }} className="border-r border-black py-1 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
-              <td style={{ width: COLUMN_WIDTHS[1] }} className="py-1 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
-              <td style={{ width: COLUMN_WIDTHS[2] }} className="py-1 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
-              <td style={{ width: COLUMN_WIDTHS[3] }} className="py-1 px-2 text-center align-top">{line.branch?.name || '/'}</td>
-              <td style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-right align-top">{formatNum(line.debit)}</td>
-              <td style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-right align-top">{formatNum(line.credit)}</td>
+              <td className="border-r border-black py-1.5 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
+              <td className="py-1.5 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
+              <td className="py-1.5 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
+              <td className="py-1.5 px-2 text-center align-top">{line.branch?.name || '/'}</td>
+              <td className="py-1.5 px-2 text-right align-top">{formatNum(line.debit)}</td>
+              <td className="py-1.5 px-2 text-right align-top">{formatNum(line.credit)}</td>
             </tr>
           ))}
         </tbody>
-        <tbody aria-hidden style={{ display: 'table', width: '100%', flex: '1 1 auto' }}>
-          <tr>
-            <td colSpan={6} style={{ padding: 0, border: 0 }} />
-          </tr>
-        </tbody>
-        <tfoot style={TABLE_SEGMENT_STYLE}>
-          {/* Single 1px rule above the grand total, matching every other line on this page — no
-              line thicker than 1px appears anywhere in the legacy template. No line below TOTAL,
-              and no box around the Debit/Credit cells (the only vertical rule on this page is
-              Account Code|Account Name, see thead/tbody above). */}
-          <tr className="font-bold text-[9pt]" style={{ borderTop: '1px solid black' }}>
-            <td colSpan={4} style={{ width: '73%' }} className="py-1 px-2 text-right">
-              TOTAL
-            </td>
-            <td style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-right">{formatNum(entry.total_debit)}</td>
-            <td style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-right">{formatNum(entry.total_credit)}</td>
-          </tr>
-        </tfoot>
       </table>
 
-      <p className="mt-2 font-bold uppercase">RP : {terbilangUsdWithCents(entry.total_debit)}</p>
+      {/* Absorbs all leftover page height so TOTAL + terbilang + signatures land at the bottom of
+          the sheet regardless of how many lines are above, instead of hugging the last data row. */}
+      <div style={{ flex: '1 1 auto' }} />
 
-      <div className="mt-16 grid grid-cols-3 gap-8 text-center">
+      <table className="w-full table-fixed border-collapse">
+        <JournalColGroup />
+        <tbody>
+          {/* Single 1px rule above the grand total — no line on this page is thicker than 1px.
+              Debit/Credit totals (and the TOTAL label cell) each get their own thin box, matching
+              the legacy template; no box around the data rows above, where the only vertical rule
+              is Account Code|Account Name. */}
+          <tr className="font-bold text-[9pt]" style={{ borderTop: '1px solid black' }}>
+            <td colSpan={4} className="border border-black py-1.5 px-2 text-right">
+              TOTAL
+            </td>
+            <td className="border border-black py-1.5 px-2 text-right">{formatNum(entry.total_debit)}</td>
+            <td className="border border-black py-1.5 px-2 text-right">{formatNum(entry.total_credit)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p className="mt-3 text-[9pt] font-bold uppercase">RP : {terbilangUsdWithCents(entry.total_debit)}</p>
+
+      <div className="mt-20 grid grid-cols-3 gap-8 text-center text-[9pt]">
         <div className="border-t border-black pt-1">PREPARED BY</div>
         <div className="border-t border-black pt-1">APPROVED BY</div>
         <div className="border-t border-black pt-1">RECEIVED BY</div>
