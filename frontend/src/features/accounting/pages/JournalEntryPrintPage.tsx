@@ -56,9 +56,9 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
       className="mx-auto flex w-full max-w-[210mm] flex-col bg-white p-6 text-black shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif', pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
     >
-      <div className="grid grid-cols-3 items-start">
+      <div className="mt-3 grid grid-cols-3 items-start">
         <p className="text-[13.5pt] font-bold">{companyName}</p>
-        <p className="whitespace-nowrap text-center font-bold text-[13pt]" style={{ letterSpacing: '0.1em' }}>
+        <p className="whitespace-nowrap text-center font-bold text-[13pt]" style={{ letterSpacing: '0.22em' }}>
           GENERAL JOURNAL
         </p>
         <div className="text-right font-bold text-[10.5pt]">
