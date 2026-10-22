@@ -58,7 +58,7 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
     >
       <div className="mt-3 grid grid-cols-3 items-start">
         <p className="text-[13.5pt] font-bold">{companyName}</p>
-        <p className="whitespace-nowrap text-center font-bold text-[13pt]" style={{ letterSpacing: '0.22em' }}>
+        <p className="mt-4 whitespace-nowrap text-center font-bold text-[13pt]" style={{ letterSpacing: '0.22em' }}>
           GENERAL JOURNAL
         </p>
         <div className="text-right font-bold text-[10.5pt]">
