@@ -60,7 +60,7 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
     >
       <div className="grid grid-cols-3 items-start">
         <p className="text-[13.5pt] font-bold">{companyName}</p>
-        <p className="text-center font-bold text-[14.25pt]" style={{ letterSpacing: '0.3em' }}>
+        <p className="whitespace-nowrap text-center font-bold text-[13pt]" style={{ letterSpacing: '0.1em' }}>
           GENERAL JOURNAL
         </p>
         <div className="text-right font-bold text-[10.5pt]">
@@ -79,20 +79,20 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
         <JournalColGroup />
         <thead>
           <tr className="text-[10.5pt]">
-            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Account Code</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Account Name</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Description</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Prj /Dept</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Debit</th>
-            <th className="whitespace-nowrap border border-black py-1.5 px-2 text-center font-bold">Credit</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Account Code</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Account Name</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Description</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Prj /Dept</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Debit</th>
+            <th className="whitespace-nowrap border border-black py-1.5 px-2.5 text-center font-bold">Credit</th>
           </tr>
         </thead>
         <tbody className="text-[9pt]">
           {entry.lines.map((line) => (
             <tr key={line.id}>
-              {/* Only Account Code|Account Name keeps a vertical rule running down through the data
-                  rows — every other column boundary here is spacing/alignment only, no border. */}
-              <td className="border-r border-black py-1.5 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
+              {/* No vertical rules anywhere in the data rows — column separation is padding/
+                  alignment only, per spec. */}
+              <td className="py-1.5 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
               <td className="py-1.5 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
               <td className="py-1.5 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
               <td className="py-1.5 px-2 text-center align-top">{line.branch?.name || '/'}</td>
