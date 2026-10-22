@@ -23,8 +23,16 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
 
 // Account Code / Account Name / Description / Prj-Dept / Debit / Credit — must match across thead/tbody/tfoot
 // below since each is forced to its own independent `display: table` (see GeneralJournalPage's docblock),
-// so column widths can no longer come from a single shared <colgroup>.
-const COLUMN_WIDTHS = ['12%', '14%', '37%', '10%', '13.5%', '13.5%']
+// so column widths can no longer come from a single shared <colgroup>. Account Code/Account Name are
+// widened from an earlier 12%/14% (which wrapped the header text onto 2 lines against the template,
+// where both headers sit on one line) — Description gives up the matching 6pts, Prj/Dept/Debit/Credit unchanged.
+const COLUMN_WIDTHS = ['15%', '17%', '31%', '10%', '13.5%', '13.5%']
+
+// Each thead/tbody/tfoot segment is its own independent table formatting context (see docblock below),
+// so border-collapse — which only takes effect on the element that is itself display:table — has to be
+// set per segment rather than once on the outer <table>, or adjacent cell borders double up instead of
+// collapsing into the single lines the legacy template shows.
+const TABLE_SEGMENT_STYLE = { display: 'table' as const, width: '100%', tableLayout: 'fixed' as const, borderCollapse: 'collapse' as const }
 
 /**
  * One GJ, one A4 page — shared verbatim between the single-print and multi-select-print entry points
@@ -64,17 +72,17 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
       </div>
 
       <table className="mt-2 flex w-full flex-1 flex-col border-collapse">
-        <thead style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+        <thead style={TABLE_SEGMENT_STYLE}>
           <tr className="border-y border-black">
-            <th style={{ width: COLUMN_WIDTHS[0] }} className="py-1 px-2 text-center font-bold">Account Code</th>
-            <th style={{ width: COLUMN_WIDTHS[1] }} className="py-1 px-2 text-center font-bold">Account Name</th>
-            <th style={{ width: COLUMN_WIDTHS[2] }} className="py-1 px-2 text-center font-bold">Description</th>
-            <th style={{ width: COLUMN_WIDTHS[3] }} className="py-1 px-2 text-center font-bold">Prj /Dept</th>
-            <th style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-center font-bold">Debit</th>
-            <th style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-center font-bold">Credit</th>
+            <th style={{ width: COLUMN_WIDTHS[0] }} className="border-x border-black py-1 px-2 text-center font-bold">Account Code</th>
+            <th style={{ width: COLUMN_WIDTHS[1] }} className="border-r border-black py-1 px-2 text-center font-bold">Account Name</th>
+            <th style={{ width: COLUMN_WIDTHS[2] }} className="border-r border-black py-1 px-2 text-center font-bold">Description</th>
+            <th style={{ width: COLUMN_WIDTHS[3] }} className="border-r border-black py-1 px-2 text-center font-bold">Prj /Dept</th>
+            <th style={{ width: COLUMN_WIDTHS[4] }} className="border-r border-black py-1 px-2 text-center font-bold">Debit</th>
+            <th style={{ width: COLUMN_WIDTHS[5] }} className="border-r border-black py-1 px-2 text-center font-bold">Credit</th>
           </tr>
         </thead>
-        <tbody style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+        <tbody style={TABLE_SEGMENT_STYLE}>
           {entry.lines.map((line) => (
             <tr key={line.id}>
               <td style={{ width: COLUMN_WIDTHS[0] }} className="py-1 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
@@ -91,13 +99,13 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
             <td colSpan={6} style={{ padding: 0, border: 0 }} />
           </tr>
         </tbody>
-        <tfoot style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+        <tfoot style={TABLE_SEGMENT_STYLE}>
           <tr className="border-y border-black font-bold">
             <td colSpan={4} style={{ width: '73%' }} className="py-1 px-2 text-right">
               TOTAL
             </td>
-            <td style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-right">{formatNum(entry.total_debit)}</td>
-            <td style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-right">{formatNum(entry.total_credit)}</td>
+            <td style={{ width: COLUMN_WIDTHS[4] }} className="border border-black py-1 px-2 text-right">{formatNum(entry.total_debit)}</td>
+            <td style={{ width: COLUMN_WIDTHS[5] }} className="border border-black py-1 px-2 text-right">{formatNum(entry.total_credit)}</td>
           </tr>
         </tfoot>
       </table>
