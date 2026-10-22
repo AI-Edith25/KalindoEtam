@@ -21,10 +21,13 @@ function formatDdMmYyyy(dateStr: string | null | undefined): string {
   return `${day}/${month}/${year}`
 }
 
-// Account Code / Account Name / Description / Prj-Dept / Debit / Credit. Shared by both the lines
+// Account Code / Account Name / Description / Prj-Dept / Debit / Credit — measured directly off the
+// legacy template's own vector grid lines (generaljournal_jtpq2k2v5rr81rnq5dgrd65gkr.pdf, extracted
+// via PyMuPDF: column edges at x=28.7/108.8/189.5/351.1/426.5/496.5/566.6pt on a 537.9pt-wide A4 body
+// → 80.1/80.0/160.8/74.6/69.2/69.3pt ≈ 15/15/30/14/13/13%), not eyeballed. Shared by both the lines
 // table and the standalone TOTAL table below it via <colgroup>, so the two stay column-aligned
 // without needing a single <table> to span both (see GeneralJournalPage's docblock).
-const COLUMN_WIDTHS = ['12%', '15%', '39%', '8%', '13%', '13%']
+const COLUMN_WIDTHS = ['15%', '15%', '30%', '14%', '13%', '13%']
 
 function JournalColGroup() {
   return (
@@ -53,20 +56,20 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
   return (
     <div
       className="mx-auto flex w-full max-w-[210mm] flex-col bg-white p-6 text-black shadow-[0_2px_8px_rgba(0,0,0,0.15)] print:max-w-none print:p-[12mm] print:shadow-none"
-      style={{ fontFamily: 'Arial, Helvetica, sans-serif', pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
+      style={{ fontFamily: "'Arial Narrow', 'Liberation Sans Narrow', Arial, sans-serif", pageBreakAfter: isLast ? 'auto' : 'always', height: '297mm' }}
     >
-      <div className="grid grid-cols-3 items-start">
-        <p className="text-[12pt] font-bold">{companyName}</p>
-        <p className="text-center font-bold text-[13pt]" style={{ letterSpacing: '0.13em' }}>
+      <div className="grid grid-cols-3 items-center">
+        <p className="text-[13.5pt] font-bold">{companyName}</p>
+        <p className="text-center font-bold text-[14.25pt]" style={{ letterSpacing: '0.3em' }}>
           GENERAL JOURNAL
         </p>
-        <div className="text-right font-bold text-[9pt]">
+        <div className="text-right font-bold text-[10.5pt]">
           <p>NO. : {entry.document_number ?? '—'}</p>
           <p>Date : {formatDdMmYyyy(entry.posting_date)}</p>
         </div>
       </div>
 
-      <div className="mt-4 flex border border-black px-2 py-1.5 text-[9pt]">
+      <div className="mt-4 flex border border-black px-2 py-1.5 text-[10.5pt]">
         <span className="w-28 shrink-0">Description</span>
         <span className="shrink-0">:</span>
         <span className="pl-2">{entry.description ?? ''}</span>
@@ -75,7 +78,7 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
       <table className="mt-3 w-full table-fixed border-collapse">
         <JournalColGroup />
         <thead>
-          <tr className="border-b border-black text-[9.5pt]">
+          <tr className="border-b border-black text-[10.5pt]">
             <th className="whitespace-nowrap border-r border-black py-1.5 px-2 text-center font-bold">Account Code</th>
             <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Account Name</th>
             <th className="whitespace-nowrap py-1.5 px-2 text-center font-bold">Description</th>
@@ -105,11 +108,11 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
       <table className="w-full table-fixed border-collapse">
         <JournalColGroup />
         <tbody>
-          {/* Single 1px rule above the grand total — no line on this page is thicker than 1px.
-              Debit/Credit totals (and the TOTAL label cell) each get their own thin box, matching
-              the legacy template; no box around the data rows above, where the only vertical rule
-              is Account Code|Account Name. */}
-          <tr className="font-bold text-[9pt]" style={{ borderTop: '1px solid black' }}>
+          {/* TOTAL label and both totals each get a full 1px box — the template draws top+bottom+
+              right on every cell here (confirmed from its vector lines), not just a top rule; no
+              box around the data rows above, where the only vertical rule is Account Code|Account
+              Name. */}
+          <tr className="font-bold text-[9pt]">
             <td colSpan={4} className="border border-black py-1.5 px-2 text-right">
               TOTAL
             </td>
@@ -119,12 +122,16 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
         </tbody>
       </table>
 
-      <p className="mt-3 text-[9pt] font-bold uppercase">RP : {terbilangUsdWithCents(entry.total_debit)}</p>
+      <p className="mt-3 text-[10.5pt] font-bold uppercase">RP : {terbilangUsdWithCents(entry.total_debit)}</p>
 
-      <div className="mt-20 grid grid-cols-3 gap-8 text-center text-[9pt]">
-        <div className="border-t border-black pt-1">PREPARED BY</div>
-        <div className="border-t border-black pt-1">APPROVED BY</div>
-        <div className="border-t border-black pt-1">RECEIVED BY</div>
+      {/* Template's 3 signature lines are each ~20% of the content width with ~20% gaps between them
+          (measured off the template's own line coordinates) — a plain 3-col grid with a small fixed
+          gap packs them much closer together than that, so this uses justify-between on 20%-wide
+          blocks instead, which reproduces the even column/gap/column/gap/column split exactly. */}
+      <div className="mt-20 flex justify-between text-center text-[9pt]">
+        <div className="w-1/5 border-t border-black pt-1">PREPARED BY</div>
+        <div className="w-1/5 border-t border-black pt-1">APPROVED BY</div>
+        <div className="w-1/5 border-t border-black pt-1">RECEIVED BY</div>
       </div>
     </div>
   )
