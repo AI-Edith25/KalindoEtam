@@ -73,19 +73,19 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
 
       <table className="mt-2 flex w-full flex-1 flex-col border-collapse">
         <thead style={TABLE_SEGMENT_STYLE}>
-          <tr className="border-y border-black">
-            <th style={{ width: COLUMN_WIDTHS[0] }} className="border-x border-black py-1 px-2 text-center font-bold">Account Code</th>
-            <th style={{ width: COLUMN_WIDTHS[1] }} className="border-r border-black py-1 px-2 text-center font-bold">Account Name</th>
-            <th style={{ width: COLUMN_WIDTHS[2] }} className="border-r border-black py-1 px-2 text-center font-bold">Description</th>
-            <th style={{ width: COLUMN_WIDTHS[3] }} className="border-r border-black py-1 px-2 text-center font-bold">Prj /Dept</th>
-            <th style={{ width: COLUMN_WIDTHS[4] }} className="border-r border-black py-1 px-2 text-center font-bold">Debit</th>
-            <th style={{ width: COLUMN_WIDTHS[5] }} className="border-r border-black py-1 px-2 text-center font-bold">Credit</th>
+          <tr className="border-b border-black">
+            <th style={{ width: COLUMN_WIDTHS[0] }} className="border-r border-black py-1 px-2 text-center font-bold">Account Code</th>
+            <th style={{ width: COLUMN_WIDTHS[1] }} className="py-1 px-2 text-center font-bold">Account Name</th>
+            <th style={{ width: COLUMN_WIDTHS[2] }} className="py-1 px-2 text-center font-bold">Description</th>
+            <th style={{ width: COLUMN_WIDTHS[3] }} className="py-1 px-2 text-center font-bold">Prj /Dept</th>
+            <th style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-center font-bold">Debit</th>
+            <th style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-center font-bold">Credit</th>
           </tr>
         </thead>
         <tbody style={TABLE_SEGMENT_STYLE}>
           {entry.lines.map((line) => (
             <tr key={line.id}>
-              <td style={{ width: COLUMN_WIDTHS[0] }} className="py-1 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
+              <td style={{ width: COLUMN_WIDTHS[0] }} className="border-r border-black py-1 px-2 text-left align-top">{line.chart_of_account?.code ?? ''}</td>
               <td style={{ width: COLUMN_WIDTHS[1] }} className="py-1 px-2 text-left align-top">{line.chart_of_account?.name ?? ''}</td>
               <td style={{ width: COLUMN_WIDTHS[2] }} className="py-1 px-2 text-left align-top whitespace-pre-wrap">{line.description ?? ''}</td>
               <td style={{ width: COLUMN_WIDTHS[3] }} className="py-1 px-2 text-center align-top">{line.branch?.name || '/'}</td>
@@ -100,12 +100,16 @@ function GeneralJournalPage({ entry, companyName, isLast }: { entry: JournalEntr
           </tr>
         </tbody>
         <tfoot style={TABLE_SEGMENT_STYLE}>
-          <tr className="border-y border-black font-bold">
+          {/* A double rule (not a single solid line) above the grand total is the template's own
+              convention — CSS `border-style: double` draws exactly that: two thin lines with a gap,
+              not a single thicker one. No line below TOTAL, and no box around the Debit/Credit cells
+              (the only vertical rule on this page is Account Code|Account Name, see thead/tbody above). */}
+          <tr className="font-bold" style={{ borderTop: '3px double black' }}>
             <td colSpan={4} style={{ width: '73%' }} className="py-1 px-2 text-right">
               TOTAL
             </td>
-            <td style={{ width: COLUMN_WIDTHS[4] }} className="border border-black py-1 px-2 text-right">{formatNum(entry.total_debit)}</td>
-            <td style={{ width: COLUMN_WIDTHS[5] }} className="border border-black py-1 px-2 text-right">{formatNum(entry.total_credit)}</td>
+            <td style={{ width: COLUMN_WIDTHS[4] }} className="py-1 px-2 text-right">{formatNum(entry.total_debit)}</td>
+            <td style={{ width: COLUMN_WIDTHS[5] }} className="py-1 px-2 text-right">{formatNum(entry.total_credit)}</td>
           </tr>
         </tfoot>
       </table>
