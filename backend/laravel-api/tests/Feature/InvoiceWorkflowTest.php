@@ -219,6 +219,28 @@ class InvoiceWorkflowTest extends TestCase
         ]);
     }
 
+    /** Regression: deleting a draft invoice used to leave a stale invoice_deliveries row (soft-delete never fires the pivot's cascadeOnDelete), permanently blocking the Delivery — see InvoiceService::delete()'s own comment. */
+    public function test_deleting_a_draft_invoice_frees_its_delivery_for_reinvoicing(): void
+    {
+        $delivery = $this->submittedDelivery();
+
+        $firstAttempt = $this->invoiceService->create([
+            'delivery_ids' => [$delivery->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->invoiceService->delete($firstAttempt);
+
+        $secondAttempt = $this->invoiceService->create([
+            'delivery_ids' => [$delivery->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertSame($delivery->id, $secondAttempt->delivery_id);
+    }
+
     public function test_invoice_can_be_created_from_multiple_deliveries_of_the_same_customer(): void
     {
         $deliveryA = $this->submittedDelivery(qty: 10, rate: 10000);

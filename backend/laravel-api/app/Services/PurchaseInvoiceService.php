@@ -378,11 +378,21 @@ class PurchaseInvoiceService
         return $purchaseInvoice;
     }
 
+    /**
+     * Detaches goodsReceipts()/purchaseOrders() before the (soft) delete — PurchaseInvoice uses
+     * SoftDeletes, so the pivot tables' cascadeOnDelete on purchase_invoice_id never actually
+     * fires (no real row DELETE ever happens), leaving a stale purchase_invoice_goods_receipts
+     * row forever otherwise. Since goods_receipt_id is unique on that pivot ("a Goods Receipt can
+     * never be invoiced twice"), that stale row then crashes the next create() for the same
+     * Goods Receipt with a raw duplicate-key error instead of a clean "already invoiced" message.
+     */
     public function delete(PurchaseInvoice $purchaseInvoice): void
     {
         DB::transaction(function () use ($purchaseInvoice) {
             $this->assertDraft($purchaseInvoice, 'deleted');
             $documentNumber = $purchaseInvoice->document_number;
+            $purchaseInvoice->goodsReceipts()->detach();
+            $purchaseInvoice->purchaseOrders()->detach();
             $this->purchaseInvoiceRepository->delete($purchaseInvoice);
             $this->auditLogService->record('deleted', 'purchase_invoice', "Deleted Purchase Invoice \"{$documentNumber}\".");
         });
