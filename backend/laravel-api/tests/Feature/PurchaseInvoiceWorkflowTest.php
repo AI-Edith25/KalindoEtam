@@ -224,6 +224,29 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         ]);
     }
 
+    /** Regression: deleting a draft invoice used to leave a stale purchase_invoice_goods_receipts row (soft-delete never fires the pivot's cascadeOnDelete), permanently blocking the Goods Receipt — see PurchaseInvoiceService::delete()'s own comment. */
+    public function test_deleting_a_draft_invoice_frees_its_goods_receipt_for_reinvoicing(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 2, rate: 20000);
+
+        $firstAttempt = $this->purchaseInvoiceService->create([
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->purchaseInvoiceService->delete($firstAttempt);
+
+        $secondAttempt = $this->purchaseInvoiceService->create([
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertCount(1, $secondAttempt->goodsReceipts);
+        $this->assertEquals($goodsReceipt->id, $secondAttempt->goodsReceipts->first()->id);
+    }
+
     public function test_already_invoiced_goods_receipt_cannot_be_invoiced_again(): void
     {
         $goodsReceipt = $this->submittedGoodsReceipt(qty: 2, rate: 20000);
