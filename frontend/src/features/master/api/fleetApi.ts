@@ -11,3 +11,6 @@ export const deleteFleet = fleetCrud.remove
 
 /** Delivery form's Fleet dropdown — active fleets only, see FleetController::index(active_only=true). */
 export const fetchActiveFleetsLookup = () => fetchLookupList<Fleet>('/fleets', { active_only: 'true' })
+
+/** Shared option label for every Fleet picker: "NAMA_DRIVER (PLAT)", falling back to the plat number alone when no default driver is set. */
+export const formatFleetLabel = (fleet: Fleet) => (fleet.default_driver_name ? `${fleet.default_driver_name} (${fleet.plat_number})` : fleet.plat_number)

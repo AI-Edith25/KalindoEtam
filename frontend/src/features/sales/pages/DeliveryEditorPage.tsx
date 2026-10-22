@@ -24,7 +24,7 @@ import { formatCurrency } from '@/lib/utils'
 import { computeSubtotal, computeTotalDiscount, lineDiscountAmount, lineTaxAmount } from '@/shared/lib/documentTotals'
 import { allocateSoLineDiscount } from '../lib/deliveryDiscount'
 import { fetchWarehousesLookup, fetchTermsOfPaymentLookup, fetchTaxesLookup, searchCustomersLookup } from '@/features/master/api/lookupsApi'
-import { fetchActiveFleetsLookup } from '@/features/master/api/fleetApi'
+import { fetchActiveFleetsLookup, formatFleetLabel } from '@/features/master/api/fleetApi'
 import { fetchStockBalances } from '@/features/inventory/api/stockApi'
 import { addDays } from '@/shared/lib/dateMath'
 import { fetchDelivery, createDelivery, updateDelivery, completeDelivery } from '../api/deliveryApi'
@@ -329,6 +329,27 @@ function DeliveryForm({
 
   const warehouseId = form.watch('warehouse_id')
 
+  // Fleet options are scoped to the Delivery's own Location — Location is always required, so an
+  // empty warehouseId simply means "nothing to offer yet" rather than falling back to Customer's Location.
+  const fleetOptions = useMemo(
+    () =>
+      (fleets.data ?? [])
+        .filter((fleet) => fleet.location_id === warehouseId)
+        .map((fleet) => ({ value: fleet.id, label: formatFleetLabel(fleet), data: fleet })),
+    [fleets.data, warehouseId],
+  )
+
+  // If the Location changes after a Fleet was already picked and that Fleet isn't in the new Location, drop the stale Fleet/Driver so nothing from the wrong location sticks around.
+  useEffect(() => {
+    if (fleets.isLoading) return
+    const currentFleetId = form.getValues('fleet_id')
+    if (!currentFleetId || fleetOptions.some((option) => option.value === currentFleetId)) return
+    form.setValue('fleet_id', '')
+    form.setValue('fleet', '')
+    form.setValue('driver', '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fleetOptions, fleets.isLoading])
+
   const itemIds = useMemo(() => allSoItems.map((line) => line.item_id), [allSoItems])
 
   // Available Stock is warehouse-scoped, so it can only be known once a warehouse is chosen — refetches whenever the warehouse selection changes.
@@ -547,15 +568,16 @@ function DeliveryForm({
                       <FormItem>
                         <FormLabel>Fleet</FormLabel>
                         <SearchableSelect
-                          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
+                          options={fleetOptions}
                           value={field.value || undefined}
                           onChange={(value, option) => {
                             field.onChange(value ?? '')
-                            form.setValue('fleet', option?.label ?? '')
+                            form.setValue('fleet', option?.data?.plat_number ?? '')
                             form.setValue('driver', option?.data?.default_driver_name ?? '')
                           }}
                           loading={fleets.isLoading}
-                          placeholder="Optional"
+                          disabled={!warehouseId}
+                          placeholder={warehouseId ? 'Optional' : 'Pilih Location dulu'}
                           aria-label="Fleet"
                         />
                         <FormMessage />
@@ -743,6 +765,29 @@ function DirectDeliveryForm({
     },
   })
 
+  const warehouseId = form.watch('warehouse_id')
+
+  // Fleet options are scoped to the Delivery's own Location — Location is always required, so an
+  // empty warehouseId simply means "nothing to offer yet" rather than falling back to Customer's Location.
+  const fleetOptions = useMemo(
+    () =>
+      (fleets.data ?? [])
+        .filter((fleet) => fleet.location_id === warehouseId)
+        .map((fleet) => ({ value: fleet.id, label: formatFleetLabel(fleet), data: fleet })),
+    [fleets.data, warehouseId],
+  )
+
+  // If the Location changes after a Fleet was already picked and that Fleet isn't in the new Location, drop the stale Fleet/Driver so nothing from the wrong location sticks around.
+  useEffect(() => {
+    if (fleets.isLoading) return
+    const currentFleetId = form.getValues('fleet_id')
+    if (!currentFleetId || fleetOptions.some((option) => option.value === currentFleetId)) return
+    form.setValue('fleet_id', '')
+    form.setValue('fleet', '')
+    form.setValue('driver', '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fleetOptions, fleets.isLoading])
+
   const saveMutation = useMutation({
     mutationFn: (values: DirectDeliveryEditorValues) => {
       const items = values.items.map((line) => ({
@@ -927,15 +972,16 @@ function DirectDeliveryForm({
                       <FormItem>
                         <FormLabel>Fleet</FormLabel>
                         <SearchableSelect
-                          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number, data: fleet }))}
+                          options={fleetOptions}
                           value={field.value || undefined}
                           onChange={(value, option) => {
                             field.onChange(value ?? '')
-                            form.setValue('fleet', option?.label ?? '')
+                            form.setValue('fleet', option?.data?.plat_number ?? '')
                             form.setValue('driver', option?.data?.default_driver_name ?? '')
                           }}
                           loading={fleets.isLoading}
-                          placeholder="Optional"
+                          disabled={!warehouseId}
+                          placeholder={warehouseId ? 'Optional' : 'Pilih Location dulu'}
                           aria-label="Fleet"
                         />
                         <FormMessage />

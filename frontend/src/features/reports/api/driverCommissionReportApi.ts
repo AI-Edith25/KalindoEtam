@@ -5,7 +5,6 @@ import type { DriverCommissionReportRow, DriverCommissionReportSummary, DriverCo
 export interface DriverCommissionReportParams {
   date_from?: string
   date_to?: string
-  driver?: string
   fleet_id?: string
   item_id?: string
   status?: DriverCommissionStatusFilter
@@ -19,11 +18,6 @@ interface DriverCommissionReportResponse {
 /** Unpaginated — DriverCommissionReportService::rows() computes commission at read time, never stored. */
 export async function fetchDriverCommissionReport(params: DriverCommissionReportParams): Promise<DriverCommissionReportResponse> {
   const { data } = await apiClient.get<ApiResponse<DriverCommissionReportResponse>>('/reports/driver-commission', { params })
-  return data.data
-}
-
-export async function fetchDriverCommissionDrivers(): Promise<string[]> {
-  const { data } = await apiClient.get<ApiResponse<string[]>>('/reports/driver-commission/drivers')
   return data.data
 }
 

@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -10,19 +10,22 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { toastApiError } from '@/shared/services/errorHandler'
+import { fetchWarehousesLookup } from '../api/lookupsApi'
 import { createFleet, updateFleet } from '../api/fleetApi'
 import type { Fleet } from '../types'
 
 const fleetFormSchema = z.object({
   plat_number: z.string().min(1, 'Plat number is required').max(20),
   default_driver_name: z.string().max(255).optional().or(z.literal('')),
+  location_id: z.string().optional().or(z.literal('')),
   is_active: z.boolean(),
 })
 
 type FleetFormValues = z.infer<typeof fleetFormSchema>
 
-const emptyValues: FleetFormValues = { plat_number: '', default_driver_name: '', is_active: true }
+const emptyValues: FleetFormValues = { plat_number: '', default_driver_name: '', location_id: '', is_active: true }
 
 interface FleetFormDrawerProps {
   open: boolean
@@ -33,6 +36,8 @@ interface FleetFormDrawerProps {
 export function FleetFormDrawer({ open, onOpenChange, fleet }: FleetFormDrawerProps) {
   const isEdit = !!fleet
   const queryClient = useQueryClient()
+  const warehouses = useQuery({ queryKey: ['warehouses-lookup'], queryFn: fetchWarehousesLookup })
+  const warehouseOptions = warehouses.data?.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })) ?? []
 
   const form = useForm<FleetFormValues>({
     resolver: zodResolver(fleetFormSchema),
@@ -44,14 +49,19 @@ export function FleetFormDrawer({ open, onOpenChange, fleet }: FleetFormDrawerPr
 
     form.reset(
       fleet
-        ? { plat_number: fleet.plat_number, default_driver_name: fleet.default_driver_name ?? '', is_active: fleet.is_active }
+        ? {
+            plat_number: fleet.plat_number,
+            default_driver_name: fleet.default_driver_name ?? '',
+            location_id: fleet.location_id ?? '',
+            is_active: fleet.is_active,
+          }
         : emptyValues,
     )
   }, [open, fleet, form])
 
   const mutation = useMutation({
     mutationFn: (values: FleetFormValues) => {
-      const payload = { ...values, default_driver_name: values.default_driver_name || null }
+      const payload = { ...values, default_driver_name: values.default_driver_name || null, location_id: values.location_id || null }
       return isEdit ? updateFleet(fleet.id, payload) : createFleet(payload)
     },
     onSuccess: () => {
@@ -97,6 +107,24 @@ export function FleetFormDrawer({ open, onOpenChange, fleet }: FleetFormDrawerPr
                     <FormControl>
                       <Input placeholder="Optional" autoComplete="off" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="location_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <SearchableSelect
+                      options={warehouseOptions}
+                      value={field.value || undefined}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      loading={warehouses.isLoading}
+                      placeholder="Optional"
+                      aria-label="Location"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

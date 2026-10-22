@@ -27,9 +27,6 @@ class DriverCommissionReportService
                 if (! empty($filters['date_to'])) {
                     $deliveryQuery->whereDate('delivery_date', '<=', $filters['date_to']);
                 }
-                if (! empty($filters['driver'])) {
-                    $deliveryQuery->where('driver', $filters['driver']);
-                }
                 if (! empty($filters['fleet_id'])) {
                     $deliveryQuery->where('fleet_id', $filters['fleet_id']);
                 }
@@ -109,16 +106,5 @@ class DriverCommissionReportService
                 ])
                 ->values(),
         ];
-    }
-
-    /** Backs the report's Sopir filter dropdown — every driver name ever used on a fleet-linked Delivery, regardless of the current filters. */
-    public function distinctDrivers(): Collection
-    {
-        return \App\Models\Delivery::query()
-            ->whereNotNull('fleet_id')
-            ->whereNotNull('driver')
-            ->distinct()
-            ->orderBy('driver')
-            ->pluck('driver');
     }
 }

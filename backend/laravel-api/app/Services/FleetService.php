@@ -21,7 +21,7 @@ class FleetService
 
     public function listActive(): \Illuminate\Database\Eloquent\Collection
     {
-        return Fleet::query()->where('is_active', true)->orderBy('plat_number')->get();
+        return Fleet::query()->with('location')->where('is_active', true)->orderBy('plat_number')->get();
     }
 
     /** plat_number has a real DB-level unique index unaware of `deleted_at` — see ChartOfAccountService::create()'s own comment for why a trashed match is restored instead of inserted fresh. */

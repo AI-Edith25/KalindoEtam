@@ -3,10 +3,9 @@ import { FilterPanel } from '@/components/shared/FilterPanel'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { fetchActiveFleetsLookup } from '@/features/master/api/fleetApi'
+import { fetchActiveFleetsLookup, formatFleetLabel } from '@/features/master/api/fleetApi'
 import { searchItemsLookup } from '@/features/master/api/lookupsApi'
 import { fetchItem } from '@/features/master/api/itemApi'
-import { fetchDriverCommissionDrivers } from '../api/driverCommissionReportApi'
 import { emptyDriverCommissionReportFilters, hasActiveDriverCommissionReportFilters } from '../lib/reportFilters'
 import type { DriverCommissionReportFilterValues, DriverCommissionStatusFilter } from '../types'
 
@@ -23,7 +22,6 @@ interface DriverCommissionReportFiltersBarProps {
 
 export function DriverCommissionReportFiltersBar({ value, onChange }: DriverCommissionReportFiltersBarProps) {
   const fleets = useQuery({ queryKey: ['fleets-lookup-active'], queryFn: fetchActiveFleetsLookup })
-  const drivers = useQuery({ queryKey: ['driver-commission-drivers'], queryFn: fetchDriverCommissionDrivers })
 
   const loadItemOptions = async (query: string) => {
     const items = await searchItemsLookup(query)
@@ -49,26 +47,14 @@ export function DriverCommissionReportFiltersBar({ value, onChange }: DriverComm
         <Input type="date" className="w-40" value={value.dateTo} onChange={(event) => onChange({ ...value, dateTo: event.target.value })} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Sopir</span>
+        <span className="text-xs text-muted-foreground">Driver</span>
         <SearchableSelect
-          options={(drivers.data ?? []).map((driver) => ({ value: driver, label: driver }))}
-          value={value.driver || undefined}
-          onChange={(next) => onChange({ ...value, driver: next ?? '' })}
-          loading={drivers.isLoading}
-          placeholder="All drivers"
-          aria-label="Sopir"
-          className="w-44"
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">Armada</span>
-        <SearchableSelect
-          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: fleet.plat_number }))}
+          options={(fleets.data ?? []).map((fleet) => ({ value: fleet.id, label: formatFleetLabel(fleet) }))}
           value={value.fleet_id || undefined}
           onChange={(next) => onChange({ ...value, fleet_id: next ?? '' })}
           loading={fleets.isLoading}
-          placeholder="All fleets"
-          aria-label="Armada"
+          placeholder="All drivers"
+          aria-label="Driver"
           className="w-44"
         />
       </div>

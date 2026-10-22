@@ -17,7 +17,6 @@ class IndexDriverCommissionReportRequest extends FormRequest
         return [
             'date_from' => ['sometimes', 'nullable', 'date'],
             'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
-            'driver' => ['sometimes', 'nullable', 'string'],
             'fleet_id' => ['sometimes', 'nullable', 'uuid', 'exists:fleets,id'],
             'item_id' => ['sometimes', 'nullable', 'uuid', 'exists:items,id'],
             // "included" (default) | "excluded" | "all" — see DriverCommissionReportService.

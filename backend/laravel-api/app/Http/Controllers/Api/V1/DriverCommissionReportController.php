@@ -29,11 +29,6 @@ class DriverCommissionReportController extends Controller
         ]);
     }
 
-    public function drivers(): JsonResponse
-    {
-        return $this->success($this->driverCommissionReportService->distinctDrivers());
-    }
-
     public function export(IndexDriverCommissionReportRequest $request): BinaryFileResponse
     {
         $validated = $request->validate(['format' => ['sometimes', Rule::in(['xlsx', 'csv'])]]);

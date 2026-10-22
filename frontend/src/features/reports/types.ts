@@ -343,7 +343,6 @@ export interface DeliveryReportFilterValues {
 export type DriverCommissionStatusFilter = 'included' | 'excluded' | 'all'
 
 export interface DriverCommissionReportFilterValues {
-  driver: string
   fleet_id: string
   item_id: string
   status: DriverCommissionStatusFilter

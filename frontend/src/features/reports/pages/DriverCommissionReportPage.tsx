@@ -22,7 +22,6 @@ export function DriverCommissionReportPage() {
   const activeParams = {
     ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
     ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
-    ...(filters.driver ? { driver: filters.driver } : {}),
     ...(filters.fleet_id ? { fleet_id: filters.fleet_id } : {}),
     ...(filters.item_id ? { item_id: filters.item_id } : {}),
     status: filters.status,
@@ -59,14 +58,14 @@ export function DriverCommissionReportPage() {
     { header: 'Jenis Barang', accessor: (row) => row.item_name ?? '—' },
     { header: 'Qty (Zak)', accessor: (row) => formatNumber(row.qty), className: 'text-right' },
     { header: 'No. Plat', accessor: (row) => row.plat_number ?? '—' },
-    { header: 'Sopir', accessor: (row) => row.driver ?? '—' },
+    { header: 'Driver', accessor: (row) => row.driver ?? '—' },
     { header: 'Tarif/Zak', accessor: (row) => formatCurrency(row.rate_per_zak), className: 'text-right' },
     { header: 'Total Komisi', accessor: (row) => formatCurrency(row.total_commission), className: 'text-right' },
   ]
 
   const driverSummaryColumns: DataTableColumn<DriverCommissionReportDriverSummary>[] = useMemo(
     () => [
-      { header: 'Sopir', accessor: (row) => row.driver ?? '—' },
+      { header: 'Driver', accessor: (row) => row.driver ?? '—' },
       { header: 'Qty (Zak)', accessor: (row) => formatNumber(row.total_qty), className: 'text-right' },
       { header: 'Total Komisi', accessor: (row) => formatCurrency(row.total_commission), className: 'text-right' },
     ],
@@ -113,7 +112,7 @@ export function DriverCommissionReportPage() {
 
       {summary && summary.by_driver.length > 0 && (
         <>
-          <h3 className="text-sm font-medium text-muted-foreground">Per Sopir</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">Per Driver</h3>
           <DataTable columns={driverSummaryColumns} data={summary.by_driver} rowKey={(row) => row.driver ?? 'unknown'} />
         </>
       )}
