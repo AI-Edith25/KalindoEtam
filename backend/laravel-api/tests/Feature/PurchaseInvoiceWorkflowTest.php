@@ -138,6 +138,31 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         $this->assertCount(2, $purchaseInvoice->goodsReceipts);
     }
 
+    /** Regression: combining a PO-linked GR with a Direct (no-PO) GR used to send a null purchase_order_id into purchaseOrders()->sync(), failing its FK constraint — see PurchaseInvoiceService::createFromGoodsReceipts(). */
+    public function test_direct_and_po_linked_goods_receipts_from_same_supplier_can_be_combined_into_one_invoice(): void
+    {
+        $poLinked = $this->submittedGoodsReceipt(qty: 2, rate: 20000); // 40000
+
+        $direct = $this->goodsReceiptService->submit($this->goodsReceiptService->create([
+            'purchase_order_id' => null,
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'receipt_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+            'items' => [['item_id' => $this->item->id, 'qty' => 1, 'rate' => 60000]],
+        ]));
+
+        $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'goods_receipt_ids' => [$poLinked->id, $direct->id],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->assertEquals(100000, (float) $purchaseInvoice->subtotal);
+        $this->assertCount(2, $purchaseInvoice->goodsReceipts);
+        $this->assertCount(1, $purchaseInvoice->purchaseOrders);
+    }
+
     public function test_mixed_supplier_goods_receipts_cannot_be_combined(): void
     {
         $first = $this->submittedGoodsReceipt(qty: 2, rate: 20000);

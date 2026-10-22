@@ -131,7 +131,9 @@ class PurchaseInvoiceService
         }
 
         $purchaseInvoice->goodsReceipts()->sync($goodsReceipts->pluck('id')->all());
-        $purchaseInvoice->purchaseOrders()->sync($goodsReceipts->pluck('purchase_order_id')->unique()->all());
+        // A Direct Receipt (no source PO) has a null purchase_order_id — filter it out before sync(),
+        // otherwise the pivot insert fails its FK constraint on a null/empty id.
+        $purchaseInvoice->purchaseOrders()->sync($goodsReceipts->pluck('purchase_order_id')->filter()->unique()->all());
 
         $purchaseInvoice = $purchaseInvoice->fresh(self::EAGER);
         $this->auditLogService->record('created', 'purchase_invoice', "Created Purchase Invoice \"{$purchaseInvoice->document_number}\".");
