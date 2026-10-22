@@ -5,6 +5,7 @@ import { Loader2, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { terbilangUsdWithCents } from '@/shared/lib/numberToWords'
 import { useCompanyBranding } from '@/features/administration/hooks/useCompany'
+import { legacyCompanyName } from '@/features/sales/pages/invoicePrintConstants'
 import { fetchJournalEntriesByIds } from '../api/journalEntryApi'
 import type { JournalEntry } from '../types'
 
@@ -129,7 +130,9 @@ export function JournalEntryPrintPage() {
     enabled: ids.length > 0,
   })
 
-  const companyName = brandingQuery.data?.name ?? 'PT. KALINDO ETAM'
+  // The stored name is plain title case ("PT Kalindo Etam") — the legacy GJ template shows it
+  // "PT. KALINDO ETAM" (all caps, period after "PT"), same transform SO/DO/SI print already share.
+  const companyName = legacyCompanyName(brandingQuery.data?.name ?? 'PT Kalindo Etam')
   const entries = entriesQuery.data ?? []
 
   if (entriesQuery.isLoading) {
