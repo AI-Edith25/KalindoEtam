@@ -1,5 +1,6 @@
 import { lineAmount } from '@/shared/lib/documentTotals'
 import type { ChartOfAccount } from '@/features/master/types'
+import type { PurchaseInvoiceLineRow } from './purchaseInvoiceFormSchema'
 
 interface DirectLineLike {
   chart_of_account_id: string
@@ -20,4 +21,10 @@ export function directLineAmount(item: DirectLineLike, accounts: ChartOfAccount[
   const amount = lineAmount(item)
 
   return isLiabilityLine(item, accounts) ? -amount : amount
+}
+
+/** Stock (Goods Receipt-sourced) rows are always qty*rate — the Liability sign flip only ever applies to a manually chosen Chart-of-Accounts line. */
+export function purchaseInvoiceLineAmount(row: PurchaseInvoiceLineRow, accounts: ChartOfAccount[]): number {
+  if (row.kind === 'stock') return Number(row.qty) * Number(row.rate || 0)
+  return directLineAmount(row, accounts)
 }
