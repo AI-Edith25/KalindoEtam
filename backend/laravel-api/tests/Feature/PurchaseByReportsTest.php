@@ -121,6 +121,7 @@ class PurchaseByReportsTest extends TestCase
     protected function submittedPurchaseInvoiceFor(GoodsReceipt $goodsReceipt): PurchaseInvoice
     {
         $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'supplier_id' => $goodsReceipt->supplier_id,
             'goods_receipt_ids' => [$goodsReceipt->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),

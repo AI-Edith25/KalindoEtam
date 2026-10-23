@@ -87,6 +87,7 @@ class PurchaseJournalTest extends TestCase
         $goodsReceipt = $this->goodsReceiptService->submit($goodsReceipt);
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'supplier_id' => $this->supplier->id,
             'goods_receipt_ids' => [$goodsReceipt->id],
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
