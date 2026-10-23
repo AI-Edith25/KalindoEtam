@@ -38,7 +38,11 @@ class PurchaseInvoiceExport implements FromCollection, WithHeadings, WithMapping
         return [
             $row->invoice_date?->format('Y-m-d'),
             $row->document_number,
-            $row->source === PurchaseInvoiceSource::DIRECT ? 'Direct' : 'Goods Receipt',
+            match ($row->source) {
+                PurchaseInvoiceSource::DIRECT => 'Direct',
+                PurchaseInvoiceSource::MIXED => 'Mixed',
+                default => 'Goods Receipt',
+            },
             $row->goodsReceipt?->document_number ?? $row->reference_number,
             $row->supplier?->supplier_name,
             (float) $row->subtotal,
