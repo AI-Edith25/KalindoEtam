@@ -108,8 +108,8 @@ class PurchaseInvoice extends Model
     {
         $this->loadMissing('items.chartOfAccount');
 
-        $stockItems = $this->items->whereNotNull('goods_receipt_item_id');
-        $nonStockItems = $this->items->whereNull('goods_receipt_item_id');
+        $stockItems = $this->items->where('line_type', 'stock');
+        $nonStockItems = $this->items->where('line_type', 'non_stock');
 
         $lines = [];
 
