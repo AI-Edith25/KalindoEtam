@@ -411,6 +411,10 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $this->assertEquals(120000, (float) $purchaseInvoice->subtotal); // (5*19000) + 25000
         $this->assertCount(2, $purchaseInvoice->items);
+
+        $nonStockItem = $purchaseInvoice->items->firstWhere('goods_receipt_item_id', null);
+        $this->assertEquals(25000, (float) $nonStockItem->rate);
+        $this->assertEquals(25000, (float) $nonStockItem->amount);
     }
 
     public function test_create_rejects_an_invoice_with_zero_lines(): void
