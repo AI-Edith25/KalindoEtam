@@ -41,8 +41,6 @@ export function PurchaseInvoiceEditorPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [supplierOption, setSupplierOption] = useState<SearchableSelectOption | undefined>()
-  const [supplierConfirmed, setSupplierConfirmed] = useState(false)
   const [selectedGoodsReceiptIds, setSelectedGoodsReceiptIds] = useState<Set<string>>(new Set())
   const [selectionConfirmed, setSelectionConfirmed] = useState(false)
 
@@ -55,11 +53,6 @@ export function PurchaseInvoiceEditorPage() {
     })
   }
 
-  const loadSupplierOptions = async (query: string) => {
-    const suppliers = await searchSuppliersLookup(query)
-    return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
-  }
-
   const invoiceQuery = useQuery({
     queryKey: ['purchase-invoices', id],
     queryFn: () => fetchPurchaseInvoice(id!),
@@ -67,15 +60,20 @@ export function PurchaseInvoiceEditorPage() {
   })
 
   // Eligible = submitted (stock already moved) and not yet invoiced. Fetched only in create mode,
-  // once a Supplier has been chosen and before the selection is confirmed (Skip or Continue).
+  // before the selection is confirmed (Skip or Continue). Lists Goods Receipts from every Supplier —
+  // there's no separate Supplier-picking step; the Supplier is derived from whichever Goods
+  // Receipt(s) get checked below.
   const eligibleGoodsReceiptsQuery = useQuery({
     queryKey: ['goods-receipts-eligible-for-invoice'],
     queryFn: () => fetchGoodsReceipts({ page: 1, per_page: 100, status: 'submitted' }),
-    enabled: !isEdit && supplierConfirmed && !selectionConfirmed,
+    enabled: !isEdit && !selectionConfirmed,
   })
   const eligibleGoodsReceipts = (eligibleGoodsReceiptsQuery.data?.data ?? []).filter((goodsReceipt) => !goodsReceipt.is_invoiced)
-  const selectableGoodsReceipts = supplierOption
-    ? eligibleGoodsReceipts.filter((goodsReceipt) => goodsReceipt.supplier_id === supplierOption.value)
+  const selectedSoFar = eligibleGoodsReceipts.filter((goodsReceipt) => selectedGoodsReceiptIds.has(goodsReceipt.id))
+  // Once ≥1 Goods Receipt is checked, only Goods Receipts from the same Supplier remain selectable.
+  const selectedSupplierId = selectedSoFar[0]?.supplier_id ?? null
+  const selectableGoodsReceipts = selectedSupplierId
+    ? eligibleGoodsReceipts.filter((goodsReceipt) => goodsReceipt.supplier_id === selectedSupplierId)
     : eligibleGoodsReceipts
   const selectedGoodsReceipts = selectableGoodsReceipts.filter((goodsReceipt) => selectedGoodsReceiptIds.has(goodsReceipt.id))
 
@@ -98,49 +96,17 @@ export function PurchaseInvoiceEditorPage() {
     )
   }
 
-  // Step 1 (create mode only): choose the Supplier.
-  if (!isEdit && !supplierConfirmed) {
-    return (
-      <div className="flex flex-col gap-4">
-        <PageHeader
-          title="New Invoice"
-          description="Pick the Supplier being invoiced, then optionally select one or more received Goods Receipts and/or add non-stock lines."
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle>Select Supplier</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <SearchableSelect
-              loadOptions={loadSupplierOptions}
-              selectedOption={supplierOption}
-              value={supplierOption?.value}
-              onChange={(_value, option) => setSupplierOption(option)}
-              clearable={false}
-              placeholder="Select supplier"
-              aria-label="Supplier"
-            />
-            <div className="flex gap-2">
-              <Button type="button" disabled={!supplierOption} onClick={() => setSupplierConfirmed(true)}>
-                Continue
-              </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/purchase/invoices')}>
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  // Step 2 (create mode only): select Goods Receipt(s) — optional, Skip is always available.
+  // Step (create mode only): select Goods Receipt(s) — optional, Skip is always available. Lists
+  // every Supplier's eligible Goods Receipts; checking one locks the rest to that same Supplier.
   if (!isEdit && !selectionConfirmed) {
     const allSelectableChecked = selectableGoodsReceipts.length > 0 && selectableGoodsReceipts.every((gr) => selectedGoodsReceiptIds.has(gr.id))
 
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="New Invoice" description={`Invoicing ${supplierOption?.label ?? ''}.`} />
+        <PageHeader
+          title="New Invoice"
+          description="Select one or more received Goods Receipts to invoice, or skip to add non-stock lines only."
+        />
         <Card>
           <CardHeader>
             <CardTitle>Select Goods Receipt (optional)</CardTitle>
@@ -152,7 +118,7 @@ export function PurchaseInvoiceEditorPage() {
                   <Loader2 className="size-6 animate-spin text-muted-foreground" />
                 </div>
               ) : selectableGoodsReceipts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No goods receipts available to invoice for this supplier.</p>
+                <p className="text-sm text-muted-foreground">No goods receipts available to invoice.</p>
               ) : (
                 <div className="overflow-x-auto rounded-md border">
                   <Table>
@@ -166,6 +132,7 @@ export function PurchaseInvoiceEditorPage() {
                           />
                         </TableHead>
                         <TableHead>Document Number</TableHead>
+                        <TableHead>Supplier</TableHead>
                         <TableHead>Receipt Date</TableHead>
                         <TableHead className="text-right">Items</TableHead>
                       </TableRow>
@@ -183,6 +150,7 @@ export function PurchaseInvoiceEditorPage() {
                               />
                             </TableCell>
                             <TableCell className="font-medium">{goodsReceipt.document_number}</TableCell>
+                            <TableCell>{goodsReceipt.supplier?.supplier_name}</TableCell>
                             <TableCell>{goodsReceipt.receipt_date}</TableCell>
                             <TableCell className="text-right">{goodsReceipt.items.length}</TableCell>
                           </TableRow>
@@ -193,19 +161,19 @@ export function PurchaseInvoiceEditorPage() {
                 </div>
               )}
               <p className="text-sm text-muted-foreground">
-                Only submitted Goods Receipts from this Supplier that have not already been invoiced are shown. You can also skip this step and/or
-                add non-stock lines on the next screen.
+                Only submitted Goods Receipts that have not already been invoiced are shown — once you select one, only Goods Receipts from the
+                same Supplier remain selectable. You can also skip this step and/or add non-stock lines on the next screen.
               </p>
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => setSupplierConfirmed(false)}>
-                Back
-              </Button>
               <Button type="button" variant="outline" onClick={() => setSelectionConfirmed(true)}>
                 Skip / Continue without Goods Receipt
               </Button>
               <Button type="button" disabled={selectedGoodsReceiptIds.size === 0} onClick={() => setSelectionConfirmed(true)}>
                 Continue
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate('/purchase/invoices')}>
+                Cancel
               </Button>
             </div>
           </CardContent>
@@ -224,11 +192,10 @@ export function PurchaseInvoiceEditorPage() {
 
   return (
     <PurchaseInvoiceForm
-      key={isEdit ? id : `${supplierOption?.value ?? ''}:${Array.from(selectedGoodsReceiptIds).sort().join(',')}`}
+      key={isEdit ? id : Array.from(selectedGoodsReceiptIds).sort().join(',')}
       isEdit={isEdit}
       id={id}
       invoice={invoiceQuery.data}
-      supplierOption={supplierOption}
       selectedGoodsReceipts={selectedGoodsReceipts}
       navigate={navigate}
       queryClient={queryClient}
@@ -240,7 +207,6 @@ function PurchaseInvoiceForm({
   isEdit,
   id,
   invoice,
-  supplierOption,
   selectedGoodsReceipts,
   navigate,
   queryClient,
@@ -248,7 +214,6 @@ function PurchaseInvoiceForm({
   isEdit: boolean
   id: string | undefined
   invoice: PurchaseInvoice | undefined
-  supplierOption: SearchableSelectOption | undefined
   selectedGoodsReceipts: GoodsReceipt[]
   navigate: NavigateFunction
   queryClient: QueryClient
@@ -261,13 +226,17 @@ function PurchaseInvoiceForm({
   const activePurchaseTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'purchase')
 
   // Stock lines are immutable post-create — Supplier can only change while there are none yet
-  // (mirrors PurchaseInvoiceService::update()'s own rule).
+  // (mirrors PurchaseInvoiceService::update()'s own rule). In create mode with no Goods Receipt
+  // selected (the Skip path), there's no Supplier known yet either, so the field stays editable
+  // and required right here instead of a separate upfront step.
   const hasStockLines = isEdit ? (invoice?.items ?? []).some((line) => line.goods_receipt_item_id !== null) : selectedGoodsReceipts.length > 0
-  const supplierEditable = isEdit && !hasStockLines
+  const supplierEditable = !hasStockLines
 
-  const [selectedSupplierOption, setSelectedSupplierOption] = useState<SearchableSelectOption | undefined>(
-    isEdit && invoice?.supplier ? { value: invoice.supplier.id, label: invoice.supplier.supplier_name } : supplierOption,
-  )
+  const [selectedSupplierOption, setSelectedSupplierOption] = useState<SearchableSelectOption | undefined>(() => {
+    if (isEdit) return invoice?.supplier ? { value: invoice.supplier.id, label: invoice.supplier.supplier_name } : undefined
+    const supplier = selectedGoodsReceipts[0]?.supplier
+    return supplier ? { value: supplier.id, label: supplier.supplier_name } : undefined
+  })
   const loadSupplierOptions = async (query: string) => {
     const suppliers = await searchSuppliersLookup(query)
     return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
@@ -327,7 +296,7 @@ function PurchaseInvoiceForm({
           remarks: invoice.remarks ?? '',
           items: [...stockRows, ...nonStockRows],
         }
-      : { ...emptyPurchaseInvoiceEditorValues, supplier_id: supplierOption?.value ?? '', items: stockRows },
+      : { ...emptyPurchaseInvoiceEditorValues, supplier_id: selectedGoodsReceipts[0]?.supplier_id ?? '', items: stockRows },
   })
 
   const toPayload = (values: PurchaseInvoiceEditorValues): PurchaseInvoiceFormValues => {
