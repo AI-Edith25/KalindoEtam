@@ -348,7 +348,7 @@ function PurchaseInvoiceForm({
       ...(stockLines.length > 0
         ? { item_rates: stockLines.map((line) => ({ goods_receipt_item_id: line.goods_receipt_item_id, rate: Number(line.rate) })) }
         : {}),
-      ...(nonStockLines.length > 0
+      ...(isEdit || nonStockLines.length > 0
         ? {
             items: nonStockLines.map((line) => ({
               chart_of_account_id: line.chart_of_account_id,
