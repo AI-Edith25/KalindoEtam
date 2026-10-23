@@ -15,20 +15,21 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
     {
         return [
             'invoice_date' => ['sometimes', 'required', 'date'],
-            // Nullable, not required — a Direct invoice re-derives it from the Supplier's Terms
-            // of Payment when omitted (PurchaseInvoiceService::resolveDueDate()). A Goods
-            // Receipt-sourced invoice keeps sending it explicitly (frontend always has it).
             'due_date' => ['sometimes', 'nullable', 'date', 'after_or_equal:invoice_date'],
             'tax_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'reference_number' => ['sometimes', 'nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
 
-            // Direct/Non-Stock invoice only — see PurchaseInvoiceService::updateDirect(). The
-            // source itself is immutable post-create, not accepted here.
+            // Only takes effect while the invoice has no stock (Goods Receipt-sourced) lines —
+            // PurchaseInvoiceService::update() otherwise leaves supplier_id untouched.
             'supplier_id' => ['sometimes', 'uuid', 'exists:suppliers,id'],
             'attention' => ['sometimes', 'nullable', 'string', 'max:255'],
             'department' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'items' => ['sometimes', 'array', 'min:1'],
+
+            // Full replace of this invoice's non-stock lines only — stock lines are immutable
+            // post-create and untouched by this key. Omit entirely to leave existing non-stock
+            // lines as they are.
+            'items' => ['sometimes', 'array'],
             'items.*.chart_of_account_id' => ['required_with:items', 'uuid', 'exists:chart_of_accounts,id'],
             'items.*.description' => ['required_with:items', 'string', 'max:255'],
             'items.*.uom' => ['nullable', 'string', 'max:50'],
@@ -36,8 +37,7 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
             'items.*.rate' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.tax_id' => ['sometimes', 'nullable', 'uuid', 'exists:taxes,id'],
 
-            // Rate overrides for a Goods Receipt-sourced invoice — see StorePurchaseInvoiceRequest's
-            // own comment. Separate key from `items` above, which is Direct's own full line shape.
+            // Rate overrides for existing stock lines — see Store rule's own comment.
             'item_rates' => ['sometimes', 'array'],
             'item_rates.*.goods_receipt_item_id' => ['required', 'uuid', 'exists:goods_receipt_items,id'],
             'item_rates.*.rate' => ['required', 'numeric', 'min:0'],
