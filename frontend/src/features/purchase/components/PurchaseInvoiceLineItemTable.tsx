@@ -53,7 +53,7 @@ export function PurchaseInvoiceLineItemTable({ form, accounts, accountsLoading, 
               <TableHead className="w-10" />
               <TableHead className={STICKY_FIRST_COL}>Item / Account</TableHead>
               <TableHead className="w-56">Description</TableHead>
-              <TableHead className="w-24">Qty</TableHead>
+              <TableHead className="w-24 text-right">Qty</TableHead>
               <TableHead className="w-24">UOM</TableHead>
               <TableHead className="w-36">Rate</TableHead>
               <TableHead className="w-44">Tax</TableHead>
@@ -80,7 +80,7 @@ export function PurchaseInvoiceLineItemTable({ form, accounts, accountsLoading, 
                       </TableCell>
                       <TableCell className={STICKY_FIRST_COL}>{line?.item_code ?? '—'}</TableCell>
                       <TableCell>{line?.item_name ?? ''}</TableCell>
-                      <TableCell>{formatQty(line?.qty ?? 0, line?.qty_category ?? 'unit')}</TableCell>
+                      <TableCell className="text-right">{formatQty(line?.qty ?? 0, line?.qty_category ?? 'unit')}</TableCell>
                       <TableCell>{line?.uom ?? '—'}</TableCell>
                       <TableCell className="min-w-36">
                         <FormField
