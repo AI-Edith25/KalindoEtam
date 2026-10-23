@@ -220,7 +220,7 @@ function PurchaseInvoiceForm({
 }) {
   const accounts = useChartOfAccountsLookup()
   const directLineAccounts = (accounts.data ?? []).filter(
-    (account) => (account.account_type === 'expense' || account.account_type === 'liability') && account.is_active,
+    (account) => account.is_active && (account.account_type === 'expense' || (account.account_type === 'asset' && !account.is_cash_bank)),
   )
   const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
   const activePurchaseTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'purchase')

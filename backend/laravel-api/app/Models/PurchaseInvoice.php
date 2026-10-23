@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\AccountType;
 use App\Enums\DocumentStatus;
 use App\Enums\PurchaseInvoiceSource;
 use App\Models\Concerns\Documentable;
@@ -99,10 +98,9 @@ class PurchaseInvoice extends Model
      * GOODS_RECEIPT (stock lines only), DIRECT (non-stock lines only), and MIXED (both) with the
      * same two algorithms run side by side instead of three branches: stock lines post a single
      * aggregate Dr 5100 (Goods Receipt items carry no per-line expense account); non-stock lines
-     * post one Dr/Cr line per distinct Chart-of-Accounts account chosen on the invoice (items
-     * must be loaded with chartOfAccount) — Expense is debited (adds to what's owed), Liability is
-     * credited (e.g. Hutang PPh 23 deducts from what's owed; its group sum is already negative,
-     * per PurchaseInvoiceService::buildDirectLines()).
+     * post one Dr line per distinct Chart-of-Accounts account chosen on the invoice (Expense or
+     * a non-cash/bank Asset — both debit and add to what's owed; PurchaseInvoiceService::
+     * resolveDirectLineAccount() is what keeps any other account type from ever reaching here).
      */
     public function journalLines(): array
     {
@@ -118,12 +116,7 @@ class PurchaseInvoice extends Model
         }
 
         foreach ($nonStockItems->groupBy('chart_of_account_id') as $group) {
-            $account = $group->first()->chartOfAccount;
-            $amount = (float) $group->sum('amount');
-
-            $lines[] = $account->account_type === AccountType::LIABILITY
-                ? ['account' => $account->code, 'type' => 'credit', 'amount' => abs($amount)]
-                : ['account' => $account->code, 'type' => 'debit', 'amount' => $amount];
+            $lines[] = ['account' => $group->first()->chartOfAccount->code, 'type' => 'debit', 'amount' => (float) $group->sum('amount')];
         }
 
         $lines[] = ['account' => '210.01', 'type' => 'credit', 'amount' => (float) $this->grand_total]; // Accounts Payable

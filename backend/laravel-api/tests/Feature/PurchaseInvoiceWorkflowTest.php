@@ -556,7 +556,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         $this->assertSame('2026-10-01', $purchaseInvoice->due_date->toDateString());
     }
 
-    public function test_direct_invoice_rejects_inactive_or_non_expense_account(): void
+    public function test_direct_invoice_rejects_inactive_or_liability_account(): void
     {
         try {
             $this->purchaseInvoiceService->create([
@@ -564,10 +564,10 @@ class PurchaseInvoiceWorkflowTest extends TestCase
                 'invoice_date' => now()->toDateString(),
                 'due_date' => now()->addDays(30)->toDateString(),
                 'items' => [
-                    ['chart_of_account_id' => $this->accountId('112.01'), 'description' => 'Wrong account', 'qty' => 1, 'rate' => 10000],
+                    ['chart_of_account_id' => $this->accountId('2200'), 'description' => 'Wrong account', 'qty' => 1, 'rate' => 10000],
                 ],
             ]);
-            $this->fail('Expected a non-Expense account to throw.');
+            $this->fail('Expected a Liability account to throw.');
         } catch (BusinessException) {
         }
 
@@ -589,78 +589,35 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         $this->assertDatabaseCount('purchase_invoices', 0);
     }
 
-    public function test_direct_invoice_liability_line_deducts_from_ap_and_posts_as_credit(): void
+    public function test_direct_invoice_accepts_a_non_cash_asset_account(): void
     {
-        // Mirrors a self-billed invoice with a withholding-tax deduction (e.g. Hutang PPh 23):
-        // an Expense line plus a Liability line that nets down what's owed to the supplier.
+        // e.g. an advance/prepayment line (Uang Muka Pembelian) recorded on the same invoice as
+        // an expense line — Asset accounts behave like Expense accounts for posting purposes,
+        // both debit and add to what's owed.
         $purchaseInvoice = $this->purchaseInvoiceService->create([
             'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [
-                ['chart_of_account_id' => $this->accountId('6100'), 'description' => 'Biaya Pengangkutan', 'qty' => 1, 'rate' => 1000000],
-                ['chart_of_account_id' => $this->accountId('2200'), 'description' => 'Hutang PPh 23', 'qty' => 1, 'rate' => 60000],
+                ['chart_of_account_id' => $this->accountId('1250'), 'description' => 'Advance to Supplier', 'qty' => 1, 'rate' => 500000],
             ],
         ]);
 
-        $this->assertEquals(940000, (float) $purchaseInvoice->subtotal);
-        $this->assertEquals(940000, (float) $purchaseInvoice->grand_total);
-        $this->assertEquals(-60000, (float) $purchaseInvoice->items()->where('chart_of_account_id', $this->accountId('2200'))->firstOrFail()->amount);
-
-        $purchaseInvoice = $this->purchaseInvoiceService->submit($purchaseInvoice);
-
-        $journalEntry = JournalEntry::query()->where('reference_type', 'purchase_invoice')->where('reference_id', $purchaseInvoice->id)->firstOrFail();
-        $this->assertEquals(1000000, (float) $journalEntry->total_debit);
-        $this->assertEquals(1000000, (float) $journalEntry->total_credit);
-
-        $lines = $journalEntry->lines()->with('chartOfAccount')->get();
-        $this->assertEquals(1000000, (float) $lines->firstWhere('chartOfAccount.code', '6100')->debit);
-        $this->assertEquals(0, (float) $lines->firstWhere('chartOfAccount.code', '6100')->credit);
-        $this->assertEquals(60000, (float) $lines->firstWhere('chartOfAccount.code', '2200')->credit);
-        $this->assertEquals(0, (float) $lines->firstWhere('chartOfAccount.code', '2200')->debit);
-        $this->assertEquals(940000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->credit);
-
-        $accountsPayable = $purchaseInvoice->accountsPayable()->firstOrFail();
-        $this->assertEquals(940000, (float) $accountsPayable->amount);
+        $this->assertEquals(500000, (float) $purchaseInvoice->subtotal);
+        $this->assertEquals('1250', $purchaseInvoice->items->first()->chartOfAccount->code);
     }
 
-    public function test_direct_invoice_ignores_tax_on_a_liability_line(): void
+    public function test_direct_invoice_rejects_a_cash_or_bank_account(): void
     {
-        $tax = \App\Models\Tax::query()->create([
-            'code' => 'PPN11', 'name' => 'PPN 11%', 'type' => \App\Enums\TaxType::VAT,
-            'transaction_type' => \App\Enums\TaxTransactionType::PURCHASE, 'rate' => 11, 'is_active' => true,
-        ]);
+        $this->expectException(BusinessException::class);
 
-        $purchaseInvoice = $this->purchaseInvoiceService->create([
+        $this->purchaseInvoiceService->create([
             'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'items' => [
-                ['chart_of_account_id' => $this->accountId('6100'), 'description' => 'Biaya Pengangkutan', 'qty' => 1, 'rate' => 1000000],
-                ['chart_of_account_id' => $this->accountId('2200'), 'description' => 'Hutang PPh 23', 'qty' => 1, 'rate' => 60000, 'tax_id' => $tax->id],
+                ['chart_of_account_id' => $this->accountId('1100'), 'description' => 'Wrong account', 'qty' => 1, 'rate' => 10000],
             ],
         ]);
-
-        $this->assertEquals(0, (float) $purchaseInvoice->tax_amount);
-        $this->assertNull($purchaseInvoice->items()->where('chart_of_account_id', $this->accountId('2200'))->firstOrFail()->tax_id);
-    }
-
-    public function test_direct_invoice_rejects_a_liability_line_that_outweighs_the_expense_lines(): void
-    {
-        try {
-            $this->purchaseInvoiceService->create([
-                'supplier_id' => $this->supplier->id,
-                'invoice_date' => now()->toDateString(),
-                'due_date' => now()->addDays(30)->toDateString(),
-                'items' => [
-                    ['chart_of_account_id' => $this->accountId('6100'), 'description' => 'Biaya Pengangkutan', 'qty' => 1, 'rate' => 50000],
-                    ['chart_of_account_id' => $this->accountId('2200'), 'description' => 'Hutang PPh 23', 'qty' => 1, 'rate' => 60000],
-                ],
-            ]);
-            $this->fail('Expected a non-positive Grand Total to throw.');
-        } catch (BusinessException) {
-        }
-
-        $this->assertDatabaseCount('purchase_invoices', 0);
     }
 }

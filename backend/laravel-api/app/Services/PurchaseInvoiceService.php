@@ -191,17 +191,7 @@ class PurchaseInvoiceService
             $qty = (float) $line['qty'];
             $rate = (float) $line['rate'];
             $amount = round($qty * $rate, 2);
-
-            if ($account->account_type === AccountType::LIABILITY) {
-                // A Liability line (e.g. Hutang PPh 23) deducts from what's owed to the
-                // supplier rather than adding to it — user always types a positive rate,
-                // the sign flip happens here. No tax of its own either.
-                $amount = -$amount;
-                $taxId = null;
-                $taxAmount = 0.0;
-            } else {
-                [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $amount);
-            }
+            [$taxId, $taxAmount] = $this->taxService->resolveLineTax($line, null, '', $amount);
 
             return [
                 'chart_of_account_id' => $account->id,
@@ -216,11 +206,6 @@ class PurchaseInvoiceService
         })->all();
     }
 
-    /**
-     * Unreachable before Liability deduction lines existed (every line was a positive
-     * Expense amount) — now a Liability line can outweigh the Expense lines, so this turns
-     * that into a clear message instead of an opaque unbalanced-journal failure at submit.
-     */
     protected function assertPositiveGrandTotal(float $grandTotal): void
     {
         if ($grandTotal <= 0) {
@@ -228,12 +213,21 @@ class PurchaseInvoiceService
         }
     }
 
+    /**
+     * Non-stock lines post to an Expense account (the common case — vehicle repairs, services,
+     * etc.) or a non-cash/bank Asset account (e.g. Uang Muka Pembelian / advance to supplier).
+     * Liability and Equity/Revenue accounts are deliberately excluded — the only Liability use
+     * case this ever supported (a withholding-tax deduction line) was removed from the UI and is
+     * no longer selectable. Cash/Bank is Asset-typed but excluded here since it's never an
+     * appropriate account for an invoice line.
+     */
     protected function resolveDirectLineAccount(string $chartOfAccountId): ChartOfAccount
     {
         $account = $this->chartOfAccountRepository->findOrFail($chartOfAccountId);
+        $isAcceptableAsset = $account->account_type === AccountType::ASSET && ! $account->is_cash_bank;
 
-        if (! in_array($account->account_type, [AccountType::EXPENSE, AccountType::LIABILITY], true) || ! $account->is_active) {
-            throw new BusinessException("Account {$account->code} — {$account->name} is not an active Expense or Liability account.");
+        if ((! $isAcceptableAsset && $account->account_type !== AccountType::EXPENSE) || ! $account->is_active) {
+            throw new BusinessException("Account {$account->code} — {$account->name} is not an active Expense or Asset (non-cash/bank) account.");
         }
 
         return $account;
