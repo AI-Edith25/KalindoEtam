@@ -95,30 +95,36 @@ class PurchaseInvoice extends Model
      * AP-side. tax_amount is debited here to net against Sales' output-tax
      * credit on the same shared 2100 Tax Payable account.
      *
-     * GOODS_RECEIPT: single Dr 5100 (subtotal) — Goods Receipt items carry no per-line expense
-     * account, tax_amount is a manual header figure. DIRECT: one Dr/Cr line per distinct
-     * account chosen on the invoice's own lines (items must be loaded with chartOfAccount),
-     * subtotal/tax_amount are sums of the lines instead — see PurchaseInvoiceService::createDirect().
-     * A DIRECT line's account is Expense (debited, adds to what's owed) or Liability (credited,
-     * e.g. Hutang PPh 23 — deducts from what's owed to the supplier; its group sum is already
-     * negative, per PurchaseInvoiceService::buildDirectLines()).
+     * Built from line presence, not from $this->source directly — this naturally covers
+     * GOODS_RECEIPT (stock lines only), DIRECT (non-stock lines only), and MIXED (both) with the
+     * same two algorithms run side by side instead of three branches: stock lines post a single
+     * aggregate Dr 5100 (Goods Receipt items carry no per-line expense account); non-stock lines
+     * post one Dr/Cr line per distinct Chart-of-Accounts account chosen on the invoice (items
+     * must be loaded with chartOfAccount) — Expense is debited (adds to what's owed), Liability is
+     * credited (e.g. Hutang PPh 23 deducts from what's owed; its group sum is already negative,
+     * per PurchaseInvoiceService::buildDirectLines()).
      */
     public function journalLines(): array
     {
-        $lines = $this->source === PurchaseInvoiceSource::DIRECT
-            ? $this->loadMissing('items.chartOfAccount')->items
-                ->groupBy('chart_of_account_id')
-                ->map(function ($group) {
-                    $account = $group->first()->chartOfAccount;
-                    $amount = (float) $group->sum('amount');
+        $this->loadMissing('items.chartOfAccount');
 
-                    return $account->account_type === AccountType::LIABILITY
-                        ? ['account' => $account->code, 'type' => 'credit', 'amount' => abs($amount)]
-                        : ['account' => $account->code, 'type' => 'debit', 'amount' => $amount];
-                })
-                ->values()
-                ->all()
-            : [['account' => '5100', 'type' => 'debit', 'amount' => (float) $this->subtotal]]; // Purchase Expense
+        $stockItems = $this->items->whereNotNull('goods_receipt_item_id');
+        $nonStockItems = $this->items->whereNull('goods_receipt_item_id');
+
+        $lines = [];
+
+        if ($stockItems->isNotEmpty()) {
+            $lines[] = ['account' => '5100', 'type' => 'debit', 'amount' => (float) $stockItems->sum('amount')]; // Purchase Expense
+        }
+
+        foreach ($nonStockItems->groupBy('chart_of_account_id') as $group) {
+            $account = $group->first()->chartOfAccount;
+            $amount = (float) $group->sum('amount');
+
+            $lines[] = $account->account_type === AccountType::LIABILITY
+                ? ['account' => $account->code, 'type' => 'credit', 'amount' => abs($amount)]
+                : ['account' => $account->code, 'type' => 'debit', 'amount' => $amount];
+        }
 
         $lines[] = ['account' => '210.01', 'type' => 'credit', 'amount' => (float) $this->grand_total]; // Accounts Payable
 
