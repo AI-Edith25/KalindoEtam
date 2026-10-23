@@ -19,18 +19,17 @@ import { cancelPurchaseInvoice, deletePurchaseInvoice, fetchPurchaseInvoice, sub
 import { PURCHASE_RETURN_REASON_LABELS } from '../lib/purchaseReturnReasonLabels'
 import type { PurchaseInvoiceItem, PurchaseInvoicePurchaseReturnHistoryLine } from '../types'
 
-const goodsReceiptLineColumns: DataTableColumn<PurchaseInvoiceItem>[] = [
-  { header: 'Item Code', accessor: (row) => row.item_code },
-  { header: 'Item Name', accessor: (row) => row.item_name },
-  { header: 'Qty', accessor: (row) => formatQty(row.qty, row.item_qty_category ?? 'unit'), className: 'text-right' },
-  { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
-  { header: 'Amount', accessor: (row) => formatCurrency(row.amount), className: 'text-right' },
-]
-
-const directLineColumns: DataTableColumn<PurchaseInvoiceItem>[] = [
-  { header: 'Account', accessor: (row) => (row.chart_of_account ? `${row.chart_of_account.code} — ${row.chart_of_account.name}` : '—') },
+const unifiedLineColumns: DataTableColumn<PurchaseInvoiceItem>[] = [
+  {
+    header: 'Type',
+    accessor: (row) => <Badge variant={row.line_type === 'stock' ? 'secondary' : 'outline'}>{row.line_type === 'stock' ? 'From GR' : 'Manual'}</Badge>,
+  },
+  {
+    header: 'Item / Account',
+    accessor: (row) => (row.line_type === 'stock' ? row.item_code ?? '—' : row.chart_of_account ? `${row.chart_of_account.code} — ${row.chart_of_account.name}` : '—'),
+  },
   { header: 'Description', accessor: (row) => row.item_name },
-  { header: 'Qty', accessor: (row) => formatQty(row.qty, 'unit') },
+  { header: 'Qty', accessor: (row) => formatQty(row.qty, row.item_qty_category ?? 'unit'), className: 'text-right' },
   { header: 'UOM', accessor: (row) => row.uom || '—' },
   { header: 'Rate', accessor: (row) => formatCurrency(row.rate), className: 'text-right' },
   { header: 'Tax', accessor: (row) => (Number(row.tax_amount ?? 0) > 0 ? formatCurrency(row.tax_amount ?? 0) : '—'), className: 'text-right' },
@@ -167,6 +166,7 @@ export function PurchaseInvoiceDetailPage() {
   const invoice = invoiceQuery.data
   if (!invoice) return null
 
+  const hasStockLines = invoice.items.some((item) => item.line_type === 'stock')
   const isDirect = invoice.source === 'direct'
 
   return (
@@ -192,7 +192,7 @@ export function PurchaseInvoiceDetailPage() {
                 </Button>
               </>
             )}
-            {!isDirect && invoice.status === 'submitted' && Number(invoice.returnable_amount) > 0 && (
+            {hasStockLines && invoice.status === 'submitted' && Number(invoice.returnable_amount) > 0 && (
               <Button variant="outline" onClick={() => navigate(`/purchase/returns/new?purchase_invoice_id=${invoice.id}`)}>
                 <FilePlus2 className="size-4" />
                 Create Return
@@ -212,7 +212,9 @@ export function PurchaseInvoiceDetailPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Invoice Information</CardTitle>
           <div className="flex items-center gap-2">
-            <Badge variant={isDirect ? 'outline' : 'secondary'}>{isDirect ? 'Direct' : 'Goods Receipt'}</Badge>
+            <Badge variant={invoice.source === 'goods_receipt' ? 'secondary' : 'outline'}>
+              {invoice.source === 'direct' ? 'Direct' : invoice.source === 'mixed' ? 'Mixed' : 'Goods Receipt'}
+            </Badge>
             <StatusBadge status={invoice.display_status} />
           </div>
         </CardHeader>
@@ -247,7 +249,7 @@ export function PurchaseInvoiceDetailPage() {
         </CardContent>
       </Card>
 
-      {!isDirect && (
+      {hasStockLines && (
         <Card>
           <CardHeader>
             <CardTitle>Goods Receipt Information</CardTitle>
@@ -263,7 +265,7 @@ export function PurchaseInvoiceDetailPage() {
         </Card>
       )}
 
-      {!isDirect && (
+      {hasStockLines && (
         <Card>
           <CardHeader>
             <CardTitle>Purchase Order Information</CardTitle>
@@ -284,7 +286,7 @@ export function PurchaseInvoiceDetailPage() {
           <CardTitle>Item List</CardTitle>
         </CardHeader>
         <CardContent>
-          <DataTable columns={isDirect ? directLineColumns : goodsReceiptLineColumns} data={invoice.items} rowKey={(row) => row.id} emptyMessage="No line items." />
+          <DataTable columns={unifiedLineColumns} data={invoice.items} rowKey={(row) => row.id} emptyMessage="No line items." />
         </CardContent>
       </Card>
 
