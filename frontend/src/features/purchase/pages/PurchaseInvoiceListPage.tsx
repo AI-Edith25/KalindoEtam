@@ -131,7 +131,14 @@ export function PurchaseInvoiceListPage() {
         </button>
       ),
     },
-    { header: 'Type', accessor: (row) => <Badge variant={row.source === 'direct' ? 'outline' : 'secondary'}>{row.source === 'direct' ? 'Direct' : 'Goods Receipt'}</Badge> },
+    {
+      header: 'Type',
+      accessor: (row) => (
+        <Badge variant={row.source === 'goods_receipt' ? 'secondary' : 'outline'}>
+          {row.source === 'direct' ? 'Direct' : row.source === 'mixed' ? 'Mixed' : 'Goods Receipt'}
+        </Badge>
+      ),
+    },
     { header: 'Reference', accessor: (row) => row.goods_receipt?.document_number ?? row.reference_number ?? '—' },
     { header: 'Supplier Name', accessor: (row) => row.supplier?.supplier_name ?? '—' },
     { header: 'Gross Amount', accessor: (row) => formatCurrency(row.subtotal), className: 'text-right' },

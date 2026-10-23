@@ -45,6 +45,7 @@ export function PurchaseInvoiceFiltersBar({ value, onChange }: PurchaseInvoiceFi
             <SelectItem value={ALL}>All types</SelectItem>
             <SelectItem value="goods_receipt">Goods Receipt</SelectItem>
             <SelectItem value="direct">Direct</SelectItem>
+            <SelectItem value="mixed">Mixed</SelectItem>
           </SelectContent>
         </Select>
       </div>
