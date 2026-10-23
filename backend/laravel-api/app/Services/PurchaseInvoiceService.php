@@ -257,111 +257,103 @@ class PurchaseInvoiceService
     }
 
     /**
-     * A Goods Receipt-sourced invoice only has header fields editable — never goods_receipt_id,
-     * never items (immutable once created from a Goods Receipt, same posture as
-     * Invoice::update()). A Direct invoice additionally allows a full items replace, since it
-     * has no source document to stay in sync with.
+     * Stock lines are immutable post-create (never gained/lost via update, only Rate-overridden
+     * in place via item_rates); non-stock lines can be fully replaced via items. Both can be
+     * touched in the same call — recomputes totals and re-derives source from whatever line mix
+     * results. due_date is preserved when omitted rather than re-derived from the Supplier's
+     * Terms of Payment (that auto-derivation only applies at create() time) — an unrelated field
+     * edit should never silently move a previously-set due date.
      */
     public function update(PurchaseInvoice $purchaseInvoice, array $data): PurchaseInvoice
     {
         return DB::transaction(function () use ($purchaseInvoice, $data) {
             $this->assertDraft($purchaseInvoice, 'updated');
 
-            return $purchaseInvoice->source === PurchaseInvoiceSource::DIRECT
-                ? $this->updateDirect($purchaseInvoice, $data)
-                : $this->updateFromGoodsReceipts($purchaseInvoice, $data);
-        });
-    }
+            if (isset($data['item_rates'])) {
+                $this->applyRateOverrides($purchaseInvoice, $data['item_rates']);
+            }
 
-    /**
-     * Header fields plus, as of the Rate-editing ticket, Rate-only overrides on existing items
-     * (updated in place by goods_receipt_item_id — Qty/item identity never change, so this is
-     * never a delete+recreate like updateDirect()'s items replace). subtotal is recomputed from
-     * the (possibly just-edited) items rather than trusted from the stored column.
-     */
-    protected function updateFromGoodsReceipts(PurchaseInvoice $purchaseInvoice, array $data): PurchaseInvoice
-    {
-        if (isset($data['item_rates'])) {
-            $rateOverrides = collect($data['item_rates'])->pluck('rate', 'goods_receipt_item_id');
-
-            foreach ($purchaseInvoice->items as $item) {
-                if (! $rateOverrides->has($item->goods_receipt_item_id)) {
-                    continue;
-                }
-
-                $rate = (float) $rateOverrides->get($item->goods_receipt_item_id);
-                $this->purchaseInvoiceItemRepository->update($item, [
-                    'rate' => $rate,
-                    'amount' => round((float) $item->qty * $rate, 2),
-                ]);
+            if (isset($data['items'])) {
+                $this->replaceNonStockLines($purchaseInvoice, $data['items']);
             }
 
             $purchaseInvoice->unsetRelation('items');
-        }
+            $items = $purchaseInvoice->items;
 
-        $subtotal = round((float) $purchaseInvoice->items->sum('amount'), 2);
-        $taxAmount = array_key_exists('tax_amount', $data) ? (float) $data['tax_amount'] : (float) $purchaseInvoice->tax_amount;
-        $grandTotal = $subtotal + $taxAmount;
+            if ($items->isEmpty()) {
+                throw new BusinessException('Invoice must have at least one line item.');
+            }
 
-        if ($grandTotal < 0) {
-            throw new BusinessException('Grand total cannot be negative.');
-        }
+            $hasStockLines = $items->contains(fn ($item) => $item->goods_receipt_item_id !== null);
+            $hasNonStockLines = $items->contains(fn ($item) => $item->goods_receipt_item_id === null);
+            $source = match (true) {
+                $hasStockLines && $hasNonStockLines => PurchaseInvoiceSource::MIXED,
+                $hasStockLines => PurchaseInvoiceSource::GOODS_RECEIPT,
+                default => PurchaseInvoiceSource::DIRECT,
+            };
 
-        $this->purchaseInvoiceRepository->update($purchaseInvoice, [
-            'invoice_date' => $data['invoice_date'] ?? $purchaseInvoice->invoice_date,
-            'due_date' => $data['due_date'] ?? $purchaseInvoice->due_date,
-            'subtotal' => $subtotal,
-            'tax_amount' => $taxAmount,
-            'grand_total' => $grandTotal,
-            'reference_number' => array_key_exists('reference_number', $data) ? $data['reference_number'] : $purchaseInvoice->reference_number,
-            'remarks' => $data['remarks'] ?? $purchaseInvoice->remarks,
-        ]);
+            $stockSubtotal = round((float) $items->whereNotNull('goods_receipt_item_id')->sum('amount'), 2);
+            $nonStockSubtotal = round((float) $items->whereNull('goods_receipt_item_id')->sum('amount'), 2);
+            $subtotal = round($stockSubtotal + $nonStockSubtotal, 2);
 
-        $purchaseInvoice = $purchaseInvoice->fresh(self::EAGER);
-        $this->auditLogService->record('updated', 'purchase_invoice', "Updated Purchase Invoice \"{$purchaseInvoice->document_number}\".");
+            $headerTaxAmount = (float) ($data['tax_amount'] ?? 0);
+            $lineTaxAmount = round((float) $items->whereNull('goods_receipt_item_id')->sum('tax_amount'), 2);
+            $taxAmount = round($headerTaxAmount + $lineTaxAmount, 2);
+            $grandTotal = $subtotal + $taxAmount;
+            $this->assertPositiveGrandTotal($grandTotal);
 
-        return $purchaseInvoice;
+            // supplier_id can only change while there are no stock lines — a stock line's
+            // ownership was fixed at create() time by the Goods Receipt it came from.
+            $supplierId = $hasStockLines ? $purchaseInvoice->supplier_id : ($data['supplier_id'] ?? $purchaseInvoice->supplier_id);
+            $invoiceDate = $data['invoice_date'] ?? $purchaseInvoice->invoice_date->toDateString();
+            $dueDate = $data['due_date'] ?? $purchaseInvoice->due_date->toDateString();
+
+            $this->purchaseInvoiceRepository->update($purchaseInvoice, [
+                'source' => $source,
+                'supplier_id' => $supplierId,
+                'invoice_date' => $invoiceDate,
+                'due_date' => $dueDate,
+                'subtotal' => $subtotal,
+                'tax_amount' => $taxAmount,
+                'grand_total' => $grandTotal,
+                'reference_number' => array_key_exists('reference_number', $data) ? $data['reference_number'] : $purchaseInvoice->reference_number,
+                'attention' => array_key_exists('attention', $data) ? $data['attention'] : $purchaseInvoice->attention,
+                'department' => array_key_exists('department', $data) ? $data['department'] : $purchaseInvoice->department,
+                'remarks' => array_key_exists('remarks', $data) ? $data['remarks'] : $purchaseInvoice->remarks,
+            ]);
+
+            $purchaseInvoice = $purchaseInvoice->fresh(self::EAGER);
+            $this->auditLogService->record('updated', 'purchase_invoice', "Updated Purchase Invoice \"{$purchaseInvoice->document_number}\".");
+
+            return $purchaseInvoice;
+        });
     }
 
-    protected function updateDirect(PurchaseInvoice $purchaseInvoice, array $data): PurchaseInvoice
+    protected function applyRateOverrides(PurchaseInvoice $purchaseInvoice, array $itemRates): void
     {
-        $supplierId = $data['supplier_id'] ?? $purchaseInvoice->supplier_id;
-        $invoiceDate = $data['invoice_date'] ?? $purchaseInvoice->invoice_date->toDateString();
-        $dueDate = $this->resolveDueDate($data, $supplierId, $invoiceDate);
+        $rateOverrides = collect($itemRates)->pluck('rate', 'goods_receipt_item_id');
 
-        $subtotal = (float) $purchaseInvoice->subtotal;
-        $taxAmount = (float) $purchaseInvoice->tax_amount;
-
-        if (isset($data['items'])) {
-            $lines = $this->buildDirectLines($data['items']);
-            $subtotal = round((float) array_sum(array_column($lines, 'amount')), 2);
-            $taxAmount = round((float) array_sum(array_column($lines, 'tax_amount')), 2);
-            $this->assertPositiveGrandTotal($subtotal + $taxAmount);
-
-            $purchaseInvoice->items()->delete();
-
-            foreach ($lines as $line) {
-                $this->purchaseInvoiceItemRepository->create(['purchase_invoice_id' => $purchaseInvoice->id, ...$line]);
+        foreach ($purchaseInvoice->items as $item) {
+            if ($item->goods_receipt_item_id === null || ! $rateOverrides->has($item->goods_receipt_item_id)) {
+                continue;
             }
+
+            $rate = (float) $rateOverrides->get($item->goods_receipt_item_id);
+            $this->purchaseInvoiceItemRepository->update($item, [
+                'rate' => $rate,
+                'amount' => round((float) $item->qty * $rate, 2),
+            ]);
         }
+    }
 
-        $this->purchaseInvoiceRepository->update($purchaseInvoice, [
-            'supplier_id' => $supplierId,
-            'invoice_date' => $invoiceDate,
-            'due_date' => $dueDate,
-            'subtotal' => $subtotal,
-            'tax_amount' => $taxAmount,
-            'grand_total' => $subtotal + $taxAmount,
-            'reference_number' => array_key_exists('reference_number', $data) ? $data['reference_number'] : $purchaseInvoice->reference_number,
-            'attention' => array_key_exists('attention', $data) ? $data['attention'] : $purchaseInvoice->attention,
-            'department' => array_key_exists('department', $data) ? $data['department'] : $purchaseInvoice->department,
-            'remarks' => array_key_exists('remarks', $data) ? $data['remarks'] : $purchaseInvoice->remarks,
-        ]);
+    /** Full delete+recreate of non-stock lines only — stock lines (goods_receipt_item_id set) are untouched. */
+    protected function replaceNonStockLines(PurchaseInvoice $purchaseInvoice, array $items): void
+    {
+        $purchaseInvoice->items()->whereNull('goods_receipt_item_id')->delete();
 
-        $purchaseInvoice = $purchaseInvoice->fresh(self::EAGER);
-        $this->auditLogService->record('updated', 'purchase_invoice', "Updated Purchase Invoice \"{$purchaseInvoice->document_number}\".");
-
-        return $purchaseInvoice;
+        foreach ($this->buildDirectLines($items) as $line) {
+            $this->purchaseInvoiceItemRepository->create(['purchase_invoice_id' => $purchaseInvoice->id, ...$line]);
+        }
     }
 
     /**

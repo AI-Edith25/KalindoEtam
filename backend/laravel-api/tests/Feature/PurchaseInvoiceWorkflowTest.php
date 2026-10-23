@@ -383,6 +383,36 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         $this->assertEquals(150000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->credit);
     }
 
+    public function test_updating_a_goods_receipt_invoice_with_new_non_stock_items_turns_it_mixed(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 5, rate: 20000); // 100000
+
+        $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'supplier_id' => $this->supplier->id,
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+        ]);
+
+        $purchaseInvoice = $this->purchaseInvoiceService->update($purchaseInvoice, [
+            'items' => [
+                ['chart_of_account_id' => $this->accountId('6100'), 'description' => 'Extra charge', 'qty' => 1, 'rate' => 25000],
+            ],
+        ]);
+
+        $this->assertEquals('mixed', $purchaseInvoice->source->value);
+        $this->assertEquals(125000, (float) $purchaseInvoice->subtotal);
+        $this->assertCount(2, $purchaseInvoice->items);
+
+        // Re-updating item_rates still only touches the stock line, never the non-stock one.
+        $stockItem = $purchaseInvoice->items->firstWhere('goods_receipt_item_id', '!=', null);
+        $purchaseInvoice = $this->purchaseInvoiceService->update($purchaseInvoice, [
+            'item_rates' => [['goods_receipt_item_id' => $stockItem->goods_receipt_item_id, 'rate' => 19000]],
+        ]);
+
+        $this->assertEquals(120000, (float) $purchaseInvoice->subtotal); // (5*19000) + 25000
+        $this->assertCount(2, $purchaseInvoice->items);
+    }
+
     public function test_create_rejects_an_invoice_with_zero_lines(): void
     {
         $this->expectException(BusinessException::class);
