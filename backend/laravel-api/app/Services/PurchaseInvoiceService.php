@@ -46,37 +46,100 @@ class PurchaseInvoiceService
     }
 
     /**
-     * Purchase Invoice items are Qty/Item-locked copies of the selected Goods Receipts' own items
-     * — Qty always reflects what was actually received into stock — but Rate is user-editable via
-     * `item_rates` (keyed by goods_receipt_item_id), since the supplier's physical invoice amount
-     * can differ from what was recorded at receipt time. No price-variance posting of any kind:
-     * the edited Rate simply becomes this Invoice's own Rate (mirrors the legacy SkyBiz ERP's
-     * free-edit PRICE field on its own Invoice-from-GRN form). One or more Goods Receipts may be
-     * combined into a single Invoice as long as they share the same Supplier.
-     * purchase_invoices.goods_receipt_id/purchase_order_id keep pointing at the anchor Goods
-     * Receipt/Purchase Order (earliest receipt_date, tie-broken by id); goodsReceipts()/
-     * purchaseOrders() are the authoritative full source history. Mirrors InvoiceService::createGoods().
+     * Builds whichever of a stock-line group (from goods_receipt_ids) and a non-stock-line group
+     * (from items) are present, derives goods_receipt/direct/mixed from the result, and combines
+     * their totals into one invoice. Supplier is always chosen up front now (the editor's Step 1,
+     * before Goods Receipt selection), so it's always present in $data regardless of which groups
+     * end up populated.
      */
     public function create(array $data): PurchaseInvoice
     {
         return DB::transaction(function () use ($data) {
-            $source = isset($data['source']) ? PurchaseInvoiceSource::from($data['source']) : PurchaseInvoiceSource::GOODS_RECEIPT;
+            $supplier = $this->supplierRepository->findOrFail($data['supplier_id']);
 
-            return $source === PurchaseInvoiceSource::DIRECT
-                ? $this->createDirect($data)
-                : $this->createFromGoodsReceipts($data);
+            $goodsReceiptIds = $data['goods_receipt_ids'] ?? [];
+            $directItems = $data['items'] ?? [];
+
+            if (empty($goodsReceiptIds) && empty($directItems)) {
+                throw new BusinessException('Invoice must have at least one line item.');
+            }
+
+            [$stockLines, $goodsReceipts] = ! empty($goodsReceiptIds)
+                ? $this->buildStockLines($goodsReceiptIds, $supplier, $data['item_rates'] ?? [])
+                : [[], collect()];
+
+            $nonStockLines = ! empty($directItems) ? $this->buildDirectLines($directItems) : [];
+
+            $source = match (true) {
+                ! empty($stockLines) && ! empty($nonStockLines) => PurchaseInvoiceSource::MIXED,
+                ! empty($stockLines) => PurchaseInvoiceSource::GOODS_RECEIPT,
+                default => PurchaseInvoiceSource::DIRECT,
+            };
+
+            $stockSubtotal = round((float) array_sum(array_column($stockLines, 'amount')), 2);
+            $nonStockSubtotal = round((float) array_sum(array_column($nonStockLines, 'amount')), 2);
+            $subtotal = round($stockSubtotal + $nonStockSubtotal, 2);
+
+            // Header tax_amount covers only the stock portion (manual — Goods Receipt items carry
+            // no tax snapshot); non-stock lines each resolve and store their own tax_amount in
+            // buildDirectLines(), summed here into the one combined figure this invoice stores.
+            $headerTaxAmount = (float) ($data['tax_amount'] ?? 0);
+            $lineTaxAmount = round((float) array_sum(array_column($nonStockLines, 'tax_amount')), 2);
+            $taxAmount = round($headerTaxAmount + $lineTaxAmount, 2);
+            $grandTotal = $subtotal + $taxAmount;
+            $this->assertPositiveGrandTotal($grandTotal);
+
+            $dueDate = $this->resolveDueDate($data, $supplier->id, $data['invoice_date']);
+            $anchor = $goodsReceipts->first();
+
+            $purchaseInvoice = $this->purchaseInvoiceRepository->create([
+                'source' => $source,
+                'goods_receipt_id' => $anchor?->id,
+                'purchase_order_id' => $anchor?->purchase_order_id,
+                'supplier_id' => $supplier->id,
+                'invoice_date' => $data['invoice_date'],
+                'due_date' => $dueDate,
+                'subtotal' => $subtotal,
+                'tax_amount' => $taxAmount,
+                'grand_total' => $grandTotal,
+                'reference_number' => $data['reference_number'] ?? null,
+                'attention' => $data['attention'] ?? null,
+                'department' => $data['department'] ?? null,
+                'remarks' => $data['remarks'] ?? null,
+            ]);
+
+            foreach ([...$stockLines, ...$nonStockLines] as $line) {
+                $this->purchaseInvoiceItemRepository->create(['purchase_invoice_id' => $purchaseInvoice->id, ...$line]);
+            }
+
+            if ($goodsReceipts->isNotEmpty()) {
+                $purchaseInvoice->goodsReceipts()->sync($goodsReceipts->pluck('id')->all());
+                // A Direct Receipt (no source PO) has a null purchase_order_id — filter it out
+                // before sync(), otherwise the pivot insert fails its FK constraint on a null id.
+                $purchaseInvoice->purchaseOrders()->sync($goodsReceipts->pluck('purchase_order_id')->filter()->unique()->all());
+            }
+
+            $purchaseInvoice = $purchaseInvoice->fresh(self::EAGER);
+            $this->auditLogService->record('created', 'purchase_invoice', "Created Purchase Invoice \"{$purchaseInvoice->document_number}\".");
+
+            return $purchaseInvoice;
         });
     }
 
-    protected function createFromGoodsReceipts(array $data): PurchaseInvoice
+    /**
+     * Row-locks each Goods Receipt for the rest of this transaction, then reloads its relations
+     * fresh (not from any pre-lock snapshot) — closes a race where two concurrent requests
+     * invoicing the same Goods Receipt could otherwise both pass the "not yet invoiced" check
+     * below before either's purchase_invoice_goods_receipts row actually commits, crashing the
+     * second one on that pivot's unique constraint instead of getting a clean "already invoiced"
+     * message. Every selected Goods Receipt must belong to $supplier — the Supplier chosen in
+     * Step 1 of the editor, before this Goods Receipt list was ever shown.
+     *
+     * @return array{0: array<int, array<string, mixed>>, 1: \Illuminate\Support\Collection}
+     */
+    protected function buildStockLines(array $goodsReceiptIds, Supplier $supplier, array $itemRates): array
     {
-        // Row-locks each Goods Receipt for the rest of this transaction, then reloads its
-        // relations fresh (not from any pre-lock snapshot) — closes a race where two concurrent
-        // requests invoicing the same Goods Receipt could otherwise both pass the "not yet
-        // invoiced" check below before either's purchase_invoice_goods_receipts row actually
-        // commits, crashing the second one on that pivot's unique constraint instead of getting
-        // a clean "already invoiced" message.
-        $goodsReceipts = collect($data['goods_receipt_ids'])
+        $goodsReceipts = collect($goodsReceiptIds)
             ->map(fn (string $id) => GoodsReceipt::query()->lockForUpdate()->findOrFail($id)->load(['supplier', 'purchaseOrder', 'items', 'purchaseInvoices']))
             ->sortBy(fn ($goodsReceipt) => [$goodsReceipt->receipt_date, $goodsReceipt->id])
             ->values();
@@ -89,17 +152,15 @@ class PurchaseInvoiceService
             if ($goodsReceipt->purchaseInvoices->isNotEmpty()) {
                 throw new BusinessException("Goods Receipt {$goodsReceipt->document_number} has already been invoiced.");
             }
-        }
 
-        if ($goodsReceipts->pluck('supplier_id')->unique()->count() > 1) {
-            throw new BusinessException('All selected Goods Receipts must belong to the same Supplier.');
+            if ($goodsReceipt->supplier_id !== $supplier->id) {
+                throw new BusinessException("Goods Receipt {$goodsReceipt->document_number} does not belong to the selected Supplier.");
+            }
         }
-
-        $anchor = $goodsReceipts->first();
 
         // Rate overrides keyed by the source Goods Receipt item — see StorePurchaseInvoiceRequest's
         // own comment. Qty/item identity always come from the Goods Receipt line untouched.
-        $rateOverrides = collect($data['item_rates'] ?? [])->pluck('rate', 'goods_receipt_item_id');
+        $rateOverrides = collect($itemRates)->pluck('rate', 'goods_receipt_item_id');
 
         $lines = $goodsReceipts->flatMap(fn ($goodsReceipt) => $goodsReceipt->items)->map(function ($line) use ($rateOverrides) {
             $rate = $rateOverrides->has($line->id) ? (float) $rateOverrides->get($line->id) : (float) $line->rate;
@@ -115,84 +176,9 @@ class PurchaseInvoiceService
                 'qty' => $line->qty,
                 'amount' => round((float) $line->qty * $rate, 2),
             ];
-        });
+        })->all();
 
-        $subtotal = round((float) $lines->sum('amount'), 2);
-        $taxAmount = (float) ($data['tax_amount'] ?? 0);
-        $grandTotal = $subtotal + $taxAmount;
-
-        if ($grandTotal < 0) {
-            throw new BusinessException('Grand total cannot be negative.');
-        }
-
-        $purchaseInvoice = $this->purchaseInvoiceRepository->create([
-            'source' => PurchaseInvoiceSource::GOODS_RECEIPT,
-            'goods_receipt_id' => $anchor->id,
-            'purchase_order_id' => $anchor->purchase_order_id,
-            'supplier_id' => $anchor->supplier_id,
-            'invoice_date' => $data['invoice_date'],
-            'due_date' => $data['due_date'],
-            'subtotal' => $subtotal,
-            'tax_amount' => $taxAmount,
-            'grand_total' => $grandTotal,
-            'reference_number' => $data['reference_number'] ?? null,
-            'remarks' => $data['remarks'] ?? null,
-        ]);
-
-        foreach ($lines as $line) {
-            $this->purchaseInvoiceItemRepository->create(['purchase_invoice_id' => $purchaseInvoice->id, ...$line]);
-        }
-
-        $purchaseInvoice->goodsReceipts()->sync($goodsReceipts->pluck('id')->all());
-        // A Direct Receipt (no source PO) has a null purchase_order_id — filter it out before sync(),
-        // otherwise the pivot insert fails its FK constraint on a null/empty id.
-        $purchaseInvoice->purchaseOrders()->sync($goodsReceipts->pluck('purchase_order_id')->filter()->unique()->all());
-
-        $purchaseInvoice = $purchaseInvoice->fresh(self::EAGER);
-        $this->auditLogService->record('created', 'purchase_invoice', "Created Purchase Invoice \"{$purchaseInvoice->document_number}\".");
-
-        return $purchaseInvoice;
-    }
-
-    /**
-     * No Goods Receipt/Purchase Order/stock involved at all — lines post straight to a
-     * Chart-of-Accounts expense account (vehicle repairs, services, etc.). Never touches
-     * GoodsReceiptRepository, StockLedgerService or FifoLayerService.
-     */
-    protected function createDirect(array $data): PurchaseInvoice
-    {
-        $supplier = $this->supplierRepository->findOrFail($data['supplier_id']);
-        $dueDate = $this->resolveDueDate($data, $supplier->id, $data['invoice_date']);
-
-        $lines = $this->buildDirectLines($data['items']);
-        $subtotal = round((float) array_sum(array_column($lines, 'amount')), 2);
-        $taxAmount = round((float) array_sum(array_column($lines, 'tax_amount')), 2);
-        $this->assertPositiveGrandTotal($subtotal + $taxAmount);
-
-        $purchaseInvoice = $this->purchaseInvoiceRepository->create([
-            'source' => PurchaseInvoiceSource::DIRECT,
-            'goods_receipt_id' => null,
-            'purchase_order_id' => null,
-            'supplier_id' => $supplier->id,
-            'invoice_date' => $data['invoice_date'],
-            'due_date' => $dueDate,
-            'subtotal' => $subtotal,
-            'tax_amount' => $taxAmount,
-            'grand_total' => $subtotal + $taxAmount,
-            'reference_number' => $data['reference_number'] ?? null,
-            'attention' => $data['attention'] ?? null,
-            'department' => $data['department'] ?? null,
-            'remarks' => $data['remarks'] ?? null,
-        ]);
-
-        foreach ($lines as $line) {
-            $this->purchaseInvoiceItemRepository->create(['purchase_invoice_id' => $purchaseInvoice->id, ...$line]);
-        }
-
-        $purchaseInvoice = $purchaseInvoice->fresh(self::EAGER);
-        $this->auditLogService->record('created', 'purchase_invoice', "Created Purchase Invoice \"{$purchaseInvoice->document_number}\".");
-
-        return $purchaseInvoice;
+        return [$lines, $goodsReceipts];
     }
 
     /**

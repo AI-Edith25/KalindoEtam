@@ -93,6 +93,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'tax_amount' => 10000,
@@ -129,6 +130,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'item_rates' => [['goods_receipt_item_id' => $grItem->id, 'rate' => 21000]],
@@ -152,6 +154,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -175,6 +178,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$first->id, $second->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -200,6 +204,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$poLinked->id, $direct->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -219,6 +224,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$first->id, $second->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -231,6 +237,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $firstAttempt = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -239,6 +246,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $secondAttempt = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -253,6 +261,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -261,6 +270,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -288,6 +298,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$draftGoodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -299,6 +310,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -317,6 +329,7 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
             'goods_receipt_ids' => [$goodsReceipt->id],
+            'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
         ]);
@@ -335,10 +348,68 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         return ChartOfAccount::query()->where('code', $code)->firstOrFail()->id;
     }
 
+    public function test_mixed_invoice_combines_goods_receipt_and_non_stock_lines_and_posts_combined_journal(): void
+    {
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 5, rate: 20000); // 100000
+
+        $purchaseInvoice = $this->purchaseInvoiceService->create([
+            'supplier_id' => $this->supplier->id,
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+            'items' => [
+                ['chart_of_account_id' => $this->accountId('6100'), 'description' => 'Biaya Pengangkutan', 'qty' => 1, 'rate' => 50000],
+            ],
+        ]);
+
+        $this->assertEquals('mixed', $purchaseInvoice->source->value);
+        $this->assertEquals(150000, (float) $purchaseInvoice->subtotal);
+        $this->assertEquals(150000, (float) $purchaseInvoice->grand_total);
+        $this->assertCount(2, $purchaseInvoice->items);
+
+        $stockItem = $purchaseInvoice->items->firstWhere('goods_receipt_item_id', '!=', null);
+        $nonStockItem = $purchaseInvoice->items->firstWhere('goods_receipt_item_id', null);
+        $this->assertEquals('stock', $stockItem->line_type);
+        $this->assertEquals('non_stock', $nonStockItem->line_type);
+
+        $purchaseInvoice = $this->purchaseInvoiceService->submit($purchaseInvoice);
+
+        $journalEntry = JournalEntry::query()->where('reference_type', 'purchase_invoice')->where('reference_id', $purchaseInvoice->id)->firstOrFail();
+        $this->assertEquals(150000, (float) $journalEntry->total_debit);
+        $this->assertEquals(150000, (float) $journalEntry->total_credit);
+
+        $lines = $journalEntry->lines()->with('chartOfAccount')->get();
+        $this->assertEquals(100000, (float) $lines->firstWhere('chartOfAccount.code', '5100')->debit);
+        $this->assertEquals(50000, (float) $lines->firstWhere('chartOfAccount.code', '6100')->debit);
+        $this->assertEquals(150000, (float) $lines->firstWhere('chartOfAccount.code', '210.01')->credit);
+    }
+
+    public function test_create_rejects_an_invoice_with_zero_lines(): void
+    {
+        $this->expectException(BusinessException::class);
+
+        $this->purchaseInvoiceService->create([
+            'supplier_id' => $this->supplier->id,
+            'invoice_date' => now()->toDateString(),
+        ]);
+    }
+
+    public function test_goods_receipt_from_a_different_supplier_than_the_chosen_one_is_rejected(): void
+    {
+        $otherSupplier = Supplier::query()->create(['supplier_code' => 'S003', 'supplier_name' => 'Third Supplier']);
+        $goodsReceipt = $this->submittedGoodsReceipt(qty: 2, rate: 20000, supplier: $otherSupplier);
+
+        $this->expectException(BusinessException::class);
+
+        $this->purchaseInvoiceService->create([
+            'supplier_id' => $this->supplier->id,
+            'goods_receipt_ids' => [$goodsReceipt->id],
+            'invoice_date' => now()->toDateString(),
+        ]);
+    }
+
     public function test_direct_invoice_creates_and_submits_without_stock_or_goods_receipt(): void
     {
         $purchaseInvoice = $this->purchaseInvoiceService->create([
-            'source' => 'direct',
             'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
@@ -376,7 +447,6 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         ]);
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
-            'source' => 'direct',
             'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
@@ -408,7 +478,6 @@ class PurchaseInvoiceWorkflowTest extends TestCase
     public function test_direct_invoice_accounts_payable_can_be_settled_via_payment_entry(): void
     {
         $purchaseInvoice = $this->purchaseInvoiceService->create([
-            'source' => 'direct',
             'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
@@ -443,7 +512,6 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         $this->supplier->update(['terms_of_payment_id' => $top->id]);
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
-            'source' => 'direct',
             'supplier_id' => $this->supplier->id,
             'invoice_date' => '2026-09-01',
             'items' => [
@@ -458,7 +526,6 @@ class PurchaseInvoiceWorkflowTest extends TestCase
     {
         try {
             $this->purchaseInvoiceService->create([
-                'source' => 'direct',
                 'supplier_id' => $this->supplier->id,
                 'invoice_date' => now()->toDateString(),
                 'due_date' => now()->addDays(30)->toDateString(),
@@ -474,7 +541,6 @@ class PurchaseInvoiceWorkflowTest extends TestCase
 
         try {
             $this->purchaseInvoiceService->create([
-                'source' => 'direct',
                 'supplier_id' => $this->supplier->id,
                 'invoice_date' => now()->toDateString(),
                 'due_date' => now()->addDays(30)->toDateString(),
@@ -494,7 +560,6 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         // Mirrors a self-billed invoice with a withholding-tax deduction (e.g. Hutang PPh 23):
         // an Expense line plus a Liability line that nets down what's owed to the supplier.
         $purchaseInvoice = $this->purchaseInvoiceService->create([
-            'source' => 'direct',
             'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
@@ -533,7 +598,6 @@ class PurchaseInvoiceWorkflowTest extends TestCase
         ]);
 
         $purchaseInvoice = $this->purchaseInvoiceService->create([
-            'source' => 'direct',
             'supplier_id' => $this->supplier->id,
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
@@ -551,7 +615,6 @@ class PurchaseInvoiceWorkflowTest extends TestCase
     {
         try {
             $this->purchaseInvoiceService->create([
-                'source' => 'direct',
                 'supplier_id' => $this->supplier->id,
                 'invoice_date' => now()->toDateString(),
                 'due_date' => now()->addDays(30)->toDateString(),
