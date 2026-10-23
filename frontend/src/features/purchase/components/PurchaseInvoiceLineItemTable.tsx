@@ -162,7 +162,7 @@ export function PurchaseInvoiceLineItemTable({ form, accounts, accountsLoading, 
                         name={`items.${index}.uom`}
                         render={({ field: uomField }) => (
                           <FormItem className="gap-0">
-                            <Input placeholder="Optional" {...uomField} />
+                            <Input placeholder="Optional" {...uomField} value={uomField.value ?? ''} />
                             <FormMessage />
                           </FormItem>
                         )}
