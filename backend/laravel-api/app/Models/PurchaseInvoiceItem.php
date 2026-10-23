@@ -49,6 +49,17 @@ class PurchaseInvoiceItem extends Model
         return $this->belongsTo(ChartOfAccount::class);
     }
 
+    /**
+     * 'stock' vs 'non_stock' — derived from goods_receipt_item_id rather than a stored column:
+     * the invariant already holds for every row (enforced by
+     * PurchaseInvoiceService::resolveDirectLineAccount() on the non-stock path), so a redundant
+     * column would only risk drifting out of sync.
+     */
+    public function getLineTypeAttribute(): string
+    {
+        return $this->goods_receipt_item_id !== null ? 'stock' : 'non_stock';
+    }
+
     public function tax(): BelongsTo
     {
         return $this->belongsTo(Tax::class);

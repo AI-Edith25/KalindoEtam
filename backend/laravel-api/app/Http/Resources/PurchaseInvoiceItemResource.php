@@ -22,6 +22,7 @@ class PurchaseInvoiceItemResource extends JsonResource
             'item_name' => $this->item_name,
             'uom' => $this->uom,
             'item_qty_category' => $this->whenLoaded('item', fn () => $this->item->qty_category),
+            'line_type' => $this->line_type,
             'chart_of_account_id' => $this->chart_of_account_id,
             'chart_of_account' => $this->whenLoaded('chartOfAccount', fn () => $this->chartOfAccount ? [
                 'id' => $this->chartOfAccount->id,
