@@ -167,7 +167,6 @@ export function PurchaseInvoiceDetailPage() {
   if (!invoice) return null
 
   const hasStockLines = invoice.items.some((item) => item.line_type === 'stock')
-  const isDirect = invoice.source === 'direct'
 
   return (
     <div className="flex flex-col gap-4">
@@ -224,7 +223,7 @@ export function PurchaseInvoiceDetailPage() {
             <DetailField label="Invoice Date" value={formatDate(invoice.invoice_date)} />
             <DetailField label="Due Date" value={formatDate(invoice.due_date)} />
             <DetailField label="Reference Number" value={invoice.reference_number || '—'} />
-            {isDirect ? (
+            {invoice.source !== 'goods_receipt' ? (
               <>
                 <DetailField label="Attention" value={invoice.attention || '—'} />
                 <DetailField label="Department" value={invoice.department || '—'} />
