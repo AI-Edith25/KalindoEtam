@@ -142,7 +142,7 @@ export interface GoodsReceiptFilterValues {
 }
 
 export type PurchaseInvoiceDisplayStatus = 'draft' | 'unpaid' | 'partial' | 'paid' | 'cancelled'
-export type PurchaseInvoiceSource = 'goods_receipt' | 'direct'
+export type PurchaseInvoiceSource = 'goods_receipt' | 'direct' | 'mixed'
 
 export interface PurchaseInvoiceItem {
   id: string
@@ -155,6 +155,8 @@ export interface PurchaseInvoiceItem {
   uom: string | null
   /** From the line's Item — decides whether qty_returned must be a whole number or may carry decimals. */
   item_qty_category?: 'unit' | 'weight'
+  /** Derived server-side from goods_receipt_item_id — see PurchaseInvoiceItem::getLineTypeAttribute(). */
+  line_type: 'stock' | 'non_stock'
   /** Direct/Non-Stock line only — the expense account it posts to. */
   chart_of_account_id?: string | null
   chart_of_account?: { id: string; code: string; name: string } | null
