@@ -21,25 +21,19 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/shar
 import { toastApiError } from '@/shared/services/errorHandler'
 import { formatCurrency } from '@/lib/utils'
 import { computeLineTaxTotal } from '@/shared/lib/documentTotals'
-import { directLineAmount } from '../lib/directLineAmount'
+import { purchaseInvoiceLineAmount } from '../lib/directLineAmount'
 import { useChartOfAccountsLookup } from '@/features/master/hooks/useLookups'
 import { fetchTaxesLookup, searchSuppliersLookup } from '@/features/master/api/lookupsApi'
 import { fetchGoodsReceipts } from '../api/goodsReceiptApi'
 import { createPurchaseInvoice, fetchPurchaseInvoice, submitPurchaseInvoice, updatePurchaseInvoice } from '../api/purchaseInvoiceApi'
-import { DirectPurchaseInvoiceLineItemTable } from '../components/DirectPurchaseInvoiceLineItemTable'
-import { GoodsReceiptSourcedLineItemTable } from '../components/GoodsReceiptSourcedLineItemTable'
+import { PurchaseInvoiceLineItemTable } from '../components/PurchaseInvoiceLineItemTable'
 import {
   emptyPurchaseInvoiceEditorValues,
   purchaseInvoiceFormSchema,
   type PurchaseInvoiceEditorValues,
-  type GoodsReceiptSourcedLineRow,
-  emptyDirectPurchaseInvoiceEditorValues,
-  directPurchaseInvoiceFormSchema,
-  type DirectPurchaseInvoiceEditorValues,
+  type PurchaseInvoiceLineRow,
 } from '../lib/purchaseInvoiceFormSchema'
 import type { GoodsReceipt, PurchaseInvoice, PurchaseInvoiceFormValues, PurchaseInvoiceItem } from '../types'
-
-type InvoiceMode = 'from_gr' | 'direct'
 
 export function PurchaseInvoiceEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -47,7 +41,8 @@ export function PurchaseInvoiceEditorPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [mode, setMode] = useState<InvoiceMode | null>(null)
+  const [supplierOption, setSupplierOption] = useState<SearchableSelectOption | undefined>()
+  const [supplierConfirmed, setSupplierConfirmed] = useState(false)
   const [selectedGoodsReceiptIds, setSelectedGoodsReceiptIds] = useState<Set<string>>(new Set())
   const [selectionConfirmed, setSelectionConfirmed] = useState(false)
 
@@ -60,29 +55,29 @@ export function PurchaseInvoiceEditorPage() {
     })
   }
 
+  const loadSupplierOptions = async (query: string) => {
+    const suppliers = await searchSuppliersLookup(query)
+    return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
+  }
+
   const invoiceQuery = useQuery({
     queryKey: ['purchase-invoices', id],
     queryFn: () => fetchPurchaseInvoice(id!),
     enabled: isEdit,
   })
 
-  // An existing invoice's own source decides its mode — a Direct invoice can't gain a Goods
-  // Receipt on edit, and vice versa (create() branches once, at creation, only).
-  const isDirectMode = isEdit ? invoiceQuery.data?.source === 'direct' : mode === 'direct'
-
-  // Eligible = submitted (stock already moved) and not yet invoiced. Fetched only in create mode, From Goods Receipt.
+  // Eligible = submitted (stock already moved) and not yet invoiced. Fetched only in create mode,
+  // once a Supplier has been chosen and before the selection is confirmed (Skip or Continue).
   const eligibleGoodsReceiptsQuery = useQuery({
     queryKey: ['goods-receipts-eligible-for-invoice'],
     queryFn: () => fetchGoodsReceipts({ page: 1, per_page: 100, status: 'submitted' }),
-    enabled: !isEdit && mode === 'from_gr',
+    enabled: !isEdit && supplierConfirmed && !selectionConfirmed,
   })
   const eligibleGoodsReceipts = (eligibleGoodsReceiptsQuery.data?.data ?? []).filter((goodsReceipt) => !goodsReceipt.is_invoiced)
-  const selectedGoodsReceipts = eligibleGoodsReceipts.filter((goodsReceipt) => selectedGoodsReceiptIds.has(goodsReceipt.id))
-  // Once ≥1 Goods Receipt is checked, only Goods Receipts from the same Supplier remain selectable.
-  const selectedSupplierId = selectedGoodsReceipts[0]?.supplier_id ?? null
-  const selectableGoodsReceipts = selectedSupplierId
-    ? eligibleGoodsReceipts.filter((goodsReceipt) => goodsReceipt.supplier_id === selectedSupplierId)
+  const selectableGoodsReceipts = supplierOption
+    ? eligibleGoodsReceipts.filter((goodsReceipt) => goodsReceipt.supplier_id === supplierOption.value)
     : eligibleGoodsReceipts
+  const selectedGoodsReceipts = selectableGoodsReceipts.filter((goodsReceipt) => selectedGoodsReceiptIds.has(goodsReceipt.id))
 
   useEffect(() => {
     const invoice = invoiceQuery.data
@@ -103,99 +98,116 @@ export function PurchaseInvoiceEditorPage() {
     )
   }
 
-  // Step 1 (create mode only): choose From Goods Receipt or Direct/Non-Stock, then (for From
-  // Goods Receipt) select one or more Goods Receipts.
-  if (!isEdit && (mode === null || (mode === 'from_gr' && !selectionConfirmed))) {
-    const allSelectableChecked = selectableGoodsReceipts.length > 0 && selectableGoodsReceipts.every((gr) => selectedGoodsReceiptIds.has(gr.id))
-
+  // Step 1 (create mode only): choose the Supplier.
+  if (!isEdit && !supplierConfirmed) {
     return (
       <div className="flex flex-col gap-4">
         <PageHeader
           title="New Invoice"
-          description="Invoice one or more received Goods Receipts, or record a Direct/Non-Stock invoice with no Goods Receipt (e.g. vehicle repairs, services)."
+          description="Pick the Supplier being invoiced, then optionally select one or more received Goods Receipts and/or add non-stock lines."
         />
         <Card>
           <CardHeader>
-            <CardTitle>{mode === 'from_gr' ? 'Select Goods Receipt' : 'How was this invoiced?'}</CardTitle>
+            <CardTitle>Select Supplier</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {mode === null ? (
-              <div className="flex gap-2">
-                <Button type="button" onClick={() => setMode('from_gr')}>
-                  From Goods Receipt
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setMode('direct')}>
-                  Direct / Non-Stock (no Goods Receipt)
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-col gap-1.5">
-                  {eligibleGoodsReceiptsQuery.isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : selectableGoodsReceipts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No goods receipts available to invoice.</p>
-                  ) : (
-                    <div className="overflow-x-auto rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-10">
+            <SearchableSelect
+              loadOptions={loadSupplierOptions}
+              selectedOption={supplierOption}
+              value={supplierOption?.value}
+              onChange={(_value, option) => setSupplierOption(option)}
+              clearable={false}
+              placeholder="Select supplier"
+              aria-label="Supplier"
+            />
+            <div className="flex gap-2">
+              <Button type="button" disabled={!supplierOption} onClick={() => setSupplierConfirmed(true)}>
+                Continue
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate('/purchase/invoices')}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Step 2 (create mode only): select Goods Receipt(s) — optional, Skip is always available.
+  if (!isEdit && !selectionConfirmed) {
+    const allSelectableChecked = selectableGoodsReceipts.length > 0 && selectableGoodsReceipts.every((gr) => selectedGoodsReceiptIds.has(gr.id))
+
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeader title="New Invoice" description={`Invoicing ${supplierOption?.label ?? ''}.`} />
+        <Card>
+          <CardHeader>
+            <CardTitle>Select Goods Receipt (optional)</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              {eligibleGoodsReceiptsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : selectableGoodsReceipts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No goods receipts available to invoice for this supplier.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={allSelectableChecked}
+                            onCheckedChange={(checked) => selectableGoodsReceipts.forEach((gr) => toggleGoodsReceipt(gr.id, checked === true))}
+                            aria-label="Select all eligible goods receipts"
+                          />
+                        </TableHead>
+                        <TableHead>Document Number</TableHead>
+                        <TableHead>Receipt Date</TableHead>
+                        <TableHead className="text-right">Items</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectableGoodsReceipts.map((goodsReceipt) => {
+                        const checked = selectedGoodsReceiptIds.has(goodsReceipt.id)
+                        return (
+                          <TableRow key={goodsReceipt.id} data-state={checked ? 'selected' : undefined}>
+                            <TableCell>
                               <Checkbox
-                                checked={allSelectableChecked}
-                                onCheckedChange={(checked) => selectableGoodsReceipts.forEach((gr) => toggleGoodsReceipt(gr.id, checked === true))}
-                                aria-label="Select all eligible goods receipts"
+                                checked={checked}
+                                onCheckedChange={(value) => toggleGoodsReceipt(goodsReceipt.id, value === true)}
+                                aria-label={`Select ${goodsReceipt.document_number}`}
                               />
-                            </TableHead>
-                            <TableHead>Document Number</TableHead>
-                            <TableHead>Supplier</TableHead>
-                            <TableHead>Receipt Date</TableHead>
-                            <TableHead className="text-right">Items</TableHead>
+                            </TableCell>
+                            <TableCell className="font-medium">{goodsReceipt.document_number}</TableCell>
+                            <TableCell>{goodsReceipt.receipt_date}</TableCell>
+                            <TableCell className="text-right">{goodsReceipt.items.length}</TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectableGoodsReceipts.map((goodsReceipt) => {
-                            const checked = selectedGoodsReceiptIds.has(goodsReceipt.id)
-                            return (
-                              <TableRow key={goodsReceipt.id} data-state={checked ? 'selected' : undefined}>
-                                <TableCell>
-                                  <Checkbox
-                                    checked={checked}
-                                    onCheckedChange={(value) => toggleGoodsReceipt(goodsReceipt.id, value === true)}
-                                    aria-label={`Select ${goodsReceipt.document_number}`}
-                                  />
-                                </TableCell>
-                                <TableCell className="font-medium">{goodsReceipt.document_number}</TableCell>
-                                <TableCell>{goodsReceipt.supplier?.supplier_name}</TableCell>
-                                <TableCell>{goodsReceipt.receipt_date}</TableCell>
-                                <TableCell className="text-right">{goodsReceipt.items.length}</TableCell>
-                              </TableRow>
-                            )
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Only submitted Goods Receipts that have not already been invoiced are shown — once you select one, only Goods Receipts from the
-                    same Supplier remain selectable.
-                  </p>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => setMode(null)}>
-                    Back
-                  </Button>
-                  <Button type="button" disabled={selectedGoodsReceiptIds.size === 0} onClick={() => setSelectionConfirmed(true)}>
-                    Continue
-                  </Button>
-                </div>
-              </>
-            )}
-            <Button type="button" variant="outline" className="self-start" onClick={() => navigate('/purchase/invoices')}>
-              Cancel
-            </Button>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Only submitted Goods Receipts from this Supplier that have not already been invoiced are shown. You can also skip this step and/or
+                add non-stock lines on the next screen.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setSupplierConfirmed(false)}>
+                Back
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setSelectionConfirmed(true)}>
+                Skip / Continue without Goods Receipt
+              </Button>
+              <Button type="button" disabled={selectedGoodsReceiptIds.size === 0} onClick={() => setSelectionConfirmed(true)}>
+                Continue
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -210,24 +222,13 @@ export function PurchaseInvoiceEditorPage() {
     )
   }
 
-  if (isDirectMode) {
-    return (
-      <DirectPurchaseInvoiceForm
-        isEdit={isEdit}
-        id={id}
-        invoice={invoiceQuery.data}
-        navigate={navigate}
-        queryClient={queryClient}
-      />
-    )
-  }
-
   return (
     <PurchaseInvoiceForm
-      key={isEdit ? id : Array.from(selectedGoodsReceiptIds).sort().join(',')}
+      key={isEdit ? id : `${supplierOption?.value ?? ''}:${Array.from(selectedGoodsReceiptIds).sort().join(',')}`}
       isEdit={isEdit}
       id={id}
       invoice={invoiceQuery.data}
+      supplierOption={supplierOption}
       selectedGoodsReceipts={selectedGoodsReceipts}
       navigate={navigate}
       queryClient={queryClient}
@@ -239,6 +240,7 @@ function PurchaseInvoiceForm({
   isEdit,
   id,
   invoice,
+  supplierOption,
   selectedGoodsReceipts,
   navigate,
   queryClient,
@@ -246,27 +248,47 @@ function PurchaseInvoiceForm({
   isEdit: boolean
   id: string | undefined
   invoice: PurchaseInvoice | undefined
+  supplierOption: SearchableSelectOption | undefined
   selectedGoodsReceipts: GoodsReceipt[]
   navigate: NavigateFunction
   queryClient: QueryClient
 }) {
-  // Item/Qty are a locked copy of the source Goods Receipt line; `goods_receipt_item_id` is what
-  // ties each row back to it for the Rate-override payload (`id` is just the row key — a
-  // PurchaseInvoiceItem's own id when editing, a GoodsReceiptItem's id when creating fresh).
-  const itemRows: GoodsReceiptSourcedLineRow[] = isEdit
-    ? ((invoice?.items ?? []) as PurchaseInvoiceItem[]).map((line) => ({
-        id: line.id,
-        goods_receipt_item_id: line.goods_receipt_item_id ?? line.id,
-        item_code: line.item_code,
-        item_name: line.item_name,
-        uom: line.uom,
-        qty: line.qty,
-        qty_category: line.item_qty_category,
-        rate: String(line.rate),
-      }))
+  const accounts = useChartOfAccountsLookup()
+  const directLineAccounts = (accounts.data ?? []).filter(
+    (account) => (account.account_type === 'expense' || account.account_type === 'liability') && account.is_active,
+  )
+  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
+  const activePurchaseTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'purchase')
+
+  // Stock lines are immutable post-create — Supplier can only change while there are none yet
+  // (mirrors PurchaseInvoiceService::update()'s own rule).
+  const hasStockLines = isEdit ? (invoice?.items ?? []).some((line) => line.goods_receipt_item_id !== null) : selectedGoodsReceipts.length > 0
+  const supplierEditable = isEdit && !hasStockLines
+
+  const [selectedSupplierOption, setSelectedSupplierOption] = useState<SearchableSelectOption | undefined>(
+    isEdit && invoice?.supplier ? { value: invoice.supplier.id, label: invoice.supplier.supplier_name } : supplierOption,
+  )
+  const loadSupplierOptions = async (query: string) => {
+    const suppliers = await searchSuppliersLookup(query)
+    return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
+  }
+
+  const stockRows: PurchaseInvoiceLineRow[] = isEdit
+    ? ((invoice?.items ?? []) as PurchaseInvoiceItem[])
+        .filter((line) => line.goods_receipt_item_id !== null)
+        .map((line) => ({
+          kind: 'stock' as const,
+          goods_receipt_item_id: line.goods_receipt_item_id!,
+          item_code: line.item_code,
+          item_name: line.item_name,
+          uom: line.uom,
+          qty: line.qty,
+          qty_category: line.item_qty_category,
+          rate: String(line.rate),
+        }))
     : selectedGoodsReceipts.flatMap((gr) =>
         gr.items.map((line) => ({
-          id: line.id,
+          kind: 'stock' as const,
           goods_receipt_item_id: line.id,
           item_code: line.item_code,
           item_name: line.item_name,
@@ -277,30 +299,69 @@ function PurchaseInvoiceForm({
         })),
       )
 
+  const nonStockRows: PurchaseInvoiceLineRow[] = isEdit
+    ? ((invoice?.items ?? []) as PurchaseInvoiceItem[])
+        .filter((line) => line.goods_receipt_item_id === null)
+        .map((line) => ({
+          kind: 'non_stock' as const,
+          chart_of_account_id: line.chart_of_account_id ?? '',
+          description: line.item_name,
+          uom: line.uom ?? '',
+          qty: String(line.qty),
+          rate: String(line.rate),
+          tax_id: line.tax_id ?? '',
+        }))
+    : []
+
   const form = useForm<PurchaseInvoiceEditorValues>({
     resolver: zodResolver(purchaseInvoiceFormSchema),
     defaultValues: invoice
       ? {
+          supplier_id: invoice.supplier_id,
           invoice_date: invoice.invoice_date,
           due_date: invoice.due_date,
           tax_amount: String(invoice.tax_amount),
           reference_number: invoice.reference_number ?? '',
+          attention: invoice.attention ?? '',
+          department: invoice.department ?? '',
           remarks: invoice.remarks ?? '',
-          items: itemRows,
+          items: [...stockRows, ...nonStockRows],
         }
-      : { ...emptyPurchaseInvoiceEditorValues, items: itemRows },
+      : { ...emptyPurchaseInvoiceEditorValues, supplier_id: supplierOption?.value ?? '', items: stockRows },
   })
 
-  const toPayload = (values: PurchaseInvoiceEditorValues): PurchaseInvoiceFormValues => ({
-    // Immutable once created — only sent on create; UpdatePurchaseInvoiceRequest doesn't accept it.
-    ...(isEdit ? {} : { goods_receipt_ids: selectedGoodsReceipts.map((gr) => gr.id) }),
-    invoice_date: values.invoice_date,
-    due_date: values.due_date,
-    tax_amount: values.tax_amount === '' ? 0 : Number(values.tax_amount),
-    reference_number: values.reference_number || null,
-    remarks: values.remarks || null,
-    item_rates: values.items.map((line) => ({ goods_receipt_item_id: line.goods_receipt_item_id, rate: Number(line.rate) })),
-  })
+  const toPayload = (values: PurchaseInvoiceEditorValues): PurchaseInvoiceFormValues => {
+    const stockLines = values.items.filter((line) => line.kind === 'stock')
+    const nonStockLines = values.items.filter((line) => line.kind === 'non_stock')
+
+    return {
+      supplier_id: values.supplier_id,
+      // Immutable once created — only sent on create.
+      ...(isEdit ? {} : { goods_receipt_ids: selectedGoodsReceipts.map((gr) => gr.id) }),
+      invoice_date: values.invoice_date,
+      due_date: values.due_date || null,
+      tax_amount: values.tax_amount === '' ? 0 : Number(values.tax_amount),
+      reference_number: values.reference_number || null,
+      attention: values.attention || null,
+      department: values.department || null,
+      remarks: values.remarks || null,
+      ...(stockLines.length > 0
+        ? { item_rates: stockLines.map((line) => ({ goods_receipt_item_id: line.goods_receipt_item_id, rate: Number(line.rate) })) }
+        : {}),
+      ...(nonStockLines.length > 0
+        ? {
+            items: nonStockLines.map((line) => ({
+              chart_of_account_id: line.chart_of_account_id,
+              description: line.description,
+              uom: line.uom || null,
+              qty: Number(line.qty),
+              rate: Number(line.rate),
+              tax_id: line.tax_id || null,
+            })),
+          }
+        : {}),
+    }
+  }
 
   const saveMutation = useMutation({
     mutationFn: (values: PurchaseInvoiceEditorValues) => {
@@ -328,271 +389,24 @@ function PurchaseInvoiceForm({
 
   const watchedTaxAmount = Number(form.watch('tax_amount') || 0)
   const watchedItems = form.watch('items')
-  const subtotal = watchedItems.reduce((sum, line) => sum + Number(line.qty) * Number(line.rate || 0), 0)
-  const grandTotal = subtotal + watchedTaxAmount
+  const subtotal = (watchedItems ?? []).reduce((sum, line) => sum + purchaseInvoiceLineAmount(line, directLineAccounts), 0)
+  const lineTax = computeLineTaxTotal(watchedItems ?? [], (line) =>
+    line.kind === 'non_stock' ? activePurchaseTaxOptions.find((t) => t.id === line.tax_id) : undefined,
+  )
+  const tax = watchedTaxAmount + lineTax
+  const grandTotal = subtotal + tax
 
   const onSubmit = form.handleSubmit((values) => saveMutation.mutate(values))
 
   const goodsReceiptLabel = isEdit
     ? invoice?.goods_receipts?.map((gr) => gr.document_number).join(', ')
     : selectedGoodsReceipts.map((gr) => gr.document_number).join(', ')
-  const supplierName = isEdit ? invoice?.supplier?.supplier_name : selectedGoodsReceipts[0]?.supplier?.supplier_name
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title={isEdit ? `Edit ${invoice?.document_number ?? 'Invoice'}` : 'New Invoice'}
-        description={`Invoicing ${goodsReceiptLabel ?? ''} — ${supplierName ?? ''}.`}
-      />
-
-      <Form {...form}>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Invoice Details</CardTitle>
-              <StatusBadge status={isEdit ? (invoice?.display_status ?? 'draft') : 'draft'} />
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-0.5 sm:col-span-2">
-                <span className="text-xs text-muted-foreground">Goods Receipt</span>
-                <span className="text-sm font-medium">
-                  {goodsReceiptLabel} — {supplierName}
-                </span>
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs text-muted-foreground">Invoice Number</span>
-                <span className="text-sm font-medium">{isEdit ? (invoice?.document_number ?? '—') : 'Assigned when saved'}</span>
-              </div>
-              <FormField
-                control={form.control}
-                name="invoice_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Invoice Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="due_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Due Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="reference_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Reference Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Supplier's own invoice number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="tax_amount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tax Amount</FormLabel>
-                    <FormControl>
-                      <RupiahInput value={field.value} onChange={field.onChange} decimals={2} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="remarks"
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-2">
-                    <FormLabel>Notes</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Optional" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Line Items</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <GoodsReceiptSourcedLineItemTable form={form} />
-              <p className="mt-2 text-sm text-muted-foreground">
-                Qty & item follow the Goods Receipt and cannot be changed here; Rate can be adjusted if the supplier's invoice amount differs from
-                the Goods Receipt.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex flex-col items-end gap-1.5 py-4">
-              <div className="flex w-full max-w-64 justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatCurrency(subtotal)}</span>
-              </div>
-              <div className="flex w-full max-w-64 justify-between text-sm">
-                <span className="text-muted-foreground">Tax</span>
-                <span>{formatCurrency(watchedTaxAmount)}</span>
-              </div>
-              <Separator className="w-full max-w-64" />
-              <div className="flex w-full max-w-64 justify-between text-base font-semibold">
-                <span>Grand Total</span>
-                <span>{formatCurrency(grandTotal)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => navigate('/purchase/invoices')}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="outline" disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save Draft
-            </Button>
-            {isEdit && invoice?.status === 'draft' && (
-              <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
-                {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                Submit
-              </Button>
-            )}
-          </div>
-        </form>
-      </Form>
-    </div>
-  )
-}
-
-/** Direct/Non-Stock invoice — no Goods Receipt, per-line Chart-of-Accounts expense account + own tax. */
-function DirectPurchaseInvoiceForm({
-  isEdit,
-  id,
-  invoice,
-  navigate,
-  queryClient,
-}: {
-  isEdit: boolean
-  id: string | undefined
-  invoice: PurchaseInvoice | undefined
-  navigate: NavigateFunction
-  queryClient: QueryClient
-}) {
-  // Async search (not a preloaded list) — the Supplier master can outgrow a single page
-  // (same reasoning as Customer's picker, see SalesOrderEditorPage). A plain page-1
-  // lookup silently drops suppliers past whatever page cap applies.
-  const [selectedSupplierOption, setSelectedSupplierOption] = useState<SearchableSelectOption | undefined>(
-    invoice?.supplier ? { value: invoice.supplier.id, label: invoice.supplier.supplier_name } : undefined,
-  )
-  const loadSupplierOptions = async (query: string) => {
-    const suppliers = await searchSuppliersLookup(query)
-    return suppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name }))
-  }
-  const accounts = useChartOfAccountsLookup()
-  const directLineAccounts = (accounts.data ?? []).filter(
-    (account) => (account.account_type === 'expense' || account.account_type === 'liability') && account.is_active,
-  )
-  const taxesQuery = useQuery({ queryKey: ['taxes-lookup'], queryFn: fetchTaxesLookup })
-  const activePurchaseTaxOptions = (taxesQuery.data ?? []).filter((t) => t.is_active && t.transaction_type === 'purchase')
-
-  const form = useForm<DirectPurchaseInvoiceEditorValues>({
-    resolver: zodResolver(directPurchaseInvoiceFormSchema),
-    defaultValues: invoice
-      ? {
-          supplier_id: invoice.supplier_id,
-          invoice_date: invoice.invoice_date,
-          due_date: invoice.due_date,
-          reference_number: invoice.reference_number ?? '',
-          attention: invoice.attention ?? '',
-          department: invoice.department ?? '',
-          remarks: invoice.remarks ?? '',
-          items: (invoice.items ?? []).map((line) => ({
-            chart_of_account_id: line.chart_of_account_id ?? '',
-            description: line.item_name,
-            uom: line.uom ?? '',
-            qty: String(line.qty),
-            rate: String(line.rate),
-            tax_id: line.tax_id ?? '',
-          })),
-        }
-      : emptyDirectPurchaseInvoiceEditorValues,
-  })
-
-  const toPayload = (values: DirectPurchaseInvoiceEditorValues): PurchaseInvoiceFormValues => ({
-    ...(isEdit ? {} : { source: 'direct' as const }),
-    supplier_id: values.supplier_id,
-    invoice_date: values.invoice_date,
-    due_date: values.due_date || null,
-    tax_amount: null,
-    reference_number: values.reference_number || null,
-    attention: values.attention || null,
-    department: values.department || null,
-    remarks: values.remarks || null,
-    items: values.items.map((line) => ({
-      chart_of_account_id: line.chart_of_account_id,
-      description: line.description,
-      uom: line.uom || null,
-      qty: Number(line.qty),
-      rate: Number(line.rate),
-      tax_id: line.tax_id || null,
-    })),
-  })
-
-  const saveMutation = useMutation({
-    mutationFn: (values: DirectPurchaseInvoiceEditorValues) => {
-      const payload = toPayload(values)
-      return isEdit ? updatePurchaseInvoice(id!, payload) : createPurchaseInvoice(payload)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-invoices'] })
-      toast.success(isEdit ? 'Purchase Invoice updated.' : 'Purchase Invoice saved as draft.')
-      navigate('/purchase/invoices')
-    },
-    onError: (error) => toastApiError(error),
-  })
-
-  const submitMutation = useMutation({
-    mutationFn: () => submitPurchaseInvoice(id!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-invoices'] })
-      queryClient.invalidateQueries({ queryKey: ['accounts-payables'] })
-      toast.success('Purchase Invoice submitted — Accounts Payable created.')
-      navigate('/purchase/invoices')
-    },
-    onError: (error) => toastApiError(error),
-  })
-
-  const watchedItems = form.watch('items')
-  const subtotal = (watchedItems ?? []).reduce((sum, item) => sum + directLineAmount(item, directLineAccounts), 0)
-  const tax = computeLineTaxTotal(watchedItems ?? [], (line) => activePurchaseTaxOptions.find((t) => t.id === line.tax_id))
-  const grandTotal = subtotal + tax
-
-  const onSubmit = form.handleSubmit((values) => saveMutation.mutate(values))
-
-  return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title={isEdit ? `Edit ${invoice?.document_number ?? 'Invoice'}` : 'New Direct Invoice'}
-        description="Direct/Non-Stock invoice — no source Goods Receipt, lines post straight to an expense account."
+        description="Invoice one or more Goods Receipts, add non-stock lines, or both."
       />
 
       <Form {...form}>
@@ -607,7 +421,12 @@ function DirectPurchaseInvoiceForm({
                 <span className="text-xs text-muted-foreground">Invoice Number</span>
                 <span className="text-sm font-medium">{isEdit ? (invoice?.document_number ?? '—') : 'Assigned when saved'}</span>
               </div>
-              <div />
+              {goodsReceiptLabel && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">Goods Receipt</span>
+                  <span className="text-sm font-medium">{goodsReceiptLabel}</span>
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="supplier_id"
@@ -623,22 +442,10 @@ function DirectPurchaseInvoiceForm({
                         setSelectedSupplierOption(option)
                       }}
                       clearable={false}
+                      disabled={!supplierEditable}
                       placeholder="Select supplier"
                       aria-label="Supplier"
                     />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="reference_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Reference Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Supplier's own invoice number" {...field} />
-                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -666,6 +473,32 @@ function DirectPurchaseInvoiceForm({
                       <Input type="date" {...field} />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">Leave blank to use the Supplier's Terms of Payment.</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reference_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Supplier's own invoice number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="tax_amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tax Amount (Goods Receipt lines)</FormLabel>
+                    <FormControl>
+                      <RupiahInput value={field.value} onChange={field.onChange} decimals={2} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -717,10 +550,13 @@ function DirectPurchaseInvoiceForm({
               <CardTitle>Line Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <DirectPurchaseInvoiceLineItemTable form={form} accounts={directLineAccounts} accountsLoading={accounts.isLoading} taxes={activePurchaseTaxOptions} />
-              {form.formState.errors.items?.root && (
-                <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>
-              )}
+              <PurchaseInvoiceLineItemTable
+                form={form}
+                accounts={directLineAccounts}
+                accountsLoading={accounts.isLoading}
+                taxes={activePurchaseTaxOptions}
+              />
+              {form.formState.errors.items?.root && <p className="mt-2 text-sm text-destructive">{form.formState.errors.items.root.message}</p>}
             </CardContent>
           </Card>
 
