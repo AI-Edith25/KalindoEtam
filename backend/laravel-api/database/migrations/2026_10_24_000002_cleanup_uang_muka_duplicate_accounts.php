@@ -18,11 +18,16 @@ use Illuminate\Database\Migrations\Migration;
  *   dead placeholders, not a feature to build a hierarchy around. So `1250` stays exactly
  *   as it is today: flat, active, directly postable.
  *
- * All nine accounts deleted here were confirmed zero debit and zero credit, their entire
- * lifetime, in this system's Print Ledger (checked 2026-10-24) before writing this
- * migration — same bar used for every prior COA hard-delete in this project. One of them
- * (113.02.04 PPH PASAL 22) also carried a data error — typed Liability while its
- * surviving `140.02` twin is correctly Asset — moot once deleted.
+ * All nine accounts deleted here showed zero debit and zero credit, their entire
+ * lifetime, in this system's Print Ledger (checked 2026-10-24) — but that report only
+ * sums non-deleted Journal Entries, while a soft-deleted/voided entry's
+ * journal_entry_lines rows still physically exist and still hold the FK. The sibling
+ * 2026_10_24_000001 migration hit exactly that on first deploy
+ * (journal_entry_lines_chart_of_account_id_foreign violation on forceDelete), so this one
+ * uses soft `delete()` too, matching the ticket's own explicit instruction ("JANGAN
+ * menghapus data akun duplikat secara permanen — nonaktifkan saja") — it can never hit
+ * this FK. One of the nine (113.02.04 PPH PASAL 22) also carried a data error — typed
+ * Liability while its surviving `140.02` twin is correctly Asset — moot once deactivated.
  */
 return new class extends Migration
 {
@@ -34,13 +39,14 @@ return new class extends Migration
                 '113.01', '113.01.01', '113.01.02', // dead twins of 1250/1251/1252
                 '1251', '1252', // unused per-vendor sub-ledger, never posted to
             ])
-            ->get()
-            ->each(fn (ChartOfAccount $account) => $account->forceDelete());
+            ->delete();
     }
 
     public function down(): void
     {
-        // Deliberately irreversible — nine dead-duplicate accounts were force-deleted.
-        // Restore from a database backup if this needs undoing.
+        // Deliberately irreversible — the dead-duplicate accounts aren't automatically
+        // restored. They can be manually if needed
+        // (ChartOfAccount::withTrashed()->where(...)->restore()) — soft delete() was used,
+        // not forceDelete(), so nothing here is actually unrecoverable.
     }
 };

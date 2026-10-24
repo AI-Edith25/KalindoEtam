@@ -23,12 +23,19 @@ use Illuminate\Database\Migrations\Migration;
  * reference anywhere in app/ (confirmed via grep before writing this), so turning them
  * into non-postable headers breaks nothing. `1500 AKTIVA TETAP` likewise.
  *
- * All four force-deleted accounts (1004, 1005, 1103, 102.01.07) and the four Aktiva
- * Tetap legacy-dotted twins (121.03.01, 121.03.02, 121.04.01, 121.04.02) were confirmed
- * zero debit and zero credit, their entire lifetime, in this system's Print Ledger before
- * writing this migration — same bar used for the Piutang/Hutang hard-deletes.
- * forceDelete() bypasses SoftDeletes; the restrictOnDelete FK on journal_entry_lines still
- * refuses the delete (loudly) if that was ever wrong.
+ * The four duplicate twins (1004, 1005, 1103, 102.01.07) and the four Aktiva Tetap
+ * legacy-dotted twins (121.03.01, 121.03.02, 121.04.01, 121.04.02) showed zero debit and
+ * zero credit, their entire lifetime, in this system's Print Ledger — but that report
+ * only sums non-deleted Journal Entries, while journal_entry_lines rows from a
+ * soft-deleted/voided entry still physically exist and still hold the FK. One of these
+ * eight hit exactly that on first deploy (`journal_entry_lines_chart_of_account_id_foreign`
+ * violation on forceDelete) — the Print Ledger check wasn't sufficient proof of "never
+ * used". Soft `delete()` instead, matching the ticket's own explicit instruction
+ * ("JANGAN menghapus data akun duplikat secara permanen — nonaktifkan saja") — it can
+ * never hit this FK (the row stays, journal_entry_lines keeps pointing at a valid id),
+ * and chart_of_accounts' own code-uniqueness check already excludes soft-deleted rows
+ * (`whereNull('deleted_at')` in Store/UpdateChartOfAccountRequest), so the freed-up
+ * dotted codes stay available for reuse exactly like the prior unused-cash/bank cleanup.
  */
 return new class extends Migration
 {
@@ -65,8 +72,7 @@ return new class extends Migration
 
         ChartOfAccount::query()
             ->whereIn('code', ['1004', '1005', '1103', '102.01.07', '121.03.01', '121.03.02', '121.04.01', '121.04.02'])
-            ->get()
-            ->each(fn (ChartOfAccount $account) => $account->forceDelete());
+            ->delete();
     }
 
     /**
@@ -95,9 +101,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Deliberately irreversible — four duplicate twins and four Aktiva Tetap legacy
-        // duplicates were force-deleted, and the renamed codes now have report-mapping
-        // seeder entries pointing at the new strings. Restore from a database backup if
-        // this needs undoing.
+        // Deliberately irreversible — the renames and parent_id assignments aren't undone,
+        // and the renamed codes now have report-mapping seeder entries pointing at the new
+        // strings. The eight soft-deleted duplicates can be restored manually
+        // (ChartOfAccount::withTrashed()->where(...)->restore()) if that's ever needed —
+        // unlike the Piutang/Hutang hard-deletes, nothing here is actually unrecoverable.
     }
 };
