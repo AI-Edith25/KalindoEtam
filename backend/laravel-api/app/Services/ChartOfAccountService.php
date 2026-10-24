@@ -62,9 +62,32 @@ class ChartOfAccountService
         });
     }
 
+    /**
+     * UpdateChartOfAccountRequest's unique rule excludes trashed rows, so a code can be
+     * validated as "free" while a trashed row still physically occupies that string in
+     * the raw DB unique index. Unlike create()'s restore-the-trashed-row handling, there's
+     * no single row to restore into here — the live row being updated is a different
+     * physical row — so the trashed one is force-deleted instead, which is safe: it's
+     * already excluded from the UI/list (SoftDeletingScope) and its own code is about to
+     * be freed up anyway. Still guarded by assertNeverUsed() — a trashed row soft-deleted
+     * before 2026-10-24's hard-delete-by-default change can carry real (possibly
+     * voided-only) Journal Entry Lines, and forceDelete() would hit the exact FK violation
+     * delete() below is guarding against.
+     */
     public function update(ChartOfAccount $chartOfAccount, array $data): ChartOfAccount
     {
         return DB::transaction(function () use ($chartOfAccount, $data) {
+            if (isset($data['code'])) {
+                ChartOfAccount::onlyTrashed()
+                    ->where('code', $data['code'])
+                    ->where('id', '!=', $chartOfAccount->id)
+                    ->get()
+                    ->each(function (ChartOfAccount $trashed) {
+                        $this->assertNeverUsed($trashed);
+                        $trashed->forceDelete();
+                    });
+            }
+
             $chartOfAccount = $this->chartOfAccountRepository->update($chartOfAccount, $data);
             $this->auditLogService->record('updated', 'chart_of_account', "Updated chart of account \"{$chartOfAccount->code} {$chartOfAccount->name}\".");
 
@@ -86,13 +109,24 @@ class ChartOfAccountService
     {
         DB::transaction(function () use ($chartOfAccount) {
             $label = "{$chartOfAccount->code} {$chartOfAccount->name}";
-
-            if (JournalEntryLine::withTrashed()->where('chart_of_account_id', $chartOfAccount->id)->exists()) {
-                throw new BusinessException("Akun \"{$label}\" sudah pernah digunakan dalam Journal Entry dan tidak bisa dihapus. Nonaktifkan akun ini jika tidak ingin digunakan lagi.");
-            }
+            $this->assertNeverUsed($chartOfAccount);
 
             $chartOfAccount->forceDelete();
             $this->auditLogService->record('deleted', 'chart_of_account', "Deleted chart of account \"{$label}\".");
         });
+    }
+
+    /**
+     * withTrashed() is deliberate: a plain journalEntryLines()->exists() only sees
+     * non-deleted JournalEntryLine rows, but a soft-deleted/voided line still physically
+     * exists and still holds the journal_entry_lines_chart_of_account_id_foreign FK —
+     * forceDelete() would hit that as a raw SQL error with no indication of why. Checking
+     * this first turns it into a clear, actionable message instead.
+     */
+    private function assertNeverUsed(ChartOfAccount $chartOfAccount): void
+    {
+        if (JournalEntryLine::withTrashed()->where('chart_of_account_id', $chartOfAccount->id)->exists()) {
+            throw new BusinessException("Akun \"{$chartOfAccount->code} {$chartOfAccount->name}\" sudah pernah digunakan dalam Journal Entry dan tidak bisa dihapus. Nonaktifkan akun ini jika tidak ingin digunakan lagi.");
+        }
     }
 }

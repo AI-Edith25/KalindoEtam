@@ -60,4 +60,26 @@ class ChartOfAccountSoftDeletedCodeReuseTest extends TestCase
         $response->assertJsonValidationErrors('code');
     }
 
+    /**
+     * Same gap as create(), but for update() — a different live account being renamed onto
+     * an archived code (the exact bug reported: editing a code to "120.01" was rejected as
+     * "already taken" by a trashed row nothing on screen showed).
+     */
+    public function test_update_accepts_renaming_onto_a_code_whose_only_match_is_soft_deleted(): void
+    {
+        Permission::query()->firstOrCreate(['name' => 'master.chart_of_accounts.update', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->givePermissionTo('master.chart_of_accounts.update');
+        Sanctum::actingAs($user);
+
+        $trashed = ChartOfAccount::query()->create(['code' => '120.01', 'name' => 'HUTANG BANK BCA (old)', 'account_type' => 'liability']);
+        $trashed->delete();
+        $live = ChartOfAccount::query()->create(['code' => '999.99', 'name' => 'Some Other Account', 'account_type' => 'liability']);
+
+        $response = $this->putJson("/api/v1/chart-of-accounts/{$live->id}", ['code' => '120.01']);
+
+        $response->assertOk();
+        $this->assertSame('120.01', $response->json('data.code'));
+        $this->assertDatabaseMissing('chart_of_accounts', ['id' => $trashed->id]);
+    }
 }
