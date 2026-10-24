@@ -41,18 +41,21 @@ class BalanceSheetMappingSeeder extends Seeder
         '1002' => BalanceSheetSection::CURRENT_ASSET,          // KAS BALIKPAPAN
         '1004' => BalanceSheetSection::CURRENT_ASSET,          // SELISIH KAS KECIL SAMARINDA
         '1005' => BalanceSheetSection::CURRENT_ASSET,          // SELISIH KAS BALIKPAPAN
-        '101.01.01' => BalanceSheetSection::CURRENT_ASSET,     // KAS BESAR SAMARINDA
-        '101.01.03' => BalanceSheetSection::CURRENT_ASSET,     // KAS BESAR BALIKPAPAN
-        '101.03.01' => BalanceSheetSection::CURRENT_ASSET,     // SELISIH KAS KECIL SAMARINDA
-        '101.03.02' => BalanceSheetSection::CURRENT_ASSET,     // SELISIH KAS BALIKPAPAN
-        '102.01.05' => BalanceSheetSection::CURRENT_ASSET,     // BANK OCBC NISP 8466
-        '102.01.06' => BalanceSheetSection::CURRENT_ASSET,     // BANK OCBC NISP 3383
-        '102.01.07' => BalanceSheetSection::CURRENT_ASSET,     // BANK OCBC NISP 6684
-        '102.02.01' => BalanceSheetSection::CURRENT_ASSET,     // BANK BCA BTG 8000
-        '1101' => BalanceSheetSection::CURRENT_ASSET,          // BANK BCA SMD 1312
-        '1103' => BalanceSheetSection::CURRENT_ASSET,          // BANK BCA BTG 8000
-        '1104' => BalanceSheetSection::CURRENT_ASSET,          // BANK MANDIRI 5840
-        '1106' => BalanceSheetSection::CURRENT_ASSET,          // BANK OCBC NISP 6684
+        // 2026_10_24_000001_restructure_kas_bank_and_aktiva_tetap_into_hierarchy: 1000 (KAS)
+        // and 1100 (BANK) are now non-postable parents over these dot-notation children.
+        // Dead duplicate twins (1004, 1005, 1103, 102.01.07) are gone.
+        '1000.01' => BalanceSheetSection::CURRENT_ASSET,       // KAS SAMARINDA
+        '1000.02' => BalanceSheetSection::CURRENT_ASSET,       // KAS BALIKPAPAN
+        '1000.03' => BalanceSheetSection::CURRENT_ASSET,       // KAS BESAR SAMARINDA
+        '1000.04' => BalanceSheetSection::CURRENT_ASSET,       // KAS BESAR BALIKPAPAN
+        '1000.05' => BalanceSheetSection::CURRENT_ASSET,       // SELISIH KAS KECIL SAMARINDA
+        '1000.06' => BalanceSheetSection::CURRENT_ASSET,       // SELISIH KAS BALIKPAPAN
+        '1100.01' => BalanceSheetSection::CURRENT_ASSET,       // BANK BCA SMD 1312
+        '1100.02' => BalanceSheetSection::CURRENT_ASSET,       // BANK OCBC NISP 8466
+        '1100.03' => BalanceSheetSection::CURRENT_ASSET,       // BANK OCBC NISP 3383
+        '1100.04' => BalanceSheetSection::CURRENT_ASSET,       // BANK MANDIRI 5840
+        '1100.05' => BalanceSheetSection::CURRENT_ASSET,       // BANK BCA BTG 8000
+        '1100.06' => BalanceSheetSection::CURRENT_ASSET,       // BANK OCBC NISP 6684
 
         // Receivables (non-trade), advances, and prepaid tax. 112.02/.03/.04 are the renamed
         // 1260/1225/1201 (see 2026_10_09_000002_restructure_piutang_accounts_into_hierarchy) —
@@ -64,15 +67,11 @@ class BalanceSheetMappingSeeder extends Seeder
         '112.02' => BalanceSheetSection::CURRENT_ASSET,        // Piutang Karyawan
         '112.03' => BalanceSheetSection::CURRENT_ASSET,        // Piutang Lain-lain
         '112.04' => BalanceSheetSection::CURRENT_ASSET,        // Cadangan Piutang
+        // 2026_10_24_000002_cleanup_uang_muka_duplicate_accounts: 1250 stays flat and
+        // directly postable (hardcoded in PaymentEntry's journal lines) — its dead
+        // per-vendor sub-ledger (113.01.01/.02, 1251, 1252) and the dead tax-advance
+        // twins of 140.01-04 (113.02.01-04) are gone.
         '1250' => BalanceSheetSection::CURRENT_ASSET,          // Advance to Suppliers
-        '113.01.01' => BalanceSheetSection::CURRENT_ASSET,     // UMP/PT CONCH
-        '113.01.02' => BalanceSheetSection::CURRENT_ASSET,     // UMP/KENDARAAN
-        '1251' => BalanceSheetSection::CURRENT_ASSET,          // UMP/PT CONCH
-        '1252' => BalanceSheetSection::CURRENT_ASSET,          // UMP/KENDARAAN
-        '113.02.01' => BalanceSheetSection::CURRENT_ASSET,     // PPN MASUKAN
-        '113.02.02' => BalanceSheetSection::CURRENT_ASSET,     // PPH PASAL 25
-        '113.02.03' => BalanceSheetSection::CURRENT_ASSET,     // PPH PASAL 23
-        '113.02.04' => BalanceSheetSection::CURRENT_ASSET,     // PPH PASAL 22
         '1400' => BalanceSheetSection::CURRENT_ASSET,          // UANG MUKA PAJAK
         '1401' => BalanceSheetSection::CURRENT_ASSET,          // PPN MASUKAN
         '1402' => BalanceSheetSection::CURRENT_ASSET,          // PPH PASAL 22
@@ -90,16 +89,14 @@ class BalanceSheetMappingSeeder extends Seeder
         // without touching chart_of_accounts.
         '2501' => BalanceSheetSection::CURRENT_ASSET,          // HLL/JUDI JOHANES — functions as a receivable
 
-        // Fixed assets and their accumulated-depreciation contras.
-        '121.03.01' => BalanceSheetSection::NON_CURRENT_ASSET,     // KENDARAAN RODA 2 & 4
-        '121.03.02' => BalanceSheetSection::NON_CURRENT_ASSET,     // AKUM. PENYUSUTAN KENDARAAN RODA 2 & 4
-        '121.04.01' => BalanceSheetSection::NON_CURRENT_ASSET,     // INVENTARIS KANTOR
-        '121.04.02' => BalanceSheetSection::NON_CURRENT_ASSET,     // AKUM. PENYUSUTAN INVENTARIS
+        // Fixed assets and their accumulated-depreciation contras. 1500 is now a
+        // non-postable parent (2026_10_24_000001); its legacy-dotted duplicate twins
+        // (121.03.01/.02, 121.04.01/.02) are gone.
         '1500' => BalanceSheetSection::NON_CURRENT_ASSET,          // AKTIVA TETAP
-        '1501' => BalanceSheetSection::NON_CURRENT_ASSET,          // INVENTARIS KANTOR
-        '1502' => BalanceSheetSection::NON_CURRENT_ASSET,          // AKUM. PENYUSUTAN INVENTARIS
-        '1503' => BalanceSheetSection::NON_CURRENT_ASSET,          // KENDARAAN RODA 2 & 4
-        '1504' => BalanceSheetSection::NON_CURRENT_ASSET,          // AKUM. PENYUSUTAN KENDARAAN RODA 2 & 4
+        '1500.01' => BalanceSheetSection::NON_CURRENT_ASSET,       // INVENTARIS KANTOR
+        '1500.02' => BalanceSheetSection::NON_CURRENT_ASSET,       // AKUM. PENYUSUTAN INVENTARIS
+        '1500.03' => BalanceSheetSection::NON_CURRENT_ASSET,       // KENDARAAN RODA 2 & 4
+        '1500.04' => BalanceSheetSection::NON_CURRENT_ASSET,       // AKUM. PENYUSUTAN KENDARAAN RODA 2 & 4
 
         // Hutang (210.xx) and Hutang Pajak (213.xx) — see
         // 2026_10_09_000004_restructure_hutang_accounts_into_hierarchy. Hutang kpd Direksi
