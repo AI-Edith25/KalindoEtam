@@ -125,7 +125,7 @@ class ChartOfAccountHierarchyTest extends TestCase
         $response->assertJsonValidationErrors('parent_id');
     }
 
-    public function test_update_rejects_assigning_a_parent_to_an_account_that_already_has_posted_journal_lines(): void
+    public function test_update_allows_assigning_a_parent_to_an_account_that_already_has_posted_journal_lines(): void
     {
         $account = ChartOfAccount::query()->create(['code' => '900', 'name' => 'Detail Account', 'account_type' => 'asset']);
         $otherAccount = ChartOfAccount::query()->create(['code' => '901', 'name' => 'Other Account', 'account_type' => 'asset']);
@@ -143,8 +143,8 @@ class ChartOfAccountHierarchyTest extends TestCase
 
         $response = $this->putJson("/api/v1/chart-of-accounts/{$account->id}", ['parent_id' => $newParent->id]);
 
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors('parent_id');
+        $response->assertOk();
+        $this->assertSame($newParent->id, $account->fresh()->parent_id);
     }
 
     public function test_create_rejects_a_parent_that_already_has_posted_journal_lines(): void

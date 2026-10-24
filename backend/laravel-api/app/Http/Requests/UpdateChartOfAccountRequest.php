@@ -70,17 +70,13 @@ class UpdateChartOfAccountRequest extends FormRequest
                     // genuine first-time promotion.
                     if ($parent !== null && $parent->journalEntryLines()->exists()) {
                         $fail("The selected parent account (\"{$parent->code} - {$parent->name}\") already has posted Journal Entry lines and cannot become a header/parent account.");
-
-                        return;
                     }
 
-                    // Only a genuine re-parent (the account didn't already sit under this exact
-                    // parent) is blocked — an unchanged parent_id on an untouched save is a no-op,
-                    // not a "naik status" that could orphan already-posted transactions into an
-                    // ambiguous direct-vs-rollup balance.
-                    if ($account !== null && $value !== $account->parent_id && $account->journalEntryLines()->exists()) {
-                        $fail('This account already has posted Journal Entry lines and cannot be assigned a parent — move or reverse those transactions first.');
-                    }
+                    // No check on $account's own posted Journal Entry lines: giving a plain
+                    // detail account a parent doesn't make IT a header (that only happens if
+                    // $account itself later gains children — covered by the check above, from
+                    // the other side, at that point) — it just moves this leaf's rollup position
+                    // in reports. Balance and postability are untouched.
                 },
             ],
         ];
