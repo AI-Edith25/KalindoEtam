@@ -7,6 +7,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\NamingSeries;
 use App\Models\Permission;
+use App\Models\ReportAccountMapping;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -86,5 +87,28 @@ class ChartOfAccountDeleteTest extends TestCase
 
         $response->assertStatus(422);
         $this->assertDatabaseHas('chart_of_accounts', ['id' => $account->id]);
+    }
+
+    /**
+     * The exact production bug: every account also gets a report_account_mappings row
+     * (BalanceSheetMappingSeeder/CashFlowMappingSeeder, firstOrCreate keyed by
+     * chart_of_account_id) with no cascade on its FK — forceDelete() must clear that row
+     * too rather than bubbling up report_account_mappings_chart_of_account_id_foreign.
+     */
+    public function test_an_unused_account_with_a_report_mapping_is_still_hard_deleted(): void
+    {
+        $account = ChartOfAccount::query()->create(['code' => '9004', 'name' => 'Mapped Test Account', 'account_type' => 'asset']);
+        ReportAccountMapping::query()->create([
+            'chart_of_account_id' => $account->id,
+            'statement_type' => 'balance_sheet',
+            'section' => 'current_assets',
+            'display_order' => 1,
+        ]);
+
+        $response = $this->deleteJson("/api/v1/chart-of-accounts/{$account->id}");
+
+        $response->assertOk();
+        $this->assertDatabaseMissing('chart_of_accounts', ['id' => $account->id]);
+        $this->assertDatabaseMissing('report_account_mappings', ['chart_of_account_id' => $account->id]);
     }
 }

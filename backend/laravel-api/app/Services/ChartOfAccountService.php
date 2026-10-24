@@ -104,6 +104,10 @@ class ChartOfAccountService
      * journal_entry_lines_chart_of_account_id_foreign FK — forceDelete() would hit that FK
      * violation as a raw SQL error with no indication of why. Checking withTrashed() first
      * turns that into a clear, actionable message instead.
+     *
+     * report_account_mappings also FKs to this account (one row per account, purely
+     * declarative — re-created by BalanceSheetMappingSeeder/CashFlowMappingSeeder on every
+     * deploy reseed) and has no cascade, so it's removed here too before forceDelete().
      */
     public function delete(ChartOfAccount $chartOfAccount): void
     {
@@ -111,6 +115,7 @@ class ChartOfAccountService
             $label = "{$chartOfAccount->code} {$chartOfAccount->name}";
             $this->assertNeverUsed($chartOfAccount);
 
+            DB::table('report_account_mappings')->where('chart_of_account_id', $chartOfAccount->id)->delete();
             $chartOfAccount->forceDelete();
             $this->auditLogService->record('deleted', 'chart_of_account', "Deleted chart of account \"{$label}\".");
         });
