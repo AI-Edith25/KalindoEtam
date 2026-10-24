@@ -41,18 +41,21 @@ class CashFlowMappingSeeder extends Seeder
         '1002' => CashFlowSection::CASH_AND_EQUIVALENTS,
         '1004' => CashFlowSection::CASH_AND_EQUIVALENTS,
         '1005' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '101.01.01' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '101.01.03' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '101.03.01' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '101.03.02' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '102.01.05' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '102.01.06' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '102.01.07' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '102.02.01' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '1101' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '1103' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '1104' => CashFlowSection::CASH_AND_EQUIVALENTS,
-        '1106' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        // 2026_10_24_000001_restructure_kas_bank_and_aktiva_tetap_into_hierarchy: 1000/1100
+        // are now non-postable parents; dead duplicate twins (1004, 1005, 1103, 102.01.07)
+        // are gone.
+        '1000.01' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1000.02' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1000.03' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1000.04' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1000.05' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1000.06' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1100.01' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1100.02' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1100.03' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1100.04' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1100.05' => CashFlowSection::CASH_AND_EQUIVALENTS,
+        '1100.06' => CashFlowSection::CASH_AND_EQUIVALENTS,
 
         // 112.02/.03/.04 are the renamed 1260/1225/1201 (see
         // 2026_10_09_000002_restructure_piutang_accounts_into_hierarchy); Piutang Direksi
@@ -62,15 +65,10 @@ class CashFlowMappingSeeder extends Seeder
         '112.02' => CashFlowSection::OPERATING_ADJUSTMENT,
         '112.03' => CashFlowSection::OPERATING_ADJUSTMENT,
         '112.04' => CashFlowSection::OPERATING_ADJUSTMENT,
+        // 2026_10_24_000002_cleanup_uang_muka_duplicate_accounts: 1250 stays flat/postable
+        // (hardcoded in PaymentEntry); its dead per-vendor sub-ledger and the dead tax-advance
+        // twins of 140.01-04 are gone.
         '1250' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '113.01.01' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '113.01.02' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '1251' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '1252' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '113.02.01' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '113.02.02' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '113.02.03' => CashFlowSection::OPERATING_ADJUSTMENT,
-        '113.02.04' => CashFlowSection::OPERATING_ADJUSTMENT,
         '1400' => CashFlowSection::OPERATING_ADJUSTMENT,
         '1401' => CashFlowSection::OPERATING_ADJUSTMENT,
         '1402' => CashFlowSection::OPERATING_ADJUSTMENT,
@@ -81,15 +79,13 @@ class CashFlowMappingSeeder extends Seeder
         // BalanceSheetMappingSeeder for the full explanation.
         '2501' => CashFlowSection::OPERATING_ADJUSTMENT,
 
-        '121.03.01' => CashFlowSection::INVESTING_ACTIVITY,
-        '121.03.02' => CashFlowSection::INVESTING_ACTIVITY,
-        '121.04.01' => CashFlowSection::INVESTING_ACTIVITY,
-        '121.04.02' => CashFlowSection::INVESTING_ACTIVITY,
+        // 1500 is now a non-postable parent (2026_10_24_000001); legacy-dotted duplicate
+        // twins (121.03.01/.02, 121.04.01/.02) are gone.
         '1500' => CashFlowSection::INVESTING_ACTIVITY,
-        '1501' => CashFlowSection::INVESTING_ACTIVITY,
-        '1502' => CashFlowSection::INVESTING_ACTIVITY,
-        '1503' => CashFlowSection::INVESTING_ACTIVITY,
-        '1504' => CashFlowSection::INVESTING_ACTIVITY,
+        '1500.01' => CashFlowSection::INVESTING_ACTIVITY,
+        '1500.02' => CashFlowSection::INVESTING_ACTIVITY,
+        '1500.03' => CashFlowSection::INVESTING_ACTIVITY,
+        '1500.04' => CashFlowSection::INVESTING_ACTIVITY,
 
         // Hutang (210.xx) and Hutang Pajak (213.xx) — see
         // 2026_10_09_000004_restructure_hutang_accounts_into_hierarchy. Hutang kpd Direksi and
