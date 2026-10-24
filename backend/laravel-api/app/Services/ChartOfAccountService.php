@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\ChartOfAccount;
+use App\Models\JournalEntryLine;
 use App\Repositories\ChartOfAccountRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -70,11 +72,26 @@ class ChartOfAccountService
         });
     }
 
+    /**
+     * Hard delete, not soft — a deleted account is gone for good, no restore-by-code-reuse
+     * path (see create()'s trashed-row branch, which now only ever fires for rows soft-
+     * deleted before this change). withTrashed() on the usage check is deliberate: a plain
+     * `journalEntryLines()->exists()` only sees non-deleted JournalEntryLine rows, but a
+     * soft-deleted/voided line still physically exists and still holds the
+     * journal_entry_lines_chart_of_account_id_foreign FK — forceDelete() would hit that FK
+     * violation as a raw SQL error with no indication of why. Checking withTrashed() first
+     * turns that into a clear, actionable message instead.
+     */
     public function delete(ChartOfAccount $chartOfAccount): void
     {
         DB::transaction(function () use ($chartOfAccount) {
             $label = "{$chartOfAccount->code} {$chartOfAccount->name}";
-            $this->chartOfAccountRepository->delete($chartOfAccount);
+
+            if (JournalEntryLine::withTrashed()->where('chart_of_account_id', $chartOfAccount->id)->exists()) {
+                throw new BusinessException("Akun \"{$label}\" sudah pernah digunakan dalam Journal Entry dan tidak bisa dihapus. Nonaktifkan akun ini jika tidak ingin digunakan lagi.");
+            }
+
+            $chartOfAccount->forceDelete();
             $this->auditLogService->record('deleted', 'chart_of_account', "Deleted chart of account \"{$label}\".");
         });
     }
