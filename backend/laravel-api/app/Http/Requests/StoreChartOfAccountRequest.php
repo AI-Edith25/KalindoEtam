@@ -28,7 +28,9 @@ class StoreChartOfAccountRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
             'is_cash_bank' => ['sometimes', 'boolean'],
             'cash_bank_category' => ['nullable', Rule::enum(CashBankCategory::class)],
-            // Two levels only: the chosen parent must not itself be a child of something else.
+            // Arbitrary depth is allowed — the chosen parent may itself be a child of
+            // something else (a brand-new account can never be its own ancestor, so no cycle
+            // check is needed here; see UpdateChartOfAccountRequest for that).
             'parent_id' => [
                 'nullable',
                 'uuid',
@@ -39,12 +41,6 @@ class StoreChartOfAccountRequest extends FormRequest
                     }
 
                     $parent = ChartOfAccount::query()->find($value);
-
-                    if ($parent?->parent_id !== null) {
-                        $fail('The selected parent account is itself a child account — only two levels are supported.');
-
-                        return;
-                    }
 
                     if ($parent !== null && $this->input('account_type') !== null && $parent->account_type->value !== $this->input('account_type')) {
                         $fail("The selected parent account is a {$parent->account_type->value} account and cannot have a child of a different account type.");

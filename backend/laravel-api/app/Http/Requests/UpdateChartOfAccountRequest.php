@@ -29,8 +29,9 @@ class UpdateChartOfAccountRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
             'is_cash_bank' => ['sometimes', 'boolean'],
             'cash_bank_category' => ['nullable', Rule::enum(CashBankCategory::class)],
-            // Two levels only: can't set a parent on an account that already has children of its
-            // own, and the chosen parent must not itself be a child of something else.
+            // Arbitrary depth is allowed — an account may both have a parent and have children
+            // of its own. The one thing still forbidden is a cycle (an account becoming its own
+            // ancestor), checked by walking up the candidate parent's own parent chain.
             'parent_id' => [
                 'nullable',
                 'uuid',
@@ -44,16 +45,14 @@ class UpdateChartOfAccountRequest extends FormRequest
                     $account = $this->route('chart_of_account');
                     $parent = ChartOfAccount::query()->find($value);
 
-                    if ($parent?->parent_id !== null) {
-                        $fail('The selected parent account is itself a child account — only two levels are supported.');
+                    $ancestor = $parent;
+                    while ($ancestor !== null) {
+                        if ($ancestor->id === $account?->id) {
+                            $fail('The selected parent account is a descendant of this account — that would create a circular hierarchy.');
 
-                        return;
-                    }
-
-                    if ($account?->children()->exists()) {
-                        $fail('This account already has child accounts of its own and cannot also become a child account.');
-
-                        return;
+                            return;
+                        }
+                        $ancestor = $ancestor->parent_id ? ChartOfAccount::query()->find($ancestor->parent_id) : null;
                     }
 
                     $newAccountType = $this->input('account_type') ?? $account?->account_type->value;

@@ -11,10 +11,11 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Two-level parent/child COA hierarchy (2026-10-09, see project memory
- * project_erp_coa_subaccount_backlog). Covers both the generic parent_id feature and the
- * specific Piutang restructure (2026_10_09_000002_restructure_piutang_accounts_into_hierarchy)
- * that uses it.
+ * Arbitrary-depth parent/child COA hierarchy (2026-10-09, extended to unlimited depth
+ * 2026-10-24 per explicit request — the legacy SkyBiz chart nested same-named-but-
+ * differently-coded accounts deeper than 2 levels). Covers the generic parent_id feature,
+ * its cycle guard, and the specific Piutang restructure
+ * (2026_10_09_000002_restructure_piutang_accounts_into_hierarchy) that uses it.
  */
 class ChartOfAccountHierarchyTest extends TestCase
 {
@@ -47,7 +48,7 @@ class ChartOfAccountHierarchyTest extends TestCase
         $this->assertSame('900', $response->json('data.parent.code'));
     }
 
-    public function test_three_level_nesting_is_rejected_choosing_a_child_as_parent(): void
+    public function test_three_level_nesting_is_allowed_choosing_a_child_as_parent(): void
     {
         $grandparent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'GROUP', 'account_type' => 'asset']);
         $parent = ChartOfAccount::query()->create(['code' => '900.01', 'name' => 'Child', 'account_type' => 'asset', 'parent_id' => $grandparent->id]);
@@ -59,20 +60,21 @@ class ChartOfAccountHierarchyTest extends TestCase
             'parent_id' => $parent->id,
         ]);
 
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors('parent_id');
+        $response->assertCreated();
+        $this->assertSame($parent->id, $response->json('data.parent_id'));
     }
 
-    public function test_an_account_with_children_cannot_itself_become_a_child(): void
+    public function test_an_account_with_children_can_itself_become_a_child(): void
     {
         $parent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'GROUP', 'account_type' => 'asset']);
-        ChartOfAccount::query()->create(['code' => '900.01', 'name' => 'Child', 'account_type' => 'asset', 'parent_id' => $parent->id]);
+        $middle = ChartOfAccount::query()->create(['code' => '900.01', 'name' => 'Child', 'account_type' => 'asset', 'parent_id' => $parent->id]);
         $otherParent = ChartOfAccount::query()->create(['code' => '950', 'name' => 'OTHER GROUP', 'account_type' => 'asset']);
 
         $response = $this->putJson("/api/v1/chart-of-accounts/{$parent->id}", ['parent_id' => $otherParent->id]);
 
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors('parent_id');
+        $response->assertOk();
+        $this->assertSame($otherParent->id, $parent->fresh()->parent_id);
+        $this->assertSame($parent->id, $middle->fresh()->parent_id); // $middle's own parent_id is untouched
     }
 
     public function test_an_account_cannot_be_its_own_parent(): void
@@ -80,6 +82,18 @@ class ChartOfAccountHierarchyTest extends TestCase
         $account = ChartOfAccount::query()->create(['code' => '900', 'name' => 'GROUP', 'account_type' => 'asset']);
 
         $response = $this->putJson("/api/v1/chart-of-accounts/{$account->id}", ['parent_id' => $account->id]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_an_account_cannot_be_assigned_one_of_its_own_descendants_as_parent(): void
+    {
+        $grandparent = ChartOfAccount::query()->create(['code' => '900', 'name' => 'GROUP', 'account_type' => 'asset']);
+        $parent = ChartOfAccount::query()->create(['code' => '900.01', 'name' => 'Child', 'account_type' => 'asset', 'parent_id' => $grandparent->id]);
+        $grandchild = ChartOfAccount::query()->create(['code' => '900.01.01', 'name' => 'Grandchild', 'account_type' => 'asset', 'parent_id' => $parent->id]);
+
+        $response = $this->putJson("/api/v1/chart-of-accounts/{$grandparent->id}", ['parent_id' => $grandchild->id]);
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors('parent_id');

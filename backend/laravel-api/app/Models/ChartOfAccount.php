@@ -50,7 +50,7 @@ class ChartOfAccount extends Model
         return $this->belongsTo(self::class, 'parent_id');
     }
 
-    /** Two levels only — a child's own children() is never populated (see Store/UpdateChartOfAccountRequest). */
+    /** Arbitrary depth — a child can itself be a parent (see Store/UpdateChartOfAccountRequest's cycle check). */
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');

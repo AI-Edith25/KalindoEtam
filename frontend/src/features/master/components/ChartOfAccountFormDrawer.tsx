@@ -86,12 +86,20 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
     )
   }, [open, chartOfAccount, form])
 
-  // Two levels only: an account already carrying children can't also become a child (enforced
-  // again server-side by UpdateChartOfAccountRequest) — hide the field rather than let the user
-  // pick something the save will just reject.
-  const canHaveParent = !chartOfAccount || !chartOfAccount.children_count
+  // Arbitrary depth is allowed — an account may both have a parent and have children of its
+  // own (enforced server-side by UpdateChartOfAccountRequest). The only thing excluded here is
+  // the account itself and its own descendants, which would create a circular hierarchy —
+  // walked client-side the same way the backend does, over this small (dozens-at-most) list.
+  const isDescendantOf = (candidateId: string, ancestorId: string): boolean => {
+    let current = (accounts.data ?? []).find((account) => account.id === candidateId)
+    while (current?.parent_id) {
+      if (current.parent_id === ancestorId) return true
+      current = (accounts.data ?? []).find((account) => account.id === current!.parent_id)
+    }
+    return false
+  }
   const parentOptions = (accounts.data ?? [])
-    .filter((account) => account.id !== chartOfAccount?.id && !account.parent_id)
+    .filter((account) => account.id !== chartOfAccount?.id && !(chartOfAccount && isDescendantOf(account.id, chartOfAccount.id)))
     .map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` }))
 
   const mutation = useMutation({
@@ -170,27 +178,25 @@ export function ChartOfAccountFormDrawer({ open, onOpenChange, chartOfAccount }:
                   </FormItem>
                 )}
               />
-              {canHaveParent && (
-                <FormField
-                  control={form.control}
-                  name="parent_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Parent Account</FormLabel>
-                      <SearchableSelect
-                        options={[{ value: NO_PARENT, label: 'No parent — top-level account' }, ...parentOptions]}
-                        value={field.value ?? NO_PARENT}
-                        onChange={(value) => field.onChange(!value || value === NO_PARENT ? null : value)}
-                        loading={accounts.isLoading}
-                        clearable={false}
-                        placeholder="No parent — top-level account"
-                        aria-label="Parent Account"
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              <FormField
+                control={form.control}
+                name="parent_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Parent Account</FormLabel>
+                    <SearchableSelect
+                      options={[{ value: NO_PARENT, label: 'No parent — top-level account' }, ...parentOptions]}
+                      value={field.value ?? NO_PARENT}
+                      onChange={(value) => field.onChange(!value || value === NO_PARENT ? null : value)}
+                      loading={accounts.isLoading}
+                      clearable={false}
+                      placeholder="No parent — top-level account"
+                      aria-label="Parent Account"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="is_active"
